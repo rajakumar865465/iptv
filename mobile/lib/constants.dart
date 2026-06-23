@@ -1,6 +1,6 @@
 class AppConstants {
   static const String appName = 'IPTV Live TV';
-  static const String baseUrl = 'http://192.168.1.100:5000'; // Change to your server IP
+  static const String baseUrl = 'https://iptv-6vbq.onrender.com';
   static const String apiVersion = 'v1';
   static const int connectTimeout = 30000;
   static const int receiveTimeout = 30000;
