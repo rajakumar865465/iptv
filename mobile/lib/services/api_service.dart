@@ -1,0 +1,60 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../constants.dart';
+
+class ApiService {
+  late Dio _dio;
+
+  ApiService() {
+    _dio = Dio(BaseOptions(
+      baseUrl: AppConstants.baseUrl,
+      connectTimeout: const Duration(milliseconds: AppConstants.connectTimeout),
+      receiveTimeout: const Duration(milliseconds: AppConstants.receiveTimeout),
+      headers: {'Content-Type': 'application/json'},
+    ));
+
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        final prefs = await SharedPreferences.getInstance();
+        final token = prefs.getString(StorageKeys.token);
+        if (token != null) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        return handler.next(options);
+      },
+      onError: (error, handler) {
+        if (error.response?.statusCode == 401) {
+          _clearToken();
+        }
+        return handler.next(error);
+      },
+    ));
+  }
+
+  Future<void> _clearToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(StorageKeys.token);
+  }
+
+  Future<Map<String, dynamic>> get(String path, {Map<String, dynamic>? queryParameters}) async {
+    final response = await _dio.get(path, queryParameters: queryParameters);
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> post(String path, dynamic data) async {
+    final response = await _dio.post(path, data: data);
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> put(String path, dynamic data) async {
+    final response = await _dio.put(path, data: data);
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> delete(String path) async {
+    final response = await _dio.delete(path);
+    return response.data;
+  }
+}
