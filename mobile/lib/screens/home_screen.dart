@@ -98,6 +98,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                 ],
               ),
             ),
+          ),
             SliverToBoxAdapter(child: _buildSearchBar()),
             SliverToBoxAdapter(child: _buildSectionTitle('Featured Channels')),
             BlocBuilder<ChannelCubit, ChannelState>(

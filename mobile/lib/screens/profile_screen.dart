@@ -111,7 +111,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Row(
               children: [
                 Icon(
-                  isActive ? Icons.verified : Icons.dismiss,
+                  isActive ? Icons.verified : Icons.cancel,
                   color: Colors.white,
                 ),
                 const SizedBox(width: 8),

@@ -29,8 +29,8 @@ exports.signup = async (req, res) => {
 
     success(res, { user, token }, 'Account created successfully', 201);
   } catch (err) {
-    console.error('Signup error:', err);
-    error(res, 'Failed to create account', 500);
+    console.error('Signup error:', err.message, err.stack);
+    error(res, process.env.NODE_ENV === 'development' ? err.message : 'Failed to create account', 500);
   }
 };
 

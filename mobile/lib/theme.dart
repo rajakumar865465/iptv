@@ -24,7 +24,7 @@ class AppTheme {
         bodyMedium: TextStyle(fontSize: 14, color: Color(AppColors.textSecondary)),
         labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: Color(AppColors.surface),
         elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -59,7 +59,7 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: Color(AppColors.primary),
           foregroundColor: Colors.white,
-          minimumSize: Size(double.infinity, 52),
+          minimumSize: const Size(88, 52),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           elevation: 2,

@@ -78,9 +78,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
-        onTap: {
+        onTap: () {
           setState(() => _showControls = !_showControls);
-        } as void Function(),
+        },
         child: Stack(
           children: [
             // Video Player

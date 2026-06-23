@@ -3,7 +3,7 @@ const path = require('path');
 const { pool } = require('../src/config/db');
 
 async function runMigrations() {
-  const migrationFile = path.join(__dirname, '..', 'migrations', '001_init.sql');
+  const migrationFile = path.join(__dirname, '..', 'migrations', '001_initial_schema.sql');
   const sql = fs.readFileSync(migrationFile, 'utf8');
 
   try {
@@ -11,7 +11,7 @@ async function runMigrations() {
     console.log('Migrations completed successfully');
   } catch (err) {
     console.error('Migration failed:', err.message);
-    process.exit(1);
+    throw err;
   } finally {
     await pool.end();
   }

@@ -6,6 +6,7 @@ require('dotenv').config();
 
 const errorHandler = require('./middleware/errorHandler');
 const { standardLimiter } = require('./middleware/rateLimit');
+const db = require('./config/db');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -26,10 +27,39 @@ app.use(express.urlencoded({ extended: true }));
 app.use(morgan('combined'));
 app.use(standardLimiter);
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check with DB status
+app.get('/health', async (req, res) => {
+  let dbStatus = 'unknown';
+  try {
+    const result = await db.query('SELECT NOW()');
+    dbStatus = result.rows ? 'connected' : 'error';
+  } catch (err) {
+    dbStatus = 'error: ' + err.message;
+  }
+  res.json({ status: 'ok', db: dbStatus, timestamp: new Date().toISOString() });
 });
+
+// Initialize database tables on startup
+async function initDatabase() {
+  try {
+    // Check if users table exists
+    const checkResult = await db.query(
+      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')"
+    );
+    if (!checkResult.rows[0].exists) {
+      console.log('Database tables not found, running initialization...');
+      const fs = require('fs');
+      const path = require('path');
+      const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '001_initial_schema.sql'), 'utf8');
+      await db.query(sql);
+      console.log('Database initialized successfully');
+    } else {
+      console.log('Database tables already exist');
+    }
+  } catch (err) {
+    console.error('Database initialization error:', err.message);
+  }
+}
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -49,8 +79,12 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+
+// Start server after DB init
+initDatabase().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 });
 
 module.exports = app;
