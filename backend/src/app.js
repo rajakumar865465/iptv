@@ -16,6 +16,7 @@ const channelRoutes = require('./routes/channels');
 const userRoutes = require('./routes/users');
 const paymentRoutes = require('./routes/payments');
 const adminRoutes = require('./routes/admin');
+const channelController = require('./controllers/channelController');
 
 const app = express();
 
@@ -42,19 +43,35 @@ app.get('/health', async (req, res) => {
 // Initialize database tables on startup
 async function initDatabase() {
   try {
+    const fs = require('fs');
+    const path = require('path');
+
     // Check if users table exists
     const checkResult = await db.query(
       "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')"
     );
     if (!checkResult.rows[0].exists) {
       console.log('Database tables not found, running initialization...');
-      const fs = require('fs');
-      const path = require('path');
       const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '001_initial_schema.sql'), 'utf8');
       await db.query(sql);
       console.log('Database initialized successfully');
     } else {
       console.log('Database tables already exist');
+    }
+
+    // Run additional migration files in order
+    const migrationsDir = path.join(__dirname, '..', 'migrations');
+    const files = fs.readdirSync(migrationsDir).sort();
+    for (const file of files) {
+      if (file <= '001_initial_schema.sql') continue;
+      const filePath = path.join(migrationsDir, file);
+      const sql = fs.readFileSync(filePath, 'utf8');
+      try {
+        await db.query(sql);
+        console.log(`Migration applied: ${file}`);
+      } catch (migErr) {
+        console.error(`Migration error in ${file}:`, migErr.message);
+      }
     }
   } catch (err) {
     console.error('Database initialization error:', err.message);
@@ -69,6 +86,9 @@ app.use('/api/channels', channelRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/internal', adminRoutes);
+
+// Direct alias for categories
+app.get('/api/categories', standardLimiter, channelController.getCategories);
 
 // 404 handler
 app.use((req, res) => {

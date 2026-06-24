@@ -12,6 +12,9 @@ class ChannelModel {
   final bool isFeatured;
   final bool isPremium;
   final int sortOrder;
+  final String? referrer;
+  final String? userAgent;
+  final String? country;
 
   ChannelModel({
     required this.id,
@@ -27,6 +30,9 @@ class ChannelModel {
     this.isFeatured = false,
     this.isPremium = false,
     this.sortOrder = 0,
+    this.referrer,
+    this.userAgent,
+    this.country,
   });
 
   factory ChannelModel.fromJson(Map<String, dynamic> json) {
@@ -34,16 +40,19 @@ class ChannelModel {
       id: json['id'],
       name: json['name'],
       logoUrl: json['logo_url'],
-      streamUrl: json['stream_url'],
+      streamUrl: json['stream_url'] ?? '',
       backupStreamUrl: json['backup_stream_url'],
       categoryId: json['category_id'],
       categoryName: json['category_name'],
       language: json['language'],
       quality: json['quality'],
-      status: json['status'],
+      status: json['status'] ?? 'active',
       isFeatured: json['is_featured'] ?? false,
       isPremium: json['is_premium'] ?? false,
       sortOrder: json['sort_order'] ?? 0,
+      referrer: json['referrer'],
+      userAgent: json['user_agent'],
+      country: json['country'],
     );
   }
 }
@@ -68,7 +77,7 @@ class CategoryModel {
       id: json['id'],
       name: json['name'],
       iconUrl: json['icon_url'],
-      status: json['status'],
+      status: json['status'] ?? 'active',
       sortOrder: json['sort_order'] ?? 0,
     );
   }

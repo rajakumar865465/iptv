@@ -6,8 +6,15 @@ import '../models/channel_model.dart';
 
 class PlayerScreen extends StatefulWidget {
   final ChannelModel channel;
+  final List<ChannelModel>? channels;
+  final int? initialIndex;
 
-  const PlayerScreen({super.key, required this.channel});
+  const PlayerScreen({
+    super.key,
+    required this.channel,
+    this.channels,
+    this.initialIndex,
+  });
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -19,16 +26,53 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _hasError = false;
   bool _isFullScreen = false;
   bool _showControls = true;
+  String _currentUrl = '';
+  late int _currentIndex;
+  late List<ChannelModel> _channelList;
 
   @override
   void initState() {
     super.initState();
-    _initializePlayer();
+    // Initialize channel list and index
+    _channelList = widget.channels ?? [widget.channel];
+    _currentIndex = widget.initialIndex ??
+        _channelList.indexWhere((c) => c.id == widget.channel.id);
+    if (_currentIndex < 0) _currentIndex = 0;
+
+    _currentUrl = widget.channel.streamUrl;
+    _initializePlayer(_currentUrl);
   }
 
-  Future<void> _initializePlayer() async {
+  Future<void> _initializePlayer(String url) async {
+    if (_controller != null) {
+      await _controller!.dispose();
+      _controller = null;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+    });
+
     try {
-      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.channel.streamUrl));
+      // Build HTTP headers for stream
+      final Map<String, String> headers = {};
+      if (_currentChannel.referrer != null && _currentChannel.referrer!.isNotEmpty) {
+        headers['Referer'] = _currentChannel.referrer!;
+      }
+      if (_currentChannel.userAgent != null && _currentChannel.userAgent!.isNotEmpty) {
+        headers['User-Agent'] = _currentChannel.userAgent!;
+      }
+
+      if (headers.isNotEmpty) {
+        _controller = VideoPlayerController.networkUrl(
+          Uri.parse(url),
+          httpHeaders: headers,
+        );
+      } else {
+        _controller = VideoPlayerController.networkUrl(Uri.parse(url));
+      }
+
       await _controller!.initialize();
       await _controller!.play();
       if (mounted) {
@@ -38,6 +82,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
         });
       }
     } catch (e) {
+      // If main stream fails and we haven't tried backup yet
+      if (url == _currentChannel.streamUrl &&
+          _currentChannel.backupStreamUrl != null &&
+          _currentChannel.backupStreamUrl!.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _currentUrl = _currentChannel.backupStreamUrl!;
+          });
+        }
+        await _initializePlayer(_currentChannel.backupStreamUrl!);
+        return;
+      }
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -46,6 +103,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
     }
   }
+
+  ChannelModel get _currentChannel => _channelList[_currentIndex];
 
   @override
   void dispose() {
@@ -71,6 +130,36 @@ class _PlayerScreenState extends State<PlayerScreen> {
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       }
     });
+  }
+
+  void _retry() {
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+    });
+    _initializePlayer(_currentUrl);
+  }
+
+  void _playNextChannel() {
+    if (_channelList.length < 2) return;
+    if (_currentIndex >= _channelList.length - 1) {
+      setState(() => _currentIndex = 0);
+    } else {
+      setState(() => _currentIndex++);
+    }
+    _currentUrl = _currentChannel.streamUrl;
+    _initializePlayer(_currentUrl);
+  }
+
+  void _playPreviousChannel() {
+    if (_channelList.length < 2) return;
+    if (_currentIndex <= 0) {
+      setState(() => _currentIndex = _channelList.length - 1);
+    } else {
+      setState(() => _currentIndex--);
+    }
+    _currentUrl = _currentChannel.streamUrl;
+    _initializePlayer(_currentUrl);
   }
 
   @override
@@ -120,13 +209,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _isLoading = true;
-                          _hasError = false;
-                        });
-                        _initializePlayer();
-                      },
+                      onPressed: _retry,
                       child: const Text('Retry'),
                     ),
                   ],
@@ -158,15 +241,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           onPressed: () => Navigator.of(context).pop(),
                         ),
                         title: Text(
-                          widget.channel.name,
+                          _currentChannel.name,
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                         ),
-                        subtitle: widget.channel.categoryName != null
-                            ? Text(widget.channel.categoryName!, style: const TextStyle(color: Colors.white70))
+                        subtitle: _currentChannel.categoryName != null
+                            ? Text(_currentChannel.categoryName!, style: const TextStyle(color: Colors.white70))
                             : null,
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            if (_channelList.length > 1)
+                              Text(
+                                '${_currentIndex + 1}/${_channelList.length}',
+                                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                              ),
                             IconButton(
                               icon: const Icon(Icons.fullscreen, color: Colors.white),
                               onPressed: _toggleFullScreen,
@@ -185,7 +273,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           children: [
                             IconButton(
                               icon: const Icon(Icons.skip_previous, color: Colors.white, size: 36),
-                              onPressed: () {},
+                              onPressed: _playPreviousChannel,
                             ),
                             const SizedBox(width: 24),
                             IconButton(
@@ -205,7 +293,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             const SizedBox(width: 24),
                             IconButton(
                               icon: const Icon(Icons.skip_next, color: Colors.white, size: 36),
-                              onPressed: () {},
+                              onPressed: _playNextChannel,
                             ),
                           ],
                         ),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,9 +23,25 @@ class ApiService {
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
+        // Debug log the final API URL
+        developer.log(
+          '[API Request] ${options.method} ${options.baseUrl}${options.path} | Query: ${options.queryParameters}',
+          name: 'ApiService',
+        );
         return handler.next(options);
       },
+      onResponse: (response, handler) {
+        developer.log(
+          '[API Response] ${response.statusCode} ${response.requestOptions.path}',
+          name: 'ApiService',
+        );
+        return handler.next(response);
+      },
       onError: (error, handler) {
+        developer.log(
+          '[API Error] ${error.response?.statusCode} ${error.requestOptions.path} | ${error.message}',
+          name: 'ApiService',
+        );
         if (error.response?.statusCode == 401) {
           _clearToken();
         }
@@ -58,3 +75,4 @@ class ApiService {
     return response.data;
   }
 }
+

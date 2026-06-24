@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../cubits/app_config_cubit.dart';
 import '../cubits/auth_cubit.dart';
 import '../cubits/license_cubit.dart';
+import '../cubits/channel_cubit.dart';
 import '../constants.dart';
 import '../services/storage_service.dart';
 import 'blocked_screen.dart';
@@ -67,26 +68,72 @@ class _SplashScreenState extends State<SplashScreen> {
       }
     }
 
-    // Check auth state
+    // Check auth state and validate user on backend
     final token = await StorageService().getToken();
     if (token != null && mounted) {
-      // User logged in, check license
-      await context.read<LicenseCubit>().checkStatus();
-      if (!mounted) return;
+      // Validate token and get fresh user/me data
+      try {
+        final authCubit = context.read<AuthCubit>();
+        authCubit.setToken(token); // Ensure token is set on auth service
 
-      final licenseState = context.read<LicenseCubit>().state;
-      if (licenseState is LicenseActive) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
-      } else if (licenseState is LicenseExpired || licenseState is LicenseNone) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),
-        );
-      } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-        );
+        // Verify token is still valid by calling /me
+        final meResult = await authCubit.me();
+        if (meResult == null) {
+          // Token invalid - clear and go to login
+          await StorageService().clearAll();
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+            );
+          }
+          return;
+        }
+
+        // Check user status
+        if (meResult['status'] == 'blocked') {
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const BlockedScreen()),
+            );
+          }
+          return;
+        }
+
+        // User valid, check license status
+        final licenseCubit = context.read<LicenseCubit>();
+        await licenseCubit.checkStatus();
+        if (!mounted) return;
+
+        final licenseState = context.read<LicenseCubit>().state;
+        if (licenseState is LicenseActive) {
+          await context.read<ChannelCubit>().loadChannels();
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+            );
+          }
+        } else if (licenseState is LicenseExpired ||
+                   licenseState is LicenseNone ||
+                   licenseState is LicenseError) {
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),
+            );
+          }
+        } else {
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+            );
+          }
+        }
+      } catch (e) {
+        // On error, fall back to login
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+          );
+        }
       }
     } else if (mounted) {
       // Not logged in

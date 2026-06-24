@@ -71,6 +71,19 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
+  void setToken(String token) {
+    _authService.setToken(token);
+  }
+
+  Future<Map<String, dynamic>?> me() async {
+    try {
+      final result = await _authService.me();
+      return result;
+    } catch (e) {
+      return null;
+    }
+  }
+
   Future<void> logout() async {
     await _authService.clearSession();
     await _storage.clearAll();

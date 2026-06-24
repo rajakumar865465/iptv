@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shimmer/shimmer.dart';
 import '../constants.dart';
 import '../cubits/channel_cubit.dart';
-import '../cubits/auth_cubit.dart';
+import '../cubits/license_cubit.dart';
 import '../models/channel_model.dart';
 import 'channel_list_screen.dart';
 import 'search_screen.dart';
@@ -21,7 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
-    HomeContentScreen(),
+    const HomeContentScreen(),
     const ChannelListScreen(),
     const SearchScreen(),
     const FavoritesScreen(),
@@ -36,6 +37,9 @@ class _HomeScreenState extends State<HomeScreen> {
         children: _pages,
       ),
       bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: const Color(AppColors.background),
+        selectedItemColor: const Color(AppColors.primary),
+        unselectedItemColor: const Color(AppColors.textSecondary),
         currentIndex: _selectedIndex,
         onTap: (index) => setState(() => _selectedIndex = index),
         items: const [
@@ -51,6 +55,8 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class HomeContentScreen extends StatefulWidget {
+  const HomeContentScreen({super.key});
+
   @override
   State<HomeContentScreen> createState() => _HomeContentScreenState();
 }
@@ -72,71 +78,14 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Good Evening,', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(AppColors.textSecondary))),
-                      const SizedBox(height: 4),
-                      Text('Welcome Back', style: Theme.of(context).textTheme.titleLarge),
-                    ]),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(AppColors.primary).withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(AppColors.primary)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle)),
-                        const SizedBox(width: 6),
-                        const Text('Premium', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                  ),
-                ],
+                child: _buildHeader(),
               ),
             ),
-          ),
-            SliverToBoxAdapter(child: _buildSearchBar()),
-            SliverToBoxAdapter(child: _buildSectionTitle('Featured Channels')),
-            BlocBuilder<ChannelCubit, ChannelState>(
-              builder: (context, state) {
-                if (state is ChannelLoading) {
-                  return const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()));
-                }
-                if (state is ChannelLoaded) {
-                  final featured = state.channels.where((c) => c.isFeatured).toList();
-                  return SliverToBoxAdapter(child: _buildFeaturedChannellist(featured));
-                }
-                return const SliverToBoxAdapter(child: SizedBox());
-              },
-            ),
-            SliverToBoxAdapter(child: _buildSectionTitle('Popular Channels')),
-            Builder(
-              builder: (context) {
-                final state = context.watch<ChannelCubit>().state;
-                if (state is ChannelLoaded) {
-                  return SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    sliver: SliverGrid(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        childAspectRatio: 0.8,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                      ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => _buildChannelCard(state.channels[index]),
-                        childCount: state.channels.length,
-                      ),
-                    ),
-                  );
-                }
-                return const SliverToBoxAdapter(child: SizedBox());
-              },
-            ),
+            SliverToBoxAdapter(child: _buildSearchBar(context)),
+            SliverToBoxAdapter(child: _buildSectionTitle('Featured Channels', onSeeAll: () {})),
+            SliverToBoxAdapter(child: _buildFeaturedSection()),
+            SliverToBoxAdapter(child: _buildSectionTitle('Popular Channels', onSeeAll: () {})),
+            SliverToBoxAdapter(child: _buildPopularSection()),
             const SliverToBoxAdapter(child: SizedBox(height: 80)),
           ],
         ),
@@ -144,48 +93,208 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     );
   }
 
-  Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: const Color(AppColors.surface),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Row(
+  Widget _buildHeader() {
+    return BlocBuilder<LicenseCubit, LicenseState>(
+      builder: (context, licenseState) {
+        final bool isPremium = licenseState is LicenseActive;
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(Icons.search, color: Color(AppColors.textSecondary)),
-            SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: 'Search channels...',
-                  border: InputBorder.none,
-                  hintStyle: TextStyle(color: Color(AppColors.textMuted)),
-                ),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Good Evening,', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(AppColors.textSecondary))),
+              const SizedBox(height: 4),
+              Text('Welcome Back', style: Theme.of(context).textTheme.titleLarge),
+            ]),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isPremium ? const Color(AppColors.primary).withOpacity(0.2) : const Color(AppColors.surface),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: isPremium ? const Color(AppColors.primary) : const Color(AppColors.textMuted)),
+              ),
+              child: Row(
+                children: [
+                  Container(width: 8, height: 8, decoration: BoxDecoration(color: isPremium ? Colors.red : Colors.grey, shape: BoxShape.circle)),
+                  const SizedBox(width: 6),
+                  Text(isPremium ? 'Premium' : 'Free', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ],
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSearchBar(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SearchScreen()));
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(AppColors.surface),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.search, color: Color(AppColors.textSecondary)),
+              const SizedBox(width: 12),
+              Text('Search channels...', style: TextStyle(color: const Color(AppColors.textMuted))),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(String title, {VoidCallback? onSeeAll}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-          TextButton(onPressed: () {}, child: const Text('See All')),
+          if (onSeeAll != null)
+            TextButton(onPressed: onSeeAll, child: const Text('See All')),
         ],
       ),
     );
   }
 
-  Widget _buildFeaturedChannellist(List<ChannelModel> channels) {
+  Widget _buildFeaturedSection() {
+    return BlocBuilder<ChannelCubit, ChannelState>(
+      builder: (context, state) {
+        if (state is ChannelLoading) {
+          return _buildFeaturedShimmer();
+        }
+        if (state is ChannelError) {
+          return _buildErrorWidget(state.message, () => context.read<ChannelCubit>().loadChannels());
+        }
+        if (state is ChannelLoaded) {
+          final featured = state.channels.where((c) => c.isFeatured).toList();
+          if (featured.isEmpty) {
+            return _buildEmptyWidget('No featured channels yet');
+          }
+          return _buildFeaturedChannelList(featured);
+        }
+        return const SizedBox();
+      },
+    );
+  }
+
+  Widget _buildPopularSection() {
+    return BlocBuilder<ChannelCubit, ChannelState>(
+      builder: (context, state) {
+        if (state is ChannelLoading) {
+          return _buildPopularShimmer();
+        }
+        if (state is ChannelError) {
+          return _buildErrorWidget(state.message, () => context.read<ChannelCubit>().loadChannels());
+        }
+        if (state is ChannelLoaded) {
+          if (state.channels.isEmpty) {
+            return _buildEmptyWidget('No channels available');
+          }
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: state.channels.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                childAspectRatio: 0.8,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+              ),
+              itemBuilder: (context, index) => _buildChannelCard(state.channels[index]),
+            ),
+          );
+        }
+        return const SizedBox();
+      },
+    );
+  }
+
+  Widget _buildFeaturedShimmer() {
+    return SizedBox(
+      height: 150,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: 5,
+        itemBuilder: (_, __) => Shimmer.fromColors(
+          baseColor: const Color(AppColors.shimmerBase),
+          highlightColor: const Color(AppColors.shimmerHighlight),
+          child: Container(
+            width: 220,
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: const Color(AppColors.surface),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPopularShimmer() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 6,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          childAspectRatio: 0.8,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        itemBuilder: (_, __) => Shimmer.fromColors(
+          baseColor: const Color(AppColors.shimmerBase),
+          highlightColor: const Color(AppColors.shimmerHighlight),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(AppColors.surface),
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget(String message, VoidCallback onRetry) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.white54, size: 48),
+          const SizedBox(height: 8),
+          Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54)),
+          const SizedBox(height: 12),
+          ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyWidget(String message) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Center(
+        child: Text(message, style: const TextStyle(color: Colors.white54)),
+      ),
+    );
+  }
+
+  Widget _buildFeaturedChannelList(List<ChannelModel> channels) {
     return SizedBox(
       height: 150,
       child: ListView.builder(
@@ -195,7 +304,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
         itemBuilder: (context, index) {
           final channel = channels[index];
           return GestureDetector(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PlayerScreen(channel: channel))),
+            onTap: () => _openPlayer(context, channel.id),
             child: Container(
               width: 220,
               margin: const EdgeInsets.only(right: 12),
@@ -242,7 +351,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
 
   Widget _buildChannelCard(ChannelModel channel) {
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PlayerScreen(channel: channel))),
+      onTap: () => _openPlayer(context, channel.id),
       child: Container(
         decoration: BoxDecoration(color: const Color(AppColors.surface), borderRadius: BorderRadius.circular(12)),
         child: Column(
@@ -257,5 +366,19 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
         ),
       ),
     );
+  }
+
+  void _openPlayer(BuildContext context, int channelId) {
+    final cubit = context.read<ChannelCubit>();
+    final allChannels = cubit.allChannels;
+    final index = allChannels.indexWhere((c) => c.id == channelId);
+    if (index < 0) return;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => PlayerScreen(
+        channel: allChannels[index],
+        channels: allChannels,
+        initialIndex: index,
+      ),
+    ));
   }
 }

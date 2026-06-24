@@ -47,12 +47,21 @@ exports.getFavorites = async (req, res) => {
 exports.addFavorite = async (req, res) => {
   try {
     const { channelId } = req.params;
+    // Verify channel exists
+    const channelResult = await db.query(
+      'SELECT id FROM channels WHERE id = $1 AND status NOT IN (\'hidden\', \'disabled\')',
+      [channelId]
+    );
+    if (channelResult.rows.length === 0) {
+      return error(res, 'Channel not found', 404);
+    }
     await db.query(
       'INSERT INTO favorites (user_id, channel_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [req.user.id, channelId]
     );
     success(res, null, 'Added to favorites', 201);
   } catch (err) {
+    console.error('addFavorite error:', err.message);
     error(res, 'Failed to add favorite', 500);
   }
 };

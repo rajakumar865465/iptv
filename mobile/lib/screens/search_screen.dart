@@ -14,6 +14,7 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final _searchController = TextEditingController();
+  String _lastError = '';
 
   @override
   void dispose() {
@@ -33,7 +34,7 @@ class _SearchScreenState extends State<SearchScreen> {
           autofocus: true,
           decoration: InputDecoration(
             hintText: 'Search channels...',
-            hintStyle: TextStyle(color: Color(AppColors.textMuted)),
+            hintStyle: TextStyle(color: const Color(AppColors.textMuted)),
             border: InputBorder.none,
             suffixIcon: _searchController.text.isNotEmpty
                 ? IconButton(
@@ -58,11 +59,12 @@ class _SearchScreenState extends State<SearchScreen> {
           if (state is ChannelLoading) {
             return const Center(child: CircularProgressIndicator());
           }
+          if (state is ChannelError) {
+            return _buildErrorWidget(state.message);
+          }
           if (state is ChannelLoaded) {
             if (state.channels.isEmpty) {
-              return const Center(
-                child: Text('No channels found', style: TextStyle(color: Colors.white54)),
-              );
+              return _buildEmptyWidget(_searchController.text.isEmpty ? 'Start typing to search channels' : 'No channels found');
             }
             return ListView.builder(
               itemCount: state.channels.length,
@@ -72,13 +74,40 @@ class _SearchScreenState extends State<SearchScreen> {
               },
             );
           }
-          if (state is ChannelError) {
-            return Center(child: Text(state.message, style: const TextStyle(color: Colors.white54)));
-          }
-          return const Center(
-            child: Text('Start typing to search channels', style: TextStyle(color: Colors.white54)),
-          );
+          return _buildEmptyWidget('Start typing to search channels');
         },
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.white54),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54)),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                context.read<ChannelCubit>().searchChannels(_searchController.text);
+              },
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyWidget(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(message, style: const TextStyle(color: Colors.white54)),
       ),
     );
   }
@@ -91,20 +120,23 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       title: Text(channel.name, style: const TextStyle(color: Colors.white)),
       subtitle: Text(
-        '${channel.categoryName ?? ''} ${channel.language ?? ''}',
+        '${channel.categoryName ?? ''} ${channel.language ?? ''}'.trim(),
         style: const TextStyle(color: Colors.white54, fontSize: 12),
       ),
       trailing: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.red,
-          borderRadius: BorderRadius.circular(4),
-        ),
+        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(4)),
         child: const Text('LIVE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
       ),
       onTap: () {
+        final allChannels = context.read<ChannelCubit>().allChannels;
+        final index = allChannels.indexWhere((c) => c.id == channel.id);
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => PlayerScreen(channel: channel)),
+          MaterialPageRoute(builder: (_) => PlayerScreen(
+            channel: channel,
+            channels: allChannels,
+            initialIndex: index >= 0 ? index : 0,
+          )),
         );
       },
     );

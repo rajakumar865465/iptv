@@ -8,7 +8,11 @@
     "dev": "nodemon src/app.js",
     "test": "jest --coverage",
     "migrate": "node scripts/migrate.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "import-iptv": "node scripts/import-iptv-org.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "keywords": [
     "iptv",

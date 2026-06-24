@@ -62,13 +62,23 @@ exports.login = async (req, res) => {
     // Update last login
     await db.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
 
-    // Handle device
+    // Handle device with limit check
     if (device_id) {
       const existingDevice = await db.query(
         'SELECT id FROM devices WHERE device_id = $1 AND user_id = $2',
         [device_id, user.id]
       );
       if (existingDevice.rows.length === 0) {
+        // Check device limit before inserting
+        const deviceCountRes = await db.query(
+          'SELECT COUNT(*) FROM devices WHERE user_id = $1 AND status = $2',
+          [user.id, 'active']
+        );
+        const currentDeviceCount = parseInt(deviceCountRes.rows[0].count);
+        const maxDevices = license?.max_devices || 1;
+        if (currentDeviceCount >= maxDevices) {
+          return error(res, 'Device limit reached. Please contact support or remove an old device.', 403);
+        }
         await db.query(
           'INSERT INTO devices (user_id, device_id, device_name, app_version, platform) VALUES ($1, $2, $3, $4, $5)',
           [user.id, device_id, device_name || 'Unknown', app_version || '1.0.0', 'android']

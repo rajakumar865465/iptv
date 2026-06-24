@@ -8,9 +8,9 @@ exports.activate = async (req, res) => {
 
     if (!license_key) return error(res, 'License key is required', 400);
 
-    // Find license
+    // Find license - explicitly select fields to avoid column name conflicts
     const licenseResult = await db.query(
-      'SELECT l.*, p.name as plan_name, p.duration_days, p.max_devices FROM licenses l LEFT JOIN plans p ON l.plan_id = p.id WHERE l.license_key = $1',
+      'SELECT l.id, l.license_key, l.user_id, l.status AS license_status, l.duration_days, l.max_devices AS license_max_devices, l.activated_at, l.expires_at, p.name as plan_name, p.duration_days AS plan_duration_days, p.max_devices AS plan_max_devices FROM licenses l LEFT JOIN plans p ON l.plan_id = p.id WHERE l.license_key = $1',
       [license_key]
     );
 
@@ -26,9 +26,9 @@ exports.activate = async (req, res) => {
     }
 
     // Check statuses
-    if (license.status === 'revoked') return error(res, 'This license has been revoked', 400);
-    if (license.status === 'suspended') return error(res, 'This license has been suspended', 400);
-    if (license.status === 'blocked') return error(res, 'This license has been blocked', 400);
+    if (license.license_status === 'revoked') return error(res, 'This license has been revoked', 400);
+    if (license.license_status === 'suspended') return error(res, 'This license has been suspended', 400);
+    if (license.license_status === 'blocked') return error(res, 'This license has been blocked', 400);
 
     // Check user status
     const userResult = await db.query('SELECT status FROM users WHERE id = $1', [userId]);
@@ -43,7 +43,8 @@ exports.activate = async (req, res) => {
         [userId, 'active']
       );
       const deviceCount = parseInt(deviceResult.rows[0].count);
-      const maxDevices = license.max_devices || 1;
+      // Use license table value, fall back to plan value, then default to 1
+      const maxDevices = license.license_max_devices || license.plan_max_devices || 1;
 
       const existingDevice = await db.query(
         'SELECT id FROM devices WHERE user_id = $1 AND device_id = $2',
@@ -82,7 +83,7 @@ exports.activate = async (req, res) => {
       activated_at: now.toISOString(),
       expires_at: expiresAt.toISOString(),
       remaining_days: remainingDays,
-      max_devices: license.max_devices || 1,
+      max_devices: license.license_max_devices || license.plan_max_devices || 1,
     }, 'License activated successfully');
   } catch (err) {
     console.error('License activation error:', err);

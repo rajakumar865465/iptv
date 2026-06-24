@@ -103,6 +103,18 @@ class AuthService {
     return prefs.getString(StorageKeys.token);
   }
 
+  Future<Map<String, dynamic>?> me() async {
+    try {
+      final response = await _dio.get('/api/auth/me');
+      if (response.data['success'] == true && response.data['data'] != null) {
+        return response.data['data'];
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(StorageKeys.token);

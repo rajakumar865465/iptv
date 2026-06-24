@@ -3,27 +3,31 @@ const { success, error } = require('../utils/response');
 
 exports.getChannels = async (req, res) => {
   try {
-    const { category_id, featured, search } = req.query;
+    const { category, search, featured, popular } = req.query;
     let query = `
       SELECT c.*, cat.name as category_name
       FROM channels c
       LEFT JOIN categories cat ON c.category_id = cat.id
-      WHERE c.status NOT IN ('hidden', 'disabled')
+      WHERE c.status = 'active'
     `;
     const params = [];
     let paramIndex = 1;
 
-    if (category_id) {
-      query += ` AND c.category_id = $${paramIndex++}`;
-      params.push(category_id);
+    if (category) {
+      query += ` AND cat.name ILIKE $${paramIndex++}`;
+      params.push(`%${category}%`);
     }
 
     if (featured === 'true') {
       query += ` AND c.is_featured = true`;
     }
 
+    if (popular === 'true') {
+      query += ` AND c.is_featured = true`;
+    }
+
     if (search) {
-      query += ` AND (c.name ILIKE $${paramIndex} OR c.language ILIKE $${paramIndex})`;
+      query += ` AND (c.name ILIKE $${paramIndex} OR c.language ILIKE $${paramIndex} OR cat.name ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
       paramIndex++;
     }
@@ -33,6 +37,7 @@ exports.getChannels = async (req, res) => {
     const result = await db.query(query, params);
     success(res, result.rows);
   } catch (err) {
+    console.error('getChannels error:', err);
     error(res, 'Failed to fetch channels', 500);
   }
 };
@@ -43,7 +48,7 @@ exports.getChannel = async (req, res) => {
     const result = await db.query(
       `SELECT c.*, cat.name as category_name FROM channels c
        LEFT JOIN categories cat ON c.category_id = cat.id
-       WHERE c.id = $1 AND c.status NOT IN ('hidden', 'disabled')`,
+       WHERE c.id = $1 AND c.status = 'active'`,
       [id]
     );
     if (result.rows.length === 0) {
@@ -51,6 +56,7 @@ exports.getChannel = async (req, res) => {
     }
     success(res, result.rows[0]);
   } catch (err) {
+    console.error('getChannel error:', err);
     error(res, 'Failed to fetch channel', 500);
   }
 };
@@ -64,13 +70,14 @@ exports.searchChannels = async (req, res) => {
     const result = await db.query(
       `SELECT c.*, cat.name as category_name FROM channels c
        LEFT JOIN categories cat ON c.category_id = cat.id
-       WHERE c.status NOT IN ('hidden', 'disabled')
+       WHERE c.status = 'active'
        AND (c.name ILIKE $1 OR cat.name ILIKE $1 OR c.language ILIKE $1)
        ORDER BY c.name ASC`,
       [`%${q}%`]
     );
     success(res, result.rows);
   } catch (err) {
+    console.error('searchChannels error:', err);
     error(res, 'Failed to search channels', 500);
   }
 };
@@ -81,12 +88,13 @@ exports.getChannelsByCategory = async (req, res) => {
     const result = await db.query(
       `SELECT c.*, cat.name as category_name FROM channels c
        LEFT JOIN categories cat ON c.category_id = cat.id
-       WHERE c.category_id = $1 AND c.status NOT IN ('hidden', 'disabled')
+       WHERE c.category_id = $1 AND c.status = 'active'
        ORDER BY c.sort_order ASC, c.name ASC`,
       [categoryId]
     );
     success(res, result.rows);
   } catch (err) {
+    console.error('getChannelsByCategory error:', err);
     error(res, 'Failed to fetch channels by category', 500);
   }
 };
@@ -94,11 +102,16 @@ exports.getChannelsByCategory = async (req, res) => {
 exports.getCategories = async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT * FROM categories WHERE status = $1 ORDER BY sort_order ASC',
-      ['active']
+      `SELECT c.*, COUNT(ch.id) as channel_count
+       FROM categories c
+       LEFT JOIN channels ch ON c.id = ch.category_id AND ch.status = 'active'
+       WHERE c.status = 'active'
+       GROUP BY c.id
+       ORDER BY c.sort_order ASC, c.name ASC`
     );
     success(res, result.rows);
   } catch (err) {
+    console.error('getCategories error:', err);
     error(res, 'Failed to fetch categories', 500);
   }
 };

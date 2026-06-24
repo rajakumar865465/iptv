@@ -5,6 +5,7 @@ import '../cubits/auth_cubit.dart';
 import '../cubits/license_cubit.dart';
 import 'login_screen.dart';
 import 'license_status_screen.dart';
+import 'license_activation_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -33,22 +34,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Profile header
             _buildProfileHeader(),
             const SizedBox(height: 24),
-            // License card
             BlocBuilder<LicenseCubit, LicenseState>(
               builder: (context, state) {
                 if (state is LicenseActive) {
                   return _buildLicenseCard(state.license, true);
                 } else if (state is LicenseExpired) {
                   return _buildLicenseCard(state.license, false);
+                } else if (state is LicenseError) {
+                  return _buildLicenseCard(null, false, error: state.message);
                 }
                 return _buildNoLicenseCard();
               },
             ),
             const SizedBox(height: 24),
-            // Menu items
             _buildMenuSection(),
           ],
         ),
@@ -67,22 +67,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Row(
         children: [
-          CircleAvatar(
+          const CircleAvatar(
             radius: 40,
             backgroundColor: Colors.white24,
-            child: const Icon(Icons.person, size: 40, color: Colors.white),
+            child: Icon(Icons.person, size: 40, color: Colors.white),
           ),
           const SizedBox(width: 16),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'User',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
-                const SizedBox(height: 4),
-                const Text(
+                SizedBox(height: 4),
+                Text(
                   'user@example.com',
                   style: TextStyle(color: Colors.white70),
                 ),
@@ -94,7 +94,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildLicenseCard(dynamic license, bool isActive) {
+  Widget _buildLicenseCard(dynamic license, bool isActive, {String? error}) {
     return GestureDetector(
       onTap: () {
         Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LicenseStatusScreen()));
@@ -102,7 +102,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF1B5E20) : const Color(0xFF7F6000),
+          color: isActive ? const Color(0xFF1B5E20) : error != null ? const Color(AppColors.surface) : const Color(0xFF7F6000),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -111,12 +111,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Row(
               children: [
                 Icon(
-                  isActive ? Icons.verified : Icons.cancel,
+                  isActive ? Icons.verified : error != null ? Icons.error : Icons.cancel,
                   color: Colors.white,
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  isActive ? 'License Active' : 'License ${license?.status ?? 'Expired'}',
+                  isActive
+                      ? 'License Active'
+                      : error != null
+                          ? 'License Check Failed'
+                          : 'License ${license?.status ?? 'Expired'}',
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
               ],
@@ -126,6 +130,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Text(
                 '${license.remainingDays} days remaining',
                 style: const TextStyle(color: Colors.white70),
+              ),
+            ],
+            if (error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                error,
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
               ),
             ],
           ],
@@ -141,17 +152,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: const Color(AppColors.surface),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.warning, color: Color(AppColors.warning)),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('No Active License', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                Text('Activate a license to watch live TV', style: TextStyle(color: Colors.white54, fontSize: 12)),
-              ],
+          Row(
+            children: [
+              const Icon(Icons.warning, color: Color(AppColors.warning)),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('No Active License', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    Text('Activate a license to watch live TV', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LicenseActivationScreen()));
+              },
+              child: const Text('Activate License'),
             ),
           ),
         ],

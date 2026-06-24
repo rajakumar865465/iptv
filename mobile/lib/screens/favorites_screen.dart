@@ -76,8 +76,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     ],
                   ),
                   onTap: () {
+                    // Pass favorites list for prev/next navigation within favorites
                     Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => PlayerScreen(channel: channel)),
+                      MaterialPageRoute(builder: (_) => PlayerScreen(
+                        channel: channel,
+                        channels: state.favorites,
+                        initialIndex: index,
+                      )),
                     );
                   },
                 );
