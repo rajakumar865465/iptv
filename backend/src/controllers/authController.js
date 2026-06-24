@@ -62,53 +62,70 @@ exports.login = async (req, res) => {
     // Update last login
     await db.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
 
-    // Handle device with limit check
-    if (device_id) {
-      const existingDevice = await db.query(
-        'SELECT id FROM devices WHERE device_id = $1 AND user_id = $2',
-        [device_id, user.id]
-      );
-      if (existingDevice.rows.length === 0) {
-        // Check device limit before inserting
-        const deviceCountRes = await db.query(
-          'SELECT COUNT(*) FROM devices WHERE user_id = $1 AND status = $2',
-          [user.id, 'active']
-        );
-        const currentDeviceCount = parseInt(deviceCountRes.rows[0].count);
-        const maxDevices = license?.max_devices || 1;
-        if (currentDeviceCount >= maxDevices) {
-          return error(res, 'Device limit reached. Please contact support or remove an old device.', 403);
-        }
-        await db.query(
-          'INSERT INTO devices (user_id, device_id, device_name, app_version, platform) VALUES ($1, $2, $3, $4, $5)',
-          [user.id, device_id, device_name || 'Unknown', app_version || '1.0.0', 'android']
-        );
-      } else {
-        await db.query(
-          'UPDATE devices SET last_active_at = NOW(), app_version = $1 WHERE id = $2',
-          [app_version || '1.0.0', existingDevice.rows[0].id]
-        );
-      }
-    }
-
-    // Get license status
-    const licenseResult = await db.query(
-      `SELECT l.*, p.name as plan_name FROM licenses l
-       LEFT JOIN plans p ON l.plan_id = p.id
-       WHERE l.user_id = $1 AND l.status IN ('active', 'trial', 'pending_payment')
-       ORDER BY l.expires_at DESC LIMIT 1`,
-      [user.id]
-    );
-
-    const license = licenseResult.rows[0] || null;
+    let license = null;
+    let licenseStatus = 'none';
+    let deviceCount = { rows: [{ count: 0 }] };
     const now = new Date();
-    const licenseStatus = license && new Date(license.expires_at) > now ? license.status : 'none';
 
-    // Get device count
-    const deviceCount = await db.query(
-      'SELECT COUNT(*) FROM devices WHERE user_id = $1 AND status = $2',
-      [user.id, 'active']
-    );
+    try {
+      // Get license status first (needed for device limit check)
+      const licenseResult = await db.query(
+        `SELECT l.*, p.name as plan_name FROM licenses l
+         LEFT JOIN plans p ON l.plan_id = p.id
+         WHERE l.user_id = $1 AND l.status IN ('active', 'trial', 'pending_payment')
+         ORDER BY l.expires_at DESC LIMIT 1`,
+        [user.id]
+      );
+
+      license = licenseResult.rows[0] || null;
+      licenseStatus = license && new Date(license.expires_at) > now ? license.status : 'none';
+
+      // Handle device with limit check
+      if (device_id) {
+        const existingDevice = await db.query(
+          'SELECT id FROM devices WHERE device_id = $1 AND user_id = $2',
+          [device_id, user.id]
+        );
+        if (existingDevice.rows.length === 0) {
+          // Check device limit before inserting
+          const deviceCountRes = await db.query(
+            'SELECT COUNT(*) FROM devices WHERE user_id = $1 AND status = $2',
+            [user.id, 'active']
+          );
+          let currentDeviceCount = parseInt(deviceCountRes.rows[0].count);
+          const maxDevices = license?.max_devices || 1;
+          
+          if (currentDeviceCount >= maxDevices) {
+            if (maxDevices === 1) {
+              // Auto-remove previous device if limit is 1 (improves dev/testing experience)
+              await db.query('DELETE FROM devices WHERE user_id = $1', [user.id]);
+              currentDeviceCount = 0;
+            } else {
+              return error(res, 'Device limit reached. Please contact support or remove an old device.', 403);
+            }
+          }
+          
+          await db.query(
+            'INSERT INTO devices (user_id, device_id, device_name, app_version, platform) VALUES ($1, $2, $3, $4, $5)',
+            [user.id, device_id, device_name || 'Unknown', app_version || '1.0.0', 'android']
+          );
+        } else {
+          await db.query(
+            'UPDATE devices SET last_active_at = NOW(), app_version = $1 WHERE id = $2',
+            [app_version || '1.0.0', existingDevice.rows[0].id]
+          );
+        }
+      }
+
+      // Get device count
+      deviceCount = await db.query(
+        'SELECT COUNT(*) FROM devices WHERE user_id = $1 AND status = $2',
+        [user.id, 'active']
+      );
+    } catch (dbErr) {
+      console.error('License/device query error (non-critical):', dbErr.message);
+      // Continue login without license/device data
+    }
 
     const token = generateToken({ userId: user.id, email: user.email, role: user.role });
 

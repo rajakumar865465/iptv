@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
 import '../cubits/auth_cubit.dart';
+import '../cubits/license_cubit.dart';
 import 'home_screen.dart';
+import 'license_activation_screen.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
 
@@ -25,6 +27,28 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  Future<void> _navigateAfterLogin(BuildContext context) async {
+    try {
+      final licenseCubit = context.read<LicenseCubit>();
+      await licenseCubit.checkStatus();
+      if (!mounted) return;
+      final licenseState = context.read<LicenseCubit>().state;
+      if (licenseState is LicenseActive) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),
+        );
+      }
+    } catch (_) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -32,9 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
       body: BlocConsumer<AuthCubit, AuthState>(
         listener: (context, state) {
           if (state is AuthAuthenticated) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const HomeScreen()),
-            );
+            _navigateAfterLogin(context);
           } else if (state is AuthError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(state.message)),
@@ -89,10 +111,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: state is AuthLoading
                           ? null
                           : () {
-                              context.read<AuthCubit>().login(
-                                    _emailController.text,
-                                    _passwordController.text,
-                                  );
+                              final email = _emailController.text.trim();
+                              final password = _passwordController.text;
+                              if (email.isEmpty || password.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please enter email and password')),
+                                );
+                                return;
+                              }
+                              context.read<AuthCubit>().login(email, password);
                             },
                       child: state is AuthLoading
                           ? const SizedBox(

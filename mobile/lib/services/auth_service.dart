@@ -1,8 +1,8 @@
-import 'dart:convert';
-import 'dart:math';
 import 'package:dio/dio.dart';
 import '../constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../utils/backend_config.dart';
 
 class AuthUserResult {
   final int userId;
@@ -22,7 +22,7 @@ class AuthUserResult {
 
 class AuthService {
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: AppConstants.baseUrl,
+    baseUrl: BackendConfig.baseUrl,
     connectTimeout: const Duration(milliseconds: AppConstants.connectTimeout),
     receiveTimeout: const Duration(milliseconds: AppConstants.receiveTimeout),
     headers: {'Content-Type': 'application/json'},

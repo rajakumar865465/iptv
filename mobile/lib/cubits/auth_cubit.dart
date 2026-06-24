@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
@@ -24,10 +24,11 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> login(String email, String password, {String? deviceId, String? deviceName}) async {
     emit(AuthLoading());
     try {
+      final actualDeviceId = deviceId ?? await _storage.getDeviceId();
       final result = await _authService.login(
         email: email,
         password: password,
-        deviceId: deviceId ?? UniqueKey().toString(),
+        deviceId: actualDeviceId,
         deviceName: deviceName,
       );
       if (result != null) {
@@ -37,7 +38,25 @@ class AuthCubit extends Cubit<AuthState> {
         emit(AuthError('Login failed'));
       }
     } catch (e) {
-      emit(AuthError(e.toString()));
+      if (e is DioException) {
+        final data = e.response?.data;
+        String message = 'Login failed. Please check your credentials.';
+        if (data is Map<String, dynamic> && data['message'] != null) {
+          message = data['message'].toString();
+        } else if (e.response?.statusCode == 401) {
+          message = 'Invalid email or password.';
+        } else if (e.response?.statusCode == 403) {
+          message = 'Access denied. Please contact support.';
+        } else if (e.type == DioExceptionType.connectionTimeout ||
+                   e.type == DioExceptionType.receiveTimeout) {
+          message = 'Connection timed out. Please try again.';
+        } else if (e.type == DioExceptionType.connectionError) {
+          message = 'Cannot connect to server. Please check your internet.';
+        }
+        emit(AuthError(message));
+      } else {
+        emit(AuthError('An unexpected error occurred. Please try again.'));
+      }
     }
   }
 
@@ -57,7 +76,23 @@ class AuthCubit extends Cubit<AuthState> {
         emit(AuthError('Signup failed'));
       }
     } catch (e) {
-      emit(AuthError(e.toString()));
+      if (e is DioException) {
+        final data = e.response?.data;
+        String message = 'Signup failed. Please try again.';
+        if (data is Map<String, dynamic> && data['message'] != null) {
+          message = data['message'].toString();
+        } else if (e.response?.statusCode == 409) {
+          message = 'Email or mobile number already registered.';
+        } else if (e.type == DioExceptionType.connectionTimeout ||
+                   e.type == DioExceptionType.receiveTimeout) {
+          message = 'Connection timed out. Please try again.';
+        } else if (e.type == DioExceptionType.connectionError) {
+          message = 'Cannot connect to server. Please check your internet.';
+        }
+        emit(AuthError(message));
+      } else {
+        emit(AuthError('An unexpected error occurred. Please try again.'));
+      }
     }
   }
 
@@ -65,7 +100,15 @@ class AuthCubit extends Cubit<AuthState> {
     final token = await _storage.getToken();
     if (token != null) {
       _authService.setToken(token);
-      emit(AuthAuthenticated());
+      // Validate token is still valid via /me
+      final meResult = await _authService.me();
+      if (meResult != null) {
+        emit(AuthAuthenticated());
+      } else {
+        // Token invalid/expired — clear and unauthenticate
+        await _storage.clearAll();
+        emit(AuthUnauthenticated());
+      }
     } else {
       emit(AuthUnauthenticated());
     }

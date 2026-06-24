@@ -1,7 +1,8 @@
-import 'dart:io';
 import 'package:dio/dio.dart';
 import '../constants.dart';
 import 'auth_service.dart';
+
+import '../utils/backend_config.dart';
 
 class ApiClient {
   late Dio _dio;
@@ -12,7 +13,7 @@ class ApiClient {
 
   void init() {
     _dio = Dio(BaseOptions(
-      baseUrl: AppConstants.baseUrl,
+      baseUrl: BackendConfig.baseUrl,
       connectTimeout: const Duration(milliseconds: AppConstants.connectTimeout),
       receiveTimeout: const Duration(milliseconds: AppConstants.receiveTimeout),
       headers: {'Content-Type': 'application/json'},

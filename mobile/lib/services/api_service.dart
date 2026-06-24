@@ -1,16 +1,16 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
-import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
+
+import '../utils/backend_config.dart';
 
 class ApiService {
   late Dio _dio;
 
   ApiService() {
     _dio = Dio(BaseOptions(
-      baseUrl: AppConstants.baseUrl,
+      baseUrl: BackendConfig.baseUrl,
       connectTimeout: const Duration(milliseconds: AppConstants.connectTimeout),
       receiveTimeout: const Duration(milliseconds: AppConstants.receiveTimeout),
       headers: {'Content-Type': 'application/json'},

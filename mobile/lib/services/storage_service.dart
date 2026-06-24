@@ -18,6 +18,16 @@ class StorageService {
     return prefs.getString(StorageKeys.token);
   }
 
+  Future<String> getDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? deviceId = prefs.getString(StorageKeys.deviceId);
+    if (deviceId == null) {
+      deviceId = 'dev_${DateTime.now().millisecondsSinceEpoch}';
+      await prefs.setString(StorageKeys.deviceId, deviceId);
+    }
+    return deviceId;
+  }
+
   Future<void> saveUser(UserModel user) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(StorageKeys.user, jsonEncode(user.toJson()));
@@ -52,6 +62,11 @@ class StorageService {
 
   Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    // Only clear auth-related keys — preserve backend URL settings
+    await prefs.remove(StorageKeys.token);
+    await prefs.remove(StorageKeys.user);
+    await prefs.remove(StorageKeys.deviceId);
+    await prefs.remove(StorageKeys.isFirstLaunch);
+    await prefs.remove(StorageKeys.hasSeenOnboarding);
   }
 }

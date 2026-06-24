@@ -8,7 +8,8 @@ async function checkData() {
     const users = await db.query('SELECT * FROM users');
     console.log('Users:', users.rows);
 
-    console.error(e);
+  } catch (err) {
+    console.error('Error fetching data:', err);
   } finally {
     process.exit();
   }
