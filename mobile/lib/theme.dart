@@ -30,12 +30,22 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: Color(AppColors.surface),
+        backgroundColor: Color(AppColors.background),
         selectedItemColor: Color(AppColors.primary),
         unselectedItemColor: Color(AppColors.textSecondary),
-        selectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-        unselectedLabelStyle: TextStyle(fontSize: 12),
+        selectedLabelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: TextStyle(fontSize: 11),
         type: BottomNavigationBarType.fixed,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: Color(AppColors.background),
+        indicatorColor: Color(0x26E50914),
+        labelTextStyle: MaterialStateProperty.resolveWith((states) {
+          if (states.contains(MaterialState.selected)) {
+            return const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(AppColors.primary));
+          }
+          return const TextStyle(fontSize: 11, color: Color(AppColors.textSecondary));
+        }),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,

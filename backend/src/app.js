@@ -4,6 +4,8 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 require('dotenv').config();
 
+// IPTV Live TV Backend Application
+
 const errorHandler = require('./middleware/errorHandler');
 const { standardLimiter } = require('./middleware/rateLimit');
 const db = require('./config/db');
@@ -46,37 +48,50 @@ async function initDatabase() {
     const fs = require('fs');
     const path = require('path');
 
-    // Check if users table exists
-    const checkResult = await db.query(
-      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')"
-    );
-    if (!checkResult.rows[0].exists) {
-      console.log('Database tables not found, running initialization...');
-      const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '001_initial_schema.sql'), 'utf8');
+    console.log('Ensuring database tables exist...');
+
+    // Always run the main schema (CREATE TABLE IF NOT EXISTS is safe to re-run)
+    const schemaPath = path.join(__dirname, '..', 'migrations', '001_initial_schema.sql');
+    if (fs.existsSync(schemaPath)) {
+      const sql = fs.readFileSync(schemaPath, 'utf8');
       await db.query(sql);
-      console.log('Database initialized successfully');
-    } else {
-      console.log('Database tables already exist');
+      console.log('Database schema ensured');
     }
 
-    // Run additional migration files in order
+    // Run all migration files idempotently
     const migrationsDir = path.join(__dirname, '..', 'migrations');
-    const files = fs.readdirSync(migrationsDir).sort();
-    for (const file of files) {
-      if (file <= '001_initial_schema.sql') continue;
-      const filePath = path.join(migrationsDir, file);
-      const sql = fs.readFileSync(filePath, 'utf8');
-      try {
-        await db.query(sql);
-        console.log(`Migration applied: ${file}`);
-      } catch (migErr) {
-        console.error(`Migration error in ${file}:`, migErr.message);
+    if (fs.existsSync(migrationsDir)) {
+      const migrationFiles = fs.readdirSync(migrationsDir)
+        .filter(f => f.endsWith('.sql') && f !== '001_initial_schema.sql')
+        .sort();
+
+      for (const migrationFile of migrationFiles) {
+        try {
+          const sql = fs.readFileSync(path.join(migrationsDir, migrationFile), 'utf8');
+          await db.query(sql);
+          console.log(`Migration applied: ${migrationFile}`);
+        } catch (err) {
+          console.error(`Migration failed for ${migrationFile}:`, err.message);
+        }
       }
+    }
+
+    // Run seed data idempotently
+    const seedPath = path.join(__dirname, '..', 'seeds', 'seed.sql');
+    if (fs.existsSync(seedPath)) {
+      const sql = fs.readFileSync(seedPath, 'utf8');
+      await db.query(sql);
+      console.log('Seed data applied');
     }
   } catch (err) {
     console.error('Database initialization error:', err.message);
   }
 }
+
+const pathc = require('path');
+
+// Static serving for cached logos
+app.use('/logos', express.static(pathc.join(__dirname, '../public/logos')));
 
 // API Routes
 app.use('/api/auth', authRoutes);
