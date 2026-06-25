@@ -278,7 +278,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
               width: 1,
             ),
             boxShadow: isSelected
-                ? [BoxShadow(color: const Color(AppColors.primary).withValues(alpha: ), blurRadius: 8, offset: const Offset(0, 2))]
+                ? [BoxShadow(color: const Color(AppColors.primary).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 2))]
                 : null,
           ),
           child: Text(
@@ -308,7 +308,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
           border: Border.all(color: const Color(0xFF282828), width: 0.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: ),
+              color: Colors.black.withOpacity(0.25),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -329,7 +329,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
                   borderRadius: BorderRadius.circular(4),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFE50914).withValues(alpha: ),
+                      color: const Color(0xFFE50914).withOpacity(0.4),
                       blurRadius: 6,
                     ),
                   ],

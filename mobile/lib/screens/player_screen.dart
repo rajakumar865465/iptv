@@ -33,8 +33,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   late int _currentIndex;
   late List<ChannelModel> _channelList;
   Timer? _controlsTimer;
-  Timer? _bufferingTimer;
-  bool _isRetrying = false;
   int _fitIndex = 0;
 
   // Animation controller for controls fade
@@ -100,8 +98,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           ? VideoPlayerController.networkUrl(Uri.parse(url), httpHeaders: headers)
           : VideoPlayerController.networkUrl(Uri.parse(url));
 
-      _controller!.addListener(_onPlayerEvent);
-
       await _controller!.initialize();
       await _controller!.play();
       if (mounted) {
@@ -110,60 +106,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       }
     } catch (e) {
       debugPrint('VideoPlayer error: $e');
-      if (url == _currentChannel.streamUrl && _currentChannel.backupStreamUrl?.isNotEmpty == true) {
+      // Try backup stream URL once
+      if (url == _currentChannel.streamUrl &&
+          _currentChannel.backupStreamUrl?.isNotEmpty == true) {
         if (mounted) setState(() { _currentUrl = _currentChannel.backupStreamUrl!; });
         await _initializePlayer(_currentChannel.backupStreamUrl!);
         return;
       }
-      _handleStreamFailure();
+      if (mounted) setState(() { _isLoading = false; _hasError = true; });
     }
-  }
-
-  void _onPlayerEvent() {
-    if (_controller == null || !mounted) return;
-    
-    final isBuffering = _controller!.value.isBuffering;
-    final hasError = _controller!.value.hasError;
-
-    if (hasError && !_hasError) {
-      _handleStreamFailure();
-    } else if (isBuffering && !_isLoading) {
-      if (_bufferingTimer == null || !_bufferingTimer!.isActive) {
-        _bufferingTimer = Timer(const Duration(seconds: 10), _handleBufferTimeout);
-      }
-    } else if (!isBuffering) {
-      _bufferingTimer?.cancel();
-    }
-  }
-
-  Future<void> _handleBufferTimeout() async {
-    if (!mounted) return;
-    _bufferingTimer?.cancel();
-    
-    if (!_isRetrying) {
-      setState(() { _isRetrying = true; _isLoading = true; });
-      await _initializePlayer(_currentUrl);
-    } else {
-      if (_currentUrl == _currentChannel.streamUrl && _currentChannel.backupStreamUrl?.isNotEmpty == true) {
-        setState(() { _currentUrl = _currentChannel.backupStreamUrl!; _isLoading = true; });
-        await _initializePlayer(_currentUrl);
-      } else {
-        _handleStreamFailure();
-      }
-    }
-  }
-
-  void _handleStreamFailure() {
-    _bufferingTimer?.cancel();
-    if (mounted) setState(() { _isLoading = false; _hasError = true; });
-    
-    try {
-      _api.post('${ApiEndpoints.channels}/${_currentChannel.id}/report-failure', {
-        'reason': 'buffer_timeout',
-        'stream_url': _currentUrl,
-        'message': 'Stream failed after timeout or error.'
-      });
-    } catch (_) {}
   }
 
   // ──────────────────────── Data Loading ────────────────────────
@@ -276,8 +227,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _upcoming = [];
       _relatedChannels = [];
       _relatedSourceType = '';
-      _isRetrying = false;
-      _bufferingTimer?.cancel();
       _resetMoreLiveChannels();
     });
     if (_scrollController.hasClients) {
@@ -390,9 +339,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   @override
   void dispose() {
     _controlsTimer?.cancel();
-    _bufferingTimer?.cancel();
     _controlsAnimController.dispose();
-    _controller?.removeListener(_onPlayerEvent);
     _controller?.dispose();
     _scrollController.dispose();
     if (_isFullScreen) {
@@ -411,87 +358,112 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: Column(
-          children: [
-            if (_isFullScreen)
-              Expanded(child: _buildVideoArea())
-            else
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: _buildVideoArea(),
-              ),
-            
-            Expanded(
-              child: Offstage(
-                offstage: _isFullScreen,
-                child: Container(
-                  color: const Color(AppColors.background),
-                  child: CustomScrollView(
-                    controller: _scrollController,
-                    physics: const BouncingScrollPhysics(),
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildChannelInfo(),
-                              const SizedBox(height: 14),
-                              _buildNowPlayingCard(),
-                              const SizedBox(height: 10),
-                              _buildUpcomingCard(),
-                              const SizedBox(height: 18),
-                              _buildRelatedSection(),
-                              const SizedBox(height: 18),
-                            ],
-                          ),
-                        ),
-                      ),
-                      _buildMoreLiveHeader(),
-                      _buildMoreLiveGrid(),
-                      SliverToBoxAdapter(child: _buildMoreLiveFooter()),
-                      const SliverToBoxAdapter(child: SizedBox(height: 120)), // Added bottom padding
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+        child: _isFullScreen ? _buildFullscreen() : _buildPortrait(),
       ),
     );
   }
 
-  Widget _buildVideoArea() {
-    return Container(
-      color: Colors.black,
+  // ──────────────────────── Fullscreen ────────────────────────
+
+  Widget _buildFullscreen() {
+    return GestureDetector(
+      onTap: _toggleControls,
+      behavior: HitTestBehavior.opaque,
       child: Stack(
         fit: StackFit.expand,
         children: [
           _buildVideoSurface(),
-
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: _toggleControls,
-              behavior: HitTestBehavior.translucent,
-              child: const SizedBox.expand(),
-            ),
-          ),
-
           if (_isLoading) _buildLoadingOverlay(),
           if (_hasError) _buildErrorOverlay(),
-
-          if (!_hasError && !_isLoading)
-            FadeTransition(
-              opacity: _controlsOpacity,
-              child: IgnorePointer(
-                ignoring: !_showControls,
-                child: _buildControlsOverlay(fullscreen: _isFullScreen),
-              ),
+          // Controls overlay — always in DOM, opacity-animated
+          FadeTransition(
+            opacity: _controlsOpacity,
+            child: IgnorePointer(
+              ignoring: !_showControls,
+              child: _buildControlsOverlay(fullscreen: true),
             ),
+          ),
         ],
       ),
+    );
+  }
+
+  // ──────────────────────── Portrait ────────────────────────
+
+  Widget _buildPortrait() {
+    return Column(
+      children: [
+        // ── Video area (16:9) ──
+        AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Container(
+            color: Colors.black,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _buildVideoSurface(),
+
+                // ← Transparent tap layer directly above video surface
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: _toggleControls,
+                    behavior: HitTestBehavior.translucent,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+
+                if (_isLoading) _buildLoadingOverlay(),
+                if (_hasError) _buildErrorOverlay(),
+
+                // Controls overlay
+                if (!_hasError && !_isLoading)
+                  FadeTransition(
+                    opacity: _controlsOpacity,
+                    child: IgnorePointer(
+                      ignoring: !_showControls,
+                      child: _buildControlsOverlay(),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+
+        // ── Scrollable info area ──
+        Expanded(
+          child: Container(
+            color: const Color(AppColors.background),
+            child: CustomScrollView(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildChannelInfo(),
+                        const SizedBox(height: 14),
+                        _buildNowPlayingCard(),
+                        const SizedBox(height: 10),
+                        _buildUpcomingCard(),
+                        const SizedBox(height: 18),
+                        _buildRelatedSection(),
+                        const SizedBox(height: 18),
+                      ],
+                    ),
+                  ),
+                ),
+                _buildMoreLiveHeader(),
+                _buildMoreLiveGrid(),
+                SliverToBoxAdapter(child: _buildMoreLiveFooter()),
+                const SliverToBoxAdapter(child: SizedBox(height: 80)),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -514,21 +486,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Widget _buildLoadingOverlay() {
     return Container(
       color: Colors.black87,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(
-              color: Color(AppColors.primary),
-              strokeWidth: 3,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _isRetrying ? 'Stream is taking too long to load.\nRetrying...' : 'Buffering...',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
-            ),
-          ],
+      child: const Center(
+        child: CircularProgressIndicator(
+          color: Color(AppColors.primary),
+          strokeWidth: 3,
         ),
       ),
     );
@@ -727,9 +688,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             width: 62,
             height: 62,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: ),
+              color: Colors.white.withOpacity(0.2),
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: ), width: 2),
+              border: Border.all(color: Colors.white.withOpacity(0.5), width: 2),
             ),
             child: Icon(
               isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
@@ -759,7 +720,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: ),
+          color: Colors.white.withOpacity(0.12),
           shape: BoxShape.circle,
         ),
         child: Icon(icon, color: Colors.white, size: size),
@@ -779,7 +740,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: ),
+                color: Colors.white.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: Colors.white24),
               ),
@@ -1001,7 +962,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _upcoming.length,
-            separatorBuilder: (_, __) => Divider(color: Colors.white.withValues(alpha: ), height: 16),
+            separatorBuilder: (_, __) => Divider(color: Colors.white.withOpacity(0.05), height: 16),
             itemBuilder: (context, i) {
               final prog = _upcoming[i];
               final time = prog.startTime != null ? DateFormat('h:mm a').format(prog.startTime!.toLocal()) : '';
@@ -1093,7 +1054,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         decoration: BoxDecoration(
           color: const Color(AppColors.surface),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withValues(alpha: )),
+          border: Border.all(color: Colors.white.withOpacity(0.06)),
         ),
         child: Stack(
           children: [
@@ -1194,7 +1155,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         decoration: BoxDecoration(
           color: const Color(AppColors.surface),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: )),
+          border: Border.all(color: Colors.white.withOpacity(0.06)),
         ),
         child: Stack(
           children: [
@@ -1257,7 +1218,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     return BoxDecoration(
       color: const Color(AppColors.surface),
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Colors.white.withValues(alpha: )),
+      border: Border.all(color: Colors.white.withOpacity(0.05)),
     );
   }
 

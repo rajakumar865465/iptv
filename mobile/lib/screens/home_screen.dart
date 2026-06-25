@@ -57,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: ),
+            color: Colors.black.withOpacity(0.4),
             blurRadius: 12,
             offset: const Offset(0, -4),
           ),
@@ -65,7 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: NavigationBar(
         backgroundColor: Colors.transparent,
-        indicatorColor: const Color(AppColors.primary).withValues(alpha: ),
+        indicatorColor: const Color(AppColors.primary).withOpacity(0.15),
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) => setState(() => _selectedIndex = index),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
@@ -193,7 +193,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
           width: 1,
         ),
         boxShadow: isPremium
-            ? [BoxShadow(color: const Color(0xFFE50914).withValues(alpha: ), blurRadius: 12, offset: const Offset(0, 4))]
+            ? [BoxShadow(color: const Color(0xFFE50914).withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))]
             : null,
       ),
       child: Row(
@@ -324,7 +324,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                 color: const Color(AppColors.surface),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: ),
+                    color: Colors.black.withOpacity(0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 6),
                   ),
@@ -359,9 +359,9 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                             end: Alignment.bottomCenter,
                             stops: const [0.0, 0.45, 1.0],
                             colors: [
-                              Colors.black.withValues(alpha: ),
-                              Colors.black.withValues(alpha: ),
-                              Colors.black.withValues(alpha: ),
+                              Colors.black.withOpacity(0.1),
+                              Colors.black.withOpacity(0.2),
+                              Colors.black.withOpacity(0.9),
                             ],
                           ),
                         ),
@@ -378,7 +378,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: ),
+                                color: Colors.black.withOpacity(0.5),
                                 blurRadius: 16,
                                 spreadRadius: 2,
                               ),
@@ -481,7 +481,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
           border: Border.all(color: const Color(0xFF2A2A2A), width: 0.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: ),
+              color: Colors.black.withOpacity(0.2),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -675,7 +675,7 @@ class _LiveBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFE50914).withValues(alpha: ),
+            color: const Color(0xFFE50914).withOpacity(0.5),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
