@@ -34,14 +34,26 @@ const formatChannelRow = (req, row) => {
 // They already include the 'active' status check.
 exports.getChannels = async (req, res) => {
   try {
-    const { category, search, featured, popular, page, limit } = req.query;
+    const { category, search, featured, popular, page, limit, country, showOffline, workingOnly } = req.query;
     const usePagination = page !== undefined;
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
+    const limitNum = Math.min(500, Math.max(1, parseInt(limit) || 20));
 
     const conditions = [`c.status = 'active'`];
     const params = [];
     let paramIndex = 1;
+
+    if (workingOnly === 'true') {
+      conditions.push(`c.health_status = 'online'`);
+    } else if (showOffline !== 'true') {
+      // If not showing offline and not explicitly workingOnly, we can either hide 'offline' or show everything but offline.
+      conditions.push(`(c.health_status != 'offline' OR c.health_status IS NULL)`);
+    }
+
+    if (country) {
+      conditions.push(`c.country ILIKE $${paramIndex++}`);
+      params.push(`%${country}%`);
+    }
 
     // For paginated requests, also filter out channels without valid stream URLs
     if (usePagination) {

@@ -14,7 +14,6 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final _searchController = TextEditingController();
-  String _lastError = '';
 
   @override
   void dispose() {

@@ -65,7 +65,7 @@ exports.activate = async (req, res) => {
 
     // Activate license
     const now = new Date();
-    const durationDays = license.duration_days || license.durationDays || 30;
+    const durationDays = license.duration_days || license.plan_duration_days || 30;
     const expiresAt = new Date(now);
     expiresAt.setDate(expiresAt.getDate() + durationDays);
 

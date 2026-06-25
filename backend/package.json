@@ -32,7 +32,9 @@
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.11.0",
-    "pg": "^8.22.0"
+    "pg": "^8.22.0",
+    "sharp": "^0.35.2",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "jest": "^30.4.2",

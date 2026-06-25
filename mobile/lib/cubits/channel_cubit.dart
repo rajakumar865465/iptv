@@ -10,7 +10,10 @@ class ChannelLoading extends ChannelState {}
 class ChannelLoaded extends ChannelState {
   final List<ChannelModel> channels;
   final List<CategoryModel> categories;
-  ChannelLoaded(this.channels, this.categories);
+  final bool hasMore;
+  final bool isLoadingMore;
+
+  ChannelLoaded(this.channels, this.categories, {this.hasMore = false, this.isLoadingMore = false});
 }
 class ChannelError extends ChannelState {
   final String message;
@@ -24,88 +27,111 @@ class ChannelCubit extends Cubit<ChannelState> {
   List<ChannelModel> _allChannels = [];
   List<CategoryModel> _allCategories = [];
 
-  Future<void> loadChannels() async {
-    emit(ChannelLoading());
-    try {
-      final channelRes = await _api.get(ApiEndpoints.channelList);
-      final catRes = await _api.get(ApiEndpoints.categoryList);
+  int _currentPage = 1;
+  bool _hasMore = true;
+  String _currentQuery = '';
+  bool _workingOnly = true;
 
-      if (channelRes['success'] == true && catRes['success'] == true) {
-        _allChannels = (channelRes['data'] as List)
+  Future<void> loadChannels({bool isRefresh = false, String? query, bool? workingOnly}) async {
+    if (isRefresh) {
+      _currentPage = 1;
+      _hasMore = true;
+      _allChannels.clear();
+      emit(ChannelLoading());
+    } else {
+      if (!_hasMore) return;
+      if (state is ChannelLoaded) {
+        emit(ChannelLoaded(_allChannels, _allCategories, hasMore: _hasMore, isLoadingMore: true));
+      }
+    }
+
+    if (query != null) _currentQuery = query;
+    if (workingOnly != null) _workingOnly = workingOnly;
+
+    try {
+      final params = <String, dynamic>{
+        'page': _currentPage,
+        'limit': 50,
+      };
+
+      if (_currentQuery.isNotEmpty) params['search'] = _currentQuery;
+      if (_workingOnly) params['workingOnly'] = 'true';
+      else params['showOffline'] = 'true';
+
+      final channelRes = await _api.get(ApiEndpoints.channelList, queryParameters: params);
+
+      if (_allCategories.isEmpty) {
+        final catRes = await _api.get(ApiEndpoints.categoryList);
+        if (catRes['success'] == true) {
+          _allCategories = (catRes['data'] as List)
+              .map((c) => CategoryModel.fromJson(c))
+              .toList();
+        }
+      }
+
+      if (channelRes['success'] == true) {
+        final newChannels = (channelRes['data'] as List)
             .map((c) => ChannelModel.fromJson(c))
             .toList();
-        _allCategories = (catRes['data'] as List)
-            .map((c) => CategoryModel.fromJson(c))
-            .toList();
-        emit(ChannelLoaded(_allChannels, _allCategories));
+        
+        _allChannels.addAll(newChannels);
+        
+        final pagination = channelRes['pagination'];
+        if (pagination != null) {
+          _hasMore = pagination['hasMore'] ?? false;
+        } else {
+          _hasMore = false;
+        }
+
+        _currentPage++;
+        emit(ChannelLoaded(List.from(_allChannels), _allCategories, hasMore: _hasMore, isLoadingMore: false));
       } else {
-        emit(ChannelError('Failed to load channels'));
+        if (_currentPage == 1) emit(ChannelError('Failed to load channels'));
+        else emit(ChannelLoaded(List.from(_allChannels), _allCategories, hasMore: _hasMore, isLoadingMore: false));
       }
     } catch (e) {
-      emit(ChannelError('Unable to load channels. Please check your connection and try again.'));
+      if (_currentPage == 1) {
+        emit(ChannelError('Unable to load channels. Please check your connection and try again.'));
+      } else {
+        emit(ChannelLoaded(List.from(_allChannels), _allCategories, hasMore: _hasMore, isLoadingMore: false));
+      }
     }
   }
 
   Future<void> loadFeaturedChannels() async {
+    // Basic implementation for compatibility
     emit(ChannelLoading());
     try {
       final channelRes = await _api.get('${ApiEndpoints.channelList}?featured=true');
-      final catRes = await _api.get(ApiEndpoints.categoryList);
+      if (_allCategories.isEmpty) {
+        final catRes = await _api.get(ApiEndpoints.categoryList);
+        if (catRes['success'] == true) {
+          _allCategories = (catRes['data'] as List)
+              .map((c) => CategoryModel.fromJson(c))
+              .toList();
+        }
+      }
 
-      if (channelRes['success'] == true && catRes['success'] == true) {
-        _allChannels = (channelRes['data'] as List)
+      if (channelRes['success'] == true) {
+        final channels = (channelRes['data'] as List)
             .map((c) => ChannelModel.fromJson(c))
             .toList();
-        _allCategories = (catRes['data'] as List)
-            .map((c) => CategoryModel.fromJson(c))
-            .toList();
-        emit(ChannelLoaded(_allChannels, _allCategories));
+        emit(ChannelLoaded(channels, _allCategories));
       } else {
         emit(ChannelError('Failed to load channels'));
       }
     } catch (e) {
-      emit(ChannelError('Unable to load channels. Please check your connection and try again.'));
+      emit(ChannelError('Error loading featured channels'));
     }
   }
 
   Future<void> loadPopularChannels() async {
-    emit(ChannelLoading());
-    try {
-      final channelRes = await _api.get('${ApiEndpoints.channelList}?popular=true');
-      final catRes = await _api.get(ApiEndpoints.categoryList);
-
-      if (channelRes['success'] == true && catRes['success'] == true) {
-        _allChannels = (channelRes['data'] as List)
-            .map((c) => ChannelModel.fromJson(c))
-            .toList();
-        _allCategories = (catRes['data'] as List)
-            .map((c) => CategoryModel.fromJson(c))
-            .toList();
-        emit(ChannelLoaded(_allChannels, _allCategories));
-      } else {
-        emit(ChannelError('Failed to load channels'));
-      }
-    } catch (e) {
-      emit(ChannelError('Unable to load channels. Please check your connection and try again.'));
-    }
+    // Basic implementation for compatibility
+    await loadFeaturedChannels();
   }
 
   Future<void> searchChannels(String query) async {
-    if (query.isEmpty) {
-      emit(ChannelLoaded(_allChannels, _allCategories));
-      return;
-    }
-    try {
-      final response = await _api.get('${ApiEndpoints.channelSearch}?q=$query');
-      if (response['success'] == true) {
-        final results = (response['data'] as List)
-            .map((c) => ChannelModel.fromJson(c))
-            .toList();
-        emit(ChannelLoaded(results, _allCategories));
-      }
-    } catch (e) {
-      emit(ChannelError('Search failed. Please try again.'));
-    }
+    await loadChannels(isRefresh: true, query: query);
   }
 
   List<ChannelModel> get allChannels => _allChannels;

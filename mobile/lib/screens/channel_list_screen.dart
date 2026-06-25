@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shimmer/shimmer.dart';
@@ -15,14 +16,45 @@ class ChannelListScreen extends StatefulWidget {
 }
 
 class _ChannelListScreenState extends State<ChannelListScreen> {
-  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  Timer? _debounce;
+  
   String? _selectedCategory;
   String? _selectedLanguage;
+  bool _workingOnly = true;
 
   @override
   void initState() {
     super.initState();
-    context.read<ChannelCubit>().loadChannels();
+    _scrollController.addListener(_onScroll);
+    context.read<ChannelCubit>().loadChannels(isRefresh: true, workingOnly: _workingOnly);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _searchController.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      context.read<ChannelCubit>().loadChannels();
+    }
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      context.read<ChannelCubit>().loadChannels(isRefresh: true, query: query, workingOnly: _workingOnly);
+    });
+  }
+
+  void _toggleWorkingOnly(bool value) {
+    setState(() => _workingOnly = value);
+    context.read<ChannelCubit>().loadChannels(isRefresh: true, workingOnly: _workingOnly);
   }
 
   @override
@@ -33,9 +65,8 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
         child: BlocBuilder<ChannelCubit, ChannelState>(
           builder: (context, state) {
             if (state is ChannelLoading) return _buildShimmerGrid();
-            if (state is ChannelError) return _buildErrorWidget(state.message, () => context.read<ChannelCubit>().loadChannels());
+            if (state is ChannelError) return _buildErrorWidget(state.message, () => context.read<ChannelCubit>().loadChannels(isRefresh: true));
             if (state is ChannelLoaded) {
-              if (state.channels.isEmpty) return _buildEmptyWidget();
               return _buildChannelList(state);
             }
             return _buildShimmerGrid();
@@ -49,15 +80,8 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
     final allChannels = state.channels;
     final categories = state.categories;
 
+    // Client-side filtering for category and language, server-side for search & working status
     var filtered = allChannels;
-    if (_searchQuery.isNotEmpty) {
-      final q = _searchQuery.toLowerCase();
-      filtered = filtered.where((c) =>
-        c.name.toLowerCase().contains(q) ||
-        (c.categoryName?.toLowerCase().contains(q) ?? false) ||
-        (c.language?.toLowerCase().contains(q) ?? false)
-      ).toList();
-    }
     if (_selectedCategory != null) {
       filtered = filtered.where((c) => c.categoryName == _selectedCategory).toList();
     }
@@ -68,6 +92,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
     final languages = allChannels.map((c) => c.language).whereType<String>().toSet().toList()..sort();
 
     return CustomScrollView(
+      controller: _scrollController,
       physics: const BouncingScrollPhysics(),
       slivers: [
         // Title
@@ -87,6 +112,23 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
         ),
         // Search bar
         SliverToBoxAdapter(child: _buildSearchBar()),
+        // Filters Row (Working Only)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Working Only', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                Switch(
+                  value: _workingOnly,
+                  onChanged: _toggleWorkingOnly,
+                  activeColor: const Color(AppColors.primary),
+                ),
+              ],
+            ),
+          ),
+        ),
         // Category chips
         SliverToBoxAdapter(child: _buildCategoryChips(categories)),
         // Language chips
@@ -124,6 +166,13 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
               ),
             ),
           ),
+        if (state.isLoadingMore)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ),
       ],
     );
   }
@@ -132,15 +181,19 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       child: TextField(
+        controller: _searchController,
         style: const TextStyle(color: Colors.white, fontSize: 15),
         decoration: InputDecoration(
           hintText: 'Search channels...',
           hintStyle: const TextStyle(color: Color(AppColors.textMuted), fontSize: 14),
           prefixIcon: const Icon(Icons.search_rounded, color: Color(AppColors.textSecondary), size: 20),
-          suffixIcon: _searchQuery.isNotEmpty
+          suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
-                  onPressed: () => setState(() => _searchQuery = ''),
+                  onPressed: () {
+                    _searchController.clear();
+                    _onSearchChanged('');
+                  },
                 )
               : null,
           filled: true,
@@ -159,7 +212,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
             borderSide: const BorderSide(color: Color(AppColors.primary), width: 1.5),
           ),
         ),
-        onChanged: (value) => setState(() => _searchQuery = value),
+        onChanged: _onSearchChanged,
       ),
     );
   }
@@ -467,11 +520,12 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
           TextButton(
             onPressed: () {
               setState(() {
-                _searchQuery = '';
+                _searchController.clear();
                 _selectedCategory = null;
                 _selectedLanguage = null;
+                _workingOnly = true;
               });
-              context.read<ChannelCubit>().loadChannels();
+              context.read<ChannelCubit>().loadChannels(isRefresh: true, query: '', workingOnly: true);
             },
             child: const Text('Clear Filters', style: TextStyle(color: Color(AppColors.primary))),
           ),
