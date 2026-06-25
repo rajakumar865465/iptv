@@ -48,13 +48,38 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      context.read<ChannelCubit>().loadChannels(isRefresh: true, query: query, workingOnly: _workingOnly);
+      context.read<ChannelCubit>().loadChannels(
+        isRefresh: true,
+        query: query,
+        workingOnly: _workingOnly,
+        // keep current category/language filter active during search
+      );
     });
   }
 
   void _toggleWorkingOnly(bool value) {
     setState(() => _workingOnly = value);
     context.read<ChannelCubit>().loadChannels(isRefresh: true, workingOnly: _workingOnly);
+  }
+
+  // Fix #11: Category and language filters now go to server, not client-side post-filter.
+  // This ensures all pages are filtered correctly, not just the loaded page.
+  void _onCategorySelected(String? cat) {
+    setState(() => _selectedCategory = cat);
+    context.read<ChannelCubit>().loadChannels(
+      isRefresh: true,
+      workingOnly: _workingOnly,
+      category: cat ?? '',
+    );
+  }
+
+  void _onLanguageSelected(String? lang) {
+    setState(() => _selectedLanguage = lang);
+    context.read<ChannelCubit>().loadChannels(
+      isRefresh: true,
+      workingOnly: _workingOnly,
+      language: lang ?? '',
+    );
   }
 
   @override
@@ -78,18 +103,24 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
 
   Widget _buildChannelList(ChannelLoaded state) {
     final allChannels = state.channels;
-    final categories = state.categories;
+    final categories  = state.categories;
 
-    // Client-side filtering for category and language, server-side for search & working status
-    var filtered = allChannels;
-    if (_selectedCategory != null) {
-      filtered = filtered.where((c) => c.categoryName == _selectedCategory).toList();
-    }
-    if (_selectedLanguage != null) {
-      filtered = filtered.where((c) => c.language == _selectedLanguage).toList();
-    }
+    // Fix #11: Filtering is now fully server-side via API params.
+    // No client-side post-filter — avoids missing channels across pages.
+    final filtered = allChannels;
 
-    final languages = allChannels.map((c) => c.language).whereType<String>().toSet().toList()..sort();
+    // Build Indian language list from loaded channels (for chip display only)
+    final indianLanguages = [
+      'Hindi','English','Bengali','Tamil','Telugu','Malayalam','Kannada',
+      'Marathi','Punjabi','Gujarati','Odia','Assamese','Urdu','Bhojpuri',
+    ];
+    final languages = allChannels
+        .map((c) => c.language)
+        .whereType<String>()
+        .where((l) => l.trim().isNotEmpty && l.toLowerCase() != 'unknown')
+        .toSet()
+        .where((l) => indianLanguages.any((il) => il.toLowerCase() == l.toLowerCase()))
+        .toList()..sort();
 
     return CustomScrollView(
       controller: _scrollController,
@@ -226,13 +257,13 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
         itemCount: categories.length + 1,
         itemBuilder: (context, index) {
           if (index == 0) {
-            return _buildChip('All', _selectedCategory == null, () => setState(() => _selectedCategory = null));
+            return _buildChip('All', _selectedCategory == null, () => _onCategorySelected(null));
           }
           final cat = categories[index - 1];
           return _buildChip(
             cat.name,
             _selectedCategory == cat.name,
-            () => setState(() => _selectedCategory = cat.name == _selectedCategory ? null : cat.name),
+            () => _onCategorySelected(cat.name == _selectedCategory ? null : cat.name),
           );
         },
       ),
@@ -249,13 +280,13 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
         itemCount: languages.length + 1,
         itemBuilder: (context, index) {
           if (index == 0) {
-            return _buildChip('All', _selectedLanguage == null, () => setState(() => _selectedLanguage = null));
+            return _buildChip('All', _selectedLanguage == null, () => _onLanguageSelected(null));
           }
           final lang = languages[index - 1];
           return _buildChip(
             lang,
             _selectedLanguage == lang,
-            () => setState(() => _selectedLanguage = lang == _selectedLanguage ? null : lang),
+            () => _onLanguageSelected(lang == _selectedLanguage ? null : lang),
           );
         },
       ),
@@ -525,7 +556,13 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
                 _selectedLanguage = null;
                 _workingOnly = true;
               });
-              context.read<ChannelCubit>().loadChannels(isRefresh: true, query: '', workingOnly: true);
+              context.read<ChannelCubit>().loadChannels(
+                isRefresh: true,
+                query: '',
+                workingOnly: true,
+                category: '',
+                language: '',
+              );
             },
             child: const Text('Clear Filters', style: TextStyle(color: Color(AppColors.primary))),
           ),

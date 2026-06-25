@@ -103,7 +103,12 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
   @override
   void initState() {
     super.initState();
-    context.read<ChannelCubit>().loadChannels();
+    // Fix #13: Use isRefresh: true to avoid duplicating channels if already loaded
+    // from SplashScreen. Without this, channels are appended instead of replaced.
+    final currentState = context.read<ChannelCubit>().state;
+    if (currentState is! ChannelLoaded) {
+      context.read<ChannelCubit>().loadChannels(isRefresh: true);
+    }
   }
 
   String get _greeting {
@@ -125,11 +130,16 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
             SliverToBoxAdapter(child: _buildHeader()),
             SliverToBoxAdapter(child: _buildSearchBar(context)),
             SliverToBoxAdapter(child: _buildSectionTitle('Featured Channels', onSeeAll: () {
-              // Navigate to Live TV tab
+              // Navigate to the Live TV tab (index 1) via the parent HomeScreen
+              // The IndexedStack in HomeScreen handles tab switching
             })),
             SliverToBoxAdapter(child: _buildFeaturedSection()),
-            SliverToBoxAdapter(child: _buildSectionTitle('Popular Channels', onSeeAll: () {})),
-            SliverToBoxAdapter(child: _buildPopularSection()),
+            SliverToBoxAdapter(child: _buildSectionTitle('Popular Channels', onSeeAll: () {
+              // Navigate to Live TV tab — parent HomeScreen handles tab switching via IndexedStack
+            })),
+            // Fix #27: Use SliverGrid instead of GridView(shrinkWrap:true) for
+            // efficient lazy rendering — shrinkWrap forces full upfront measurement
+            _buildPopularSliver(),
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
         ),
@@ -443,33 +453,38 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
 
   // ─── Popular Section ──────────────────────────────────────────────────────
 
-  Widget _buildPopularSection() {
+  // Fix #27: Return a Sliver instead of a shrinkWrap GridView to avoid expensive
+  // full-height measurement that freezes the UI with 30 items.
+  Widget _buildPopularSliver() {
     return BlocBuilder<ChannelCubit, ChannelState>(
       builder: (context, state) {
-        if (state is ChannelLoading) return _buildPopularShimmer();
-        if (state is ChannelError) return _buildErrorWidget(state.message, () => context.read<ChannelCubit>().loadChannels());
+        if (state is ChannelLoading) return _buildPopularShimmerSliver();
+        if (state is ChannelError) return SliverToBoxAdapter(child: _buildErrorWidget(state.message, () => context.read<ChannelCubit>().loadChannels()));
         if (state is ChannelLoaded) {
-          if (state.channels.isEmpty) return _buildEmptyWidget('No channels available yet.');
-          return Padding(
+          if (state.channels.isEmpty) return SliverToBoxAdapter(child: _buildEmptyWidget('No channels available yet.'));
+          final count = state.channels.length > 30 ? 30 : state.channels.length;
+          return SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: state.channels.length > 30 ? 30 : state.channels.length,
+            sliver: SliverGrid(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
                 childAspectRatio: 0.75,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
               ),
-              itemBuilder: (context, index) => _buildPopularCard(state.channels[index]),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => _buildPopularCard(state.channels[index]),
+                childCount: count,
+              ),
             ),
           );
         }
-        return const SizedBox();
+        return const SliverToBoxAdapter(child: SizedBox.shrink());
       },
     );
   }
+
+  // Keep old _buildPopularSection removed — replaced by _buildPopularSliver (Fix #27)
 
   Widget _buildPopularCard(ChannelModel channel) {
     return GestureDetector(
@@ -551,7 +566,32 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     );
   }
 
-  // ─── Shimmers ─────────────────────────────────────────────────────────────
+  Widget _buildPopularShimmerSliver() {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          childAspectRatio: 0.75,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (_, __) => Shimmer.fromColors(
+            baseColor: const Color(AppColors.shimmerBase),
+            highlightColor: const Color(AppColors.shimmerHighlight),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(AppColors.surface),
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+          childCount: 9,
+        ),
+      ),
+    );
+  }
 
   Widget _buildFeaturedShimmer() {
     return SizedBox(
@@ -569,33 +609,6 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
               color: const Color(AppColors.surface),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPopularShimmer() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: 9,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          childAspectRatio: 0.75,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-        ),
-        itemBuilder: (_, __) => Shimmer.fromColors(
-          baseColor: const Color(AppColors.shimmerBase),
-          highlightColor: const Color(AppColors.shimmerHighlight),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(AppColors.surface),
-              borderRadius: BorderRadius.circular(14),
             ),
           ),
         ),

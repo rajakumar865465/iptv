@@ -1,9 +1,10 @@
+// Fix #20: Use cryptographically secure random bytes instead of Math.random()
+const { randomBytes } = require('crypto');
+
 const generateLicenseKey = () => {
-  const segments = [];
-  for (let i = 0; i < 4; i++) {
-    segments.push(Math.random().toString(36).substring(2, 8).toUpperCase());
-  }
-  return segments.join('-');
+  return Array.from({ length: 4 }, () =>
+    randomBytes(3).toString('hex').toUpperCase()
+  ).join('-');
 };
 
 const formatLicenseResponse = (license, planName, remainingDays) => ({

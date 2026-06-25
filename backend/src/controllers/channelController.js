@@ -2,6 +2,9 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 
 let healthStatusColumnExists = null;
+// Fix #26: Cache schema introspection results at module level to avoid per-request queries
+let channelStreamsTableExists = null;
+let channelFailColumnsExist = null;
 
 async function checkHealthStatusColumn() {
   if (healthStatusColumnExists !== null) return healthStatusColumnExists;
@@ -17,6 +20,32 @@ async function checkHealthStatusColumn() {
   return healthStatusColumnExists;
 }
 
+async function checkChannelStreamsTable() {
+  if (channelStreamsTableExists !== null) return channelStreamsTableExists;
+  try {
+    const result = await db.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'channel_streams'`
+    );
+    channelStreamsTableExists = result.rows.length > 0;
+  } catch (err) {
+    channelStreamsTableExists = false;
+  }
+  return channelStreamsTableExists;
+}
+
+async function checkChannelFailColumns() {
+  if (channelFailColumnsExist !== null) return channelFailColumnsExist;
+  try {
+    const result = await db.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name = 'channels' AND column_name = 'fail_count'`
+    );
+    channelFailColumnsExist = result.rows.length > 0;
+  } catch (err) {
+    channelFailColumnsExist = false;
+  }
+  return channelFailColumnsExist;
+}
+
 const formatChannelRow = (req, row) => {
   if (!row) return row;
   const protocol = req.headers['x-forwarded-proto'] || req.protocol;
@@ -30,11 +59,11 @@ const formatChannelRow = (req, row) => {
   };
 };
 
-// getChannels, getChannel, searchChannels have been preserved from the current structure.
-// They already include the 'active' status check.
+// getChannels — main public API
+// Default: returns Indian active channels, workingOnly=true shows only health_status=online
 exports.getChannels = async (req, res) => {
   try {
-    const { category, search, featured, popular, page, limit, country, showOffline, workingOnly } = req.query;
+    const { category, search, featured, popular, page, limit, country, language, showOffline, workingOnly } = req.query;
     const usePagination = page !== undefined;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(500, Math.max(1, parseInt(limit) || 20));
@@ -43,16 +72,29 @@ exports.getChannels = async (req, res) => {
     const params = [];
     let paramIndex = 1;
 
+    // Fix #4: Only filter by health_status if the column actually exists (guard against fresh DBs)
+    const hasHealthStatus = await checkHealthStatusColumn();
     if (workingOnly === 'true') {
-      conditions.push(`c.health_status = 'online'`);
+      if (hasHealthStatus) {
+        conditions.push(`c.health_status = 'online'`);
+      }
+      // If column doesn't exist, fall through and just return active channels
     } else if (showOffline !== 'true') {
-      // If not showing offline and not explicitly workingOnly, we can either hide 'offline' or show everything but offline.
-      conditions.push(`(c.health_status != 'offline' OR c.health_status IS NULL)`);
+      if (hasHealthStatus) {
+        conditions.push(`(c.health_status != 'offline' OR c.health_status IS NULL)`);
+      }
+      // If column doesn't exist, show all active channels
     }
 
     if (country) {
       conditions.push(`c.country ILIKE $${paramIndex++}`);
       params.push(`%${country}%`);
+    }
+
+    // Language filter (Part 7)
+    if (language) {
+      conditions.push(`c.language ILIKE $${paramIndex++}`);
+      params.push(`%${language}%`);
     }
 
     // For paginated requests, also filter out channels without valid stream URLs
@@ -354,66 +396,50 @@ exports.getRelatedChannels = async (req, res) => {
       ? "AND (c.health_status = 'online' OR c.health_status IS NULL)"
       : '';
 
-    // 1. Same category first
-    if (category_id) {
-      const categoryRes = await db.query(
-        `SELECT c.*, cat.name as category_name
-         FROM channels c
-         LEFT JOIN categories cat ON c.category_id = cat.id
-         WHERE c.id != $1
-         AND c.status = 'active'
-         AND c.stream_url IS NOT NULL AND c.stream_url != ''
-         AND c.category_id = $2
-         ${healthFilter}
-         ORDER BY c.is_featured DESC, c.sort_order ASC, c.name ASC
-         LIMIT 20`,
+    // Fix #25: Run category and language queries in parallel instead of sequentially
+    const baseSelect = `SELECT c.*, cat.name as category_name
+       FROM channels c
+       LEFT JOIN categories cat ON c.category_id = cat.id
+       WHERE c.id != $1
+       AND c.status = 'active'
+       AND c.stream_url IS NOT NULL AND c.stream_url != ''`;
+
+    const [categoryRes, langRes] = await Promise.all([
+      category_id ? db.query(
+        `${baseSelect} AND c.category_id = $2 ${healthFilter}
+         ORDER BY c.is_featured DESC, c.sort_order ASC, c.name ASC LIMIT 20`,
         [id, category_id]
-      );
-      for (const row of categoryRes.rows) {
-        if (!seenIds.has(row.id)) {
-          seenIds.add(row.id);
-          sameCategoryChannels.push({ ...row, source_type: 'same_category' });
-        }
-      }
-    }
-
-    // 2. Fallback: If same category has less than 6 channels, add same language channels
-    if (sameCategoryChannels.length < 6 && language && language.trim().length > 0) {
-      const langRes = await db.query(
-        `SELECT c.*, cat.name as category_name
-         FROM channels c
-         LEFT JOIN categories cat ON c.category_id = cat.id
-         WHERE c.id != $1
-         AND c.status = 'active'
-         AND c.stream_url IS NOT NULL AND c.stream_url != ''
-         AND LOWER(c.language) = LOWER($2)
-         ${healthFilter}
-         ORDER BY c.is_featured DESC, c.sort_order ASC, c.name ASC
-         LIMIT 20`,
+      ) : Promise.resolve({ rows: [] }),
+      (language && language.trim().length > 0) ? db.query(
+        `${baseSelect} AND LOWER(c.language) = LOWER($2) ${healthFilter}
+         ORDER BY c.is_featured DESC, c.sort_order ASC, c.name ASC LIMIT 20`,
         [id, language.trim()]
-      );
-      for (const row of langRes.rows) {
-        if (!seenIds.has(row.id)) {
-          seenIds.add(row.id);
-          sameLanguageChannels.push({ ...row, source_type: 'same_language' });
-          if (sameCategoryChannels.length + sameLanguageChannels.length >= 20) break;
-        }
+      ) : Promise.resolve({ rows: [] }),
+    ]);
+
+    // 1. Same category
+    for (const row of categoryRes.rows) {
+      if (!seenIds.has(row.id)) {
+        seenIds.add(row.id);
+        sameCategoryChannels.push({ ...row, source_type: 'same_category' });
       }
     }
 
-    // 3. Fallback: If still less than 6, add popular/featured active channels
+    // 2. Same language (supplement if category results are sparse)
+    for (const row of langRes.rows) {
+      if (!seenIds.has(row.id)) {
+        seenIds.add(row.id);
+        sameLanguageChannels.push({ ...row, source_type: 'same_language' });
+        if (sameCategoryChannels.length + sameLanguageChannels.length >= 20) break;
+      }
+    }
+
+    // 3. Fallback: popular/featured if still sparse
     const totalSoFar = sameCategoryChannels.length + sameLanguageChannels.length;
     if (totalSoFar < 6) {
       const fallbackRes = await db.query(
-        `SELECT c.*, cat.name as category_name
-         FROM channels c
-         LEFT JOIN categories cat ON c.category_id = cat.id
-         WHERE c.id != $1
-         AND c.status = 'active'
-         AND c.stream_url IS NOT NULL AND c.stream_url != ''
-         ${healthFilter}
-         ORDER BY c.is_featured DESC, c.sort_order ASC, c.name ASC
-         LIMIT 20`,
+        `${baseSelect} ${healthFilter}
+         ORDER BY c.is_featured DESC, c.sort_order ASC, c.name ASC LIMIT 20`,
         [id]
       );
       for (const row of fallbackRes.rows) {
@@ -435,21 +461,6 @@ exports.getRelatedChannels = async (req, res) => {
     } else if (sameLanguageChannels.length > 0) {
       responseSourceType = 'same_language';
     }
-
-    // Debug logging
-    console.log('[getRelatedChannels] Debug:', {
-      current_channel_id: currentChannel.id,
-      current_channel_name: name,
-      category_id: category_id,
-      category_name: category_name,
-      language: language,
-      same_category_count: sameCategoryChannels.length,
-      same_language_count: sameLanguageChannels.length,
-      fallback_count: fallbackChannels.length,
-      total_returned: allRelated.length,
-      response_source_type: responseSourceType,
-      first_5_channels: allRelated.slice(0, 5).map(c => ({ id: c.id, name: c.name, category: c.category_name, source_type: c.source_type }))
-    });
 
     // Format and return
     const formatted = allRelated.slice(0, 20).map(row => formatChannelRow(req, row));
@@ -474,12 +485,16 @@ exports.reportFailure = async (req, res) => {
     
     const failReason = reason || message || 'buffer_timeout';
 
-    const hasStreamsTable = await db.query(`SELECT 1 FROM information_schema.tables WHERE table_name = 'channel_streams'`);
+    // Fix #26: Use cached table/column existence checks instead of per-request schema introspection
+    const hasStreamsTable = await checkChannelStreamsTable();
     
-    if (hasStreamsTable.rows.length > 0) {
+    if (hasStreamsTable) {
       let targetStreamId = stream_id;
       if (!targetStreamId && stream_url) {
-        const streamRes = await db.query('SELECT id FROM channel_streams WHERE channel_id = $1 AND stream_url = $2', [id, stream_url]);
+        const streamRes = await db.query(
+          'SELECT id FROM channel_streams WHERE channel_id = $1 AND stream_url = $2',
+          [id, stream_url]
+        );
         if (streamRes.rows.length > 0) targetStreamId = streamRes.rows[0].id;
       }
       
@@ -496,38 +511,37 @@ exports.reportFailure = async (req, res) => {
         if (updateRes.rows.length > 0) {
           const { fail_count, health_score } = updateRes.rows[0];
           if (fail_count >= 2 || health_score <= 40) {
-             await db.query(`UPDATE channel_streams SET health_status = 'unstable' WHERE id = $1`, [targetStreamId]);
+            await db.query(`UPDATE channel_streams SET health_status = 'unstable' WHERE id = $1`, [targetStreamId]);
           }
           if (fail_count >= 4 || health_score <= 0) {
-             await db.query(`UPDATE channel_streams SET health_status = 'offline' WHERE id = $1`, [targetStreamId]);
+            await db.query(`UPDATE channel_streams SET health_status = 'offline' WHERE id = $1`, [targetStreamId]);
           }
         }
       }
     }
 
-    // Always update global channel fail count as fallback
-    const hasColumns = await db.query(`SELECT 1 FROM information_schema.columns WHERE table_name = 'channels' AND column_name = 'fail_count'`);
-    if (hasColumns.rows.length === 0) {
-      await db.query(`ALTER TABLE channels ADD COLUMN fail_count INT DEFAULT 0;`);
-      await db.query(`ALTER TABLE channels ADD COLUMN last_failure_at TIMESTAMP;`);
-      await db.query(`ALTER TABLE channels ADD COLUMN failure_reason TEXT;`);
-    }
+    // Fix #5: Remove DDL (ALTER TABLE) from request handler — the fail_count columns are now
+    // added via migration 010_add_channel_fail_columns.sql. If the column doesn't exist yet
+    // (migration not run), we skip this update gracefully rather than trying to ALTER TABLE.
+    // Fix #26: Use cached column check
+    const hasFailColumns = await checkChannelFailColumns();
+    if (hasFailColumns) {
+      const updateRes = await db.query(`
+        UPDATE channels 
+        SET fail_count = COALESCE(fail_count, 0) + 1, 
+            last_failure_at = NOW(), 
+            failure_reason = $1 
+        WHERE id = $2 
+        RETURNING fail_count
+      `, [failReason, id]);
 
-    const updateRes = await db.query(`
-       UPDATE channels 
-       SET fail_count = COALESCE(fail_count, 0) + 1, 
-           last_failure_at = NOW(), 
-           failure_reason = $1 
-       WHERE id = $2 
-       RETURNING fail_count
-    `, [failReason, id]);
-
-    if (updateRes.rows.length > 0) {
-      const failCount = updateRes.rows[0].fail_count;
-      if (failCount >= 5) {
-        const hasHealthStatus = await checkHealthStatusColumn();
-        if (hasHealthStatus) {
-           await db.query(`UPDATE channels SET health_status = 'offline' WHERE id = $1`, [id]);
+      if (updateRes.rows.length > 0) {
+        const failCount = updateRes.rows[0].fail_count;
+        if (failCount >= 5) {
+          const hasHealthStatus = await checkHealthStatusColumn();
+          if (hasHealthStatus) {
+            await db.query(`UPDATE channels SET health_status = 'offline' WHERE id = $1`, [id]);
+          }
         }
       }
     }
@@ -543,9 +557,10 @@ exports.getChannelPlayback = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const hasStreamsTable = await db.query(`SELECT 1 FROM information_schema.tables WHERE table_name = 'channel_streams'`);
-    
-    if (hasStreamsTable.rows.length === 0) {
+    // Fix #26: Use cached table check
+    const hasStreamsTable = await checkChannelStreamsTable();
+
+    if (!hasStreamsTable) {
       const result = await db.query('SELECT stream_url, backup_stream_url, user_agent, referrer FROM channels WHERE id = $1', [id]);
       if (result.rows.length === 0) return error(res, 'Channel not found', 404);
       const row = result.rows[0];

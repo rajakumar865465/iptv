@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
 import '../models/user_model.dart';
@@ -18,14 +21,36 @@ class StorageService {
     return prefs.getString(StorageKeys.token);
   }
 
+  // Fix #24: Use real hardware device ID for stable cross-reinstall tracking
   Future<String> getDeviceId() async {
     final prefs = await SharedPreferences.getInstance();
     String? deviceId = prefs.getString(StorageKeys.deviceId);
-    if (deviceId == null) {
-      deviceId = 'dev_${DateTime.now().millisecondsSinceEpoch}';
+    if (deviceId == null || deviceId.isEmpty) {
+      deviceId = await _readHardwareDeviceId();
       await prefs.setString(StorageKeys.deviceId, deviceId);
     }
     return deviceId;
+  }
+
+  Future<String> _readHardwareDeviceId() async {
+    try {
+      final deviceInfo = DeviceInfoPlugin();
+      if (!kIsWeb && Platform.isAndroid) {
+        final info = await deviceInfo.androidInfo;
+        // Use Android ID — persists across reinstalls unless factory reset
+        return info.id.isNotEmpty ? info.id : _fallbackDeviceId();
+      } else if (!kIsWeb && Platform.isIOS) {
+        final info = await deviceInfo.iosInfo;
+        return info.identifierForVendor ?? _fallbackDeviceId();
+      }
+    } catch (_) {
+      // Fall through to timestamp-based fallback
+    }
+    return _fallbackDeviceId();
+  }
+
+  String _fallbackDeviceId() {
+    return 'dev_${DateTime.now().millisecondsSinceEpoch}';
   }
 
   Future<void> saveUser(UserModel user) async {
@@ -62,11 +87,14 @@ class StorageService {
 
   Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
-    // Only clear auth-related keys — preserve backend URL settings
+    // Fix #21: Also clear cached channels/categories so a new user doesn't see
+    // the previous user's cached channel list after logout.
     await prefs.remove(StorageKeys.token);
     await prefs.remove(StorageKeys.user);
     await prefs.remove(StorageKeys.deviceId);
     await prefs.remove(StorageKeys.isFirstLaunch);
     await prefs.remove(StorageKeys.hasSeenOnboarding);
+    await prefs.remove(StorageKeys.cachedChannels);
+    await prefs.remove(StorageKeys.cachedCategories);
   }
 }

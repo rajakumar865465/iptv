@@ -1,8 +1,8 @@
 class AppConstants {
   static const String appName = 'IPTV Live TV';
-  // Use 10.0.2.2:5000 for Android emulator (localhost alias)
-  // For production, use: https://iptv-6vbq.onrender.com
-  static const String baseUrl = 'http://10.0.2.2:5000';
+  // Fix #6 & #30: Removed duplicate baseUrl — use BackendConfig.baseUrl everywhere.
+  // AppConstants.baseUrl previously pointed to the emulator (10.0.2.2:5000) which
+  // breaks on real devices. BackendConfig is the single source of truth for the URL.
   static const String apiVersion = 'v1';
   static const int connectTimeout = 30000;
   static const int receiveTimeout = 30000;

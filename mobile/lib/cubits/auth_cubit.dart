@@ -124,8 +124,21 @@ class AuthCubit extends Cubit<AuthState> {
             return;
           }
         }
-        // If it's a network error or non-token error, proceed offline
-        emit(AuthAuthenticated());
+        // Fix #22: Only treat network/connectivity errors as "offline authenticated".
+        // Server 500s or unknown errors should NOT silently pass the auth gate.
+        if (e is DioException && (
+          e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.sendTimeout
+        )) {
+          // Genuine network outage — allow offline access
+          emit(AuthAuthenticated());
+        } else {
+          // Any other error (500, etc.) — require re-login to be safe
+          await _storage.clearAll();
+          emit(AuthUnauthenticated());
+        }
       }
     } else {
       emit(AuthUnauthenticated());

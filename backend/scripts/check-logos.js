@@ -160,10 +160,18 @@ async function processChannelLogo(channel) {
 
 // Batch runner
 async function checkLogos() {
-  console.log('Fetching active channels for logo validation...');
-  const res = await db.query(
-    `SELECT id, name, logo_url, local_logo_url FROM channels WHERE status = 'active' ORDER BY id ASC`
-  );
+  const args = process.argv.slice(2);
+  const onlyMissing = args.includes('--missing-only');
+  const limitArg    = args.find(a => a.startsWith('--limit='));
+  const limitNum    = limitArg ? parseInt(limitArg.split('=')[1], 10) : 0;
+
+  console.log('Fetching channels for logo validation...');
+  let query = `SELECT id, name, logo_url, local_logo_url FROM channels WHERE status NOT IN ('hidden','disabled')`;
+  if (onlyMissing) query += ` AND (logo_status IS NULL OR logo_status IN ('missing','invalid','unknown'))`;
+  query += ` ORDER BY id ASC`;
+  if (limitNum > 0) query += ` LIMIT ${limitNum}`;
+
+  const res = await db.query(query);
   
   const channels = res.rows;
   console.log(`Found ${channels.length} active channels to check.`);

@@ -166,8 +166,19 @@ exports.createChannel = async (req, res) => {
 
 exports.getChannelsAdmin = async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM channels ORDER BY sort_order ASC');
-    success(res, result.rows);
+    // Add basic pagination to avoid loading all channels at once
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
+
+    const countResult = await db.query('SELECT COUNT(*) FROM channels');
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    const result = await db.query(
+      'SELECT * FROM channels ORDER BY sort_order ASC LIMIT $1 OFFSET $2',
+      [limit, offset]
+    );
+    success(res, result.rows, 'Success', 200);
   } catch (err) {
     error(res, 'Failed to fetch channels', 500);
   }
@@ -177,10 +188,27 @@ exports.updateChannel = async (req, res) => {
   try {
     const { id } = req.params;
     const fields = req.body;
-    const keys = Object.keys(fields);
-    const values = Object.values(fields);
+
+    // Fix #18: Whitelist allowed column names to prevent SQL injection via field names
+    const ALLOWED_FIELDS = [
+      'name', 'logo_url', 'stream_url', 'backup_stream_url', 'category_id',
+      'language', 'quality', 'status', 'is_featured', 'is_premium',
+      'sort_order', 'user_agent', 'referrer', 'country', 'local_logo_url',
+      'health_status', 'playback_mode'
+    ];
+
+    const keys = Object.keys(fields).filter(k => ALLOWED_FIELDS.includes(k));
+    if (keys.length === 0) {
+      return error(res, 'No valid fields to update', 400);
+    }
+
+    const values = keys.map(k => fields[k]);
     const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
-    const result = await db.query(`UPDATE channels SET ${setClause}, updated_at = NOW() WHERE id = $${keys.length + 1} RETURNING *`, [...values, id]);
+    const result = await db.query(
+      `UPDATE channels SET ${setClause}, updated_at = NOW() WHERE id = $${keys.length + 1} RETURNING *`,
+      [...values, id]
+    );
+    if (result.rows.length === 0) return error(res, 'Channel not found', 404);
     success(res, result.rows[0], 'Channel updated');
   } catch (err) {
     error(res, 'Failed to update channel', 500);

@@ -29,7 +29,23 @@ app.set('trust proxy', 1);
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+// Fix #17: Restrict CORS to known origins. For a mobile app the origin is typically
+// null/undefined, so we allow that too. Tighten this for web admin panels.
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
+  : [];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow mobile apps (no origin) and any configured origins
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('combined'));
@@ -53,15 +69,7 @@ async function initDatabase() {
     const fs = require('fs');
     const path = require('path');
 
-    console.log('Ensuring database tables exist...');
-
-    // Always run the main schema (CREATE TABLE IF NOT EXISTS is safe to re-run)
-    const schemaPath = path.join(__dirname, '..', 'migrations', '001_initial_schema.sql');
-    if (fs.existsSync(schemaPath)) {
-      const sql = fs.readFileSync(schemaPath, 'utf8');
-      await db.query(sql);
-      console.log('Database schema ensured');
-    }
+    console.log('Running database migrations...');
 
     // Create schema_migrations table if it doesn't exist
     await db.query(`
@@ -72,25 +80,31 @@ async function initDatabase() {
       );
     `);
 
-    // Run all migration files once
+    // Fix #32: Track 001_initial_schema.sql in migrations table so it only runs once,
+    // not on every startup. CREATE TABLE IF NOT EXISTS is idempotent but still slow at scale.
     const migrationsDir = path.join(__dirname, '..', 'migrations');
     if (fs.existsSync(migrationsDir)) {
       const migrationFiles = fs.readdirSync(migrationsDir)
-        .filter(f => f.endsWith('.sql') && f !== '001_initial_schema.sql')
+        .filter(f => f.endsWith('.sql'))
         .sort();
 
       for (const migrationFile of migrationFiles) {
         // Check if migration was already applied
-        const check = await db.query('SELECT 1 FROM schema_migrations WHERE migration_name = $1', [migrationFile]);
+        const check = await db.query(
+          'SELECT 1 FROM schema_migrations WHERE migration_name = $1',
+          [migrationFile]
+        );
         if (check.rows.length > 0) {
-          // Already applied, skip it
-          continue;
+          continue; // Already applied, skip
         }
 
         try {
           const sql = fs.readFileSync(path.join(migrationsDir, migrationFile), 'utf8');
           await db.query(sql);
-          await db.query('INSERT INTO schema_migrations (migration_name) VALUES ($1)', [migrationFile]);
+          await db.query(
+            'INSERT INTO schema_migrations (migration_name) VALUES ($1)',
+            [migrationFile]
+          );
           console.log(`Migration applied: ${migrationFile}`);
         } catch (err) {
           console.error(`Migration failed for ${migrationFile}:`, err.message);
@@ -120,14 +134,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/app', appConfigRoutes);
 app.use('/api/license', licenseRoutes);
 app.use('/api/channels', channelRoutes);
-app.use('/api/categories', categoryRoutes);
+app.use('/api/categories', categoryRoutes); // Fix #31: Removed duplicate direct alias below
 app.use('/api/proxy', proxyRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/internal', adminRoutes);
-
-// Direct alias for categories
-app.get('/api/categories', standardLimiter, channelController.getCategories);
 
 // 404 handler
 app.use((req, res) => {

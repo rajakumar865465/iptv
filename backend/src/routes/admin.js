@@ -1,15 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
-const authMiddleware = require('../middleware/auth');
-const adminMiddleware = require('../middleware/admin');
+// Fix #16: Use dedicated adminAuth middleware (verifies ADMIN_JWT_SECRET tokens)
+// instead of the user authMiddleware (which verifies JWT_SECRET tokens).
+// Admin tokens are generated with generateAdminToken() using ADMIN_JWT_SECRET,
+// so they would fail the regular authMiddleware.
+const adminAuthMiddleware = require('../middleware/adminAuth');
 const { authLimiter } = require('../middleware/rateLimit');
 
 // Public admin login
 router.post('/login', authLimiter, adminController.adminLogin);
 
-// Protected admin routes
-router.use(authMiddleware, adminMiddleware);
+// Protected admin routes — use dedicated admin auth (no separate adminMiddleware needed,
+// adminAuthMiddleware already checks role = 'admin')
+router.use(adminAuthMiddleware);
 
 // Users
 router.get('/users', adminController.getUsers);

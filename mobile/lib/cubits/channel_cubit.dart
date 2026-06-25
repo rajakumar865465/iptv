@@ -34,8 +34,17 @@ class ChannelCubit extends Cubit<ChannelState> {
   bool _hasMore = true;
   String _currentQuery = '';
   bool _workingOnly = true;
+  // Server-side filters — send to API, no client-side post-filter needed
+  String? _filterCategory;
+  String? _filterLanguage;
 
-  Future<void> loadChannels({bool isRefresh = false, String? query, bool? workingOnly}) async {
+  Future<void> loadChannels({
+    bool isRefresh = false,
+    String? query,
+    bool? workingOnly,
+    String? category,   // sends ?category= to server (Part 7)
+    String? language,   // sends ?language= to server (Part 7)
+  }) async {
     if (isRefresh) {
       _currentPage = 1;
       _hasMore = true;
@@ -48,18 +57,23 @@ class ChannelCubit extends Cubit<ChannelState> {
       }
     }
 
-    if (query != null) _currentQuery = query;
-    if (workingOnly != null) _workingOnly = workingOnly;
+    if (query    != null) _currentQuery    = query;
+    if (workingOnly != null) _workingOnly  = workingOnly;
+    // Allow explicit null to clear filter via named arg
+    if (category != null) _filterCategory = category == '' ? null : category;
+    if (language != null) _filterLanguage = language == '' ? null : language;
 
     try {
       final params = <String, dynamic>{
-        'page': _currentPage,
+        'page':  _currentPage,
         'limit': 50,
       };
 
-      if (_currentQuery.isNotEmpty) params['search'] = _currentQuery;
-      if (_workingOnly) params['workingOnly'] = 'true';
-      else params['showOffline'] = 'true';
+      if (_currentQuery.isNotEmpty)    params['search']   = _currentQuery;
+      if (_filterCategory != null)     params['category'] = _filterCategory;
+      if (_filterLanguage != null)     params['language'] = _filterLanguage;
+      if (_workingOnly)  params['workingOnly']  = 'true';
+      else               params['showOffline']  = 'true';
 
       final channelRes = await _api.get(ApiEndpoints.channelList, queryParameters: params);
 
@@ -90,10 +104,12 @@ class ChannelCubit extends Cubit<ChannelState> {
         _currentPage++;
         
         // Cache if this is the first page of standard load
+        // Fix #28: Include a timestamp so stale cache (>6h) can be detected
         if (_currentPage == 2 && _currentQuery.isEmpty) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString(StorageKeys.cachedChannels, jsonEncode(channelRes['data']));
           await prefs.setString(StorageKeys.cachedCategories, jsonEncode(catRes?['data'] ?? []));
+          await prefs.setInt('cache_timestamp', DateTime.now().millisecondsSinceEpoch);
         }
 
         emit(ChannelLoaded(List.from(_allChannels), _allCategories, hasMore: _hasMore, isLoadingMore: false));
@@ -112,12 +128,16 @@ class ChannelCubit extends Cubit<ChannelState> {
         final prefs = await SharedPreferences.getInstance();
         final cachedChannelsStr = prefs.getString(StorageKeys.cachedChannels);
         final cachedCatsStr = prefs.getString(StorageKeys.cachedCategories);
+        // Fix #28: Respect cache expiry — ignore cache older than 6 hours
+        final cacheTimestamp = prefs.getInt('cache_timestamp') ?? 0;
+        final cacheAge = DateTime.now().millisecondsSinceEpoch - cacheTimestamp;
+        final cacheValid = cacheAge < const Duration(hours: 6).inMilliseconds;
 
-        if (cachedChannelsStr != null && cachedChannelsStr.isNotEmpty) {
+        if (cacheValid && cachedChannelsStr != null && cachedChannelsStr.isNotEmpty) {
           final channelsList = jsonDecode(cachedChannelsStr) as List;
           _allChannels = channelsList.map((c) => ChannelModel.fromJson(c)).toList();
         }
-        if (cachedCatsStr != null && cachedCatsStr.isNotEmpty) {
+        if (cacheValid && cachedCatsStr != null && cachedCatsStr.isNotEmpty) {
           final catsList = jsonDecode(cachedCatsStr) as List;
           _allCategories = catsList.map((c) => CategoryModel.fromJson(c)).toList();
         }
@@ -137,7 +157,8 @@ class ChannelCubit extends Cubit<ChannelState> {
     // Basic implementation for compatibility
     emit(ChannelLoading());
     try {
-      final channelRes = await _api.get('${ApiEndpoints.channelList}?featured=true');
+      // Fix #12: Use queryParameters instead of embedding ?featured=true in the URL string
+      final channelRes = await _api.get(ApiEndpoints.channelList, queryParameters: {'featured': 'true'});
       if (_allCategories.isEmpty) {
         final catRes = await _api.get(ApiEndpoints.categoryList);
         if (catRes['success'] == true) {

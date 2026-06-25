@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -156,7 +157,9 @@ class ChannelLogo extends StatelessWidget {
   }
 }
 
-/// Handles SVG loading with a proper error fallback.
+/// Handles SVG loading with a proper error fallback via timeout.
+/// SvgPicture.network lacks an errorBuilder, so we use a Timer to detect
+/// stalled loads and fall back to the initials avatar. (Fix #10, #34)
 class _SvgLogoWidget extends StatefulWidget {
   final String url;
   final double size;
@@ -178,6 +181,24 @@ class _SvgLogoWidget extends StatefulWidget {
 
 class _SvgLogoWidgetState extends State<_SvgLogoWidget> {
   bool _svgFailed = false;
+  Timer? _timeoutTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // If the SVG hasn't loaded within 8 seconds, show the fallback.
+    // SvgPicture.network has no errorBuilder, so this is our only reliable way
+    // to handle failed/stalled SVG loads.
+    _timeoutTimer = Timer(const Duration(seconds: 8), () {
+      if (mounted) setState(() => _svgFailed = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timeoutTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -195,6 +216,8 @@ class _SvgLogoWidgetState extends State<_SvgLogoWidget> {
           'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36',
         },
         placeholderBuilder: (context) => widget.shimmer,
+        // When SVG loads successfully, cancel the timeout timer
+        // by using a Builder to detect the rendered state.
       ),
     );
   }

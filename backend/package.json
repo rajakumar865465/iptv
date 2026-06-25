@@ -9,7 +9,16 @@
     "test": "jest --coverage",
     "migrate": "node scripts/migrate.js",
     "seed": "node scripts/seed.js",
-    "import-iptv": "node scripts/import-iptv-org.js"
+    "import-iptv": "node scripts/import-iptv-org.js",
+    "seed-categories": "node scripts/seed-indian-categories.js",
+    "import-indian": "node scripts/import-indian-streams.js --source=both --limit=none --include-offline=true",
+    "check-streams": "node scripts/check-streams-deep.js --all --concurrency=10",
+    "check-pending": "node scripts/check-streams-deep.js --pending --concurrency=10",
+    "check-logos": "node scripts/check-logos.js",
+    "check-logos-missing": "node scripts/check-logos.js --missing-only",
+    "activate": "node scripts/activate-working-channels.js",
+    "report": "node scripts/generate-report.js",
+    "setup-indian": "npm run seed-categories && npm run import-indian && npm run check-streams && npm run check-logos && npm run activate && npm run report"
   },
   "engines": {
     "node": ">=18.0.0"

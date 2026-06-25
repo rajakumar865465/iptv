@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:media_kit/media_kit.dart';
 import 'cubits/auth_cubit.dart';
 import 'cubits/license_cubit.dart';
 import 'cubits/channel_cubit.dart';
@@ -10,6 +11,8 @@ import 'theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Fix #1: Initialize media_kit before the app starts
+  MediaKit.ensureInitialized();
   runApp(const MyApp());
 }
 

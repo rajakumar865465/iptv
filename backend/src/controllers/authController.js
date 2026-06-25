@@ -157,8 +157,12 @@ exports.logout = async (req, res) => {
 };
 
 exports.forgotPassword = async (req, res) => {
-  // MVP: Just return success, actual email sending can be added later
-  success(res, null, 'Password reset instructions sent to your email');
+  // Fix #33: Return 501 instead of a fake 200 success — email sending not yet implemented.
+  // This prevents users from thinking a reset email was sent when it wasn't.
+  return res.status(501).json({
+    success: false,
+    message: 'Password reset via email is not yet available. Please contact support to reset your password.',
+  });
 };
 
 exports.me = async (req, res) => {

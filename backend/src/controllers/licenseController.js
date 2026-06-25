@@ -111,7 +111,8 @@ exports.status = async (req, res) => {
     const now = new Date();
     const isExpired = new Date(license.expires_at) <= now;
 
-    if (isExpired && license.status === 'active') {
+    // Fix #23: Handle expiry for both 'active' AND 'trial' statuses
+    if (isExpired && (license.status === 'active' || license.status === 'trial')) {
       await db.query("UPDATE licenses SET status = 'expired' WHERE id = $1", [license.id]);
       license.status = 'expired';
     }
@@ -154,7 +155,7 @@ exports.validate = async (req, res) => {
     const now = new Date();
     const isExpired = new Date(license.expires_at) <= now;
 
-    if (isExpired && license.status === 'active') {
+    if (isExpired && (license.status === 'active' || license.status === 'trial')) {
       await db.query("UPDATE licenses SET status = 'expired' WHERE id = $1", [license.id]);
       license.status = 'expired';
     }

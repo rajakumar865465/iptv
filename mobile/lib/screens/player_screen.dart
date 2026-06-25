@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:video_player/video_player.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../constants.dart';
 import '../cubits/favorite_cubit.dart';
 import '../models/channel_model.dart';
@@ -24,7 +26,9 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixin {
   final ApiService _api = ApiService();
-  VideoPlayerController? _controller;
+  // Fix #1: Use media_kit Player instead of VideoPlayerController for proper HLS support
+  late final Player _player;
+  late final VideoController _videoController;
   bool _isLoading = true;
   bool _hasError = false;
   bool _isFullScreen = false;
@@ -39,7 +43,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Map<String, dynamic>? _currentStreamMeta;
   bool _isRetryingStream = false;
   String _streamOverlayMessage = '';
+  // Fix #2: Separate timer with null reset to prevent stacking
   Timer? _bufferTimer;
+  StreamSubscription? _playerSubscription;
 
   // Animation controller for controls fade
   late AnimationController _controlsAnimController;
@@ -69,6 +75,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (_currentIndex < 0) _currentIndex = 0;
     _currentUrl = _currentChannel.streamUrl;
 
+    // Fix #1: Initialize media_kit player
+    _player = Player();
+    _videoController = VideoController(_player);
+
+    // Fix #9: Keep screen on during playback
+    WakelockPlus.enable();
+
     _controlsAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 250),
@@ -86,6 +99,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // ──────────────────────── Player ────────────────────────
 
   Future<void> _fetchPlaybackAndInitialize() async {
+    // Fix #3: Cancel any pending buffer timer before starting a new stream to prevent
+    // the old channel's timeout from firing and setting _isRetryingStream on the new one.
+    _bufferTimer?.cancel();
+    _bufferTimer = null;
+    _playerSubscription?.cancel();
+    _playerSubscription = null;
+
     if (mounted) setState(() { _isLoading = true; _hasError = false; _streamOverlayMessage = ''; _isRetryingStream = false; });
     try {
       final res = await _api.get('${ApiEndpoints.channels}/${_currentChannel.id}/playback');
@@ -111,13 +131,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Future<void> _initializePlayer(String url, [Map<String, dynamic>? rawHeaders]) async {
-    if (_controller != null) {
-      _controller!.removeListener(_playerListener);
-      await _controller!.dispose();
-      _controller = null;
-    }
-    
     _currentUrl = url;
+    _playerSubscription?.cancel();
+    _playerSubscription = null;
     if (mounted) setState(() { _isLoading = true; _hasError = false; });
 
     try {
@@ -126,32 +142,49 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         rawHeaders.forEach((k, v) { if (v != null && v.toString().isNotEmpty) headers[k] = v.toString(); });
       }
 
-      _controller = headers.isNotEmpty
-          ? VideoPlayerController.networkUrl(Uri.parse(url), httpHeaders: headers)
-          : VideoPlayerController.networkUrl(Uri.parse(url));
+      // Fix #1: Use media_kit Media with httpHeaders for proper HLS + custom headers support
+      final media = Media(url, httpHeaders: headers.isNotEmpty ? headers : null);
+      await _player.open(media);
+      await _player.play();
 
-      _controller!.addListener(_playerListener);
-      await _controller!.initialize();
-      await _controller!.play();
-      if (mounted) {
-        setState(() { _isLoading = false; _isRetryingStream = false; _streamOverlayMessage = ''; });
-        _showControlsWithTimer();
-      }
+      // Listen to player state for buffering and errors
+      _playerSubscription = _player.stream.buffering.listen(_onBufferingChanged);
+
+      // Listen for errors
+      _player.stream.error.listen((error) {
+        if (error.isNotEmpty && mounted) {
+          _handleStreamFailure('player_error');
+        }
+      });
+
+      // Listen for playback start
+      _player.stream.playing.first.then((_) {
+        if (mounted) {
+          setState(() { _isLoading = false; _isRetryingStream = false; _streamOverlayMessage = ''; });
+          _showControlsWithTimer();
+        }
+      });
     } catch (e) {
       _handleStreamFailure('init_failed');
     }
   }
 
-  void _playerListener() {
-    if (_controller == null || !_controller!.value.isInitialized) return;
-    if (_controller!.value.isBuffering) {
-      if (_bufferTimer == null || !_bufferTimer!.isActive) {
-        _bufferTimer = Timer(const Duration(seconds: 10), () {
-           _handleStreamFailure('buffer_timeout');
-        });
-      }
+  // Fix #2: Proper buffer timer with null reset to prevent stacking timers
+  void _onBufferingChanged(bool isBuffering) {
+    if (isBuffering) {
+      // Only start a new timer if one isn't already running
+      _bufferTimer ??= Timer(const Duration(seconds: 15), () {
+        _handleStreamFailure('buffer_timeout');
+      });
     } else {
+      // Cancel and null the timer when buffering stops
       _bufferTimer?.cancel();
+      _bufferTimer = null;
+      // Update loading state when buffering clears
+      if (mounted && _isLoading) {
+        setState(() { _isLoading = false; _isRetryingStream = false; _streamOverlayMessage = ''; });
+        _showControlsWithTimer();
+      }
     }
   }
 
@@ -382,6 +415,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   void _retry() {
     setState(() { _isLoading = true; _hasError = false; _isRetryingStream = false; });
+    _bufferTimer?.cancel();
+    _bufferTimer = null;
     _fetchPlaybackAndInitialize();
   }
 
@@ -400,12 +435,16 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   @override
   void dispose() {
+    // Fix #14: Dispose video player FIRST before animation controller to prevent
+    // animation callbacks firing after widget is unmounted
     _bufferTimer?.cancel();
     _controlsTimer?.cancel();
+    _playerSubscription?.cancel();
+    _player.dispose();
     _controlsAnimController.dispose();
-    _controller?.removeListener(_playerListener);
-    _controller?.dispose();
     _scrollController.dispose();
+    // Fix #9: Disable wakelock when leaving player
+    WakelockPlus.disable();
     if (_isFullScreen) {
       SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -534,16 +573,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // ──────────────────────── Video Surface ────────────────────────
 
   Widget _buildVideoSurface() {
-    if (_controller == null || !_controller!.value.isInitialized) {
-      return const SizedBox.expand();
-    }
-    return FittedBox(
+    // Fix #1: Use media_kit Video widget — handles HLS, custom headers, aspect ratio natively
+    return Video(
+      controller: _videoController,
       fit: _getBoxFit(),
-      child: SizedBox(
-        width: _controller!.value.size.width,
-        height: _controller!.value.size.height,
-        child: VideoPlayer(_controller!),
-      ),
+      controls: NoVideoControls,
     );
   }
 
@@ -734,49 +768,51 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Widget _buildCenterControls() {
-    final isPlaying = _controller?.value.isPlaying ?? false;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Previous
-        _controlIconButton(
-          icon: Icons.skip_previous_rounded,
-          size: 34,
-          onTap: _playPreviousChannel,
-        ),
-        const SizedBox(width: 28),
-        // Play / Pause — large circle button
-        GestureDetector(
-          onTap: () {
-            if (_controller == null) return;
-            setState(() {
-              isPlaying ? _controller!.pause() : _controller!.play();
-            });
-            _showControlsWithTimer();
-          },
-          child: Container(
-            width: 62,
-            height: 62,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withOpacity(0.5), width: 2),
+    return StreamBuilder<bool>(
+      stream: _player.stream.playing,
+      builder: (context, snapshot) {
+        final isPlaying = snapshot.data ?? false;
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Previous
+            _controlIconButton(
+              icon: Icons.skip_previous_rounded,
+              size: 34,
+              onTap: _playPreviousChannel,
             ),
-            child: Icon(
-              isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: 38,
+            const SizedBox(width: 28),
+            // Play / Pause — large circle button
+            GestureDetector(
+              onTap: () {
+                _player.playOrPause();
+                _showControlsWithTimer();
+              },
+              child: Container(
+                width: 62,
+                height: 62,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white.withOpacity(0.5), width: 2),
+                ),
+                child: Icon(
+                  isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 38,
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(width: 28),
-        // Next
-        _controlIconButton(
-          icon: Icons.skip_next_rounded,
-          size: 34,
-          onTap: _playNextChannel,
-        ),
-      ],
+            const SizedBox(width: 28),
+            // Next
+            _controlIconButton(
+              icon: Icons.skip_next_rounded,
+              size: 34,
+              onTap: _playNextChannel,
+            ),
+          ],
+        );
+      },
     );
   }
 
