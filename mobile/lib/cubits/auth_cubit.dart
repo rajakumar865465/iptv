@@ -100,14 +100,32 @@ class AuthCubit extends Cubit<AuthState> {
     final token = await _storage.getToken();
     if (token != null) {
       _authService.setToken(token);
-      // Validate token is still valid via /me
-      final meResult = await _authService.me();
-      if (meResult != null) {
+      try {
+        final meResult = await _authService.me();
+        if (meResult != null) {
+          emit(AuthAuthenticated());
+        } else {
+          await _storage.clearAll();
+          emit(AuthUnauthenticated());
+        }
+      } catch (e) {
+        if (e is DioException && (e.response?.statusCode == 401 || e.response?.statusCode == 403)) {
+          final data = e.response?.data;
+          bool isTokenError = false;
+          if (data is Map && data['message'] != null) {
+            final msg = data['message'].toString().toLowerCase();
+            if (msg.contains('invalid token') || msg.contains('token expired') || e.response?.statusCode == 403) {
+              isTokenError = true;
+            }
+          }
+          if (isTokenError) {
+            await _storage.clearAll();
+            emit(AuthUnauthenticated());
+            return;
+          }
+        }
+        // If it's a network error or non-token error, proceed offline
         emit(AuthAuthenticated());
-      } else {
-        // Token invalid/expired — clear and unauthenticate
-        await _storage.clearAll();
-        emit(AuthUnauthenticated());
       }
     } else {
       emit(AuthUnauthenticated());

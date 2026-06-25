@@ -40,8 +40,8 @@ class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Color(AppColors.background),
         indicatorColor: Color(0x26E50914),
-        labelTextStyle: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(AppColors.primary));
           }
           return const TextStyle(fontSize: 11, color: Color(AppColors.textSecondary));

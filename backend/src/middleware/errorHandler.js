@@ -24,9 +24,17 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
+  // Handle DB connection issues cleanly
+  if (err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT' || err.message?.includes('socket') || err.message?.includes('timeout') || err.message?.includes('Connection terminated')) {
+    return res.status(503).json({
+      success: false,
+      message: 'Service temporarily unavailable. Please try again later.',
+    });
+  }
+
   res.status(err.status || 500).json({
     success: false,
-    message: err.message || 'Internal Server Error',
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 };

@@ -31,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final licenseCubit = context.read<LicenseCubit>();
       await licenseCubit.checkStatus();
-      if (!mounted) return;
+      if (!context.mounted) return;
       final licenseState = context.read<LicenseCubit>().state;
       if (licenseState is LicenseActive) {
         Navigator.of(context).pushReplacement(

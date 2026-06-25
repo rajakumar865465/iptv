@@ -466,3 +466,47 @@ exports.getRelatedChannels = async (req, res) => {
     error(res, 'Failed to fetch related channels', 500);
   }
 };
+
+exports.reportFailure = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason, stream_url, device, player, message } = req.body;
+    
+    // Ensure tracking columns exist
+    const hasColumns = await db.query(`
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'channels' AND column_name = 'fail_count'
+    `);
+    
+    if (hasColumns.rows.length === 0) {
+      await db.query(`ALTER TABLE channels ADD COLUMN fail_count INT DEFAULT 0;`);
+      await db.query(`ALTER TABLE channels ADD COLUMN last_failure_at TIMESTAMP;`);
+      await db.query(`ALTER TABLE channels ADD COLUMN failure_reason TEXT;`);
+    }
+
+    const updateRes = await db.query(
+      `UPDATE channels 
+       SET fail_count = COALESCE(fail_count, 0) + 1, 
+           last_failure_at = NOW(), 
+           failure_reason = $1 
+       WHERE id = $2 
+       RETURNING fail_count`,
+      [reason || message || 'buffer_timeout', id]
+    );
+
+    if (updateRes.rows.length > 0) {
+      const failCount = updateRes.rows[0].fail_count;
+      if (failCount >= 3) {
+        const hasHealthStatus = await checkHealthStatusColumn();
+        if (hasHealthStatus) {
+           await db.query(`UPDATE channels SET health_status = 'offline' WHERE id = $1`, [id]);
+        }
+      }
+    }
+
+    success(res, { success: true, message: 'Failure reported' });
+  } catch (err) {
+    console.error('reportFailure error:', err);
+    error(res, 'Failed to report', 500);
+  }
+};

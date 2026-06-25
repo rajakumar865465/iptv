@@ -42,8 +42,23 @@ class ApiService {
           '[API Error] ${error.response?.statusCode} ${error.requestOptions.path} | ${error.message}',
           name: 'ApiService',
         );
-        if (error.response?.statusCode == 401) {
-          _clearToken();
+        if (error.response?.statusCode == 401 || error.response?.statusCode == 403) {
+          final data = error.response?.data;
+          bool isTokenError = false;
+          
+          if (data is Map && data['message'] != null) {
+            final msg = data['message'].toString().toLowerCase();
+            if (msg.contains('invalid token') || msg.contains('token expired') || error.response?.statusCode == 403) {
+              isTokenError = true;
+            }
+          }
+          
+          if (isTokenError) {
+            developer.log('[API] Invalid/Expired token detected, clearing session.', name: 'ApiService');
+            _clearToken();
+          } else {
+            developer.log('[API] 401 received but not a token expiration, preserving session.', name: 'ApiService');
+          }
         }
         return handler.next(error);
       },

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
@@ -14,9 +15,11 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final _searchController = TextEditingController();
+  Timer? _debounce;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -48,8 +51,13 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
           style: const TextStyle(color: Colors.white),
           onChanged: (query) {
+            if (_debounce?.isActive ?? false) _debounce!.cancel();
+            _debounce = Timer(const Duration(milliseconds: 500), () {
+              if (mounted) {
+                context.read<ChannelCubit>().searchChannels(query);
+              }
+            });
             setState(() {});
-            context.read<ChannelCubit>().searchChannels(query);
           },
         ),
       ),

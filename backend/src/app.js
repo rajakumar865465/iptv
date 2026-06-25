@@ -22,6 +22,9 @@ const channelController = require('./controllers/channelController');
 
 const app = express();
 
+// Trust proxy for rate limiters (required for Render/Heroku)
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(helmet());
 app.use(cors());

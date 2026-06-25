@@ -111,6 +111,7 @@ class AuthService {
       }
       return null;
     } catch (e) {
+      if (e is DioException) rethrow;
       return null;
     }
   }

@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../models/channel_model.dart';
 import '../constants.dart';
@@ -12,8 +14,9 @@ class ChannelLoaded extends ChannelState {
   final List<CategoryModel> categories;
   final bool hasMore;
   final bool isLoadingMore;
+  final String? error;
 
-  ChannelLoaded(this.channels, this.categories, {this.hasMore = false, this.isLoadingMore = false});
+  ChannelLoaded(this.channels, this.categories, {this.hasMore = false, this.isLoadingMore = false, this.error});
 }
 class ChannelError extends ChannelState {
   final String message;
@@ -60,8 +63,9 @@ class ChannelCubit extends Cubit<ChannelState> {
 
       final channelRes = await _api.get(ApiEndpoints.channelList, queryParameters: params);
 
+      Map<String, dynamic>? catRes;
       if (_allCategories.isEmpty) {
-        final catRes = await _api.get(ApiEndpoints.categoryList);
+        catRes = await _api.get(ApiEndpoints.categoryList);
         if (catRes['success'] == true) {
           _allCategories = (catRes['data'] as List)
               .map((c) => CategoryModel.fromJson(c))
@@ -84,17 +88,48 @@ class ChannelCubit extends Cubit<ChannelState> {
         }
 
         _currentPage++;
+        
+        // Cache if this is the first page of standard load
+        if (_currentPage == 2 && _currentQuery.isEmpty) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(StorageKeys.cachedChannels, jsonEncode(channelRes['data']));
+          await prefs.setString(StorageKeys.cachedCategories, jsonEncode(catRes?['data'] ?? []));
+        }
+
         emit(ChannelLoaded(List.from(_allChannels), _allCategories, hasMore: _hasMore, isLoadingMore: false));
       } else {
-        if (_currentPage == 1) emit(ChannelError('Failed to load channels'));
-        else emit(ChannelLoaded(List.from(_allChannels), _allCategories, hasMore: _hasMore, isLoadingMore: false));
+        await _handleLoadError('Failed to load channels from server');
       }
     } catch (e) {
-      if (_currentPage == 1) {
-        emit(ChannelError('Unable to load channels. Please check your connection and try again.'));
-      } else {
-        emit(ChannelLoaded(List.from(_allChannels), _allCategories, hasMore: _hasMore, isLoadingMore: false));
+      await _handleLoadError('Unable to load channels. Please check connection and try again.');
+    }
+  }
+
+  Future<void> _handleLoadError(String message) async {
+    if (_allChannels.isEmpty) {
+      // Try to load from cache
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cachedChannelsStr = prefs.getString(StorageKeys.cachedChannels);
+        final cachedCatsStr = prefs.getString(StorageKeys.cachedCategories);
+
+        if (cachedChannelsStr != null && cachedChannelsStr.isNotEmpty) {
+          final channelsList = jsonDecode(cachedChannelsStr) as List;
+          _allChannels = channelsList.map((c) => ChannelModel.fromJson(c)).toList();
+        }
+        if (cachedCatsStr != null && cachedCatsStr.isNotEmpty) {
+          final catsList = jsonDecode(cachedCatsStr) as List;
+          _allCategories = catsList.map((c) => CategoryModel.fromJson(c)).toList();
+        }
+      } catch (e) {
+        // Cache read failed
       }
+    }
+
+    if (_allChannels.isNotEmpty) {
+      emit(ChannelLoaded(List.from(_allChannels), _allCategories, hasMore: _hasMore, isLoadingMore: false, error: message));
+    } else {
+      emit(ChannelError(message));
     }
   }
 

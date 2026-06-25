@@ -79,4 +79,6 @@ class StorageKeys {
   static const String deviceId = 'device_id';
   static const String isFirstLaunch = 'is_first_launch';
   static const String hasSeenOnboarding = 'has_seen_onboarding';
+  static const String cachedChannels = 'cached_channels';
+  static const String cachedCategories = 'cached_categories';
 }

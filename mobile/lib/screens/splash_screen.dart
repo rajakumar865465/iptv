@@ -32,11 +32,11 @@ class _SplashScreenState extends State<SplashScreen> {
     // Show splash for at least 2 seconds
     await Future.delayed(const Duration(seconds: 2));
 
-    if (!mounted) return;
+    if (!context.mounted) return;
 
     // First, check if onboarding is complete
     final hasOnboarding = await StorageService().hasSeenOnboarding();
-    if (!hasOnboarding && mounted) {
+    if (!hasOnboarding && context.mounted) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const OnboardingScreen()),
       );
@@ -45,7 +45,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // Fetch app config first (maintenance, force update, etc.)
     await context.read<AppConfigCubit>().fetchConfig();
-    if (!mounted) return;
+    if (!context.mounted) return;
 
     final appConfig = context.read<AppConfigCubit>().state;
     if (appConfig is AppConfigLoaded) {
@@ -70,7 +70,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // Check auth state and validate user on backend
     final token = await StorageService().getToken();
-    if (token != null && mounted) {
+    if (token != null && context.mounted) {
       // Validate token and get fresh user/me data
       try {
         final authCubit = context.read<AuthCubit>();
@@ -81,7 +81,7 @@ class _SplashScreenState extends State<SplashScreen> {
         if (meResult == null) {
           // Token invalid - clear and go to login
           await StorageService().clearAll();
-          if (mounted) {
+          if (context.mounted) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const LoginScreen()),
             );
@@ -91,7 +91,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
         // Check user status
         if (meResult['status'] == 'blocked') {
-          if (mounted) {
+          if (context.mounted) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const BlockedScreen()),
             );
@@ -102,12 +102,12 @@ class _SplashScreenState extends State<SplashScreen> {
         // User valid, check license status
         final licenseCubit = context.read<LicenseCubit>();
         await licenseCubit.checkStatus();
-        if (!mounted) return;
+        if (!context.mounted) return;
 
         final licenseState = context.read<LicenseCubit>().state;
         if (licenseState is LicenseActive) {
           await context.read<ChannelCubit>().loadChannels();
-          if (mounted) {
+          if (context.mounted) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const HomeScreen()),
             );
@@ -115,13 +115,13 @@ class _SplashScreenState extends State<SplashScreen> {
         } else if (licenseState is LicenseExpired ||
                    licenseState is LicenseNone ||
                    licenseState is LicenseError) {
-          if (mounted) {
+          if (context.mounted) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),
             );
           }
         } else {
-          if (mounted) {
+          if (context.mounted) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const LoginScreen()),
             );
@@ -129,13 +129,13 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       } catch (e) {
         // On error, fall back to login
-        if (mounted) {
+        if (context.mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const LoginScreen()),
           );
         }
       }
-    } else if (mounted) {
+    } else if (context.mounted) {
       // Not logged in
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const LoginScreen()),

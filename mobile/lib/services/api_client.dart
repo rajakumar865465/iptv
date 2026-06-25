@@ -28,8 +28,18 @@ class ApiClient {
         return handler.next(options);
       },
       onError: (error, handler) {
-        if (error.response?.statusCode == 401) {
-          _authService.clearSession();
+        if (error.response?.statusCode == 401 || error.response?.statusCode == 403) {
+          final data = error.response?.data;
+          bool isTokenError = false;
+          if (data is Map && data['message'] != null) {
+            final msg = data['message'].toString().toLowerCase();
+            if (msg.contains('invalid token') || msg.contains('token expired') || error.response?.statusCode == 403) {
+              isTokenError = true;
+            }
+          }
+          if (isTokenError) {
+            _authService.clearSession();
+          }
         }
         return handler.next(error);
       },
