@@ -35,6 +35,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Timer? _controlsTimer;
   int _fitIndex = 0;
 
+  List<dynamic> _backupStreams = [];
+  Map<String, dynamic>? _currentStreamMeta;
+  bool _isRetryingStream = false;
+  String _streamOverlayMessage = '';
+  Timer? _bufferTimer;
+
   // Animation controller for controls fade
   late AnimationController _controlsAnimController;
   late Animation<double> _controlsOpacity;
@@ -72,49 +78,105 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
     context.read<FavoriteCubit>().loadFavorites();
     _scrollController.addListener(_onScroll);
-    _initializePlayer(_currentUrl);
+    _fetchPlaybackAndInitialize();
     _loadChannelData();
     _loadMoreLiveChannels();
   }
 
   // ──────────────────────── Player ────────────────────────
 
-  Future<void> _initializePlayer(String url) async {
+  Future<void> _fetchPlaybackAndInitialize() async {
+    if (mounted) setState(() { _isLoading = true; _hasError = false; _streamOverlayMessage = ''; _isRetryingStream = false; });
+    try {
+      final res = await _api.get('${ApiEndpoints.channels}/${_currentChannel.id}/playback');
+      if (res['success'] == true) {
+        final data = res['data'];
+        _currentStreamMeta = data['primary_stream'];
+        _backupStreams = data['backup_streams'] ?? [];
+        
+        String urlToPlay = _currentStreamMeta!['url'];
+        await _initializePlayer(urlToPlay, _currentStreamMeta!['headers']);
+      } else {
+        throw Exception('Playback fetch failed');
+      }
+    } catch(e) {
+      _backupStreams = _currentChannel.backupStreamUrl?.isNotEmpty == true ? [
+        {'url': _currentChannel.backupStreamUrl, 'headers': { 'User-Agent': _currentChannel.userAgent, 'Referer': _currentChannel.referrer }}
+      ] : [];
+      await _initializePlayer(_currentChannel.streamUrl, {
+        if (_currentChannel.userAgent != null) 'User-Agent': _currentChannel.userAgent!,
+        if (_currentChannel.referrer != null) 'Referer': _currentChannel.referrer!,
+      });
+    }
+  }
+
+  Future<void> _initializePlayer(String url, [Map<String, dynamic>? rawHeaders]) async {
     if (_controller != null) {
+      _controller!.removeListener(_playerListener);
       await _controller!.dispose();
       _controller = null;
     }
+    
+    _currentUrl = url;
     if (mounted) setState(() { _isLoading = true; _hasError = false; });
 
     try {
       final Map<String, String> headers = {};
-      if (_currentChannel.referrer?.isNotEmpty == true) {
-        headers['Referer'] = _currentChannel.referrer!;
+      if (rawHeaders != null) {
+        rawHeaders.forEach((k, v) { if (v != null && v.toString().isNotEmpty) headers[k] = v.toString(); });
       }
-      if (_currentChannel.userAgent?.isNotEmpty == true) {
-        headers['User-Agent'] = _currentChannel.userAgent!;
-      }
+
       _controller = headers.isNotEmpty
           ? VideoPlayerController.networkUrl(Uri.parse(url), httpHeaders: headers)
           : VideoPlayerController.networkUrl(Uri.parse(url));
 
+      _controller!.addListener(_playerListener);
       await _controller!.initialize();
       await _controller!.play();
       if (mounted) {
-        setState(() { _isLoading = false; });
+        setState(() { _isLoading = false; _isRetryingStream = false; _streamOverlayMessage = ''; });
         _showControlsWithTimer();
       }
     } catch (e) {
-      debugPrint('VideoPlayer error: $e');
-      // Try backup stream URL once
-      if (url == _currentChannel.streamUrl &&
-          _currentChannel.backupStreamUrl?.isNotEmpty == true) {
-        if (mounted) setState(() { _currentUrl = _currentChannel.backupStreamUrl!; });
-        await _initializePlayer(_currentChannel.backupStreamUrl!);
-        return;
-      }
-      if (mounted) setState(() { _isLoading = false; _hasError = true; });
+      _handleStreamFailure('init_failed');
     }
+  }
+
+  void _playerListener() {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    if (_controller!.value.isBuffering) {
+      if (_bufferTimer == null || !_bufferTimer!.isActive) {
+        _bufferTimer = Timer(const Duration(seconds: 10), () {
+           _handleStreamFailure('buffer_timeout');
+        });
+      }
+    } else {
+      _bufferTimer?.cancel();
+    }
+  }
+
+  Future<void> _handleStreamFailure(String reason) async {
+    if (_isRetryingStream) return;
+    _bufferTimer?.cancel();
+    _isRetryingStream = true;
+
+    try {
+      await _api.post('${ApiEndpoints.channels}/${_currentChannel.id}/report-failure', {
+        'reason': reason,
+        'stream_url': _currentUrl,
+        'stream_id': _currentStreamMeta?['id'],
+      });
+    } catch(e) {}
+
+    if (_backupStreams.isNotEmpty) {
+      if (mounted) setState(() { _streamOverlayMessage = 'Trying backup source...'; });
+      final backup = _backupStreams.removeAt(0);
+      _currentStreamMeta = backup;
+      await _initializePlayer(backup['url'], backup['headers']);
+      return;
+    }
+
+    if (mounted) setState(() { _isLoading = false; _hasError = true; _streamOverlayMessage = ''; });
   }
 
   // ──────────────────────── Data Loading ────────────────────────
@@ -232,7 +294,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (_scrollController.hasClients) {
       _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     }
-    _initializePlayer(_currentUrl);
+    _fetchPlaybackAndInitialize();
     _loadChannelData();
     _loadMoreLiveChannels();
   }
@@ -319,8 +381,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   void _retry() {
-    setState(() { _isLoading = true; _hasError = false; });
-    _initializePlayer(_currentUrl);
+    setState(() { _isLoading = true; _hasError = false; _isRetryingStream = false; });
+    _fetchPlaybackAndInitialize();
   }
 
   String _formatTimeRange(DateTime? start, DateTime? end) {
@@ -338,8 +400,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   @override
   void dispose() {
+    _bufferTimer?.cancel();
     _controlsTimer?.cancel();
     _controlsAnimController.dispose();
+    _controller?.removeListener(_playerListener);
     _controller?.dispose();
     _scrollController.dispose();
     if (_isFullScreen) {
@@ -486,10 +550,16 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Widget _buildLoadingOverlay() {
     return Container(
       color: Colors.black87,
-      child: const Center(
-        child: CircularProgressIndicator(
-          color: Color(AppColors.primary),
-          strokeWidth: 3,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(color: Color(AppColors.primary), strokeWidth: 3),
+            if (_streamOverlayMessage.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(_streamOverlayMessage, style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+            ],
+          ],
         ),
       ),
     );

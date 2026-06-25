@@ -10,6 +10,7 @@ router.get('/category/:categoryId', apiLimiter, channelController.getChannelsByC
 router.get('/:id', apiLimiter, channelController.getChannel);
 router.get('/:id/epg/now', apiLimiter, channelController.getChannelEPGNow);
 router.get('/:id/epg/upcoming', apiLimiter, channelController.getChannelEPGUpcoming);
+router.get('/:id/playback', apiLimiter, channelController.getChannelPlayback);
 router.get('/:id/related', apiLimiter, channelController.getRelatedChannels);
 router.post('/:id/report-failure', apiLimiter, channelController.reportFailure);
 

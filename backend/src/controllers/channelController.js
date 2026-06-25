@@ -470,33 +470,61 @@ exports.getRelatedChannels = async (req, res) => {
 exports.reportFailure = async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason, stream_url, device, player, message } = req.body;
+    const { reason, stream_url, stream_id, buffer_seconds, device, player, message } = req.body;
     
-    // Ensure tracking columns exist
-    const hasColumns = await db.query(`
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name = 'channels' AND column_name = 'fail_count'
-    `);
+    const failReason = reason || message || 'buffer_timeout';
+
+    const hasStreamsTable = await db.query(`SELECT 1 FROM information_schema.tables WHERE table_name = 'channel_streams'`);
     
+    if (hasStreamsTable.rows.length > 0) {
+      let targetStreamId = stream_id;
+      if (!targetStreamId && stream_url) {
+        const streamRes = await db.query('SELECT id FROM channel_streams WHERE channel_id = $1 AND stream_url = $2', [id, stream_url]);
+        if (streamRes.rows.length > 0) targetStreamId = streamRes.rows[0].id;
+      }
+      
+      if (targetStreamId) {
+        const updateRes = await db.query(`
+          UPDATE channel_streams 
+          SET fail_count = fail_count + 1, 
+              health_score = GREATEST(0, health_score - 20),
+              last_failed_at = NOW(),
+              health_reason = $1
+          WHERE id = $2 RETURNING fail_count, health_score
+        `, [failReason, targetStreamId]);
+        
+        if (updateRes.rows.length > 0) {
+          const { fail_count, health_score } = updateRes.rows[0];
+          if (fail_count >= 2 || health_score <= 40) {
+             await db.query(`UPDATE channel_streams SET health_status = 'unstable' WHERE id = $1`, [targetStreamId]);
+          }
+          if (fail_count >= 4 || health_score <= 0) {
+             await db.query(`UPDATE channel_streams SET health_status = 'offline' WHERE id = $1`, [targetStreamId]);
+          }
+        }
+      }
+    }
+
+    // Always update global channel fail count as fallback
+    const hasColumns = await db.query(`SELECT 1 FROM information_schema.columns WHERE table_name = 'channels' AND column_name = 'fail_count'`);
     if (hasColumns.rows.length === 0) {
       await db.query(`ALTER TABLE channels ADD COLUMN fail_count INT DEFAULT 0;`);
       await db.query(`ALTER TABLE channels ADD COLUMN last_failure_at TIMESTAMP;`);
       await db.query(`ALTER TABLE channels ADD COLUMN failure_reason TEXT;`);
     }
 
-    const updateRes = await db.query(
-      `UPDATE channels 
+    const updateRes = await db.query(`
+       UPDATE channels 
        SET fail_count = COALESCE(fail_count, 0) + 1, 
            last_failure_at = NOW(), 
            failure_reason = $1 
        WHERE id = $2 
-       RETURNING fail_count`,
-      [reason || message || 'buffer_timeout', id]
-    );
+       RETURNING fail_count
+    `, [failReason, id]);
 
     if (updateRes.rows.length > 0) {
       const failCount = updateRes.rows[0].fail_count;
-      if (failCount >= 3) {
+      if (failCount >= 5) {
         const hasHealthStatus = await checkHealthStatusColumn();
         if (hasHealthStatus) {
            await db.query(`UPDATE channels SET health_status = 'offline' WHERE id = $1`, [id]);
@@ -508,5 +536,63 @@ exports.reportFailure = async (req, res) => {
   } catch (err) {
     console.error('reportFailure error:', err);
     error(res, 'Failed to report', 500);
+  }
+};
+
+exports.getChannelPlayback = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const hasStreamsTable = await db.query(`SELECT 1 FROM information_schema.tables WHERE table_name = 'channel_streams'`);
+    
+    if (hasStreamsTable.rows.length === 0) {
+      const result = await db.query('SELECT stream_url, backup_stream_url, user_agent, referrer FROM channels WHERE id = $1', [id]);
+      if (result.rows.length === 0) return error(res, 'Channel not found', 404);
+      const row = result.rows[0];
+      return success(res, {
+        channel_id: parseInt(id),
+        primary_stream: { url: row.stream_url, quality: 'auto', headers: { 'User-Agent': row.user_agent, 'Referer': row.referrer }, playback_mode: 'direct' },
+        backup_streams: row.backup_stream_url ? [{ url: row.backup_stream_url, quality: 'auto', headers: { 'User-Agent': row.user_agent, 'Referer': row.referrer } }] : []
+      });
+    }
+
+    let result = await db.query(`
+      SELECT * FROM channel_streams 
+      WHERE channel_id = $1 AND health_status != 'offline'
+      ORDER BY priority ASC, health_score DESC
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      result = await db.query('SELECT * FROM channel_streams WHERE channel_id = $1 ORDER BY priority ASC', [id]);
+      if (result.rows.length === 0) {
+        return error(res, 'No streams available for this channel', 404);
+      }
+    }
+
+    const primary = result.rows[0];
+    const backups = result.rows.slice(1).map(r => ({
+      id: r.id,
+      url: r.stream_url,
+      quality: r.quality,
+      headers: { 'User-Agent': r.user_agent, 'Referer': r.referer }
+    }));
+
+    const channelRes = await db.query('SELECT playback_mode FROM channels WHERE id = $1', [id]);
+    const playbackMode = channelRes.rows[0]?.playback_mode || 'direct';
+
+    success(res, {
+      channel_id: parseInt(id),
+      primary_stream: {
+        id: primary.id,
+        url: primary.stream_url,
+        quality: primary.quality,
+        headers: { 'User-Agent': primary.user_agent, 'Referer': primary.referer },
+        playback_mode: playbackMode
+      },
+      backup_streams: backups
+    });
+  } catch (err) {
+    console.error('getChannelPlayback error:', err);
+    error(res, 'Failed to fetch playback streams', 500);
   }
 };
