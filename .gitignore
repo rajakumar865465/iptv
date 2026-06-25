@@ -36,3 +36,7 @@ mobile/.dart_tool/
 mobile/.idea/
 mobile/*.iml
 mobile/build/
+
+# Backend static files / downloads
+backend/public/logos/
+
