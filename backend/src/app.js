@@ -58,7 +58,16 @@ async function initDatabase() {
       console.log('Database schema ensured');
     }
 
-    // Run all migration files idempotently
+    // Create schema_migrations table if it doesn't exist
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        id SERIAL PRIMARY KEY,
+        migration_name VARCHAR(255) UNIQUE NOT NULL,
+        applied_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // Run all migration files once
     const migrationsDir = path.join(__dirname, '..', 'migrations');
     if (fs.existsSync(migrationsDir)) {
       const migrationFiles = fs.readdirSync(migrationsDir)
@@ -66,9 +75,17 @@ async function initDatabase() {
         .sort();
 
       for (const migrationFile of migrationFiles) {
+        // Check if migration was already applied
+        const check = await db.query('SELECT 1 FROM schema_migrations WHERE migration_name = $1', [migrationFile]);
+        if (check.rows.length > 0) {
+          // Already applied, skip it
+          continue;
+        }
+
         try {
           const sql = fs.readFileSync(path.join(migrationsDir, migrationFile), 'utf8');
           await db.query(sql);
+          await db.query('INSERT INTO schema_migrations (migration_name) VALUES ($1)', [migrationFile]);
           console.log(`Migration applied: ${migrationFile}`);
         } catch (err) {
           console.error(`Migration failed for ${migrationFile}:`, err.message);

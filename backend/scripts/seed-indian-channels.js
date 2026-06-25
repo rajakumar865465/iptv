@@ -135,20 +135,20 @@ async function seedIndianChannels() {
         await db.query(
           `UPDATE channels SET
             name=$1, stream_url=$2, category_id=$3, language=$4, quality=$5,
-            is_featured=$6, status='active', sort_order=$7, logo_url=$8, updated_at=NOW()
+            is_featured=$6, status='active', health_status='online', sort_order=$7, logo_url=$8, updated_at=NOW()
           WHERE id=$9`,
           [ch.name, ch.streamUrl, categoryId, ch.language, ch.quality || 'SD', ch.isFeatured || false, sortOrder, ch.logoUrl || null, existing.rows[0].id]
         );
-        console.log(`  â†» Updated: ${ch.name}`);
+        console.log(`  ↺ Updated: ${ch.name}`);
       } else {
         await db.query(
           `INSERT INTO channels (
             name, stream_url, category_id, language, quality,
-            status, is_featured, is_premium, sort_order, source, source_channel_id, logo_url
-          ) VALUES ($1,$2,$3,$4,$5,'active',$6,false,$7,'indian-seed',$8,$9)`,
+            status, health_status, is_featured, is_premium, sort_order, source, source_channel_id, logo_url
+          ) VALUES ($1,$2,$3,$4,$5,'active','online',$6,false,$7,'indian-seed',$8,$9)`,
           [ch.name, ch.streamUrl, categoryId, ch.language, ch.quality || 'SD', ch.isFeatured || false, sortOrder, sourceId, ch.logoUrl || null]
         );
-        console.log(`  âœ“ Seeded: ${ch.name}`);
+        console.log(`  ✓ Seeded: ${ch.name}`);
         seeded++;
       }
       sortOrder++;
