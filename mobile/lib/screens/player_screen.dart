@@ -134,55 +134,93 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _currentUrl = url;
     _playerSubscription?.cancel();
     _playerSubscription = null;
+    _bufferTimer?.cancel();
+    _bufferTimer = null;
     if (mounted) setState(() { _isLoading = true; _hasError = false; });
 
     try {
       final Map<String, String> headers = {};
       if (rawHeaders != null) {
-        rawHeaders.forEach((k, v) { if (v != null && v.toString().isNotEmpty) headers[k] = v.toString(); });
+        rawHeaders.forEach((k, v) {
+          if (v != null && v.toString().isNotEmpty) headers[k] = v.toString();
+        });
       }
 
-      // Fix #1: Use media_kit Media with httpHeaders for proper HLS + custom headers support
       final media = Media(url, httpHeaders: headers.isNotEmpty ? headers : null);
       await _player.open(media);
       await _player.play();
 
-      // Listen to player state for buffering and errors
+      // ── Listen for buffering changes ──────────────────────────────────
       _playerSubscription = _player.stream.buffering.listen(_onBufferingChanged);
 
-      // Listen for errors
-      _player.stream.error.listen((error) {
-        if (error.isNotEmpty && mounted) {
+      // ── Listen for errors ─────────────────────────────────────────────
+      // media_kit fires error events during normal HLS playlist resolution
+      // (e.g. "Failed to open" before retrying internally). We add a small
+      // grace delay so transient init errors don't trigger failure immediately.
+      _player.stream.error.listen((errorMsg) {
+        if (errorMsg.isEmpty || !mounted) return;
+        // Ignore errors that arrive within the first 3 seconds — these are
+        // almost always transient HLS init events, not real stream failures.
+        Future.delayed(const Duration(seconds: 3), () {
+          if (!mounted || !_isLoading) return; // already playing — ignore
           _handleStreamFailure('player_error');
-        }
+        });
       });
 
-      // Listen for playback start
-      _player.stream.playing.first.then((_) {
+      // ── Wait for actual playback to start ─────────────────────────────
+      // Use stream.playing where value == true, not .first (which fires on
+      // the first event regardless of whether it's true or false).
+      _player.stream.playing
+          .where((playing) => playing == true)
+          .first
+          .then((_) {
         if (mounted) {
-          setState(() { _isLoading = false; _isRetryingStream = false; _streamOverlayMessage = ''; });
+          setState(() {
+            _isLoading = false;
+            _isRetryingStream = false;
+            _streamOverlayMessage = '';
+          });
           _showControlsWithTimer();
         }
       });
+
+      // ── Safety timeout ────────────────────────────────────────────────
+      // If neither "playing=true" nor buffering events fire within 30 seconds
+      // the stream is genuinely dead. This is a last-resort fallback only.
+      _bufferTimer = Timer(const Duration(seconds: 30), () {
+        if (mounted && _isLoading && !_hasError) {
+          _handleStreamFailure('init_timeout');
+        }
+      });
+
     } catch (e) {
       _handleStreamFailure('init_failed');
     }
   }
 
-  // Fix #2: Proper buffer timer with null reset to prevent stacking timers
+  // Fix #2: Buffering timer — only fires after sustained buffering, not on initial load.
+  // When the player first opens an HLS stream it is always buffering. We only
+  // treat it as a failure if buffering lasts beyond the grace period.
   void _onBufferingChanged(bool isBuffering) {
     if (isBuffering) {
-      // Only start a new timer if one isn't already running
-      _bufferTimer ??= Timer(const Duration(seconds: 15), () {
-        _handleStreamFailure('buffer_timeout');
-      });
+      // Start a buffer-stall timer only if we were already playing (not initial load).
+      // For initial load the 30-second safety timeout in _initializePlayer covers us.
+      final alreadyStarted = !_isLoading;
+      if (alreadyStarted) {
+        _bufferTimer ??= Timer(const Duration(seconds: 20), () {
+          if (mounted) _handleStreamFailure('buffer_timeout');
+        });
+      }
     } else {
-      // Cancel and null the timer when buffering stops
+      // Buffering cleared — cancel stall timer and clear loading spinner
       _bufferTimer?.cancel();
       _bufferTimer = null;
-      // Update loading state when buffering clears
       if (mounted && _isLoading) {
-        setState(() { _isLoading = false; _isRetryingStream = false; _streamOverlayMessage = ''; });
+        setState(() {
+          _isLoading = false;
+          _isRetryingStream = false;
+          _streamOverlayMessage = '';
+        });
         _showControlsWithTimer();
       }
     }
@@ -191,6 +229,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Future<void> _handleStreamFailure(String reason) async {
     if (_isRetryingStream) return;
     _bufferTimer?.cancel();
+    _bufferTimer = null;
     _isRetryingStream = true;
 
     try {
@@ -202,9 +241,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     } catch(e) {}
 
     if (_backupStreams.isNotEmpty) {
-      if (mounted) setState(() { _streamOverlayMessage = 'Trying backup source...'; });
+      if (mounted) setState(() { _streamOverlayMessage = 'Trying backup source...'; _isLoading = true; _hasError = false; });
       final backup = _backupStreams.removeAt(0);
       _currentStreamMeta = backup;
+      _isRetryingStream = false; // allow next failure cycle on the backup stream
       await _initializePlayer(backup['url'], backup['headers']);
       return;
     }
