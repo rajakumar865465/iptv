@@ -278,6 +278,19 @@ function dedup(channels) {
   return Array.from(map.values());
 }
 
+// ─── Canonical name (must match dedupe-channels.js exactly) ───────────────
+function canonicalName(name) {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .replace(/\s*\([^)]*\)\s*/g, ' ')
+    .replace(/\s*\b(hd|sd|fhd|uhd|4k)\b\s*/gi, ' ')
+    .replace(/\s*\b(1080p?|720p?|576p?|480p?|360p?|240p?)\b\s*/gi, ' ')
+    .replace(/\s*\b(backup|source\s*\d*|live|channel)\b\s*/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // ─── DB helpers ───────────────────────────────────────────────────────────
 async function getCategoryId(catName) {
   const name = catName || 'General';
@@ -291,55 +304,76 @@ async function getCategoryId(catName) {
 }
 
 async function upsertChannel(ch, catId) {
-  const sourceId = ch.tvg_id || ch.id || normalise(ch.name);
-  const existing = await db.query(
-    `SELECT id FROM channels WHERE tvg_id = $1
-       OR (source_channel_id = $2 AND source = 'iptv-org-india')
+  const sourceId   = ch.tvg_id || ch.id || normalise(ch.name);
+  const canName    = canonicalName(ch.name);
+  const lang       = ch.language || 'Unknown';
+
+  // Look up existing channel — prefer canonical_name+language+category match
+  // over just tvg_id, to prevent creating duplicates of already-merged channels
+  let existing = await db.query(
+    `SELECT id FROM channels
+     WHERE status NOT IN ('merged','duplicate')
+       AND (
+         tvg_id = $1
+         OR (source_channel_id = $2 AND source = 'iptv-org-india')
+         OR (canonical_name = $3 AND LOWER(COALESCE(language,'')) = LOWER($4) AND category_id = $5)
+       )
+     ORDER BY CASE WHEN health_status = 'online' THEN 0
+                   WHEN health_status = 'unknown' THEN 1
+                   ELSE 2 END,
+              id ASC
      LIMIT 1`,
-    [sourceId, sourceId]
+    [sourceId, sourceId, canName, lang, catId]
   );
 
   if (existing.rows.length > 0) {
+    const masterId = existing.rows[0].id;
+    // Update master channel metadata (don't overwrite good logo with empty one)
     await db.query(
       `UPDATE channels SET
-         name=$1, logo_url=$2, stream_url=$3, category_id=$4, language=$5,
-         country='IN', status='pending_check', health_status='unknown',
-         quality=$6, user_agent=$7, referrer=$8, tvg_id=$9,
-         source='iptv-org-india', source_channel_id=$10,
-         updated_at=NOW()
-       WHERE id=$11`,
-      [ch.name, ch.logo||null, ch.url, catId, ch.language||'Unknown',
-       ch.quality||'SD', ch.userAgent||null, ch.referrer||null,
-       ch.tvg_id||null, sourceId, existing.rows[0].id]
+         status = CASE WHEN status = 'merged' THEN 'merged' ELSE 'pending_check' END,
+         health_status = CASE WHEN health_status IN ('online','merged') THEN health_status ELSE 'unknown' END,
+         canonical_name = $1,
+         tvg_id  = COALESCE(NULLIF(tvg_id,''), $2),
+         logo_url = COALESCE(NULLIF(logo_url,''), NULLIF($3,'')),
+         language = COALESCE(NULLIF(language,'Unknown'), NULLIF($4,'Unknown')),
+         user_agent = COALESCE(NULLIF(user_agent,''), $5),
+         referrer   = COALESCE(NULLIF(referrer,''),   $6),
+         source = 'iptv-org-india', source_channel_id = $7,
+         updated_at = NOW()
+       WHERE id = $8`,
+      [canName, ch.tvg_id||null, ch.logo||null, lang,
+       ch.userAgent||null, ch.referrer||null, sourceId, masterId]
     );
-    // Also upsert into channel_streams
+    // Add this URL as an additional stream (not a new channel)
     await db.query(
       `INSERT INTO channel_streams
          (channel_id, stream_url, quality, priority, source_name, user_agent, referer, health_status)
-       VALUES ($1,$2,$3,1,'iptv-org',$4,$5,'unknown')
+       VALUES ($1,$2,$3,2,'iptv-org-india',$4,$5,'unknown')
        ON CONFLICT (channel_id, stream_url) DO UPDATE
          SET quality=$3, user_agent=$4, referer=$5, updated_at=NOW()`,
-      [existing.rows[0].id, ch.url, ch.quality||'SD', ch.userAgent||null, ch.referrer||null]
+      [masterId, ch.url, ch.quality||'SD', ch.userAgent||null, ch.referrer||null]
     );
-    return { action: 'updated', id: existing.rows[0].id };
+    return { action: 'updated', id: masterId };
   }
 
+  // Brand new channel
   const ins = await db.query(
     `INSERT INTO channels
-       (name, logo_url, stream_url, category_id, language, country,
+       (name, canonical_name, logo_url, stream_url, category_id, language, country,
         source, source_channel_id, tvg_id, status, health_status,
         is_featured, is_premium, quality, user_agent, referrer)
-     VALUES ($1,$2,$3,$4,$5,'IN','iptv-org-india',$6,$7,
-             'pending_check','unknown',false,false,$8,$9,$10)
+     VALUES ($1,$2,$3,$4,$5,$6,'IN','iptv-org-india',$7,$8,
+             'pending_check','unknown',false,false,$9,$10,$11)
      RETURNING id`,
-    [ch.name, ch.logo||null, ch.url, catId, ch.language||'Unknown',
+    [ch.name, canName, ch.logo||null, ch.url, catId, lang,
      sourceId, ch.tvg_id||null, ch.quality||'SD', ch.userAgent||null, ch.referrer||null]
   );
   const newId = ins.rows[0].id;
   await db.query(
     `INSERT INTO channel_streams
        (channel_id, stream_url, quality, priority, source_name, user_agent, referer, health_status)
-     VALUES ($1,$2,$3,1,'iptv-org',$4,$5,'unknown')
+     VALUES ($1,$2,$3,1,'iptv-org-india',$4,$5,'unknown')
      ON CONFLICT DO NOTHING`,
     [newId, ch.url, ch.quality||'SD', ch.userAgent||null, ch.referrer||null]
   );

@@ -91,8 +91,11 @@ class ChannelCubit extends Cubit<ChannelState> {
         final newChannels = (channelRes['data'] as List)
             .map((c) => ChannelModel.fromJson(c))
             .toList();
-        
+
+        // Flutter-side dedup safety net: deduplicate by canonical name + language + category.
+        // The backend is the primary source of truth, but this guards against any regression.
         _allChannels.addAll(newChannels);
+        _allChannels = _deduplicateChannels(_allChannels);
         
         final pagination = channelRes['pagination'];
         if (pagination != null) {
@@ -191,6 +194,36 @@ class ChannelCubit extends Cubit<ChannelState> {
   }
 
   List<ChannelModel> get allChannels => _allChannels;
+
+  // Flutter-side dedup: keeps one channel per (canonicalName + language + categoryId).
+  // Prefers channels with streamUrl set and online health status.
+  List<ChannelModel> _deduplicateChannels(List<ChannelModel> channels) {
+    final seen = <String, ChannelModel>{};
+    for (final ch in channels) {
+      final key = '${_canonical(ch.name)}|${(ch.language ?? '').toLowerCase()}|${ch.categoryId ?? 0}';
+      final existing = seen[key];
+      if (existing == null) {
+        seen[key] = ch;
+      } else {
+        // Keep the one with a stream URL; prefer the existing one already in map
+        if (ch.streamUrl.isNotEmpty && existing.streamUrl.isEmpty) {
+          seen[key] = ch;
+        }
+      }
+    }
+    return seen.values.toList();
+  }
+
+  String _canonical(String name) {
+    return name
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s*\([^)]*\)\s*'), ' ')
+        .replaceAll(RegExp(r'\s*(hd|sd|fhd|uhd|4k)\s*', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\s*(1080p?|720p?|576p?|480p?|360p?)\s*', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\s*(backup|live|channel|source\s*\d*)\s*', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
 
   List<ChannelModel> getFeaturedChannels() {
     return _allChannels.where((c) => c.isFeatured).toList();

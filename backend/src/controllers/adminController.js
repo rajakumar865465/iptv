@@ -225,6 +225,45 @@ exports.deleteChannel = async (req, res) => {
   }
 };
 
+// Admin: Duplicate channel report
+exports.getChannelDuplicates = async (req, res) => {
+  try {
+    const { rows } = await db.query(`
+      SELECT
+        c.canonical_name,
+        COALESCE(c.language,'Unknown') AS language,
+        cat.name                       AS category,
+        COUNT(*)                       AS count,
+        JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'id',            c.id,
+            'name',          c.name,
+            'status',        c.status,
+            'health_status', c.health_status,
+            'quality',       c.quality,
+            'source',        c.source,
+            'stream_url',    LEFT(c.stream_url, 80)
+          ) ORDER BY c.id
+        ) AS channels
+      FROM channels c
+      LEFT JOIN categories cat ON c.category_id = cat.id
+      WHERE c.status NOT IN ('merged','duplicate')
+        AND c.canonical_name IS NOT NULL
+        AND c.canonical_name != ''
+      GROUP BY c.canonical_name, COALESCE(c.language,'Unknown'), cat.name
+      HAVING COUNT(*) > 1
+      ORDER BY COUNT(*) DESC, c.canonical_name
+      LIMIT 200
+    `);
+    success(res, {
+      total_groups: rows.length,
+      groups: rows,
+    });
+  } catch (err) {
+    error(res, 'Failed to fetch duplicates', 500);
+  }
+};
+
 // Categories
 exports.createCategory = async (req, res) => {
   try {

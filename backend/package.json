@@ -16,9 +16,11 @@
     "check-pending": "node scripts/check-streams-deep.js --pending --concurrency=10",
     "check-logos": "node scripts/check-logos.js",
     "check-logos-missing": "node scripts/check-logos.js --missing-only",
+    "dedupe": "node scripts/dedupe-channels.js",
+    "dedupe-dry": "node scripts/dedupe-channels.js --dry-run",
     "activate": "node scripts/activate-working-channels.js",
     "report": "node scripts/generate-report.js",
-    "setup-indian": "npm run seed-categories && npm run import-indian && npm run check-streams && npm run check-logos && npm run activate && npm run report"
+    "setup-indian": "npm run seed-categories && npm run import-indian && npm run dedupe && npm run check-streams && npm run check-logos && npm run activate && npm run report"
   },
   "engines": {
     "node": ">=18.0.0"

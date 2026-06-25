@@ -68,7 +68,8 @@ exports.getChannels = async (req, res) => {
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(500, Math.max(1, parseInt(limit) || 20));
 
-    const conditions = [`c.status = 'active'`];
+    // Always exclude merged/duplicate channels from user-facing API
+    const conditions = [`c.status NOT IN ('merged', 'duplicate', 'inactive')`];
     const params = [];
     let paramIndex = 1;
 
@@ -77,14 +78,17 @@ exports.getChannels = async (req, res) => {
     if (workingOnly === 'true') {
       if (hasHealthStatus) {
         conditions.push(`c.health_status = 'online'`);
+        conditions.push(`c.status = 'active'`);
+      } else {
+        conditions.push(`c.status = 'active'`);
       }
-      // If column doesn't exist, fall through and just return active channels
     } else if (showOffline !== 'true') {
+      conditions.push(`c.status = 'active'`);
       if (hasHealthStatus) {
         conditions.push(`(c.health_status != 'offline' OR c.health_status IS NULL)`);
       }
-      // If column doesn't exist, show all active channels
     }
+    // showOffline=true: only exclude merged/duplicate (already in base condition)
 
     if (country) {
       conditions.push(`c.country ILIKE $${paramIndex++}`);
@@ -201,7 +205,8 @@ exports.searchChannels = async (req, res) => {
       `SELECT c.*, cat.name as category_name FROM channels c
        LEFT JOIN categories cat ON c.category_id = cat.id
        WHERE c.status = 'active'
-       AND (c.name ILIKE $1 OR cat.name ILIKE $1 OR c.language ILIKE $1)
+         AND c.status NOT IN ('merged','duplicate','inactive')
+         AND (c.name ILIKE $1 OR cat.name ILIKE $1 OR c.language ILIKE $1)
        ORDER BY c.name ASC`,
       [`%${q}%`]
     );
@@ -219,7 +224,9 @@ exports.getChannelsByCategory = async (req, res) => {
     const result = await db.query(
       `SELECT c.*, cat.name as category_name FROM channels c
        LEFT JOIN categories cat ON c.category_id = cat.id
-       WHERE c.category_id = $1 AND c.status = 'active'
+       WHERE c.category_id = $1
+         AND c.status = 'active'
+         AND c.status NOT IN ('merged','duplicate','inactive')
        ORDER BY c.sort_order ASC, c.name ASC`,
       [categoryId]
     );

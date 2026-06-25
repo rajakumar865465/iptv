@@ -33,6 +33,8 @@ router.post('/channels', adminController.createChannel);
 router.get('/channels', adminController.getChannelsAdmin);
 router.put('/channels/:id', adminController.updateChannel);
 router.delete('/channels/:id', adminController.deleteChannel);
+// Duplicate detection report
+router.get('/channels/duplicates', adminController.getChannelDuplicates);
 
 // Categories
 router.post('/categories', adminController.createCategory);
