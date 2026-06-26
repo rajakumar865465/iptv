@@ -23,6 +23,7 @@
     "import-working": "node scripts/import-working-m3u.js",
     "import-working-dry": "node scripts/import-working-m3u.js --dry-run",
     "import-working-replace": "node scripts/import-working-m3u.js --replace-dead",
+    "fix-categories": "node scripts/fix-imported-categories.js",
     "setup-indian": "npm run seed-categories && npm run import-indian && npm run dedupe && npm run check-streams && npm run check-logos && npm run activate && npm run report"
   },
   "engines": {

@@ -51,15 +51,21 @@ const GROUP_TO_CAT = {
   'English-Popular':   'International News',
 };
 
-// ── Detect better category from channel name ───────────────────────────────
+// ── Detect better category from channel name + group ──────────────────────
 function smartCategory(name, group) {
-  const n = (name || '').toLowerCase();
+  const n = (name  || '').toLowerCase();
+  const g = (group || '').toLowerCase();
+
+  // English-Popular group: these are never Hindi categories
+  const isEnglishGroup = g.includes('english') || g.includes('discovery');
 
   if (/\bdd\b|doordarshan|sansad/.test(n)) return 'Doordarshan';
+
   if (/news/.test(n)) {
     if (/\bcnbc|business|markets?|economic|finance\b/.test(n)) return 'Business News';
-    if (/\benglish\b|\bnow\b|bbc|cnn|ndtv.*24|times now|republic tv/.test(n)) return 'English News';
-    if (/\binternational|world|al\s*jazeera|france 24|dw |trt|rt \b|bloomberg/.test(n)) return 'International News';
+    // International / English-language news channels
+    if (isEnglishGroup || /\bfox news|sky news|bbc news|cbs news|nbc news|abc news|sabc|al\s*jazeera|france 24|dw |trt|rt \b|bloomberg|kitv|vice news/.test(n)) return 'International News';
+    if (/\bndtv.*24|times now|republic tv|india today\b/.test(n)) return 'English News';
     if (/\btamil/.test(n)) return 'Tamil';
     if (/\btelugu/.test(n)) return 'Telugu';
     if (/\bmalayalam|kerala\b/.test(n)) return 'Malayalam';
@@ -73,29 +79,44 @@ function smartCategory(name, group) {
     if (/\burdu\b/.test(n)) return 'Urdu';
     return 'Hindi News';
   }
-  if (/\bsport|cricket|football|ipl\b/.test(n)) return 'Sports';
-  if (/\bmusic|songs?\b/.test(n)) return 'Music';
-  if (/\bkids|cartoon|toon|nick\b/.test(n)) return 'Kids';
+
+  if (/\bsport|cricket|football|ipl|espn|nba|dazn|tennis\b/.test(n)) return 'Sports';
+  if (/\bmusic|songs?\b/.test(n) && !isEnglishGroup) return 'Music';
+  if (/\bkids|cartoon|toon\b/.test(n) || /\bpbs kids\b/.test(n)) return 'Kids';
+  if (/\bnick(elodeon)?\b/.test(n)) return 'Kids';
   if (/\bbhakti|bhakthi|devotion|temple|vedic|sankara|divine|peace tv\b/.test(n)) return 'Devotional';
-  if (/\bcinema|movies?\b/.test(n)) return 'Hindi Movies';
-  if (/\bdocumentar|factual|nature|discovery|wildlife\b/.test(n)) return 'Lifestyle / Infotainment';
-  if (/\btamil/.test(n)) return 'Tamil';
-  if (/\btelugu/.test(n)) return 'Telugu';
-  if (/\bmalayalam|kerala/.test(n)) return 'Malayalam';
-  if (/\bkannada/.test(n)) return 'Kannada';
-  if (/\bbengali|bangla/.test(n)) return 'Bengali';
-  if (/\bmarathi/.test(n)) return 'Marathi';
-  if (/\bpunjabi/.test(n)) return 'Punjabi';
-  if (/\bgujarati/.test(n)) return 'Gujarati';
-  if (/\bodia|odisha/.test(n)) return 'Odia';
-  if (/\bassam/.test(n)) return 'Assamese / North East';
-  if (/\burdu/.test(n)) return 'Urdu';
+
+  // Movies: English group movies → English Movies, not Hindi Movies
+  if (/\bcinema|movies?\b/.test(n)) {
+    if (isEnglishGroup || /\bhallmark|lifetime|starz|showtime|amc\b/.test(n)) return 'English Movies';
+    return 'Hindi Movies';
+  }
+
+  if (/\bdocumentar|factual|nature|discovery|wildlife|curiosity\b/.test(n)) return 'Lifestyle / Infotainment';
+
+  // Language-based for Indian-Hindi group
+  if (!isEnglishGroup) {
+    if (/\btamil/.test(n)) return 'Tamil';
+    if (/\btelugu/.test(n)) return 'Telugu';
+    if (/\bmalayalam|kerala/.test(n)) return 'Malayalam';
+    if (/\bkannada/.test(n)) return 'Kannada';
+    if (/\bbengali|bangla/.test(n)) return 'Bengali';
+    if (/\bmarathi/.test(n)) return 'Marathi';
+    if (/\bpunjabi/.test(n)) return 'Punjabi';
+    if (/\bgujarati/.test(n)) return 'Gujarati';
+    if (/\bodia|odisha/.test(n)) return 'Odia';
+    if (/\bassam/.test(n)) return 'Assamese / North East';
+    if (/\burdu/.test(n)) return 'Urdu';
+  }
 
   return GROUP_TO_CAT[group] || 'General';
 }
 
-// ── Language inference from channel name / category ────────────────────────
-function inferLanguage(name, catName) {
+// ── Language inference from channel name / category / group ───────────────
+function inferLanguage(name, catName, group) {
+  // English-Popular group → always English
+  if ((group || '').toLowerCase().includes('english')) return 'English';
+
   const n = (name    || '').toLowerCase();
   const c = (catName || '').toLowerCase();
   if (c.includes('tamil')   || n.includes('tamil'))   return 'Tamil';
@@ -190,7 +211,7 @@ async function main() {
     const { tvgId, tvgLogo, group, rawName: name, url } = entry;
     try {
       const catName  = smartCategory(name, group);
-      const language = inferLanguage(name, catName);
+      const language = inferLanguage(name, catName, group);
       const quality  = inferQuality(name);
       const canon    = canonicalName(name);
 
