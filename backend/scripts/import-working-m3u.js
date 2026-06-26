@@ -21,11 +21,13 @@
 require('dotenv').config({ path: __dirname + '/../.env' });
 const fs   = require('fs');
 const path = require('path');
-const db   = require('../src/config/db');
 
 const args       = process.argv.slice(2);
 const DRY_RUN    = args.includes('--dry-run');
 const REPLACE_DEAD = args.includes('--replace-dead');
+
+// Only require DB when actually writing
+const db = DRY_RUN ? null : require('../src/config/db');
 const M3U_PATH   = path.join(__dirname, '..', '..', 'working_iptv.m3u');
 
 // ── Quality inference ──────────────────────────────────────────────────────
@@ -192,6 +194,13 @@ async function main() {
       const quality  = inferQuality(name);
       const canon    = canonicalName(name);
 
+      // ── DRY RUN — just show what would happen ────────────────────────
+      if (DRY_RUN) {
+        console.log(`  [DRY] [${catName}] ${name} (${language}/${quality})`);
+        inserted++;
+        continue;
+      }
+
       // ── 1. Check if this exact stream URL already exists ──────────────
       const streamCheck = await db.query(
         `SELECT cs.id, cs.channel_id, cs.health_status
@@ -336,17 +345,15 @@ async function main() {
   }
 
   if (!DRY_RUN) {
-    // After import, also trigger a run of activate-working-channels
-    // to make sure all channels with status=active are correctly flagged
+    // After import, activate all newly imported channels
     const activeRes = await db.query(
       `UPDATE channels SET status = 'active'
        WHERE status = 'pending_check'
          AND source = 'working-m3u'`
     );
     console.log(`\n  Activated ${activeRes.rowCount} newly imported channels.`);
+    await db.pool.end();
   }
-
-  await db.pool.end();
   process.exit(0);
 }
 
