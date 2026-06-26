@@ -81,19 +81,19 @@ function mapToIndianCategory(group, language, name) {
   if (/\bdd\b|doordarshan|sansad|parliament/.test(g)) return 'Doordarshan';
 
   // Language-primary categories
-  if (l === 'tamil'   || /\btamil\b/.test(g)   ) return 'Tamil';
-  if (l === 'telugu'  || /\btelugu\b/.test(g)  ) return 'Telugu';
-  if (l === 'malayalam'||/\bmalayalam\b/.test(g)) return 'Malayalam';
-  if (l === 'kannada' || /\bkannada\b/.test(g) ) return 'Kannada';
-  if (l === 'bengali' || /\bbengali|bangla\b/.test(g)) return 'Bengali';
-  if (l === 'marathi' || /\bmarathi\b/.test(g) ) return 'Marathi';
-  if (l === 'punjabi' || /\bpunjabi\b/.test(g) ) return 'Punjabi';
-  if (l === 'gujarati'|| /\bgujarati\b/.test(g)) return 'Gujarati';
-  if (l === 'odia'    || /\bodia|oriya\b/.test(g)) return 'Odia';
-  if (l === 'assamese'|| /\bassam(ese)?\b/.test(g)) return 'Assamese / North East';
+  if (l === 'tamil'   || /\btamil\b/.test(g)   || /\b(sun|vijay|kalaignar|jaya|raj tv|polimer|puthiya|thanthi|chithiram)\b/.test(n)) return 'Tamil';
+  if (l === 'telugu'  || /\btelugu\b/.test(g)  || /\b(etv|maa tv|gemini|star maa|zee telugu|tv9 telugu|sakshi|ntv|tv5|v6|t news)\b/.test(n)) return 'Telugu';
+  if (l === 'malayalam'||/\bmalayalam\b/.test(g)|| /\b(asianet|surya|mazhavil|kairali|mathrubhumi|manorama|amrita)\b/.test(n)) return 'Malayalam';
+  if (l === 'kannada' || /\bkannada\b/.test(g) || /\b(udaya|suvarna|zee kannada|kasthuri|public tv)\b/.test(n)) return 'Kannada';
+  if (l === 'bengali' || /\bbengali|bangla\b/.test(g) || /\b(zee bangla|star jalsha|colors bangla|jalsha|abp ananda|24 ghanta)\b/.test(n)) return 'Bengali';
+  if (l === 'marathi' || /\bmarathi\b/.test(g) || /\b(zee marathi|star pravah|colors marathi|abp majha|tv9 marathi)\b/.test(n)) return 'Marathi';
+  if (l === 'punjabi' || /\bpunjabi\b/.test(g) || /\b(ptc|zee punjabi|mh one)\b/.test(n)) return 'Punjabi';
+  if (l === 'gujarati'|| /\bgujarati\b/.test(g)|| /\b(tv9 gujarati|sandesh|abp asmita|colors gujarati)\b/.test(n)) return 'Gujarati';
+  if (l === 'odia'    || /\bodia|oriya\b/.test(g)|| /\b(tarang|prarthana|alankar|otv|zee sarthak|kanak|kalinga)\b/.test(n)) return 'Odia';
+  if (l === 'assamese'|| /\bassam(ese)?\b/.test(g)|| /\b(prag news|news18 assam)\b/.test(n)) return 'Assamese / North East';
   if (/\bnorth\s*east\b/.test(g)) return 'Assamese / North East';
   if (l === 'urdu'    || /\burdu\b/.test(g)    ) return 'Urdu';
-  if (l === 'bhojpuri'|| /\bbhojpuri\b/.test(g)) return 'Bhojpuri';
+  if (l === 'bhojpuri'|| /\bbhojpuri\b/.test(g)|| /\b(bhojpuri|bhojpuriya)\b/.test(n)) return 'Bhojpuri';
 
   // Content-type categories
   if (/\bnews\b/.test(g) || /\bnews\b/.test(n)) {
