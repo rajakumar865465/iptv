@@ -38,6 +38,7 @@ class LicenseModel {
   bool get isActive => status == 'active';
   bool get isExpired => status == 'expired';
   bool get isRevoked => status == 'revoked';
+  bool get isPremium => durationDays != null && durationDays! > 1;
   bool get isSuspended => status == 'suspended';
 }
 

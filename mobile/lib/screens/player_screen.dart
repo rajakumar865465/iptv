@@ -14,6 +14,9 @@ import '../models/channel_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/channel_logo.dart';
+import '../cubits/license_cubit.dart';
+import '../cubits/auth_cubit.dart';
+import '../utils/backend_config.dart';
 
 class PlayerScreen extends StatefulWidget {
   final ChannelModel channel;
@@ -1060,8 +1063,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           // Quality selector
-          if (_qualities.isNotEmpty) ...[
-            GestureDetector(
+          // Quality selector
+          Builder(builder: (context) {
+            String buttonLabel = 'Auto';
+            if (_player.state.track.video.id != 'auto' && _player.state.track.video.h != null) {
+              buttonLabel = '${_player.state.track.video.h}p';
+            } else if (_selectedQuality != null) {
+              buttonLabel = _selectedQuality!['label'];
+            } else if (_player.state.height != null && _player.state.height! > 0) {
+              buttonLabel = '${_player.state.height}p Auto';
+            }
+
+            return GestureDetector(
               onTap: _showQualitySelector,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -1075,15 +1088,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                     const Icon(Icons.settings_suggest, size: 14, color: Colors.white),
                     const SizedBox(width: 4),
                     Text(
-                      _selectedQuality?['label'] ?? 'Auto',
+                      buttonLabel,
                       style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-          ],
+            );
+          }),
+          const SizedBox(width: 10),
           // Aspect ratio toggle
           GestureDetector(
             onTap: _cycleFit,
@@ -1121,62 +1134,199 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(AppColors.surface),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text('Video Quality', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-              ),
-              if (_qualities.isEmpty && availableNativeTracks.isEmpty)
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(AppColors.surface).withOpacity(0.98),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1), width: 1)),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 24),
                 const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text('No qualities available', style: TextStyle(color: Colors.white54)),
-                )
-              else ...[
+                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Video Quality', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 if (availableNativeTracks.length > 1) 
                   ...availableNativeTracks.map((track) {
                     final isSelected = _player.state.track.video == track;
                     String label = 'Auto';
+                    String subLabel = 'Optimal quality for your connection';
                     if (track.id != 'auto' && track.h != null) {
                       label = '${track.h}p';
+                      if (track.h! >= 720) subLabel = 'High Definition';
+                      else subLabel = 'Standard Definition';
                     } else if (track.id != 'auto') {
                       label = track.title ?? track.id;
+                      subLabel = 'Fixed quality';
                     }
                     
-                    return ListTile(
-                      title: Text(label, style: TextStyle(color: isSelected ? const Color(AppColors.primary) : Colors.white)),
-                      trailing: isSelected ? const Icon(Icons.check, color: Color(AppColors.primary)) : null,
-                      onTap: () {
-                        Navigator.pop(context);
-                        _player.setVideoTrack(track);
-                        setState((){});
-                      },
-                    );
+                    return _buildQualityTile(label, subLabel, isSelected, false, () {
+                      Navigator.pop(context);
+                      _player.setVideoTrack(track);
+                      setState((){});
+                    });
                   })
-                else 
+                else if (_qualities.isNotEmpty)
                   ..._qualities.map((q) {
                     final isSelected = _selectedQuality != null && _selectedQuality!['url'] == q['url'];
-                    return ListTile(
-                      title: Text(q['label'] ?? 'Unknown', style: TextStyle(color: isSelected ? const Color(AppColors.primary) : Colors.white)),
-                      trailing: isSelected ? const Icon(Icons.check, color: Color(AppColors.primary)) : null,
-                      onTap: () {
-                        Navigator.pop(context);
-                        _changeQuality(q);
-                      },
-                    );
+                    String label = q['label'] ?? 'Unknown';
+                    String subLabel = label.toLowerCase().contains('auto') ? 'Optimal quality' : 'Fixed quality';
+                    return _buildQualityTile(label, subLabel, isSelected, false, () {
+                      Navigator.pop(context);
+                      _changeQuality(q);
+                    });
+                  })
+                else
+                  _buildQualityTile('Original Quality', 'Broadcaster default', _selectedQuality == null, false, () {
+                    Navigator.pop(context);
+                    // Do nothing, already on original
                   }),
+                
+                // Data Saver Options (Premium Only)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(24, 16, 24, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Data Saver', style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                Builder(builder: (ctx) {
+                  final licenseState = context.read<LicenseCubit>().state;
+                  final isPremium = licenseState is LicenseActive && licenseState.license.isPremium;
+                  
+                  return Column(
+                    children: [
+                      _buildQualityTile('480p Data Saver', 'Reduced data usage', _selectedQuality?['label'] == '480p Data Saver', !isPremium, () async {
+                        if (!isPremium) {
+                          _showPremiumPaywall();
+                        } else {
+                          Navigator.pop(context);
+                          final token = await StorageService().getToken() ?? '';
+                          _changeQuality({'label': '480p Data Saver', 'url': '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=480&token=$token'});
+                        }
+                      }),
+                      _buildQualityTile('360p Data Saver', 'Maximum data savings', _selectedQuality?['label'] == '360p Data Saver', !isPremium, () async {
+                        if (!isPremium) {
+                          _showPremiumPaywall();
+                        } else {
+                          Navigator.pop(context);
+                          final token = await StorageService().getToken() ?? '';
+                          _changeQuality({'label': '360p Data Saver', 'url': '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token'});
+                        }
+                      }),
+                    ],
+                  );
+                }),
+                const SizedBox(height: 24),
               ],
-              const SizedBox(height: 8),
-            ],
+            ),
           ),
         );
       },
     ).then((_) => _showControlsWithTimer());
+  }
+
+  void _showPremiumPaywall() {
+    Navigator.pop(context); // Close bottom sheet
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(AppColors.surface),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.workspace_premium, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('Premium Feature', style: TextStyle(color: Colors.white, fontSize: 20)),
+          ],
+        ),
+        content: const Text(
+          'Data Saver resolutions (480p and 360p) require real-time server processing and are only available to Premium users.\n\nUpgrade your plan to unlock this feature and save massive amounts of mobile data!',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(AppColors.primary)),
+            onPressed: () {
+              Navigator.pop(context);
+              // Handle navigation to upgrade/plans screen
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please contact support to upgrade your plan.')));
+            },
+            child: const Text('Upgrade', style: TextStyle(color: Colors.white)),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQualityTile(String label, String subLabel, bool isSelected, bool isLocked, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(AppColors.primary).withOpacity(0.1) : Colors.transparent,
+          border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05), width: 1)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: isSelected ? const Color(AppColors.primary) : Colors.white38, width: 2),
+              ),
+              child: isSelected 
+                  ? Center(child: Container(width: 10, height: 10, decoration: const BoxDecoration(color: Color(AppColors.primary), shape: BoxShape.circle)))
+                  : null,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(color: isSelected ? const Color(AppColors.primary) : (isLocked ? Colors.white54 : Colors.white), fontSize: 16, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(subLabel, style: TextStyle(color: isSelected ? const Color(AppColors.primary).withOpacity(0.8) : Colors.white54, fontSize: 12)),
+                ],
+              ),
+            ),
+            if (isLocked)
+              const Icon(Icons.lock, color: Colors.amber, size: 16)
+            else if (label.contains('1080') || label.contains('720') || label.contains('HD'))
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: const Color(AppColors.primary).withOpacity(0.2), borderRadius: BorderRadius.circular(4)),
+                child: const Text('HD', style: TextStyle(color: Color(AppColors.primary), fontSize: 10, fontWeight: FontWeight.bold)),
+              )
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _changeQuality(Map<String, dynamic> quality) async {

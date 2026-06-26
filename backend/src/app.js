@@ -130,6 +130,7 @@ const pathc = require('path');
 app.use('/logos', express.static(pathc.join(__dirname, '../public/logos')));
 
 // API Routes
+const streamRoutes = require('./routes/streamRoutes');
 app.use('/api/auth', authRoutes);
 app.use('/api/app', appConfigRoutes);
 app.use('/api/license', licenseRoutes);
@@ -139,6 +140,7 @@ app.use('/api/proxy', proxyRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/internal', adminRoutes);
+app.use('/api/stream', streamRoutes);
 
 // 404 handler
 app.use((req, res) => {
