@@ -27,7 +27,7 @@ exports.getAdminActions = async (req, res) => {
     const countQuery = 'SELECT COUNT(*) FROM admin_audit_logs ' + whereStr;
     const countResult = admin_id ? await db.query(countQuery, params) : await db.query(countQuery);
     const total = parseInt(countResult.rows[0].count, 10);
-    const queryStr = 'SELECT l.*, u.full_name as admin_name FROM admin??????_audit_logs l LEFT JOIN users u ON l.admin_id = u.id ' + whereStr + ' ORDER BY l.created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
+    const queryStr = 'SELECT l.*, u.full_name as admin_name FROM admin_audit_logs l LEFT JOIN users u ON l.admin_id = u.id ' + whereStr + ' ORDER BY l.created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
     const result = await db.query(queryStr, [...params, limit, offset]);
     success(res, { data: result.rows, pagination: { page: parseInt(page), limit: parseInt(limit), total } });
   } catch (err) {

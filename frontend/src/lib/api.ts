@@ -105,7 +105,7 @@ export const getBrokenChannels = (params?: Record<string, unknown>) =>
   api.get('/channels/broken', { params }).then((r) => r.data.data);
 
 export const fixBrokenChannel = (id: string) =>
-  api.put(`/channels/broken/${id}/fix`).then((r) => r.data.data);
+  api.post(`/channels/broken/${id}/fix`).then((r) => r.data.data);
 
 export const getDuplicateChannels = () =>
   api.get('/channels/duplicates').then((r) => r.data.data);
