@@ -138,7 +138,7 @@ async function main() {
   if (!fs.existsSync(REPORT_DIR)) fs.mkdirSync(REPORT_DIR, { recursive: true });
   const report = {
     generated_at: new Date().toISOString(),
-    activated, unstabled, offlined, inactivated,
+    activated, unstabled, offlined,
     total_indian:   parseInt(totalRes.rows[0].c, 10),
     online:         parseInt(onlineRes.rows[0].c, 10),
     shown_in_app:   parseInt(appShowsRes.rows[0].c, 10),

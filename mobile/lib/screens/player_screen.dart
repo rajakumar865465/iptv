@@ -1144,100 +1144,102 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1), width: 1)),
           ),
           child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 12),
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text('Video Quality', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 24),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Video Quality', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                if (availableNativeTracks.length > 1) 
-                  ...availableNativeTracks.map((track) {
-                    final isSelected = _player.state.track.video == track;
-                    String label = 'Auto';
-                    String subLabel = 'Optimal quality for your connection';
-                    if (track.id != 'auto' && track.h != null) {
-                      label = '${track.h}p';
-                      if (track.h! >= 720) subLabel = 'High Definition';
-                      else subLabel = 'Standard Definition';
-                    } else if (track.id != 'auto') {
-                      label = track.title ?? track.id;
-                      subLabel = 'Fixed quality';
-                    }
-                    
-                    return _buildQualityTile(label, subLabel, isSelected, false, () {
+                  const SizedBox(height: 16),
+                  if (availableNativeTracks.length > 1) 
+                    ...availableNativeTracks.map((track) {
+                      final isSelected = _player.state.track.video == track;
+                      String label = 'Auto';
+                      String subLabel = 'Optimal quality for your connection';
+                      if (track.id != 'auto' && track.h != null) {
+                        label = '${track.h}p';
+                        if (track.h! >= 720) subLabel = 'High Definition';
+                        else subLabel = 'Standard Definition';
+                      } else if (track.id != 'auto') {
+                        label = track.title ?? track.id;
+                        subLabel = 'Fixed quality';
+                      }
+                      
+                      return _buildQualityTile(label, subLabel, isSelected, false, () {
+                        Navigator.pop(context);
+                        _player.setVideoTrack(track);
+                        setState((){});
+                      });
+                    })
+                  else if (_qualities.isNotEmpty)
+                    ..._qualities.map((q) {
+                      final isSelected = _selectedQuality != null && _selectedQuality!['url'] == q['url'];
+                      String label = q['label'] ?? 'Unknown';
+                      String subLabel = label.toLowerCase().contains('auto') ? 'Optimal quality' : 'Fixed quality';
+                      return _buildQualityTile(label, subLabel, isSelected, false, () {
+                        Navigator.pop(context);
+                        _changeQuality(q);
+                      });
+                    })
+                  else
+                    _buildQualityTile('Original Quality', 'Broadcaster default', _selectedQuality == null, false, () {
                       Navigator.pop(context);
-                      _player.setVideoTrack(track);
-                      setState((){});
-                    });
-                  })
-                else if (_qualities.isNotEmpty)
-                  ..._qualities.map((q) {
-                    final isSelected = _selectedQuality != null && _selectedQuality!['url'] == q['url'];
-                    String label = q['label'] ?? 'Unknown';
-                    String subLabel = label.toLowerCase().contains('auto') ? 'Optimal quality' : 'Fixed quality';
-                    return _buildQualityTile(label, subLabel, isSelected, false, () {
-                      Navigator.pop(context);
-                      _changeQuality(q);
-                    });
-                  })
-                else
-                  _buildQualityTile('Original Quality', 'Broadcaster default', _selectedQuality == null, false, () {
-                    Navigator.pop(context);
-                    // Do nothing, already on original
-                  }),
-                
-                // Data Saver Options (Premium Only)
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(24, 16, 24, 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text('Data Saver', style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-                Builder(builder: (ctx) {
-                  final licenseState = context.read<LicenseCubit>().state;
-                  final isPremium = licenseState is LicenseActive && licenseState.license.isPremium;
+                      // Do nothing, already on original
+                    }),
                   
-                  return Column(
-                    children: [
-                      _buildQualityTile('480p Data Saver', 'Reduced data usage', _selectedQuality?['label'] == '480p Data Saver', !isPremium, () async {
-                        if (!isPremium) {
-                          _showPremiumPaywall();
-                        } else {
-                          Navigator.pop(context);
-                          final token = await StorageService().getToken() ?? '';
-                          _changeQuality({'label': '480p Data Saver', 'url': '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=480&token=$token'});
-                        }
-                      }),
-                      _buildQualityTile('360p Data Saver', 'Maximum data savings', _selectedQuality?['label'] == '360p Data Saver', !isPremium, () async {
-                        if (!isPremium) {
-                          _showPremiumPaywall();
-                        } else {
-                          Navigator.pop(context);
-                          final token = await StorageService().getToken() ?? '';
-                          _changeQuality({'label': '360p Data Saver', 'url': '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token'});
-                        }
-                      }),
-                    ],
-                  );
-                }),
-                const SizedBox(height: 24),
-              ],
+                  // Data Saver Options (Premium Only)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(24, 16, 24, 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Data Saver', style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  Builder(builder: (ctx) {
+                    final licenseState = context.read<LicenseCubit>().state;
+                    final isPremium = licenseState is LicenseActive && licenseState.license.isPremium;
+                    
+                    return Column(
+                      children: [
+                        _buildQualityTile('480p Data Saver', 'Reduced data usage', _selectedQuality?['label'] == '480p Data Saver', !isPremium, () async {
+                          if (!isPremium) {
+                            _showPremiumPaywall();
+                          } else {
+                            Navigator.pop(context);
+                            final token = await StorageService().getToken() ?? '';
+                            _changeQuality({'label': '480p Data Saver', 'url': '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=480&token=$token'});
+                          }
+                        }),
+                        _buildQualityTile('360p Data Saver', 'Maximum data savings', _selectedQuality?['label'] == '360p Data Saver', !isPremium, () async {
+                          if (!isPremium) {
+                            _showPremiumPaywall();
+                          } else {
+                            Navigator.pop(context);
+                            final token = await StorageService().getToken() ?? '';
+                            _changeQuality({'label': '360p Data Saver', 'url': '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token'});
+                          }
+                        }),
+                      ],
+                    );
+                  }),
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
           ),
         );
