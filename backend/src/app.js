@@ -145,6 +145,8 @@ const errorLoggerMiddleware = async (req, res, next) => {
 
 
 
+const pathc = require('path');
+
 // Static serving for cached logos — PLAYBACK-06 FIX: add long-lived Cache-Control header
 // so Flutter clients don't re-fetch logos on every app launch.
 app.use('/logos', express.static(pathc.join(__dirname, '../public/logos'), {
