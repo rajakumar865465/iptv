@@ -17,6 +17,7 @@ interface License {
 }
 
 export default function LicensesPage() {
+  const [plans, setPlans] = useState<any[]>([]);
   const [licenses, setLicenses] = useState<License[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -24,6 +25,7 @@ export default function LicensesPage() {
 
   useEffect(() => {
     fetchLicenses();
+    fetchPlans();
   }, []);
 
   const fetchLicenses = () => {
@@ -32,10 +34,17 @@ export default function LicensesPage() {
       .finally(() => setLoading(false));
   };
 
+  const fetchPlans = () => {
+    import('@/lib/api').then(({ getPlans }) => {
+      getPlans().then((res) => setPlans(res?.data || []));
+    });
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createLicense(formData);
+      const payload = { ...formData, plan_id: formData.plan_id ? parseInt(formData.plan_id) : null };
+      await createLicense(payload);
       setShowModal(false);
       fetchLicenses();
     } catch {
@@ -56,7 +65,16 @@ export default function LicensesPage() {
           <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4">Create License</h3>
             <form onSubmit={handleCreate} className="space-y-3">
-              <input placeholder="Plan ID" value={formData.plan_id} onChange={(e) => setFormData({ ...formData, plan_id: e.target.value })} className="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600 text-gray-100" required />
+              <select 
+                value={formData.plan_id} 
+                onChange={(e) => setFormData({ ...formData, plan_id: e.target.value })} 
+                className="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600 text-gray-100"
+              >
+                <option value="">No Plan (Custom)</option>
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name} (₹{p.price})</option>
+                ))}
+              </select>
               <input type="number" placeholder="Duration (days)" value={formData.duration_days} onChange={(e) => setFormData({ ...formData, duration_days: Number(e.target.value) })} className="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600 text-gray-100" />
               <input type="number" placeholder="Max Devices" value={formData.max_devices} onChange={(e) => setFormData({ ...formData, max_devices: Number(e.target.value) })} className="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600 text-gray-100" />
               <div className="flex gap-2 pt-2">
