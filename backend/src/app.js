@@ -36,14 +36,7 @@ const allowedOrigins = process.env.CORS_ORIGINS
   : ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow mobile apps (no origin) and any configured origins
-    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // Allow all origins to resolve public IP access issues
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
