@@ -1,9 +1,14 @@
 import axios from 'axios';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+// In production the frontend talks directly to the backend.
+// Set NEXT_PUBLIC_API_URL to http://<EC2-IP>:5000 (or your domain).
+// In development with Next.js server running, leave it empty to use the /api rewrite proxy.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL
+  ? `${process.env.NEXT_PUBLIC_API_URL}/api/internal`
+  : '/api/internal';
 
 const api = axios.create({
-  baseURL: API_BASE ? `${API_BASE}/api/internal` : '/api/internal',
+  baseURL: API_BASE,
   headers: {
     'Content-Type': 'application/json',
   },

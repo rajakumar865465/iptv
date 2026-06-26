@@ -188,8 +188,8 @@ export default function PlansPage() {
                   <h3 className="text-lg font-bold text-slate-100">{p.name}</h3>
                   <div className="flex items-center gap-1.5">
                     {p.is_visible
-                      ? <Eye className="w-4 h-4 text-emerald-400" title="Visible in app" />
-                      : <EyeOff className="w-4 h-4 text-slate-500" title="Hidden from app" />}
+                      ? <Eye className="w-4 h-4 text-emerald-400" />
+                      : <EyeOff className="w-4 h-4 text-slate-500" />}
                     <span className={`px-2 py-0.5 text-[10px] rounded-full font-bold border ${p.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
                       {p.status}
                     </span>

@@ -19,14 +19,18 @@ exports.getPlans = async (req, res) => {
 
 exports.createPlan = async (req, res) => {
   try {
-    const { name, price, duration_days, max_devices, description, is_visible, sort_order } = req.body;
+    const { name, price, duration_days, max_devices, description, is_visible, status, sort_order } = req.body;
+    if (!name || price === undefined || !duration_days) {
+      return error(res, 'name, price and duration_days are required', 400);
+    }
     const result = await db.query(
-      'INSERT INTO plans (name, price, duration_days, max_devices, description, is_visible, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [name, price, duration_days, max_devices, description, is_visible || false, sort_order || 0]
+      'INSERT INTO plans (name, price, duration_days, max_devices, description, is_visible, status, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [name, price, duration_days, max_devices || 1, description || '', is_visible !== false, status || 'active', sort_order || 0]
     );
     success(res, result.rows[0], 'Plan created', 201);
   } catch (err) {
-    error(res, 'Failed to create plan', 500);
+    console.error('createPlan error:', err);
+    error(res, 'Failed to create plan: ' + err.message, 500);
   }
 };
 
