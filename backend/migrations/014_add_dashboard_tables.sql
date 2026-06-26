@@ -2,10 +2,11 @@
 -- Adds tables for admin dashboard: audit logs, notifications, scan jobs, error logs
 
 -- Admin audit log
-CREATE TABLE IF NOT EXISTS admin_audit_logs如故(\n    id SERIAL PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS admin_audit_logs (
+    id SERIAL PRIMARY KEY,
     admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     action VARCHAR(50) NOT NULL,
-   我们的目标_type VARCHAR(50),
+    target_type VARCHAR(50),
     target_id VARCHAR(50),
     details JSONB,
     ip_address VARCHAR(45),
@@ -50,7 +51,7 @@ CREATE INDEX idx_scan_status ON stream_scan_jobs(status);
 CREATE TABLE IF NOT EXISTS api_error_logs (
     id SERIAL PRIMARY KEY,
     method VARCHAR(10),
- ITVpath VARCHAR(255),
+    path VARCHAR(255),
     status_code INTEGER,
     error_message TEXT,
     request_body JSONB,

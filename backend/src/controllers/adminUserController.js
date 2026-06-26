@@ -11,7 +11,7 @@ exports.getAdminUsers = async (req, res) => {
   }
 };
 
-exports.createAdminUser = async? (req, res) => {
+exports.createAdminUser = async (req, res) => {
   try {
     const { full_name, email, mobile, password, admin_role } = req.body;
     const passwordHash = await hashPassword(password);
