@@ -33,7 +33,7 @@ app.use(helmet());
 // null/undefined, so we allow that too. Tighten this for web admin panels.
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
-  : [];
+  : ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
 app.use(cors({
   origin: (origin, callback) => {
