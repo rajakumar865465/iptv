@@ -1,0 +1,336 @@
+<USER_REQUEST>
+update the chanal link of this have mentions link and specific the checnal only - # Working IPTV Channels
+# Tested: 2026-06-26 18:54:06
+# Total working: 142
+
+#EXTM3U
+
+#EXTINF:-1 group-title="Movies",Bollywood HD Russia (576p)
+https://xykt-fix.github.io/cinerama_edge01/hls/BOLLYWOOD_RU/Movie009.m3u8
+
+#EXTINF:-1 group-title="News",Awaaz India TV (720p) [Not 24/7]
+https://awaazindia.livebox.co.in/AwaazIndaTVhls/Live.m3u8
+
+#EXTINF:-1 group-title="Religious",ABN TV India (540p)
+https://mediaserver.abnvideos.com/streams/abntvindia.m3u8
+
+#EXTINF:-1 group-title="Business",CNBC Awaaz (1080p)
+https://n18syndication.akamaized.net/bpk-tv/CNBC_Awaaz_NW18_MOB/output01/master.m3u8
+
+#EXTINF:-1 group-title="Entertainment",DD National HD (1080p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/40492a64c1db4a1385ba1a397d357d3a/index.m3u8
+
+#EXTINF:-1 group-title="Entertainment",DD National SD (576p)
+https://cdn-1.pishow.tv/live/11/master.m3u8
+
+#EXTINF:-1 group-title="News",Aaj Tak HD (1080p)
+https://feeds.intoday.in/aajtak/api/aajtakhd/master.m3u8
+
+#EXTINF:-1 group-title="News",DD News HD (1080p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/0811cd8c37ca4c409d5385a6cd2fa18b/index.m3u8
+
+#EXTINF:-1 group-title="Sports",DD Sports SD (1080p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/b17adfe543354fdd8d189b110617cddd/index.m3u8
+
+#EXTINF:-1 group-title="News",Hindi Khabar (576p)
+https://trs1.aynaott.com/HindiKhabar/index.m3u8
+
+#EXTINF:-1 group-title="Religious",God Stands TV Hindi
+https://online.godstands.tv:5443/WebRTCApp/streams/HindiStreaming.m3u8
+
+#EXTINF:-1 group-title="News",India Daily Live (1080p)
+https://indiadaily.ottlive.co.in/indiadailylive/index.m3u8
+
+#EXTINF:-1 group-title="News",India TV (720p)
+https://pl-indiatvnews.akamaized.net/out/v1/db79179b608641ceaa5a4d0dd0dca8da/index.m3u8
+
+#EXTINF:-1 group-title="Documentary;News",India TV Aap Ki Adalat (1080p) [Geo-blocked]
+https://amg01550-amg01550c6-samsung-in-4679.playouts.now.amagi.tv/playlist/amg01550-indiatvfast-indiatvakasamsung-samsungin/playlist.m3u8
+
+#EXTINF:-1 group-title="News",India TV Speed News (1080p)
+https://cc-lyf4c0hwzg5dd.akamaized.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-lyf4c0hwzg5dd/v1/vglive-sk-479089/main.m3u8
+
+#EXTINF:-1 group-title="Music",Music India (720p) [Not 24/7]
+https://cdn-2.pishow.tv/live/226/master.m3u8
+
+#EXTINF:-1 group-title="Movies",MBC Bollywood (1080p) [Geo-blocked]
+https://shd-gcp-live.edgenextcdn.net/live/bitmovin-mbc-bollywood/546eb40d7dcf9a209255dd2496903764/index.m3u8
+
+#EXTINF:-1 group-title="Lifestyle",NDTV Good Times (1080p)
+https://amg01448-samsungin-ndtvgoodtimes-samsungin-ad-gp.amagi.tv/playlist/amg01448-samsungin-ndtvgoodtimes-samsungin/playlist.m3u8
+
+#EXTINF:-1 group-title="News",News 1 India (576p)
+https://trs1.aynaott.com/News1India/index.m3u8
+
+#EXTINF:-1 group-title="News",NDTV Madhya Pradesh Chhattisgarh (1080p)
+https://ndtvregional.akamaized.net/hls/live/2102726-b/ndtvmpcg/master_1.m3u8
+
+#EXTINF:-1 group-title="News",News18 India (1080p)
+https://n18syndication.akamaized.net/bpk-tv/News18_India_NW18_MOB/output01/master.m3u8
+
+#EXTINF:-1 group-title="Entertainment",Shemaroo TV (720p)
+https://airtelapp.shemaroo.com/shemarootv/smil:shemarootvadp.smil/playlist.m3u8
+
+#EXTINF:-1 group-title="News",Republic Bharat (1080p)
+https://raw.githubusercontent.com/amazeyourself/adaptive-streams/refs/heads/main/streams/in/YuppTV/RepublicBharat.m3u8
+
+#EXTINF:-1 group-title="Undefined",Sony KAL Hindi (1080p)
+https://wurlsonypicturestv.global.transmit.live/hls/68deeb1c0238cda82df543dd/v1/spt_sonykal_1/lg_us/latest/main/hls/playlist.m3u8
+
+#EXTINF:-1 group-title="Sports",Star Sports 1 Hindi (576p)
+http://103.253.18.58:8000/play/a03o
+
+#EXTINF:-1 group-title="Sports",Star Sports 2 Hindi HD (1080p)
+http://103.157.248.140:8000/play/a01m/index.m3u8
+
+#EXTINF:-1 group-title="Movies",Sony Pix HD (1080p) [Geo-blocked]
+https://sl.vodep39240327.workers.dev/channel/SONY+PIX+HD.m3u8
+
+#EXTINF:-1 group-title="News",6 TV Telugu (576p)
+https://cdn-1.pishow.tv/live/232/master.m3u8
+
+#EXTINF:-1 group-title="Religious",Aastha Gujarati (576p)
+https://mumt04.tangotv.in/m18aqlK4AASTHAGUJARATI/index.m3u8
+
+#EXTINF:-1 group-title="Entertainment",Aamar Bangla (720p)
+https://app.ncare.live/c3VydmVyX8RpbEU9Mi8xNy8yMDE0GIDU6RgzQ6NTAgdEoaeFzbF92YWxIZTO0U0ezN1IzMyfvcGVMZEJCTEFWeVN3PTOmdFsaWRtaW51aiPhnPTI/amarbanglatv.stream/playlist.m3u8
+
+#EXTINF:-1 group-title="Religious",Aastha Kannada (480p)
+https://aasthaott.akamaized.net/110923/smil:aasthakannada.smil/playlist.m3u8
+
+#EXTINF:-1 group-title="Animation;Kids",Sony Yay! (1080p) [Geo-blocked]
+https://sl.vodep39240327.workers.dev/channel/SONY+YAY.m3u8
+
+#EXTINF:-1 group-title="Religious",Aastha Tamil (480p)
+https://aasthaott.akamaized.net/110923/smil:aasthatamil.smil/playlist.m3u8
+
+#EXTINF:-1 group-title="Religious",Aastha Telugu (480p)
+https://aasthaott.akamaized.net/110923/smil:aasthatelugu.smil/playlist.m3u8
+
+#EXTINF:-1 group-title="Movies",Sony Wah (1080p) [Geo-blocked]
+https://sl.vodep39240327.workers.dev/channel/SONY+WAH.m3u8
+
+#EXTINF:-1 group-title="Business",CNBC Bajar (1080p)
+https://n18syndication.akamaized.net/bpk-tv/CNBC_Bazaar_NW18_MOB/output01/master.m3u8
+
+#EXTINF:-1 group-title="Business",CNBC TV18 Prime HD (1080p)
+https://n18syndication.akamaized.net/bpk-tv/CNBC_Tv18_Prime_HD_NW18_MOB/output01/index.m3u8
+
+#EXTINF:-1 group-title="Animation",Animax Asia India (1080p) [Geo-blocked]
+https://amg02159-kcglobal-amg02159c1-samsung-in-521.playouts.now.amagi.tv/playlist/amg02159-kcglobal-animax-samsungin/playlist.m3u8
+
+#EXTINF:-1 group-title="Culture",DD Punjabi (504p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/da821c24a59d4e57960497aeaca8fb33/index.m3u8
+
+#EXTINF:-1 group-title="News",India Ahead (576p)
+https://mumt05.tangotv.in/87NeALx2INDIAAHEAD/index.m3u8
+
+#EXTINF:-1 group-title="General",DD Tamil (1080p)
+https://d2lk5u59tns74c.cloudfront.net/out/v1/abf46b14847e45499f4a47f3a9afe93d/index.m3u8
+
+#EXTINF:-1 group-title="News",News 7 Tamil (576p)
+https://segment.yuppcdn.net/240122/news7/playlist.m3u8
+
+#EXTINF:-1 group-title="Entertainment",Maha Punjabi
+https://cdn-4.pishow.tv/live/1521/master.m3u8
+
+#EXTINF:-1 group-title="News",Living India News (1080p)
+https://stream.ottlive.co.in/livingindia/index.m3u8
+
+#EXTINF:-1 group-title="News",India Today (720p)
+https://d1rc86nwwc9fag.cloudfront.net/vglive-sk-293160/master.m3u8
+
+#EXTINF:-1 group-title="Entertainment",GTC Punjabi (1080p)
+https://gtc-yupp.vgcdn.net/vglive-sk-254807/index.m3u8
+
+#EXTINF:-1 group-title="General",DD India (1080p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/ceda14583477426aa162a65392d8ea07/index.m3u8
+
+#EXTINF:-1 group-title="News",News18 Bangla (1080p)
+https://n18syndication.akamaized.net/bpk-tv/News18_Bangla_NW18_MOB/output01/master.m3u8
+
+#EXTINF:-1 group-title="Business",NDTV Profit (1080p)
+https://ndtvprofit.akamaized.net/hls/live/2107404/ndtvprofit/chunklist_5.m3u8
+
+#EXTINF:-1 group-title="News",NTV Telugu (1080p)
+https://mumbai-edge.smartplaytv.in/NTVTelugu/index.m3u8
+
+#EXTINF:-1 group-title="Religious",Peace TV Bangla (1080p)
+https://dzkyvlfyge.erbvr.com/PeaceTvBangla/index.m3u8
+
+#EXTINF:-1 group-title="News",NDTV 24x7 (720p)
+https://raw.githubusercontent.com/amazeyourself/adaptive-streams/refs/heads/main/streams/in/YuppTV/NDTV24x7.m3u8
+
+#EXTINF:-1 group-title="Music",Orange Bangla TV (720p)
+https://cdn-4.pishow.tv/live/1499/master.m3u8
+
+#EXTINF:-1 group-title="Religious",PMC Telugu (1080p)
+https://mumbai-edge.smartplaytv.in/PMC/index.m3u8
+
+#EXTINF:-1 group-title="Entertainment",PTC Punjabi (1080p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/3e22a9c278db4e3eb779afd42e41b0a6/index.m3u8
+
+#EXTINF:-1 group-title="Entertainment",PTC Punjabi Gold (1080p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/6e14bac6d0384e129521a4d005188bfb/index.m3u8
+
+#EXTINF:-1 group-title="News",News18 Marathi (1080p)
+https://n18syndication.akamaized.net/bpk-tv/News18_Lokmat_NW18_MOB/output01/master.m3u8
+
+#EXTINF:-1 group-title="News",News18 Tamil Nadu (1080p)
+https://n18syndication.akamaized.net/bpk-tv/News18_Tamil_Nadu_NW18_MOB/output01/master.m3u8
+
+#EXTINF:-1 group-title="General",NKR TV Kannada (1080p)
+https://stream.ottlive.co.in/nkrtv/index.m3u8
+
+#EXTINF:-1 group-title="News",NK TV Bangla (1080p)
+https://nktv.smartstream.video/smartstream-us/nkbangla/nkbangla/playlist.m3u8
+
+#EXTINF:-1 group-title="Music",Punjabi Hits (1080p)
+https://stream.ottlive.co.in/punjabihits/index.m3u8
+
+#EXTINF:-1 group-title="News",Republic TV (1080p)
+https://raw.githubusercontent.com/amazeyourself/adaptive-streams/refs/heads/main/streams/in/YuppTV/RepublicTV.m3u8
+
+#EXTINF:-1 group-title="News",RT India (1080p)
+https://rt-india.rttv.com/dvr/rtindia/playlist.m3u8
+
+#EXTINF:-1 group-title="Music",Sangeet Marathi (720p)
+https://cdn-3.pishow.tv/live/1229/master.m3u8
+
+#EXTINF:-1 group-title="Sports",Star Sports 1 HD (1080p)
+http://103.253.18.58:8000/play/a00m
+
+#EXTINF:-1 group-title="Entertainment",Sony Marathi (1080p) [Geo-blocked]
+https://sl.vodep39240327.workers.dev/channel/SONY+MARATHI.m3u8
+
+#EXTINF:-1 group-title="News",TV5 Kannada (576p)
+https://cdn-3.pishow.tv/live/1526/master.m3u8
+
+#EXTINF:-1 group-title="Undefined",TamilVision-TV (1080p)
+https://live.cmr24.fm/TVI/HD/chunks.m3u8
+
+#EXTINF:-1 group-title="News",TV9 Marathi (720p)
+https://dyjmyiv3bp2ez.cloudfront.net/pub-iotv9marlygv8h/liveabr/playlist.m3u8
+
+#EXTINF:-1 group-title="News",TV9 Telugu (720p)
+https://dyjmyiv3bp2ez.cloudfront.net/pub-iotv9telcmjhcs/liveabr/playlist.m3u8
+
+#EXTINF:-1 group-title="News",TV9 Gujarati (720p)
+https://dyjmyiv3bp2ez.cloudfront.net/pub-iotv9guj3ki8lu/liveabr/playlist.m3u8
+
+#EXTINF:-1 group-title="News",TV13 Gujarati (720p)
+https://live.wrencdn.in/wrencdn/hls/tv13_web/index.m3u8
+
+#EXTINF:-1 group-title="Kids",ZB Cartoon (1080p)
+https://server.zillarbarta.com/zbcatun/video.m3u8
+
+#EXTINF:-1 group-title="News",Zee Malayalam News (720p)
+https://d1ty2af03alkwd.cloudfront.net/index_4.m3u8
+
+#EXTINF:-1 group-title="News",Zee Telugu News (720p)
+https://d116gfrn8orazi.cloudfront.net/index.m3u8?akes=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE3NjcxOTc5NzJ9.O4qmdMPbHwKrCg6hFXvD70vjSPWKQd0a7NrjmFdeMB8
+
+#EXTINF:-1 group-title="News",Zee Kannada News (720p)
+https://d3vzwoqcbpfm8p.cloudfront.net/index_4.m3u8
+
+#EXTINF:-1 group-title="Documentary",BBC Earth Greece (1080p)
+http://185.102.171.218/BBCEarth/index.m3u8
+
+#EXTINF:-1 group-title="Documentary;Education",Asharq Discovery (1080p)
+https://svs.itworkscdn.net/asharqdiscoverylive/asharqd.smil/playlist_dvr.m3u8
+
+#EXTINF:-1 group-title="News",TV9 Bangla (720p)
+https://dyjmyiv3bp2ez.cloudfront.net/pub-iotv9banaen8yq/liveabr/playlist.m3u8
+
+#EXTINF:-1 group-title="Entertainment",Telugu One (1080p)
+https://teluguone-yupptv.vgcdn.net/v1/019be9e3f04d1ea55784338b5c3e89/019be9e4474415fc60e93459e1e808/teluguone_2500k.m3u8
+
+#EXTINF:-1 group-title="Documentary",History (576p)
+http://84.17.50.102/history/index.m3u8
+
+#EXTINF:-1 group-title="Business;Documentary",Bloomberg Originals (1080p)
+https://86fdc85a.wurl.com/master/f36d25e7e52f1ba8d7e56eb859c636563214f541/TEctZ2JfQmxvb21iZXJnT3JpZ2luYWxzX0hMUw/playlist.m3u8
+
+#EXTINF:-1 group-title="Business;Documentary",Bloomberg Originals
+https://e96a7526.wurl.com/master/f36d25e7e52f1ba8d7e56eb859c636563214f541/UmFrdXRlblRWLWV1X0Jsb29tYmVyZ09yaWdpbmFsc19ITFM/playlist.m3u8
+
+#EXTINF:-1 group-title="Documentary",National Geographic HD (1080p)
+https://adpnetworkhd-cmd.github.io/iptv/NatGeoRomania.m3u8
+
+#EXTINF:-1 group-title="Business;Documentary",Bloomberg Originals (1080p)
+https://bloomberg.com/media-manifest/streams/qt.m3u8
+
+#EXTINF:-1 group-title="Documentary",National Geographic Wild (720p)
+http://185.102.171.218/NatGeoWild/index.m3u8
+
+#EXTINF:-1 group-title="Documentary",National Geographic HD East (720p)
+http://198.58.104.90:8989/natgeo/index.m3u8
+
+#EXTINF:-1 group-title="Documentary",National Geographic Wild HD (1080p)
+https://adpnetworkhd-cmd.github.io/iptv/NatGeoWildRomania.m3u8
+
+#EXTINF:-1 group-title="Documentary",National Geographic Wild HD East (720p)
+http://198.58.104.90:8989/natgeowild/index.m3u8
+
+#EXTINF:-1 group-title="Documentary",History Hit (1080p)
+https://lds-timeline-rakuten.amagi.tv/playlist.m3u8
+
+#EXTINF:-1 group-title="News",Zee Tamil News (720p)
+https://raw.githubusercontent.com/amazeyourself/adaptive-streams/refs/heads/main/streams/in/ZMCL/ZeeTamilNews.m3u8
+
+#EXTINF:-1 group-title="Documentary",Autentic History (1080p)
+https://9e754fa707344ccca6d84955c8fcaf36.mediatailor.us-east-1.amazonaws.com/v1/master/44f73ba4d03e9607dcd9bebdcb8494d86964f1d8/RlaxxTV-eu_AutenticHistory/playlist.m3u8
+
+#EXTINF:-1 group-title="History + Science",Pluto TV Science
+https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/hls/channel/563a970aa1a1f7fe7c9daad7/master.m3u8?advertisingId=&appName=web&appVersion=8.1.0&app_name=web&clientDeviceType=0&clientID=6dddf518-7142-11f1-9b62-000d3a60a238&clientModelNumber=1.0.0&country=US&deviceDNT=false&deviceId=6dddf518-7142-11f1-9b62-000d3a60a238&deviceLat=34.0100&deviceLon=-118.2600&deviceMake=chrome&deviceModel=web&deviceType=web&deviceVersion=133.0.0&marketingRegion=US&serverSideAds=false&sessionID=6df79626-7142-11f1-a974-7ee5c0797d32&sid=6df79626-7142-11f1-a974-7ee5c0797d32&userId=&jwt=eyJhbGciOiJIUzI1NiIsImtpZCI6IjczYmI5ZDRlLWJiY2EtNDFkNC04OWQ2LTMwYjVkNWQ3ZDRmNCIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSUQiOiI2ZGY3OTYyNi03MTQyLTExZjEtYTk3NC03ZWU1YzA3OTdkMzIiLCJjbGllbnRJUCI6IjE4NS4yMzYuMjAwLjE3MiIsImNpdHkiOiJMb3MgQW5nZWxlcyIsInBvc3RhbENvZGUiOiI5MDAxMSIsImNvdW50cnkiOiJVUyIsImRtYSI6ODAzLCJhY3RpdmVSZWdpb24iOiJVUyIsImRldmljZUxhdCI6MzQuMDA5OTk4MzIxNTMzMiwiZGV2aWNlTG9uIjotMTE4LjI2MDAwMjEzNjIzMDQ3LCJwcmVmZXJyZWRMYW5ndWFnZSI6ImVuIiwiZGV2aWNlVHlwZSI6IndlYiIsImRldmljZVZlcnNpb24iOiIxMzMuMC4wIiwiZGV2aWNlTWFrZSI6ImNocm9tZSIsImRldmljZU1vZGVsIjoid2ViIiwiYXBwTmFtZSI6IndlYiIsImFwcFZlcnNpb24iOiI4LjEuMCIsImNsaWVudElEIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY21BdWRpZW5jZUlEIjoiIiwiaXNDbGllbnRETlQiOmZhbHNlLCJ1c2VySUQiOiIiLCJsb2dMZXZlbCI6IkRFRkFVTFQiLCJ0aW1lWm9uZSI6IkFtZXJpY2EvTG9zX0FuZ2VsZXMiLCJzZXJ2ZXJTaWRlQWRzIjpmYWxzZSwiZTJlQmVhY29ucyI6ZmFsc2UsImZlYXR1cmVzIjp7ImFkTG9hZCI6eyJjb2hvcnQiOiIifSwibXVsdGlBdWRpbyI6eyJlbmFibGVkIjp0cnVlfSwibXVsdGlQb2RBZHMiOnsiY29ob3J0IjoiIiwiZW5hYmxlZCI6dHJ1ZX0sInNlYXJjaEFQSSI6eyJxdWVyeVZlcnNpb24iOiJoeWJyaWQifSwic3RpdGNoZXJIbHNOZyI6eyJkZW11eGVkQXVkaW8iOiJqaXQifX0sImZtc1BhcmFtcyI6eyJmd1ZjSUQyIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiZndWY0lEMkNvcHBhIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY3VzdG9tUGFyYW1zIjp7ImZtc19saXZlcmFtcF9pZGwiOiIiLCJmbXNfZW1haWxoYXNoIjoiIiwiZm1zX3N1YnNjcmliZXJpZCI6IiIsImZtc19pZmEiOiIiLCJmbXNfaWRmdiI6IiIsImZtc191c2VyaWQiOiI2ZGRkZjUxOC03MTQyLTExZjEtOWI2Mi0wMDBkM2E2MGEyMzgiLCJmbXNfdmNpZDJ0eXBlIjoidXNlcmlkIiwiZm1zX3JhbXBfaWQiOiIiLCJmbXNfaGhfcmFtcF9pZCI6IiIsImZtc19iaWRpZHR5cGUiOiIiLCJfZndfM1BfVUlEIjoiIiwiZm1zX3J1bGVpZCI6IjEwMDAwLDEwMDA5In19LCJkcm0iOnsibmFtZSI6IndpZGV2aW5lIiwibGV2ZWwiOiJMMyJ9LCJzZXNzaW9uU3RhcnRUaW1lIjoxNzgyNDY2NTU1MTkxLCJpc3MiOiJib290LnBsdXRvLnR2Iiwic3ViIjoicHJpOnYxOnBsdXRvOmRldmljZXM6VVM6Tm1Sa1pHWTFNVGd0TnpFME1pMHhNV1l4TFRsaU5qSXRNREF3WkROaE5qQmhNak00IiwiYXVkIjoiKi5wbHV0by50diIsImV4cCI6MTc4MjU1Mjk1NSwiaWF0IjoxNzgyNDY2NTU1LCJqdGkiOiJjZDlmYTA2NS0yOWM2LTRiYmYtYjQ4NC02Njk4MWZjZDlmYzUifQ.XHlQQNdWjF9w42AElQcDmFBKKFC_NUln81E1ke03xyI&quality=720p&deviceMake=chrome&deviceType=web&deviceModel=web&deviceVersion=133.0.0&architecture=x86_64&buildVersion=1.0.0&includeExtendedEvents=true&masterJWTPassthrough=true
+
+#EXTINF:-1 group-title="History + Science",Pluto TV History
+https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/hls/channel/5a4d35dfa5c02e717a234f86/master.m3u8?advertisingId=&appName=web&appVersion=8.1.0&app_name=web&clientDeviceType=0&clientID=6dddf518-7142-11f1-9b62-000d3a60a238&clientModelNumber=1.0.0&country=US&deviceDNT=false&deviceId=6dddf518-7142-11f1-9b62-000d3a60a238&deviceLat=34.0100&deviceLon=-118.2600&deviceMake=chrome&deviceModel=web&deviceType=web&deviceVersion=133.0.0&marketingRegion=US&serverSideAds=false&sessionID=6df79626-7142-11f1-a974-7ee5c0797d32&sid=6df79626-7142-11f1-a974-7ee5c0797d32&userId=&jwt=eyJhbGciOiJIUzI1NiIsImtpZCI6IjczYmI5ZDRlLWJiY2EtNDFkNC04OWQ2LTMwYjVkNWQ3ZDRmNCIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSUQiOiI2ZGY3OTYyNi03MTQyLTExZjEtYTk3NC03ZWU1YzA3OTdkMzIiLCJjbGllbnRJUCI6IjE4NS4yMzYuMjAwLjE3MiIsImNpdHkiOiJMb3MgQW5nZWxlcyIsInBvc3RhbENvZGUiOiI5MDAxMSIsImNvdW50cnkiOiJVUyIsImRtYSI6ODAzLCJhY3RpdmVSZWdpb24iOiJVUyIsImRldmljZUxhdCI6MzQuMDA5OTk4MzIxNTMzMiwiZGV2aWNlTG9uIjotMTE4LjI2MDAwMjEzNjIzMDQ3LCJwcmVmZXJyZWRMYW5ndWFnZSI6ImVuIiwiZGV2aWNlVHlwZSI6IndlYiIsImRldmljZVZlcnNpb24iOiIxMzMuMC4wIiwiZGV2aWNlTWFrZSI6ImNocm9tZSIsImRldmljZU1vZGVsIjoid2ViIiwiYXBwTmFtZSI6IndlYiIsImFwcFZlcnNpb24iOiI4LjEuMCIsImNsaWVudElEIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY21BdWRpZW5jZUlEIjoiIiwiaXNDbGllbnRETlQiOmZhbHNlLCJ1c2VySUQiOiIiLCJsb2dMZXZlbCI6IkRFRkFVTFQiLCJ0aW1lWm9uZSI6IkFtZXJpY2EvTG9zX0FuZ2VsZXMiLCJzZXJ2ZXJTaWRlQWRzIjpmYWxzZSwiZTJlQmVhY29ucyI6ZmFsc2UsImZlYXR1cmVzIjp7ImFkTG9hZCI6eyJjb2hvcnQiOiIifSwibXVsdGlBdWRpbyI6eyJlbmFibGVkIjp0cnVlfSwibXVsdGlQb2RBZHMiOnsiY29ob3J0IjoiIiwiZW5hYmxlZCI6dHJ1ZX0sInNlYXJjaEFQSSI6eyJxdWVyeVZlcnNpb24iOiJoeWJyaWQifSwic3RpdGNoZXJIbHNOZyI6eyJkZW11eGVkQXVkaW8iOiJqaXQifX0sImZtc1BhcmFtcyI6eyJmd1ZjSUQyIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiZndWY0lEMkNvcHBhIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY3VzdG9tUGFyYW1zIjp7ImZtc19saXZlcmFtcF9pZGwiOiIiLCJmbXNfZW1haWxoYXNoIjoiIiwiZm1zX3N1YnNjcmliZXJpZCI6IiIsImZtc19pZmEiOiIiLCJmbXNfaWRmdiI6IiIsImZtc191c2VyaWQiOiI2ZGRkZjUxOC03MTQyLTExZjEtOWI2Mi0wMDBkM2E2MGEyMzgiLCJmbXNfdmNpZDJ0eXBlIjoidXNlcmlkIiwiZm1zX3JhbXBfaWQiOiIiLCJmbXNfaGhfcmFtcF9pZCI6IiIsImZtc19iaWRpZHR5cGUiOiIiLCJfZndfM1BfVUlEIjoiIiwiZm1zX3J1bGVpZCI6IjEwMDAwLDEwMDA5In19LCJkcm0iOnsibmFtZSI6IndpZGV2aW5lIiwibGV2ZWwiOiJMMyJ9LCJzZXNzaW9uU3RhcnRUaW1lIjoxNzgyNDY2NTU1MTkxLCJpc3MiOiJib290LnBsdXRvLnR2Iiwic3ViIjoicHJpOnYxOnBsdXRvOmRldmljZXM6VVM6Tm1Sa1pHWTFNVGd0TnpFME1pMHhNV1l4TFRsaU5qSXRNREF3WkROaE5qQmhNak00IiwiYXVkIjoiKi5wbHV0by50diIsImV4cCI6MTc4MjU1Mjk1NSwiaWF0IjoxNzgyNDY2NTU1LCJqdGkiOiJjZDlmYTA2NS0yOWM2LTRiYmYtYjQ4NC02Njk4MWZjZDlmYzUifQ.XHlQQNdWjF9w42AElQcDmFBKKFC_NUln81E1ke03xyI&quality=720p&deviceMake=chrome&deviceType=web&deviceModel=web&deviceVersion=133.0.0&architecture=x86_64&buildVersion=1.0.0&includeExtendedEvents=true&masterJWTPassthrough=true
+
+#EXTINF:-1 group-title="Documentary",Viasat History [Not 24/7]
+http://315e5a5d.ottrast.com/iptv/8XFKA8883W9M5K/12101/index.m3u8
+
+#EXTINF:-1 group-title="Documentary",Pluto TV History
+https://jmp2.uk/plu-5a4d35dfa5c02e717a234f86.m3u8
+
+#EXTINF:-1 group-title="News + Opinion",CBS News 24/7
+https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/hls/channel/5a6b92f6e22a617379789618/master.m3u8?advertisingId=&appName=web&appVersion=8.1.0&app_name=web&clientDeviceType=0&clientID=6dddf518-7142-11f1-9b62-000d3a60a238&clientModelNumber=1.0.0&country=US&deviceDNT=false&deviceId=6dddf518-7142-11f1-9b62-000d3a60a238&deviceLat=34.0100&deviceLon=-118.2600&deviceMake=chrome&deviceModel=web&deviceType=web&deviceVersion=133.0.0&marketingRegion=US&serverSideAds=false&sessionID=6df79626-7142-11f1-a974-7ee5c0797d32&sid=6df79626-7142-11f1-a974-7ee5c0797d32&userId=&jwt=eyJhbGciOiJIUzI1NiIsImtpZCI6IjczYmI5ZDRlLWJiY2EtNDFkNC04OWQ2LTMwYjVkNWQ3ZDRmNCIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSUQiOiI2ZGY3OTYyNi03MTQyLTExZjEtYTk3NC03ZWU1YzA3OTdkMzIiLCJjbGllbnRJUCI6IjE4NS4yMzYuMjAwLjE3MiIsImNpdHkiOiJMb3MgQW5nZWxlcyIsInBvc3RhbENvZGUiOiI5MDAxMSIsImNvdW50cnkiOiJVUyIsImRtYSI6ODAzLCJhY3RpdmVSZWdpb24iOiJVUyIsImRldmljZUxhdCI6MzQuMDA5OTk4MzIxNTMzMiwiZGV2aWNlTG9uIjotMTE4LjI2MDAwMjEzNjIzMDQ3LCJwcmVmZXJyZWRMYW5ndWFnZSI6ImVuIiwiZGV2aWNlVHlwZSI6IndlYiIsImRldmljZVZlcnNpb24iOiIxMzMuMC4wIiwiZGV2aWNlTWFrZSI6ImNocm9tZSIsImRldmljZU1vZGVsIjoid2ViIiwiYXBwTmFtZSI6IndlYiIsImFwcFZlcnNpb24iOiI4LjEuMCIsImNsaWVudElEIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY21BdWRpZW5jZUlEIjoiIiwiaXNDbGllbnRETlQiOmZhbHNlLCJ1c2VySUQiOiIiLCJsb2dMZXZlbCI6IkRFRkFVTFQiLCJ0aW1lWm9uZSI6IkFtZXJpY2EvTG9zX0FuZ2VsZXMiLCJzZXJ2ZXJTaWRlQWRzIjpmYWxzZSwiZTJlQmVhY29ucyI6ZmFsc2UsImZlYXR1cmVzIjp7ImFkTG9hZCI6eyJjb2hvcnQiOiIifSwibXVsdGlBdWRpbyI6eyJlbmFibGVkIjp0cnVlfSwibXVsdGlQb2RBZHMiOnsiY29ob3J0IjoiIiwiZW5hYmxlZCI6dHJ1ZX0sInNlYXJjaEFQSSI6eyJxdWVyeVZlcnNpb24iOiJoeWJyaWQifSwic3RpdGNoZXJIbHNOZyI6eyJkZW11eGVkQXVkaW8iOiJqaXQifX0sImZtc1BhcmFtcyI6eyJmd1ZjSUQyIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiZndWY0lEMkNvcHBhIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY3VzdG9tUGFyYW1zIjp7ImZtc19saXZlcmFtcF9pZGwiOiIiLCJmbXNfZW1haWxoYXNoIjoiIiwiZm1zX3N1YnNjcmliZXJpZCI6IiIsImZtc19pZmEiOiIiLCJmbXNfaWRmdiI6IiIsImZtc191c2VyaWQiOiI2ZGRkZjUxOC03MTQyLTExZjEtOWI2Mi0wMDBkM2E2MGEyMzgiLCJmbXNfdmNpZDJ0eXBlIjoidXNlcmlkIiwiZm1zX3JhbXBfaWQiOiIiLCJmbXNfaGhfcmFtcF9pZCI6IiIsImZtc19iaWRpZHR5cGUiOiIiLCJfZndfM1BfVUlEIjoiIiwiZm1zX3J1bGVpZCI6IjEwMDAwLDEwMDA5In19LCJkcm0iOnsibmFtZSI6IndpZGV2aW5lIiwibGV2ZWwiOiJMMyJ9LCJzZXNzaW9uU3RhcnRUaW1lIjoxNzgyNDY2NTU1MTkxLCJpc3MiOiJib290LnBsdXRvLnR2Iiwic3ViIjoicHJpOnYxOnBsdXRvOmRldmljZXM6VVM6Tm1Sa1pHWTFNVGd0TnpFME1pMHhNV1l4TFRsaU5qSXRNREF3WkROaE5qQmhNak00IiwiYXVkIjoiKi5wbHV0by50diIsImV4cCI6MTc4MjU1Mjk1NSwiaWF0IjoxNzgyNDY2NTU1LCJqdGkiOiJjZDlmYTA2NS0yOWM2LTRiYmYtYjQ4NC02Njk4MWZjZDlmYzUifQ.XHlQQNdWjF9w42AElQcDmFBKKFC_NUln81E1ke03xyI&quality=720p&deviceMake=chrome&deviceType=web&deviceModel=web&deviceVersion=133.0.0&architecture=x86_64&buildVersion=1.0.0&includeExtendedEvents=true&masterJWTPassthrough=true
+
+#EXTINF:-1 group-title="Entertainment",MTV Pluto TV
+https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/hls/channel/5ca672f515a62078d2ec0ad2/master.m3u8?advertisingId=&appName=web&appVersion=8.1.0&app_name=web&clientDeviceType=0&clientID=6dddf518-7142-11f1-9b62-000d3a60a238&clientModelNumber=1.0.0&country=US&deviceDNT=false&deviceId=6dddf518-7142-11f1-9b62-000d3a60a238&deviceLat=34.0100&deviceLon=-118.2600&deviceMake=chrome&deviceModel=web&deviceType=web&deviceVersion=133.0.0&marketingRegion=US&serverSideAds=false&sessionID=6df79626-7142-11f1-a974-7ee5c0797d32&sid=6df79626-7142-11f1-a974-7ee5c0797d32&userId=&jwt=eyJhbGciOiJIUzI1NiIsImtpZCI6IjczYmI5ZDRlLWJiY2EtNDFkNC04OWQ2LTMwYjVkNWQ3ZDRmNCIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSUQiOiI2ZGY3OTYyNi03MTQyLTExZjEtYTk3NC03ZWU1YzA3OTdkMzIiLCJjbGllbnRJUCI6IjE4NS4yMzYuMjAwLjE3MiIsImNpdHkiOiJMb3MgQW5nZWxlcyIsInBvc3RhbENvZGUiOiI5MDAxMSIsImNvdW50cnkiOiJVUyIsImRtYSI6ODAzLCJhY3RpdmVSZWdpb24iOiJVUyIsImRldmljZUxhdCI6MzQuMDA5OTk4MzIxNTMzMiwiZGV2aWNlTG9uIjotMTE4LjI2MDAwMjEzNjIzMDQ3LCJwcmVmZXJyZWRMYW5ndWFnZSI6ImVuIiwiZGV2aWNlVHlwZSI6IndlYiIsImRldmljZVZlcnNpb24iOiIxMzMuMC4wIiwiZGV2aWNlTWFrZSI6ImNocm9tZSIsImRldmljZU1vZGVsIjoid2ViIiwiYXBwTmFtZSI6IndlYiIsImFwcFZlcnNpb24iOiI4LjEuMCIsImNsaWVudElEIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY21BdWRpZW5jZUlEIjoiIiwiaXNDbGllbnRETlQiOmZhbHNlLCJ1c2VySUQiOiIiLCJsb2dMZXZlbCI6IkRFRkFVTFQiLCJ0aW1lWm9uZSI6IkFtZXJpY2EvTG9zX0FuZ2VsZXMiLCJzZXJ2ZXJTaWRlQWRzIjpmYWxzZSwiZTJlQmVhY29ucyI6ZmFsc2UsImZlYXR1cmVzIjp7ImFkTG9hZCI6eyJjb2hvcnQiOiIifSwibXVsdGlBdWRpbyI6eyJlbmFibGVkIjp0cnVlfSwibXVsdGlQb2RBZHMiOnsiY29ob3J0IjoiIiwiZW5hYmxlZCI6dHJ1ZX0sInNlYXJjaEFQSSI6eyJxdWVyeVZlcnNpb24iOiJoeWJyaWQifSwic3RpdGNoZXJIbHNOZyI6eyJkZW11eGVkQXVkaW8iOiJqaXQifX0sImZtc1BhcmFtcyI6eyJmd1ZjSUQyIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiZndWY0lEMkNvcHBhIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY3VzdG9tUGFyYW1zIjp7ImZtc19saXZlcmFtcF9pZGwiOiIiLCJmbXNfZW1haWxoYXNoIjoiIiwiZm1zX3N1YnNjcmliZXJpZCI6IiIsImZtc19pZmEiOiIiLCJmbXNfaWRmdiI6IiIsImZtc191c2VyaWQiOiI2ZGRkZjUxOC03MTQyLTExZjEtOWI2Mi0wMDBkM2E2MGEyMzgiLCJmbXNfdmNpZDJ0eXBlIjoidXNlcmlkIiwiZm1zX3JhbXBfaWQiOiIiLCJmbXNfaGhfcmFtcF9pZCI6IiIsImZtc19iaWRpZHR5cGUiOiIiLCJfZndfM1BfVUlEIjoiIiwiZm1zX3J1bGVpZCI6IjEwMDAwLDEwMDA5In19LCJkcm0iOnsibmFtZSI6IndpZGV2aW5lIiwibGV2ZWwiOiJMMyJ9LCJzZXNzaW9uU3RhcnRUaW1lIjoxNzgyNDY2NTU1MTkxLCJpc3MiOiJib290LnBsdXRvLnR2Iiwic3ViIjoicHJpOnYxOnBsdXRvOmRldmljZXM6VVM6Tm1Sa1pHWTFNVGd0TnpFME1pMHhNV1l4TFRsaU5qSXRNREF3WkROaE5qQmhNak00IiwiYXVkIjoiKi5wbHV0by50diIsImV4cCI6MTc4MjU1Mjk1NSwiaWF0IjoxNzgyNDY2NTU1LCJqdGkiOiJjZDlmYTA2NS0yOWM2LTRiYmYtYjQ4NC02Njk4MWZjZDlmYzUifQ.XHlQQNdWjF9w42AElQcDmFBKKFC_NUln81E1ke03xyI&quality=720p&deviceMake=chrome&deviceType=web&deviceModel=web&deviceVersion=133.0.0&architecture=x86_64&buildVersion=1.0.0&includeExtendedEvents=true&masterJWTPassthrough=true
+
+#EXTINF:-1 group-title="News + Opinion",CNN HEADLINES
+https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/hls/channel/5421f71da6af422839419cb3/master.m3u8?advertisingId=&appName=web&appVersion=8.1.0&app_name=web&clientDeviceType=0&clientID=6dddf518-7142-11f1-9b62-000d3a60a238&clientModelNumber=1.0.0&country=US&deviceDNT=false&deviceId=6dddf518-7142-11f1-9b62-000d3a60a238&deviceLat=34.0100&deviceLon=-118.2600&deviceMake=chrome&deviceModel=web&deviceType=web&deviceVersion=133.0.0&marketingRegion=US&serverSideAds=false&sessionID=6df79626-7142-11f1-a974-7ee5c0797d32&sid=6df79626-7142-11f1-a974-7ee5c0797d32&userId=&jwt=eyJhbGciOiJIUzI1NiIsImtpZCI6IjczYmI5ZDRlLWJiY2EtNDFkNC04OWQ2LTMwYjVkNWQ3ZDRmNCIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSUQiOiI2ZGY3OTYyNi03MTQyLTExZjEtYTk3NC03ZWU1YzA3OTdkMzIiLCJjbGllbnRJUCI6IjE4NS4yMzYuMjAwLjE3MiIsImNpdHkiOiJMb3MgQW5nZWxlcyIsInBvc3RhbENvZGUiOiI5MDAxMSIsImNvdW50cnkiOiJVUyIsImRtYSI6ODAzLCJhY3RpdmVSZWdpb24iOiJVUyIsImRldmljZUxhdCI6MzQuMDA5OTk4MzIxNTMzMiwiZGV2aWNlTG9uIjotMTE4LjI2MDAwMjEzNjIzMDQ3LCJwcmVmZXJyZWRMYW5ndWFnZSI6ImVuIiwiZGV2aWNlVHlwZSI6IndlYiIsImRldmljZVZlcnNpb24iOiIxMzMuMC4wIiwiZGV2aWNlTWFrZSI6ImNocm9tZSIsImRldmljZU1vZGVsIjoid2ViIiwiYXBwTmFtZSI6IndlYiIsImFwcFZlcnNpb24iOiI4LjEuMCIsImNsaWVudElEIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY21BdWRpZW5jZUlEIjoiIiwiaXNDbGllbnRETlQiOmZhbHNlLCJ1c2VySUQiOiIiLCJsb2dMZXZlbCI6IkRFRkFVTFQiLCJ0aW1lWm9uZSI6IkFtZXJpY2EvTG9zX0FuZ2VsZXMiLCJzZXJ2ZXJTaWRlQWRzIjpmYWxzZSwiZTJlQmVhY29ucyI6ZmFsc2UsImZlYXR1cmVzIjp7ImFkTG9hZCI6eyJjb2hvcnQiOiIifSwibXVsdGlBdWRpbyI6eyJlbmFibGVkIjp0cnVlfSwibXVsdGlQb2RBZHMiOnsiY29ob3J0IjoiIiwiZW5hYmxlZCI6dHJ1ZX0sInNlYXJjaEFQSSI6eyJxdWVyeVZlcnNpb24iOiJoeWJyaWQifSwic3RpdGNoZXJIbHNOZyI6eyJkZW11eGVkQXVkaW8iOiJqaXQifX0sImZtc1BhcmFtcyI6eyJmd1ZjSUQyIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiZndWY0lEMkNvcHBhIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY3VzdG9tUGFyYW1zIjp7ImZtc19saXZlcmFtcF9pZGwiOiIiLCJmbXNfZW1haWxoYXNoIjoiIiwiZm1zX3N1YnNjcmliZXJpZCI6IiIsImZtc19pZmEiOiIiLCJmbXNfaWRmdiI6IiIsImZtc191c2VyaWQiOiI2ZGRkZjUxOC03MTQyLTExZjEtOWI2Mi0wMDBkM2E2MGEyMzgiLCJmbXNfdmNpZDJ0eXBlIjoidXNlcmlkIiwiZm1zX3JhbXBfaWQiOiIiLCJmbXNfaGhfcmFtcF9pZCI6IiIsImZtc19iaWRpZHR5cGUiOiIiLCJfZndfM1BfVUlEIjoiIiwiZm1zX3J1bGVpZCI6IjEwMDAwLDEwMDA5In19LCJkcm0iOnsibmFtZSI6IndpZGV2aW5lIiwibGV2ZWwiOiJMMyJ9LCJzZXNzaW9uU3RhcnRUaW1lIjoxNzgyNDY2NTU1MTkxLCJpc3MiOiJib290LnBsdXRvLnR2Iiwic3ViIjoicHJpOnYxOnBsdXRvOmRldmljZXM6VVM6Tm1Sa1pHWTFNVGd0TnpFME1pMHhNV1l4TFRsaU5qSXRNREF3WkROaE5qQmhNak00IiwiYXVkIjoiKi5wbHV0by50diIsImV4cCI6MTc4MjU1Mjk1NSwiaWF0IjoxNzgyNDY2NTU1LCJqdGkiOiJjZDlmYTA2NS0yOWM2LTRiYmYtYjQ4NC02Njk4MWZjZDlmYzUifQ.XHlQQNdWjF9w42AElQcDmFBKKFC_NUln81E1ke03xyI&quality=720p&deviceMake=chrome&deviceType=web&deviceModel=web&deviceVersion=133.0.0&architecture=x86_64&buildVersion=1.0.0&includeExtendedEvents=true&masterJWTPassthrough=true
+
+#EXTINF:-1 group-title="Kids",Nickelodeon Pluto TV
+https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/hls/channel/5ca673e0d0bd6c2689c94ce3/master.m3u8?advertisingId=&appName=web&appVersion=8.1.0&app_name=web&clientDeviceType=0&clientID=6dddf518-7142-11f1-9b62-000d3a60a238&clientModelNumber=1.0.0&country=US&deviceDNT=false&deviceId=6dddf518-7142-11f1-9b62-000d3a60a238&deviceLat=34.0100&deviceLon=-118.2600&deviceMake=chrome&deviceModel=web&deviceType=web&deviceVersion=133.0.0&marketingRegion=US&serverSideAds=false&sessionID=6df79626-7142-11f1-a974-7ee5c0797d32&sid=6df79626-7142-11f1-a974-7ee5c0797d32&userId=&jwt=eyJhbGciOiJIUzI1NiIsImtpZCI6IjczYmI5ZDRlLWJiY2EtNDFkNC04OWQ2LTMwYjVkNWQ3ZDRmNCIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSUQiOiI2ZGY3OTYyNi03MTQyLTExZjEtYTk3NC03ZWU1YzA3OTdkMzIiLCJjbGllbnRJUCI6IjE4NS4yMzYuMjAwLjE3MiIsImNpdHkiOiJMb3MgQW5nZWxlcyIsInBvc3RhbENvZGUiOiI5MDAxMSIsImNvdW50cnkiOiJVUyIsImRtYSI6ODAzLCJhY3RpdmVSZWdpb24iOiJVUyIsImRldmljZUxhdCI6MzQuMDA5OTk4MzIxNTMzMiwiZGV2aWNlTG9uIjotMTE4LjI2MDAwMjEzNjIzMDQ3LCJwcmVmZXJyZWRMYW5ndWFnZSI6ImVuIiwiZGV2aWNlVHlwZSI6IndlYiIsImRldmljZVZlcnNpb24iOiIxMzMuMC4wIiwiZGV2aWNlTWFrZSI6ImNocm9tZSIsImRldmljZU1vZGVsIjoid2ViIiwiYXBwTmFtZSI6IndlYiIsImFwcFZlcnNpb24iOiI4LjEuMCIsImNsaWVudElEIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY21BdWRpZW5jZUlEIjoiIiwiaXNDbGllbnRETlQiOmZhbHNlLCJ1c2VySUQiOiIiLCJsb2dMZXZlbCI6IkRFRkFVTFQiLCJ0aW1lWm9uZSI6IkFtZXJpY2EvTG9zX0FuZ2VsZXMiLCJzZXJ2ZXJTaWRlQWRzIjpmYWxzZSwiZTJlQmVhY29ucyI6ZmFsc2UsImZlYXR1cmVzIjp7ImFkTG9hZCI6eyJjb2hvcnQiOiIifSwibXVsdGlBdWRpbyI6eyJlbmFibGVkIjp0cnVlfSwibXVsdGlQb2RBZHMiOnsiY29ob3J0IjoiIiwiZW5hYmxlZCI6dHJ1ZX0sInNlYXJjaEFQSSI6eyJxdWVyeVZlcnNpb24iOiJoeWJyaWQifSwic3RpdGNoZXJIbHNOZyI6eyJkZW11eGVkQXVkaW8iOiJqaXQifX0sImZtc1BhcmFtcyI6eyJmd1ZjSUQyIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiZndWY0lEMkNvcHBhIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY3VzdG9tUGFyYW1zIjp7ImZtc19saXZlcmFtcF9pZGwiOiIiLCJmbXNfZW1haWxoYXNoIjoiIiwiZm1zX3N1YnNjcmliZXJpZCI6IiIsImZtc19pZmEiOiIiLCJmbXNfaWRmdiI6IiIsImZtc191c2VyaWQiOiI2ZGRkZjUxOC03MTQyLTExZjEtOWI2Mi0wMDBkM2E2MGEyMzgiLCJmbXNfdmNpZDJ0eXBlIjoidXNlcmlkIiwiZm1zX3JhbXBfaWQiOiIiLCJmbXNfaGhfcmFtcF9pZCI6IiIsImZtc19iaWRpZHR5cGUiOiIiLCJfZndfM1BfVUlEIjoiIiwiZm1zX3J1bGVpZCI6IjEwMDAwLDEwMDA5In19LCJkcm0iOnsibmFtZSI6IndpZGV2aW5lIiwibGV2ZWwiOiJMMyJ9LCJzZXNzaW9uU3RhcnRUaW1lIjoxNzgyNDY2NTU1MTkxLCJpc3MiOiJib290LnBsdXRvLnR2Iiwic3ViIjoicHJpOnYxOnBsdXRvOmRldmljZXM6VVM6Tm1Sa1pHWTFNVGd0TnpFME1pMHhNV1l4TFRsaU5qSXRNREF3WkROaE5qQmhNak00IiwiYXVkIjoiKi5wbHV0by50diIsImV4cCI6MTc4MjU1Mjk1NSwiaWF0IjoxNzgyNDY2NTU1LCJqdGkiOiJjZDlmYTA2NS0yOWM2LTRiYmYtYjQ4NC02Njk4MWZjZDlmYzUifQ.XHlQQNdWjF9w42AElQcDmFBKKFC_NUln81E1ke03xyI&quality=720p&deviceMake=chrome&deviceType=web&deviceModel=web&deviceVersion=133.0.0&architecture=x86_64&buildVersion=1.0.0&includeExtendedEvents=true&masterJWTPassthrough=true
+
+#EXTINF:-1 group-title="News + Opinion",Bloomberg TV+
+https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/hls/channel/54ff7ba69222cb1c2624c584/master.m3u8?advertisingId=&appName=web&appVersion=8.1.0&app_name=web&clientDeviceType=0&clientID=6dddf518-7142-11f1-9b62-000d3a60a238&clientModelNumber=1.0.0&country=US&deviceDNT=false&deviceId=6dddf518-7142-11f1-9b62-000d3a60a238&deviceLat=34.0100&deviceLon=-118.2600&deviceMake=chrome&deviceModel=web&deviceType=web&deviceVersion=133.0.0&marketingRegion=US&serverSideAds=false&sessionID=6df79626-7142-11f1-a974-7ee5c0797d32&sid=6df79626-7142-11f1-a974-7ee5c0797d32&userId=&jwt=eyJhbGciOiJIUzI1NiIsImtpZCI6IjczYmI5ZDRlLWJiY2EtNDFkNC04OWQ2LTMwYjVkNWQ3ZDRmNCIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSUQiOiI2ZGY3OTYyNi03MTQyLTExZjEtYTk3NC03ZWU1YzA3OTdkMzIiLCJjbGllbnRJUCI6IjE4NS4yMzYuMjAwLjE3MiIsImNpdHkiOiJMb3MgQW5nZWxlcyIsInBvc3RhbENvZGUiOiI5MDAxMSIsImNvdW50cnkiOiJVUyIsImRtYSI6ODAzLCJhY3RpdmVSZWdpb24iOiJVUyIsImRldmljZUxhdCI6MzQuMDA5OTk4MzIxNTMzMiwiZGV2aWNlTG9uIjotMTE4LjI2MDAwMjEzNjIzMDQ3LCJwcmVmZXJyZWRMYW5ndWFnZSI6ImVuIiwiZGV2aWNlVHlwZSI6IndlYiIsImRldmljZVZlcnNpb24iOiIxMzMuMC4wIiwiZGV2aWNlTWFrZSI6ImNocm9tZSIsImRldmljZU1vZGVsIjoid2ViIiwiYXBwTmFtZSI6IndlYiIsImFwcFZlcnNpb24iOiI4LjEuMCIsImNsaWVudElEIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY21BdWRpZW5jZUlEIjoiIiwiaXNDbGllbnRETlQiOmZhbHNlLCJ1c2VySUQiOiIiLCJsb2dMZXZlbCI6IkRFRkFVTFQiLCJ0aW1lWm9uZSI6IkFtZXJpY2EvTG9zX0FuZ2VsZXMiLCJzZXJ2ZXJTaWRlQWRzIjpmYWxzZSwiZTJlQmVhY29ucyI6ZmFsc2UsImZlYXR1cmVzIjp7ImFkTG9hZCI6eyJjb2hvcnQiOiIifSwibXVsdGlBdWRpbyI6eyJlbmFibGVkIjp0cnVlfSwibXVsdGlQb2RBZHMiOnsiY29ob3J0IjoiIiwiZW5hYmxlZCI6dHJ1ZX0sInNlYXJjaEFQSSI6eyJxdWVyeVZlcnNpb24iOiJoeWJyaWQifSwic3RpdGNoZXJIbHNOZyI6eyJkZW11eGVkQXVkaW8iOiJqaXQifX0sImZtc1BhcmFtcyI6eyJmd1ZjSUQyIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiZndWY0lEMkNvcHBhIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY3VzdG9tUGFyYW1zIjp7ImZtc19saXZlcmFtcF9pZGwiOiIiLCJmbXNfZW1haWxoYXNoIjoiIiwiZm1zX3N1YnNjcmliZXJpZCI6IiIsImZtc19pZmEiOiIiLCJmbXNfaWRmdiI6IiIsImZtc191c2VyaWQiOiI2ZGRkZjUxOC03MTQyLTExZjEtOWI2Mi0wMDBkM2E2MGEyMzgiLCJmbXNfdmNpZDJ0eXBlIjoidXNlcmlkIiwiZm1zX3JhbXBfaWQiOiIiLCJmbXNfaGhfcmFtcF9pZCI6IiIsImZtc19iaWRpZHR5cGUiOiIiLCJfZndfM1BfVUlEIjoiIiwiZm1zX3J1bGVpZCI6IjEwMDAwLDEwMDA5In19LCJkcm0iOnsibmFtZSI6IndpZGV2aW5lIiwibGV2ZWwiOiJMMyJ9LCJzZXNzaW9uU3RhcnRUaW1lIjoxNzgyNDY2NTU1MTkxLCJpc3MiOiJib290LnBsdXRvLnR2Iiwic3ViIjoicHJpOnYxOnBsdXRvOmRldmljZXM6VVM6Tm1Sa1pHWTFNVGd0TnpFME1pMHhNV1l4TFRsaU5qSXRNREF3WkROaE5qQmhNak00IiwiYXVkIjoiKi5wbHV0by50diIsImV4cCI6MTc4MjU1Mjk1NSwiaWF0IjoxNzgyNDY2NTU1LCJqdGkiOiJjZDlmYTA2NS0yOWM2LTRiYmYtYjQ4NC02Njk4MWZjZDlmYzUifQ.XHlQQNdWjF9w42AElQcDmFBKKFC_NUln81E1ke03xyI&quality=720p&deviceMake=chrome&deviceType=web&deviceModel=web&deviceVersion=133.0.0&architecture=x86_64&buildVersion=1.0.0&includeExtendedEvents=true&masterJWTPassthrough=true
+
+#EXTINF:-1 group-title="Music Videos",MTV Flow Latino
+https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/hls/channel/5d3609cd6a6c78d7672f2a81/master.m3u8?advertisingId=&appName=web&appVersion=8.1.0&app_name=web&clientDeviceType=0&clientID=6dddf518-7142-11f1-9b62-000d3a60a238&clientModelNumber=1.0.0&country=US&deviceDNT=false&deviceId=6dddf518-7142-11f1-9b62-000d3a60a238&deviceLat=34.0100&deviceLon=-118.2600&deviceMake=chrome&deviceModel=web&deviceType=web&deviceVersion=133.0.0&marketingRegion=US&serverSideAds=false&sessionID=6df79626-7142-11f1-a974-7ee5c0797d32&sid=6df79626-7142-11f1-a974-7ee5c0797d32&userId=&jwt=eyJhbGciOiJIUzI1NiIsImtpZCI6IjczYmI5ZDRlLWJiY2EtNDFkNC04OWQ2LTMwYjVkNWQ3ZDRmNCIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSUQiOiI2ZGY3OTYyNi03MTQyLTExZjEtYTk3NC03ZWU1YzA3OTdkMzIiLCJjbGllbnRJUCI6IjE4NS4yMzYuMjAwLjE3MiIsImNpdHkiOiJMb3MgQW5nZWxlcyIsInBvc3RhbENvZGUiOiI5MDAxMSIsImNvdW50cnkiOiJVUyIsImRtYSI6ODAzLCJhY3RpdmVSZWdpb24iOiJVUyIsImRldmljZUxhdCI6MzQuMDA5OTk4MzIxNTMzMiwiZGV2aWNlTG9uIjotMTE4LjI2MDAwMjEzNjIzMDQ3LCJwcmVmZXJyZWRMYW5ndWFnZSI6ImVuIiwiZGV2aWNlVHlwZSI6IndlYiIsImRldmljZVZlcnNpb24iOiIxMzMuMC4wIiwiZGV2aWNlTWFrZSI6ImNocm9tZSIsImRldmljZU1vZGVsIjoid2ViIiwiYXBwTmFtZSI6IndlYiIsImFwcFZlcnNpb24iOiI4LjEuMCIsImNsaWVudElEIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY21BdWRpZW5jZUlEIjoiIiwiaXNDbGllbnRETlQiOmZhbHNlLCJ1c2VySUQiOiIiLCJsb2dMZXZlbCI6IkRFRkFVTFQiLCJ0aW1lWm9uZSI6IkFtZXJpY2EvTG9zX0FuZ2VsZXMiLCJzZXJ2ZXJTaWRlQWRzIjpmYWxzZSwiZTJlQmVhY29ucyI6ZmFsc2UsImZlYXR1cmVzIjp7ImFkTG9hZCI6eyJjb2hvcnQiOiIifSwibXVsdGlBdWRpbyI6eyJlbmFibGVkIjp0cnVlfSwibXVsdGlQb2RBZHMiOnsiY29ob3J0IjoiIiwiZW5hYmxlZCI6dHJ1ZX0sInNlYXJjaEFQSSI6eyJxdWVyeVZlcnNpb24iOiJoeWJyaWQifSwic3RpdGNoZXJIbHNOZyI6eyJkZW11eGVkQXVkaW8iOiJqaXQifX0sImZtc1BhcmFtcyI6eyJmd1ZjSUQyIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiZndWY0lEMkNvcHBhIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY3VzdG9tUGFyYW1zIjp7ImZtc19saXZlcmFtcF9pZGwiOiIiLCJmbXNfZW1haWxoYXNoIjoiIiwiZm1zX3N1YnNjcmliZXJpZCI6IiIsImZtc19pZmEiOiIiLCJmbXNfaWRmdiI6IiIsImZtc191c2VyaWQiOiI2ZGRkZjUxOC03MTQyLTExZjEtOWI2Mi0wMDBkM2E2MGEyMzgiLCJmbXNfdmNpZDJ0eXBlIjoidXNlcmlkIiwiZm1zX3JhbXBfaWQiOiIiLCJmbXNfaGhfcmFtcF9pZCI6IiIsImZtc19iaWRpZHR5cGUiOiIiLCJfZndfM1BfVUlEIjoiIiwiZm1zX3J1bGVpZCI6IjEwMDAwLDEwMDA5In19LCJkcm0iOnsibmFtZSI6IndpZGV2aW5lIiwibGV2ZWwiOiJMMyJ9LCJzZXNzaW9uU3RhcnRUaW1lIjoxNzgyNDY2NTU1MTkxLCJpc3MiOiJib290LnBsdXRvLnR2Iiwic3ViIjoicHJpOnYxOnBsdXRvOmRldmljZXM6VVM6Tm1Sa1pHWTFNVGd0TnpFME1pMHhNV1l4TFRsaU5qSXRNREF3WkROaE5qQmhNak00IiwiYXVkIjoiKi5wbHV0by50diIsImV4cCI6MTc4MjU1Mjk1NSwiaWF0IjoxNzgyNDY2NTU1LCJqdGkiOiJjZDlmYTA2NS0yOWM2LTRiYmYtYjQ4NC02Njk4MWZjZDlmYzUifQ.XHlQQNdWjF9w42AElQcDmFBKKFC_NUln81E1ke03xyI&quality=720p&deviceMake=chrome&deviceType=web&deviceModel=web&deviceVersion=133.0.0&architecture=x86_64&buildVersion=1.0.0&includeExtendedEvents=true&masterJWTPassthrough=true
+
+#EXTINF:-1 group-title="History + Science",Pluto TV Military
+https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/hls/channel/5bb3fea0f711fd76340eebff/master.m3u8?advertisingId=&appName=web&appVersion=8.1.0&app_name=web&clientDeviceType=0&clientID=6dddf518-7142-11f1-9b62-000d3a60a238&clientModelNumber=1.0.0&country=US&deviceDNT=false&deviceId=6dddf518-7142-11f1-9b62-000d3a60a238&deviceLat=34.0100&deviceLon=-118.2600&deviceMake=chrome&deviceModel=web&deviceType=web&deviceVersion=133.0.0&marketingRegion=US&serverSideAds=false&sessionID=6df79626-7142-11f1-a974-7ee5c0797d32&sid=6df79626-7142-11f1-a974-7ee5c0797d32&userId=&jwt=eyJhbGciOiJIUzI1NiIsImtpZCI6IjczYmI5ZDRlLWJiY2EtNDFkNC04OWQ2LTMwYjVkNWQ3ZDRmNCIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSUQiOiI2ZGY3OTYyNi03MTQyLTExZjEtYTk3NC03ZWU1YzA3OTdkMzIiLCJjbGllbnRJUCI6IjE4NS4yMzYuMjAwLjE3MiIsImNpdHkiOiJMb3MgQW5nZWxlcyIsInBvc3RhbENvZGUiOiI5MDAxMSIsImNvdW50cnkiOiJVUyIsImRtYSI6ODAzLCJhY3RpdmVSZWdpb24iOiJVUyIsImRldmljZUxhdCI6MzQuMDA5OTk4MzIxNTMzMiwiZGV2aWNlTG9uIjotMTE4LjI2MDAwMjEzNjIzMDQ3LCJwcmVmZXJyZWRMYW5ndWFnZSI6ImVuIiwiZGV2aWNlVHlwZSI6IndlYiIsImRldmljZVZlcnNpb24iOiIxMzMuMC4wIiwiZGV2aWNlTWFrZSI6ImNocm9tZSIsImRldmljZU1vZGVsIjoid2ViIiwiYXBwTmFtZSI6IndlYiIsImFwcFZlcnNpb24iOiI4LjEuMCIsImNsaWVudElEIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY21BdWRpZW5jZUlEIjoiIiwiaXNDbGllbnRETlQiOmZhbHNlLCJ1c2VySUQiOiIiLCJsb2dMZXZlbCI6IkRFRkFVTFQiLCJ0aW1lWm9uZSI6IkFtZXJpY2EvTG9zX0FuZ2VsZXMiLCJzZXJ2ZXJTaWRlQWRzIjpmYWxzZSwiZTJlQmVhY29ucyI6ZmFsc2UsImZlYXR1cmVzIjp7ImFkTG9hZCI6eyJjb2hvcnQiOiIifSwibXVsdGlBdWRpbyI6eyJlbmFibGVkIjp0cnVlfSwibXVsdGlQb2RBZHMiOnsiY29ob3J0IjoiIiwiZW5hYmxlZCI6dHJ1ZX0sInNlYXJjaEFQSSI6eyJxdWVyeVZlcnNpb24iOiJoeWJyaWQifSwic3RpdGNoZXJIbHNOZyI6eyJkZW11eGVkQXVkaW8iOiJqaXQifX0sImZtc1BhcmFtcyI6eyJmd1ZjSUQyIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiZndWY0lEMkNvcHBhIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY3VzdG9tUGFyYW1zIjp7ImZtc19saXZlcmFtcF9pZGwiOiIiLCJmbXNfZW1haWxoYXNoIjoiIiwiZm1zX3N1YnNjcmliZXJpZCI6IiIsImZtc19pZmEiOiIiLCJmbXNfaWRmdiI6IiIsImZtc191c2VyaWQiOiI2ZGRkZjUxOC03MTQyLTExZjEtOWI2Mi0wMDBkM2E2MGEyMzgiLCJmbXNfdmNpZDJ0eXBlIjoidXNlcmlkIiwiZm1zX3JhbXBfaWQiOiIiLCJmbXNfaGhfcmFtcF9pZCI6IiIsImZtc19iaWRpZHR5cGUiOiIiLCJfZndfM1BfVUlEIjoiIiwiZm1zX3J1bGVpZCI6IjEwMDAwLDEwMDA5In19LCJkcm0iOnsibmFtZSI6IndpZGV2aW5lIiwibGV2ZWwiOiJMMyJ9LCJzZXNzaW9uU3RhcnRUaW1lIjoxNzgyNDY2NTU1MTkxLCJpc3MiOiJib290LnBsdXRvLnR2Iiwic3ViIjoicHJpOnYxOnBsdXRvOmRldmljZXM6VVM6Tm1Sa1pHWTFNVGd0TnpFME1pMHhNV1l4TFRsaU5qSXRNREF3WkROaE5qQmhNak00IiwiYXVkIjoiKi5wbHV0by50diIsImV4cCI6MTc4MjU1Mjk1NSwiaWF0IjoxNzgyNDY2NTU1LCJqdGkiOiJjZDlmYTA2NS0yOWM2LTRiYmYtYjQ4NC02Njk4MWZjZDlmYzUifQ.XHlQQNdWjF9w42AElQcDmFBKKFC_NUln81E1ke03xyI&quality=720p&deviceMake=chrome&deviceType=web&deviceModel=web&deviceVersion=133.0.0&architecture=x86_64&buildVersion=1.0.0&includeExtendedEvents=true&masterJWTPassthrough=true
+
+#EXTINF:-1 group-title="Documentary",Pluto TV History
+https://jmp2.uk/plu-5d767b1c126c65d0a307355f.m3u8
+
+#EXTINF:-1 group-title="Documentary",Pluto TV History
+https://jmp2.uk/plu-5d4af1803e7983b391d73b13.m3u8
+
+#EXTINF:-1 group-title="News + Opinion",CBS News Los Angeles
+https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/hls/channel/5dc9b875e280c80009a8a44a/master.m3u8?advertisingId=&appName=web&appVersion=8.1.0&app_name=web&clientDeviceType=0&clientID=6dddf518-7142-11f1-9b62-000d3a60a238&clientModelNumber=1.0.0&country=US&deviceDNT=false&deviceId=6dddf518-7142-11f1-9b62-000d3a60a238&deviceLat=34.0100&deviceLon=-118.2600&deviceMake=chrome&deviceModel=web&deviceType=web&deviceVersion=133.0.0&marketingRegion=US&serverSideAds=false&sessionID=6df79626-7142-11f1-a974-7ee5c0797d32&sid=6df79626-7142-11f1-a974-7ee5c0797d32&userId=&jwt=eyJhbGciOiJIUzI1NiIsImtpZCI6IjczYmI5ZDRlLWJiY2EtNDFkNC04OWQ2LTMwYjVkNWQ3ZDRmNCIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSUQiOiI2ZGY3OTYyNi03MTQyLTExZjEtYTk3NC03ZWU1YzA3OTdkMzIiLCJjbGllbnRJUCI6IjE4NS4yMzYuMjAwLjE3MiIsImNpdHkiOiJMb3MgQW5nZWxlcyIsInBvc3RhbENvZGUiOiI5MDAxMSIsImNvdW50cnkiOiJVUyIsImRtYSI6ODAzLCJhY3RpdmVSZWdpb24iOiJVUyIsImRldmljZUxhdCI6MzQuMDA5OTk4MzIxNTMzMiwiZGV2aWNlTG9uIjotMTE4LjI2MDAwMjEzNjIzMDQ3LCJwcmVmZXJyZWRMYW5ndWFnZSI6ImVuIiwiZGV2aWNlVHlwZSI6IndlYiIsImRldmljZVZlcnNpb24iOiIxMzMuMC4wIiwiZGV2aWNlTWFrZSI6ImNocm9tZSIsImRldmljZU1vZGVsIjoid2ViIiwiYXBwTmFtZSI6IndlYiIsImFwcFZlcnNpb24iOiI4LjEuMCIsImNsaWVudElEIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY21BdWRpZW5jZUlEIjoiIiwiaXNDbGllbnRETlQiOmZhbHNlLCJ1c2VySUQiOiIiLCJsb2dMZXZlbCI6IkRFRkFVTFQiLCJ0aW1lWm9uZSI6IkFtZXJpY2EvTG9zX0FuZ2VsZXMiLCJzZXJ2ZXJTaWRlQWRzIjpmYWxzZSwiZTJlQmVhY29ucyI6ZmFsc2UsImZlYXR1cmVzIjp7ImFkTG9hZCI6eyJjb2hvcnQiOiIifSwibXVsdGlBdWRpbyI6eyJlbmFibGVkIjp0cnVlfSwibXVsdGlQb2RBZHMiOnsiY29ob3J0IjoiIiwiZW5hYmxlZCI6dHJ1ZX0sInNlYXJjaEFQSSI6eyJxdWVyeVZlcnNpb24iOiJoeWJyaWQifSwic3RpdGNoZXJIbHNOZyI6eyJkZW11eGVkQXVkaW8iOiJqaXQifX0sImZtc1BhcmFtcyI6eyJmd1ZjSUQyIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiZndWY0lEMkNvcHBhIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY3VzdG9tUGFyYW1zIjp7ImZtc19saXZlcmFtcF9pZGwiOiIiLCJmbXNfZW1haWxoYXNoIjoiIiwiZm1zX3N1YnNjcmliZXJpZCI6IiIsImZtc19pZmEiOiIiLCJmbXNfaWRmdiI6IiIsImZtc191c2VyaWQiOiI2ZGRkZjUxOC03MTQyLTExZjEtOWI2Mi0wMDBkM2E2MGEyMzgiLCJmbXNfdmNpZDJ0eXBlIjoidXNlcmlkIiwiZm1zX3JhbXBfaWQiOiIiLCJmbXNfaGhfcmFtcF9pZCI6IiIsImZtc19iaWRpZHR5cGUiOiIiLCJfZndfM1BfVUlEIjoiIiwiZm1zX3J1bGVpZCI6IjEwMDAwLDEwMDA5In19LCJkcm0iOnsibmFtZSI6IndpZGV2aW5lIiwibGV2ZWwiOiJMMyJ9LCJzZXNzaW9uU3RhcnRUaW1lIjoxNzgyNDY2NTU1MTkxLCJpc3MiOiJib290LnBsdXRvLnR2Iiwic3ViIjoicHJpOnYxOnBsdXRvOmRldmljZXM6VVM6Tm1Sa1pHWTFNVGd0TnpFME1pMHhNV1l4TFRsaU5qSXRNREF3WkROaE5qQmhNak00IiwiYXVkIjoiKi5wbHV0by50diIsImV4cCI6MTc4MjU1Mjk1NSwiaWF0IjoxNzgyNDY2NTU1LCJqdGkiOiJjZDlmYTA2NS0yOWM2LTRiYmYtYjQ4NC02Njk4MWZjZDlmYzUifQ.XHlQQNdWjF9w42AElQcDmFBKKFC_NUln81E1ke03xyI&quality=720p&deviceMake=chrome&deviceType=web&deviceModel=web&deviceVersion=133.0.0&architecture=x86_64&buildVersion=1.0.0&includeExtendedEvents=true&masterJWTPassthrough=true
+
+#EXTINF:-1 group-title="News + Opinion",CBS News New York
+https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/hls/channel/5dc9b8223687ff000936ed79/master.m3u8?advertisingId=&appName=web&appVersion=8.1.0&app_name=web&clientDeviceType=0&clientID=6dddf518-7142-11f1-9b62-000d3a60a238&clientModelNumber=1.0.0&country=US&deviceDNT=false&deviceId=6dddf518-7142-11f1-9b62-000d3a60a238&deviceLat=34.0100&deviceLon=-118.2600&deviceMake=chrome&deviceModel=web&deviceType=web&deviceVersion=133.0.0&marketingRegion=US&serverSideAds=false&sessionID=6df79626-7142-11f1-a974-7ee5c0797d32&sid=6df79626-7142-11f1-a974-7ee5c0797d32&userId=&jwt=eyJhbGciOiJIUzI1NiIsImtpZCI6IjczYmI5ZDRlLWJiY2EtNDFkNC04OWQ2LTMwYjVkNWQ3ZDRmNCIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSUQiOiI2ZGY3OTYyNi03MTQyLTExZjEtYTk3NC03ZWU1YzA3OTdkMzIiLCJjbGllbnRJUCI6IjE4NS4yMzYuMjAwLjE3MiIsImNpdHkiOiJMb3MgQW5nZWxlcyIsInBvc3RhbENvZGUiOiI5MDAxMSIsImNvdW50cnkiOiJVUyIsImRtYSI6ODAzLCJhY3RpdmVSZWdpb24iOiJVUyIsImRldmljZUxhdCI6MzQuMDA5OTk4MzIxNTMzMiwiZGV2aWNlTG9uIjotMTE4LjI2MDAwMjEzNjIzMDQ3LCJwcmVmZXJyZWRMYW5ndWFnZSI6ImVuIiwiZGV2aWNlVHlwZSI6IndlYiIsImRldmljZVZlcnNpb24iOiIxMzMuMC4wIiwiZGV2aWNlTWFrZSI6ImNocm9tZSIsImRldmljZU1vZGVsIjoid2ViIiwiYXBwTmFtZSI6IndlYiIsImFwcFZlcnNpb24iOiI4LjEuMCIsImNsaWVudElEIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY21BdWRpZW5jZUlEIjoiIiwiaXNDbGllbnRETlQiOmZhbHNlLCJ1c2VySUQiOiIiLCJsb2dMZXZlbCI6IkRFRkFVTFQiLCJ0aW1lWm9uZSI6IkFtZXJpY2EvTG9zX0FuZ2VsZXMiLCJzZXJ2ZXJTaWRlQWRzIjpmYWxzZSwiZTJlQmVhY29ucyI6ZmFsc2UsImZlYXR1cmVzIjp7ImFkTG9hZCI6eyJjb2hvcnQiOiIifSwibXVsdGlBdWRpbyI6eyJlbmFibGVkIjp0cnVlfSwibXVsdGlQb2RBZHMiOnsiY29ob3J0IjoiIiwiZW5hYmxlZCI6dHJ1ZX0sInNlYXJjaEFQSSI6eyJxdWVyeVZlcnNpb24iOiJoeWJyaWQifSwic3RpdGNoZXJIbHNOZyI6eyJkZW11eGVkQXVkaW8iOiJqaXQifX0sImZtc1BhcmFtcyI6eyJmd1ZjSUQyIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiZndWY0lEMkNvcHBhIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY3VzdG9tUGFyYW1zIjp7ImZtc19saXZlcmFtcF9pZGwiOiIiLCJmbXNfZW1haWxoYXNoIjoiIiwiZm1zX3N1YnNjcmliZXJpZCI6IiIsImZtc19pZmEiOiIiLCJmbXNfaWRmdiI6IiIsImZtc191c2VyaWQiOiI2ZGRkZjUxOC03MTQyLTExZjEtOWI2Mi0wMDBkM2E2MGEyMzgiLCJmbXNfdmNpZDJ0eXBlIjoidXNlcmlkIiwiZm1zX3JhbXBfaWQiOiIiLCJmbXNfaGhfcmFtcF9pZCI6IiIsImZtc19iaWRpZHR5cGUiOiIiLCJfZndfM1BfVUlEIjoiIiwiZm1zX3J1bGVpZCI6IjEwMDAwLDEwMDA5In19LCJkcm0iOnsibmFtZSI6IndpZGV2aW5lIiwibGV2ZWwiOiJMMyJ9LCJzZXNzaW9uU3RhcnRUaW1lIjoxNzgyNDY2NTU1MTkxLCJpc3MiOiJib290LnBsdXRvLnR2Iiwic3ViIjoicHJpOnYxOnBsdXRvOmRldmljZXM6VVM6Tm1Sa1pHWTFNVGd0TnpFME1pMHhNV1l4TFRsaU5qSXRNREF3WkROaE5qQmhNak00IiwiYXVkIjoiKi5wbHV0by50diIsImV4cCI6MTc4MjU1Mjk1NSwiaWF0IjoxNzgyNDY2NTU1LCJqdGkiOiJjZDlmYTA2NS0yOWM2LTRiYmYtYjQ4NC02Njk4MWZjZDlmYzUifQ.XHlQQNdWjF9w42AElQcDmFBKKFC_NUln81E1ke03xyI&quality=720p&deviceMake=chrome&deviceType=web&deviceModel=web&deviceVersion=133.0.0&architecture=x86_64&buildVersion=1.0.0&includeExtendedEvents=true&masterJWTPassthrough=true
+
+#EXTINF:-1 group-title="News + Opinion",NBC News NOW
+https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/hls/channel/5df97894467dfa00091c873c/master.m3u8?advertisingId=&appName=web&appVersion=8.1.0&app_name=web&clientDeviceType=0&clientID=6dddf518-7142-11f1-9b62-000d3a60a238&clientModelNumber=1.0.0&country=US&deviceDNT=false&deviceId=6dddf518-7142-11f1-9b62-000d3a60a238&deviceLat=34.0100&deviceLon=-118.2600&deviceMake=chrome&deviceModel=web&deviceType=web&deviceVersion=133.0.0&marketingRegion=US&serverSideAds=false&sessionID=6df79626-7142-11f1-a974-7ee5c0797d32&sid=6df79626-7142-11f1-a974-7ee5c0797d32&userId=&jwt=eyJhbGciOiJIUzI1NiIsImtpZCI6IjczYmI5ZDRlLWJiY2EtNDFkNC04OWQ2LTMwYjVkNWQ3ZDRmNCIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSUQiOiI2ZGY3OTYyNi03MTQyLTExZjEtYTk3NC03ZWU1YzA3OTdkMzIiLCJjbGllbnRJUCI6IjE4NS4yMzYuMjAwLjE3MiIsImNpdHkiOiJMb3MgQW5nZWxlcyIsInBvc3RhbENvZGUiOiI5MDAxMSIsImNvdW50cnkiOiJVUyIsImRtYSI6ODAzLCJhY3RpdmVSZWdpb24iOiJVUyIsImRldmljZUxhdCI6MzQuMDA5OTk4MzIxNTMzMiwiZGV2aWNlTG9uIjotMTE4LjI2MDAwMjEzNjIzMDQ3LCJwcmVmZXJyZWRMYW5ndWFnZSI6ImVuIiwiZGV2aWNlVHlwZSI6IndlYiIsImRldmljZVZlcnNpb24iOiIxMzMuMC4wIiwiZGV2aWNlTWFrZSI6ImNocm9tZSIsImRldmljZU1vZGVsIjoid2ViIiwiYXBwTmFtZSI6IndlYiIsImFwcFZlcnNpb24iOiI4LjEuMCIsImNsaWVudElEIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY21BdWRpZW5jZUlEIjoiIiwiaXNDbGllbnRETlQiOmZhbHNlLCJ1c2VySUQiOiIiLCJsb2dMZXZlbCI6IkRFRkFVTFQiLCJ0aW1lWm9uZSI6IkFtZXJpY2EvTG9zX0FuZ2VsZXMiLCJzZXJ2ZXJTaWRlQWRzIjpmYWxzZSwiZTJlQmVhY29ucyI6ZmFsc2UsImZlYXR1cmVzIjp7ImFkTG9hZCI6eyJjb2hvcnQiOiIifSwibXVsdGlBdWRpbyI6eyJlbmFibGVkIjp0cnVlfSwibXVsdGlQb2RBZHMiOnsiY29ob3J0IjoiIiwiZW5hYmxlZCI6dHJ1ZX0sInNlYXJjaEFQSSI6eyJxdWVyeVZlcnNpb24iOiJoeWJyaWQifSwic3RpdGNoZXJIbHNOZyI6eyJkZW11eGVkQXVkaW8iOiJqaXQifX0sImZtc1BhcmFtcyI6eyJmd1ZjSUQyIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiZndWY0lEMkNvcHBhIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY3VzdG9tUGFyYW1zIjp7ImZtc19saXZlcmFtcF9pZGwiOiIiLCJmbXNfZW1haWxoYXNoIjoiIiwiZm1zX3N1YnNjcmliZXJpZCI6IiIsImZtc19pZmEiOiIiLCJmbXNfaWRmdiI6IiIsImZtc191c2VyaWQiOiI2ZGRkZjUxOC03MTQyLTExZjEtOWI2Mi0wMDBkM2E2MGEyMzgiLCJmbXNfdmNpZDJ0eXBlIjoidXNlcmlkIiwiZm1zX3JhbXBfaWQiOiIiLCJmbXNfaGhfcmFtcF9pZCI6IiIsImZtc19iaWRpZHR5cGUiOiIiLCJfZndfM1BfVUlEIjoiIiwiZm1zX3J1bGVpZCI6IjEwMDAwLDEwMDA5In19LCJkcm0iOnsibmFtZSI6IndpZGV2aW5lIiwibGV2ZWwiOiJMMyJ9LCJzZXNzaW9uU3RhcnRUaW1lIjoxNzgyNDY2NTU1MTkxLCJpc3MiOiJib290LnBsdXRvLnR2Iiwic3ViIjoicHJpOnYxOnBsdXRvOmRldmljZXM6VVM6Tm1Sa1pHWTFNVGd0TnpFME1pMHhNV1l4TFRsaU5qSXRNREF3WkROaE5qQmhNak00IiwiYXVkIjoiKi5wbHV0by50diIsImV4cCI6MTc4MjU1Mjk1NSwiaWF0IjoxNzgyNDY2NTU1LCJqdGkiOiJjZDlmYTA2NS0yOWM2LTRiYmYtYjQ4NC02Njk4MWZjZDlmYzUifQ.XHlQQNdWjF9w42AElQcDmFBKKFC_NUln81E1ke03xyI&quality=720p&deviceMake=chrome&deviceType=web&deviceModel=web&deviceVersion=133.0.0&architecture=x86_64&buildVersion=1.0.0&includeExtendedEvents=true&masterJWTPassthrough=true
+
+#EXTINF:-1 group-title="Kids",Nick Jr. Pluto TV
+https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/v2/stitch/hls/channel/5ca6748a37b88b269472dad9/master.m3u8?advertisingId=&appName=web&appVersion=8.1.0&app_name=web&clientDeviceType=0&clientID=6dddf518-7142-11f1-9b62-000d3a60a238&clientModelNumber=1.0.0&country=US&deviceDNT=false&deviceId=6dddf518-7142-11f1-9b62-000d3a60a238&deviceLat=34.0100&deviceLon=-118.2600&deviceMake=chrome&deviceModel=web&deviceType=web&deviceVersion=133.0.0&marketingRegion=US&serverSideAds=false&sessionID=6df79626-7142-11f1-a974-7ee5c0797d32&sid=6df79626-7142-11f1-a974-7ee5c0797d32&userId=&jwt=eyJhbGciOiJIUzI1NiIsImtpZCI6IjczYmI5ZDRlLWJiY2EtNDFkNC04OWQ2LTMwYjVkNWQ3ZDRmNCIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSUQiOiI2ZGY3OTYyNi03MTQyLTExZjEtYTk3NC03ZWU1YzA3OTdkMzIiLCJjbGllbnRJUCI6IjE4NS4yMzYuMjAwLjE3MiIsImNpdHkiOiJMb3MgQW5nZWxlcyIsInBvc3RhbENvZGUiOiI5MDAxMSIsImNvdW50cnkiOiJVUyIsImRtYSI6ODAzLCJhY3RpdmVSZWdpb24iOiJVUyIsImRldmljZUxhdCI6MzQuMDA5OTk4MzIxNTMzMiwiZGV2aWNlTG9uIjotMTE4LjI2MDAwMjEzNjIzMDQ3LCJwcmVmZXJyZWRMYW5ndWFnZSI6ImVuIiwiZGV2aWNlVHlwZSI6IndlYiIsImRldmljZVZlcnNpb24iOiIxMzMuMC4wIiwiZGV2aWNlTWFrZSI6ImNocm9tZSIsImRldmljZU1vZGVsIjoid2ViIiwiYXBwTmFtZSI6IndlYiIsImFwcFZlcnNpb24iOiI4LjEuMCIsImNsaWVudElEIjoiNmRkZGY1MTgtNzE0Mi0xMWYxLTliNjItMDAwZDNhNjBhMjM4IiwiY21BdWRpZW5jZUlEIjoiIiwiaXNDbGllbnRETlQiOmZhbHNlLCJ1c2VySUQiOiIiLCJsb2dMZXZlbCI6IkRFRkFVTFQiLCJ0aW1lWm9uZSI6IkFtZXJpY2EvTG9zX0FuZ2VsZXMiLCJzZXJ2ZXJTaWRlQWRzIjpmYWxzZSwiZTJlQmVhY29ucyI6ZmFsc2UsImZlYXR1cmVzIjp7ImFkTG9hZCI6eyJjb2hvcnQiOiIifSwibXVsdGlBdWRpbyI6eyJlbmFibGVkIjp0cnVlfSwibXVsdGlQb2RBZHMiOnsiY29ob3J0IjoiIiwiZW5hYmxlZCI6dHJ1ZX0sInNlYXJjaEFQSSI6eyJxdWVyeVZlcnNpb24iOiJoeWJyaWQifSwic3RpdGNoZXJIbHNOZyI6ey
+<truncated 95976 bytes>
+
+NOTE: The output was truncated because it was too long. Use a more targeted query or a smaller range to get the information you need.
