@@ -190,7 +190,7 @@ exports.getChannels = async (req, res) => {
     if (workingOnly === 'true') {
       if (hasHealthStatus) {
         const { fragment, params: hParams, nextIndex } = buildHealthFilter(paramIndex);
-        conditions.push(fragment);
+        conditions.push(`(${fragment} OR c.is_premium = true)`);
         params.push(...hParams);
         paramIndex = nextIndex;
       }
@@ -198,7 +198,7 @@ exports.getChannels = async (req, res) => {
       // Default mode: hide clearly dead channels, show unknown/unstable
       if (hasHealthStatus) {
         const deadList = DEAD_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
-        conditions.push(`(c.health_status IS NULL OR c.health_status NOT IN (${deadList}))`);
+        conditions.push(`((c.health_status IS NULL OR c.health_status NOT IN (${deadList})) OR c.is_premium = true)`);
         params.push(...DEAD_STATUSES);
         paramIndex += DEAD_STATUSES.length;
       }

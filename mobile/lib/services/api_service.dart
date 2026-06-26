@@ -48,9 +48,11 @@ class ApiService {
           
           if (data is Map && data['message'] != null) {
             final msg = data['message'].toString().toLowerCase();
-            if (msg.contains('invalid token') || msg.contains('token expired') || error.response?.statusCode == 403) {
+            if (msg.contains('invalid token') || msg.contains('token expired') || (error.response?.statusCode == 403 && data['error'] != 'DEVICE_LIMIT_REACHED')) {
               isTokenError = true;
             }
+          } else if (error.response?.statusCode == 403) {
+            isTokenError = true;
           }
           
           if (isTokenError) {

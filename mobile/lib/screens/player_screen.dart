@@ -39,7 +39,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   late int _currentIndex;
   late List<ChannelModel> _channelList;
   Timer? _controlsTimer;
-  int _fitIndex = 0;
+  final GlobalKey _videoKey = GlobalKey();
 
   List<dynamic> _backupStreams = [];
   Map<String, dynamic>? _currentStreamMeta;
@@ -57,7 +57,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _autoMobileData = true;
   bool _hdOnlyWifi = true;
   bool _isOnMobileData = false;
-
+  String _fitMode = 'auto';
   // Animation controller for controls fade
   late AnimationController _controlsAnimController;
   late Animation<double> _controlsOpacity;
@@ -86,8 +86,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (_currentIndex < 0) _currentIndex = 0;
     _currentUrl = _currentChannel.streamUrl;
 
-    // Fix #1: Initialize media_kit player
-    _player = Player();
+    // Fix #1: Initialize media_kit player with optimized Netflix-style fast-start configuration
+    _player = Player(
+      configuration: const PlayerConfiguration(
+        // Reduce buffer size to 2MB (default is 32MB) for instant startup
+        bufferSize: 1024 * 1024 * 2,
+        // Disable pitch shifting to save CPU during startup
+        pitch: false,
+      ),
+    );
     _videoController = VideoController(_player);
 
     // Fix #9: Keep screen on during playback
@@ -115,6 +122,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _dataSaverEnabled = await storage.isDataSaverEnabled();
     _autoMobileData = await storage.isAutoQualityOnMobileData();
     _hdOnlyWifi = await storage.isHdOnlyOnWifi();
+    _fitMode = await storage.getVideoFitMode();
 
     try {
       final connectivityResult = await Connectivity().checkConnectivity();
@@ -207,11 +215,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       }
 
       final media = Media(url, httpHeaders: headers.isNotEmpty ? headers : null);
-      await _player.open(media);
+      
+      // Fix: Use open(play: true) and remove redundant play() call to shave off milliseconds
+      await _player.open(media, play: true);
       if (startPosition != null) {
         await _player.seek(startPosition);
       }
-      await _player.play();
 
       // ── Listen for buffering changes ──────────────────────────────────
       _playerSubscription = _player.stream.buffering.listen(_onBufferingChanged);
@@ -230,14 +239,29 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         });
       });
 
-      // ── Wait for actual playback to start ─────────────────────────────
-      // Use stream.playing where value == true, not .first (which fires on
-      // the first event regardless of whether it's true or false).
-      _player.stream.playing
-          .where((playing) => playing == true)
+      // ── Wait for actual video to be ready ─────────────────────────────
+      // 'playing' becomes true instantly, but 'videoParams' only updates
+      // when the video stream is actually parsed and ready to render.
+      _player.stream.videoParams
+          .where((p) => p.w != null && p.w! > 0)
           .first
-          .then((_) {
-        if (mounted) {
+          .timeout(const Duration(seconds: 15), onTimeout: () => const VideoParams())
+          .then((params) {
+        if (mounted && params.w != null) {
+          // Force HD/highest quality native track automatically to improve sharpness
+          // like a paid Live TV app, unless restricted by data saver settings.
+          final nativeTracks = _player.state.tracks.video;
+          if (nativeTracks.length > 2 && !_dataSaverEnabled && !(_hdOnlyWifi && _isOnMobileData)) {
+            try {
+              final bestTrack = nativeTracks
+                  .where((t) => t.id != 'auto' && t.id != 'no' && t.h != null)
+                  .reduce((a, b) => (a.h ?? 0) > (b.h ?? 0) ? a : b);
+              if (bestTrack.h != null && bestTrack.h! >= 720) {
+                _player.setVideoTrack(bestTrack);
+              }
+            } catch (_) {}
+          }
+
           setState(() {
             _isLoading = false;
             _isRetryingStream = false;
@@ -250,9 +274,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       });
 
       // ── Safety timeout ────────────────────────────────────────────────
-      // If neither "playing=true" nor buffering events fire within 30 seconds
-      // the stream is genuinely dead. This is a last-resort fallback only.
-      _bufferTimer = Timer(const Duration(seconds: 30), () {
+      // If neither "playing=true" nor buffering events fire within 15 seconds
+      // the stream is genuinely dead. Fast failover (15s instead of 30s).
+      _bufferTimer = Timer(const Duration(seconds: 15), () {
         if (mounted && _isLoading && !_hasError) {
           _handleStreamFailure('init_timeout');
         }
@@ -504,18 +528,47 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // ──────────────────────── Controls Logic ────────────────────────
 
   BoxFit _getBoxFit() {
-    switch (_fitIndex) {
-      case 1: return BoxFit.cover;
-      case 2: return BoxFit.fill;
-      default: return BoxFit.contain;
+    String mode = _fitMode;
+    if (mode == 'auto') {
+      final width = _player.state.width;
+      final height = _player.state.height;
+      if (width != null && height != null && height > 0) {
+        final aspect = width / height;
+        if (aspect > 1.6 && aspect < 1.9) {
+          mode = 'fill';
+        } else {
+          mode = 'fit';
+        }
+      } else {
+        mode = 'fit';
+      }
+    }
+
+    switch (mode) {
+      case 'fill':
+      case 'zoom':
+        return BoxFit.cover;
+      case 'stretch':
+        return BoxFit.fill;
+      case 'fit':
+      default:
+        return BoxFit.contain;
     }
   }
 
+  double _getTransformScale() {
+    if (_fitMode == 'zoom') return 1.15;
+    return 1.0;
+  }
+
   String _getFitLabel() {
-    switch (_fitIndex) {
-      case 1: return 'Cover';
-      case 2: return 'Fill';
-      default: return 'Fit';
+    switch (_fitMode) {
+      case 'fit': return 'Fit';
+      case 'fill': return 'Fill';
+      case 'zoom': return 'Zoom';
+      case 'stretch': return 'Stretch';
+      case 'auto':
+      default: return 'Auto';
     }
   }
 
@@ -554,7 +607,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   void _cycleFit() {
-    setState(() { _fitIndex = (_fitIndex + 1) % 3; });
+    final modes = ['auto', 'fit', 'fill', 'zoom', 'stretch'];
+    int currentIndex = modes.indexOf(_fitMode);
+    if (currentIndex == -1) currentIndex = 0;
+    
+    setState(() {
+      _fitMode = modes[(currentIndex + 1) % modes.length];
+    });
+    
+    StorageService().setVideoFitMode(_fitMode);
     _showControlsWithTimer();
   }
 
@@ -603,10 +664,19 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: _isFullScreen ? _buildFullscreen() : _buildPortrait(),
+    return PopScope(
+      canPop: !_isFullScreen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_isFullScreen) {
+          _toggleFullScreen();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: _isFullScreen
+            ? _buildFullscreen()
+            : SafeArea(child: _buildPortrait()),
       ),
     );
   }
@@ -718,11 +788,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // ──────────────────────── Video Surface ────────────────────────
 
   Widget _buildVideoSurface() {
-    // Fix #1: Use media_kit Video widget — handles HLS, custom headers, aspect ratio natively
-    return Video(
-      controller: _videoController,
-      fit: _getBoxFit(),
-      controls: NoVideoControls,
+    return Transform.scale(
+      key: _videoKey,
+      scale: _getTransformScale(),
+      child: Video(
+        controller: _videoController,
+        fit: _getBoxFit(),
+        controls: NoVideoControls,
+        filterQuality: FilterQuality.high,
+      ),
     );
   }
 
@@ -1040,6 +1114,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   void _showQualitySelector() {
     _controlsTimer?.cancel();
+    
+    final nativeTracks = _player.state.tracks.video;
+    // Exclude the 'no' track which disables video
+    final availableNativeTracks = nativeTracks.where((t) => t.id != 'no').toList();
+
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(AppColors.surface),
@@ -1053,23 +1132,45 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                 padding: EdgeInsets.all(16.0),
                 child: Text('Video Quality', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               ),
-              if (_qualities.isEmpty)
+              if (_qualities.isEmpty && availableNativeTracks.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(16.0),
                   child: Text('No qualities available', style: TextStyle(color: Colors.white54)),
                 )
-              else
-                ..._qualities.map((q) {
-                  final isSelected = _selectedQuality != null && _selectedQuality!['url'] == q['url'];
-                  return ListTile(
-                    title: Text(q['label'] ?? 'Unknown', style: TextStyle(color: isSelected ? const Color(AppColors.primary) : Colors.white)),
-                    trailing: isSelected ? const Icon(Icons.check, color: Color(AppColors.primary)) : null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      _changeQuality(q);
-                    },
-                  );
-                }),
+              else ...[
+                if (availableNativeTracks.length > 1) 
+                  ...availableNativeTracks.map((track) {
+                    final isSelected = _player.state.track.video == track;
+                    String label = 'Auto';
+                    if (track.id != 'auto' && track.h != null) {
+                      label = '${track.h}p';
+                    } else if (track.id != 'auto') {
+                      label = track.title ?? track.id;
+                    }
+                    
+                    return ListTile(
+                      title: Text(label, style: TextStyle(color: isSelected ? const Color(AppColors.primary) : Colors.white)),
+                      trailing: isSelected ? const Icon(Icons.check, color: Color(AppColors.primary)) : null,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _player.setVideoTrack(track);
+                        setState((){});
+                      },
+                    );
+                  })
+                else 
+                  ..._qualities.map((q) {
+                    final isSelected = _selectedQuality != null && _selectedQuality!['url'] == q['url'];
+                    return ListTile(
+                      title: Text(q['label'] ?? 'Unknown', style: TextStyle(color: isSelected ? const Color(AppColors.primary) : Colors.white)),
+                      trailing: isSelected ? const Icon(Icons.check, color: Color(AppColors.primary)) : null,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _changeQuality(q);
+                      },
+                    );
+                  }),
+              ],
               const SizedBox(height: 8),
             ],
           ),
@@ -1432,37 +1533,53 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Widget _buildMoreLiveGrid() {
-    if (_moreLiveChannels.isEmpty && _moreLoading) {
-      return SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        sliver: SliverGrid(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 2.3,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-          ),
-          delegate: SliverChildBuilderDelegate(
-            (_, __) => _buildGridShimmer(),
-            childCount: 6,
-          ),
-        ),
-      );
-    }
-
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
-      sliver: SliverGrid(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 2.3,
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-        ),
-        delegate: SliverChildBuilderDelegate(
-          (context, index) => _buildMoreLiveCard(_moreLiveChannels[index]),
-          childCount: _moreLiveChannels.length,
-        ),
+      sliver: SliverLayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.crossAxisExtent;
+          int crossAxisCount = 2;
+          double childAspectRatio = 1.45;
+
+          if (width > 800) {
+            crossAxisCount = 4;
+            childAspectRatio = 1.55;
+          } else if (width > 600) {
+            crossAxisCount = 3;
+            childAspectRatio = 1.5;
+          } else if (width < 360) {
+            crossAxisCount = 2;
+            childAspectRatio = 1.35;
+          }
+
+          if (_moreLiveChannels.isEmpty && _moreLoading) {
+            return SliverGrid(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                childAspectRatio: childAspectRatio,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (_, __) => _buildGridShimmer(),
+                childCount: crossAxisCount * 3,
+              ),
+            );
+          }
+
+          return SliverGrid(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              childAspectRatio: childAspectRatio,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _buildMoreLiveCard(_moreLiveChannels[index]),
+              childCount: _moreLiveChannels.length,
+            ),
+          );
+        },
       ),
     );
   }

@@ -67,6 +67,7 @@ class AuthService {
     required String password,
     required String deviceId,
     String? deviceName,
+    bool forceLogoutOldest = false,
   }) async {
     final response = await _dio.post(ApiEndpoints.login, data: {
       'email': email,
@@ -74,6 +75,7 @@ class AuthService {
       'device_id': deviceId,
       'device_name': deviceName ?? 'Android Device',
       'app_version': '1.0.0',
+      'forceLogoutOldest': forceLogoutOldest,
     });
 
     return _parseAuthResponse(response.data);

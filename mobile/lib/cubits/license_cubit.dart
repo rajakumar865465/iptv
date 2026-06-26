@@ -20,6 +20,12 @@ class LicenseError extends LicenseState {
   LicenseError(this.message);
 }
 
+class LicenseDeviceLimitReached extends LicenseState {
+  final String licenseKey;
+  final String message;
+  LicenseDeviceLimitReached(this.licenseKey, this.message);
+}
+
 class LicenseCubit extends Cubit<LicenseState> {
   LicenseCubit() : super(LicenseInitial());
 
@@ -49,11 +55,12 @@ class LicenseCubit extends Cubit<LicenseState> {
     }
   }
 
-  Future<void> activate(String licenseKey) async {
+  Future<void> activate(String licenseKey, {bool forceLogoutOldest = false}) async {
     emit(LicenseLoading());
     try {
       final response = await _api.post('/api/license/activate', {
         'license_key': licenseKey,
+        'forceLogoutOldest': forceLogoutOldest,
       });
       if (response['success'] == true) {
         await checkStatus();
@@ -61,6 +68,13 @@ class LicenseCubit extends Cubit<LicenseState> {
         emit(LicenseError(response['message'] ?? 'Activation failed'));
       }
     } catch (e) {
+      if (e is DioException && e.response?.data is Map) {
+        final data = e.response!.data as Map;
+        if (data['error'] == 'DEVICE_LIMIT_REACHED') {
+          emit(LicenseDeviceLimitReached(licenseKey, data['message'] ?? 'Device limit reached'));
+          return;
+        }
+      }
       emit(LicenseError(e.toString()));
     }
   }

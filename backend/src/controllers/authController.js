@@ -96,12 +96,23 @@ exports.login = async (req, res) => {
           const maxDevices = license?.max_devices || 1;
           
           if (currentDeviceCount >= maxDevices) {
-            if (maxDevices === 1) {
-              // Auto-remove previous device if limit is 1 (improves dev/testing experience)
-              await db.query('DELETE FROM devices WHERE user_id = $1', [user.id]);
-              currentDeviceCount = 0;
+            if (req.body.forceLogoutOldest) {
+              while (currentDeviceCount >= maxDevices) {
+                // Auto-remove oldest device instead of blocking login
+                await db.query(`
+                  DELETE FROM devices 
+                  WHERE id IN (
+                    SELECT id FROM devices WHERE user_id = $1 ORDER BY last_active_at ASC LIMIT 1
+                  )
+                `, [user.id]);
+                currentDeviceCount--;
+              }
             } else {
-              return error(res, 'Device limit reached. Please contact support or remove an old device.', 403);
+              return res.status(403).json({
+                success: false,
+                error: 'DEVICE_LIMIT_REACHED',
+                message: 'Device limit reached. Do you want to logout your oldest device to continue?'
+              });
             }
           }
           

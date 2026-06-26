@@ -86,6 +86,16 @@ class StorageService {
   }
 
   // --- Playback Settings ---
+  Future<void> setVideoFitMode(String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('video_fit_mode', mode);
+  }
+
+  Future<String> getVideoFitMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('video_fit_mode') ?? 'auto';
+  }
+
   Future<void> setVideoQualityPreference(String quality) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('video_quality_preference', quality);

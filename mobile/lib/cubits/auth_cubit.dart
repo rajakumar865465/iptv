@@ -15,13 +15,20 @@ class AuthError extends AuthState {
   AuthError(this.message);
 }
 
+class AuthDeviceLimitReached extends AuthState {
+  final String email;
+  final String password;
+  final String message;
+  AuthDeviceLimitReached(this.email, this.password, this.message);
+}
+
 class AuthCubit extends Cubit<AuthState> {
   AuthCubit() : super(AuthInitial());
 
   final AuthService _authService = AuthService();
   final StorageService _storage = StorageService();
 
-  Future<void> login(String email, String password, {String? deviceId, String? deviceName}) async {
+  Future<void> login(String email, String password, {String? deviceId, String? deviceName, bool forceLogoutOldest = false}) async {
     emit(AuthLoading());
     try {
       final actualDeviceId = deviceId ?? await _storage.getDeviceId();
@@ -30,6 +37,7 @@ class AuthCubit extends Cubit<AuthState> {
         password: password,
         deviceId: actualDeviceId,
         deviceName: deviceName,
+        forceLogoutOldest: forceLogoutOldest,
       );
       if (result != null) {
         await _storage.saveToken(result.token);
@@ -42,6 +50,10 @@ class AuthCubit extends Cubit<AuthState> {
         final data = e.response?.data;
         String message = 'Login failed. Please check your credentials.';
         if (data is Map<String, dynamic> && data['message'] != null) {
+          if (data['error'] == 'DEVICE_LIMIT_REACHED') {
+            emit(AuthDeviceLimitReached(email, password, data['message'].toString()));
+            return;
+          }
           message = data['message'].toString();
         } else if (e.response?.statusCode == 401) {
           message = 'Invalid email or password.';

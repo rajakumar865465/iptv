@@ -189,7 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildMenuSection() {
     return Column(
       children: [
-        _buildMenuItem(Icons.settings_play_arrow, 'Playback Settings', () {
+        _buildMenuItem(Icons.settings_display_rounded, 'Playback Settings', () {
           Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PlaybackSettingsScreen()));
         }),
         _buildMenuItem(Icons.support_agent, 'Support', () {}),

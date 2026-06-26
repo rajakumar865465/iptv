@@ -90,17 +90,19 @@ async function main() {
   console.log(`✗ Marked offline channels:     ${offlined}`);
 
   // 4. Paid channels with no licensed source
-  const { rowCount: inactivated } = await db.query(`
-    UPDATE channels SET
-      status       = 'inactive',
-      health_status = 'offline',
-      health_reason = 'requires_licensed_source',
-      updated_at   = NOW()
-    WHERE is_paid = true
-    AND status NOT IN ('active')
-    AND (stream_url IS NULL OR stream_url = '')
-  `);
-  console.log(`⊘ Paid/no-source channels:     ${inactivated}`);
+  // COMMENTED OUT: We want paid/premium channels to remain visible in the app
+  // const { rowCount: inactivated } = await db.query(`
+  //   UPDATE channels SET
+  //     status       = 'inactive',
+  //     health_status = 'offline',
+  //     health_reason = 'requires_licensed_source',
+  //     updated_at   = NOW()
+  //   WHERE is_paid = true
+  //   AND status NOT IN ('active')
+  //   AND (stream_url IS NULL OR stream_url = '')
+  // `);
+  // console.log(`⊘ Paid/no-source channels:     ${inactivated}`);
+
 
   // 5. Set has_backup_streams flag
   await db.query(`
