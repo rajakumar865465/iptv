@@ -806,7 +806,15 @@ exports.getChannelPlayback = async (req, res) => {
     let result = await db.query(`
       SELECT * FROM channel_streams 
       WHERE channel_id = $1 AND health_status != 'offline'
-      ORDER BY priority ASC, health_score DESC
+      ORDER BY 
+        priority ASC, 
+        CASE health_status 
+          WHEN 'online' THEN 3 
+          WHEN 'unstable' THEN 2 
+          WHEN 'unknown' THEN 1 
+          ELSE 0 
+        END DESC,
+        health_score DESC
     `, [id]);
 
     if (result.rows.length === 0) {
