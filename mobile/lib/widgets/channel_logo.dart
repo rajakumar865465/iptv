@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shimmer/shimmer.dart';
 import '../constants.dart';
-
+import '../utils/backend_config.dart';
 class ChannelLogo extends StatelessWidget {
   final String? logoUrl;
   final String? localLogoUrl;
@@ -25,6 +25,9 @@ class ChannelLogo extends StatelessWidget {
 
   String? get _imageUrl {
     if (localLogoUrl != null && localLogoUrl!.trim().isNotEmpty) {
+      if (localLogoUrl!.startsWith('/')) {
+        return '${BackendConfig.baseUrl}${localLogoUrl!}';
+      }
       return localLogoUrl;
     }
     final url = logoUrl?.trim();
