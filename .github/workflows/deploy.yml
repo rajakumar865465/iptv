@@ -1,0 +1,48 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main # (Change to 'master' if that is your primary branch name)
+    paths:
+      - 'backend/**' # Only trigger deployment if files inside the backend folder change
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Execute deployment commands via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Navigate to the backend folder on your EC2 server
+            cd ~/iptv-backend
+            
+            # Pull the latest changes from GitHub
+            git pull origin main
+            
+            # Navigate to backend and install any new dependencies
+            cd backend
+            npm install
+            npm run migrate
+            
+            # Restart the Node.js server to apply the new code
+            pm2 restart iptv-api
+            
+            # Wait 5 seconds to see if it crashes
+            sleep 5
+            
+            # Check if it stayed online
+            STATUS=$(pm2 jlist | jq -r '.[] | select(.name=="iptv-api") | .pm2_env.status')
+            if [ "$STATUS" != "online" ]; then
+              echo "❌ ERROR: Deployment failed! The app crashed after starting. Status is: $STATUS"
+              echo "--- RECENT LOGS ---"
+              pm2 logs iptv-api --lines 30 --nostream
+              exit 1
+            else
+              echo "✅ Deployment successful! App is online."
+            fi
