@@ -81,6 +81,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _moreHasMore = true;
   bool _moreLoading = false;
 
+  final List<DateTime> _bufferingEvents = [];
+
   @override
   void initState() {
     super.initState();
@@ -92,8 +94,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     // Fix #1: Initialize media_kit player with optimized Netflix-style fast-start configuration
     _player = Player(
       configuration: const PlayerConfiguration(
-        // Reduce buffer size to 2MB (default is 32MB) for instant startup
-        bufferSize: 1024 * 1024 * 2,
+        // Increase buffer size to 32MB (from 2MB) to prevent buffering micro-stutters
+        bufferSize: 1024 * 1024 * 32,
         // Disable pitch shifting to save CPU during startup
         pitch: false,
       ),
@@ -299,7 +301,16 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // For initial load the 30-second safety timeout in _initializePlayer covers us.
       final alreadyStarted = !_isLoading;
       if (alreadyStarted) {
-        _bufferTimer ??= Timer(const Duration(seconds: 20), () {
+        final now = DateTime.now();
+        _bufferingEvents.add(now);
+        _bufferingEvents.removeWhere((t) => now.difference(t).inSeconds > 60);
+
+        if (_bufferingEvents.length >= 3 && _isPremium && !_currentUrl.contains('/api/stream/transcode/')) {
+          _showNetworkSlowPrompt();
+          _bufferingEvents.clear();
+        }
+
+        _bufferTimer ??= Timer(const Duration(seconds: 10), () {
           if (mounted) _handleStreamFailure('buffer_timeout');
         });
       }
@@ -316,6 +327,36 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _showControlsWithTimer();
       }
     }
+  }
+
+  void _showNetworkSlowPrompt() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Slow connection detected. Switch to Data Saver for smooth playback?'),
+        duration: const Duration(seconds: 6),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'SWITCH',
+          textColor: AppColors.accent,
+          onPressed: () {
+            if (_isPremium && !_currentUrl.contains('/api/stream/transcode/')) {
+              if (mounted) setState(() { _streamOverlayMessage = 'Auto-switching to smooth proxy...'; _isLoading = true; _hasError = false; });
+              _isRetryingStream = false;
+              final authState = context.read<AuthCubit>().state;
+              final token = authState is AuthAuthenticated ? authState.token : '';
+              final fallbackUrl = '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token';
+              
+              _currentStreamMeta = {
+                'url': fallbackUrl,
+                'headers': {},
+              };
+              _initializePlayer(fallbackUrl, {});
+            }
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _handleStreamFailure(String reason) async {
@@ -354,6 +395,22 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _selectedQuality = lowerQuality;
         _isRetryingStream = false;
         await _initializePlayer(lowerQuality['url'], lowerQuality['headers'] ?? _currentStreamMeta!['headers']);
+        return;
+      }
+
+      // Smart Fallback to AWS Server (Auto-Transcode) for Premium users
+      if (_isPremium && !_currentUrl.contains('/api/stream/transcode/')) {
+        if (mounted) setState(() { _streamOverlayMessage = 'Auto-switching to smooth proxy...'; _isLoading = true; _hasError = false; });
+        _isRetryingStream = false;
+        final authState = context.read<AuthCubit>().state;
+        final token = authState is AuthAuthenticated ? authState.token : '';
+        final fallbackUrl = '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token';
+        
+        _currentStreamMeta = {
+          'url': fallbackUrl,
+          'headers': {},
+        };
+        await _initializePlayer(fallbackUrl, {});
         return;
       }
     }
