@@ -104,27 +104,50 @@ async function checkDeep(streamUrl, customHeaders = {}) {
 
   let mediaUrl = streamUrl;
   let mediaBody = body;
+  let variants = [];
 
-  // Step 2: Master playlist → find best variant
+  // Step 2: Master playlist → extract all variants and find best
   if (body.includes('#EXT-X-STREAM-INF')) {
     const lines = body.split('\n');
-    let bestBw = -1, bestVariant = null;
+    let bestBw = -1, bestVariantUrl = null;
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].startsWith('#EXT-X-STREAM-INF')) {
         const bwMatch = lines[i].match(/BANDWIDTH=(\d+)/);
+        const resMatch = lines[i].match(/RESOLUTION=(\d+)x(\d+)/);
         const bw = bwMatch ? parseInt(bwMatch[1], 10) : 0;
+        const width = resMatch ? parseInt(resMatch[1], 10) : 0;
+        const height = resMatch ? parseInt(resMatch[2], 10) : 0;
+
         const next = lines[i + 1]?.trim();
-        if (next && !next.startsWith('#') && bw >= bestBw) {
-          bestBw = bw; bestVariant = next;
+        if (next && !next.startsWith('#')) {
+          const variantUrl = resolveUrl(streamUrl, next);
+          if (variantUrl) {
+            let label = '240p';
+            if (height >= 1080) label = '1080p';
+            else if (height >= 720) label = '720p';
+            else if (height >= 480) label = '480p';
+            else if (height >= 360) label = '360p';
+            
+            variants.push({
+              url: variantUrl,
+              bandwidth: bw,
+              width: width,
+              height: height,
+              label: height > 0 ? label : null
+            });
+            
+            if (bw >= bestBw) {
+              bestBw = bw; 
+              bestVariantUrl = variantUrl;
+            }
+          }
         }
       }
     }
-    if (bestVariant) {
-      const variantUrl = resolveUrl(streamUrl, bestVariant);
-      if (!variantUrl) return { status: 'offline', score: 0, reason: 'invalid_variant_url' };
-      const variantRes = await httpGet(variantUrl, customHeaders, false, TIMEOUT);
-      if (!variantRes.ok) return { status: 'offline', score: 20, reason: 'variant_failed' };
-      mediaUrl  = variantUrl;
+    if (bestVariantUrl) {
+      const variantRes = await httpGet(bestVariantUrl, customHeaders, false, TIMEOUT);
+      if (!variantRes.ok) return { status: 'offline', score: 20, reason: 'variant_failed', variants };
+      mediaUrl  = bestVariantUrl;
       mediaBody = variantRes.body || '';
     }
   }
@@ -152,19 +175,19 @@ async function checkDeep(streamUrl, customHeaders = {}) {
       }
     }
   }
-  if (!segRelUrl) return { status: 'offline', score: 20, reason: 'no_segment_found' };
+  if (!segRelUrl) return { status: 'offline', score: 20, reason: 'no_segment_found', variants };
 
   // Step 4: Fetch segment
   const segUrl = resolveUrl(mediaUrl, segRelUrl);
-  if (!segUrl) return { status: 'offline', score: 0, reason: 'invalid_segment_url' };
+  if (!segUrl) return { status: 'offline', score: 0, reason: 'invalid_segment_url', variants };
 
   const segRes = await httpGet(segUrl, customHeaders, true, SEG_TIMEOUT);
   const latency = Date.now() - t0;
 
   if (!segRes.ok) {
-    if (segRes.status === 403) return { status: 'offline', score: 0, reason: 'segment_forbidden' };
-    if (segRes.reason === 'timeout') return { status: 'offline', score: 30, reason: 'segment_timeout' };
-    return { status: 'offline', score: 30, reason: `segment_${segRes.status || segRes.reason || 'failed'}` };
+    if (segRes.status === 403) return { status: 'offline', score: 0, reason: 'segment_forbidden', variants };
+    if (segRes.reason === 'timeout') return { status: 'offline', score: 30, reason: 'segment_timeout', variants };
+    return { status: 'offline', score: 30, reason: `segment_${segRes.status || segRes.reason || 'failed'}`, variants };
   }
 
   // Segment loaded successfully — score by latency
@@ -174,7 +197,7 @@ async function checkDeep(streamUrl, customHeaders = {}) {
   else if (latency > 2000) score = 80;
 
   const healthStatus = score >= 65 ? 'online' : 'unstable';
-  return { status: healthStatus, score, reason: 'stable', latency };
+  return { status: healthStatus, score, reason: 'stable', latency, variants };
 }
 
 // ─── Concurrency runner ───────────────────────────────────────────────────
@@ -250,6 +273,23 @@ async function main() {
        WHERE id=$4`,
       [result.status, result.score, result.reason, st.id]
     );
+
+    if (result.variants && result.variants.length > 0) {
+      for (const v of result.variants) {
+        await db.query(`
+          INSERT INTO channel_streams 
+            (channel_id, stream_url, quality_label, resolution_height, resolution_width, bitrate, is_primary, parent_stream_id, health_status, health_score, user_agent, referer)
+          VALUES 
+            ($1, $2, $3, $4, $5, $6, false, $7, 'unknown', 100, $8, $9)
+          ON CONFLICT (channel_id, stream_url) DO UPDATE SET
+            quality_label = EXCLUDED.quality_label,
+            resolution_height = EXCLUDED.resolution_height,
+            resolution_width = EXCLUDED.resolution_width,
+            bitrate = EXCLUDED.bitrate,
+            parent_stream_id = EXCLUDED.parent_stream_id
+        `, [st.channel_id, v.url, v.label, v.height, v.width, v.bandwidth, st.id, st.user_agent, st.referer]);
+      }
+    }
 
     // Update parent channel health from best stream
     await db.query(

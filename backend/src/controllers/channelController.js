@@ -786,11 +786,18 @@ exports.getChannelPlayback = async (req, res) => {
     const hasStreamsTable = await checkChannelStreamsTable();
 
     if (!hasStreamsTable) {
-      const result = await db.query('SELECT stream_url, backup_stream_url, user_agent, referrer FROM channels WHERE id = $1', [id]);
+      const result = await db.query('SELECT name, stream_url, backup_stream_url, user_agent, referrer FROM channels WHERE id = $1', [id]);
       if (result.rows.length === 0) return error(res, 'Channel not found', 404);
       const row = result.rows[0];
       return success(res, {
         channel_id: parseInt(id),
+        channel: { id: parseInt(id), name: row.name || 'Unknown Channel' },
+        qualities: [{
+          label: "Auto",
+          url: row.stream_url,
+          type: "auto",
+          headers: { 'User-Agent': row.user_agent, 'Referer': row.referrer }
+        }],
         primary_stream: { url: row.stream_url, quality: 'auto', headers: { 'User-Agent': row.user_agent, 'Referer': row.referrer }, playback_mode: 'direct' },
         backup_streams: row.backup_stream_url ? [{ url: row.backup_stream_url, quality: 'auto', headers: { 'User-Agent': row.user_agent, 'Referer': row.referrer } }] : []
       });
@@ -809,19 +816,50 @@ exports.getChannelPlayback = async (req, res) => {
       }
     }
 
-    const primary = result.rows[0];
-    const backups = result.rows.slice(1).map(r => ({
+    let primary = result.rows.find(r => r.parent_stream_id == null);
+    if (!primary) primary = result.rows[0];
+
+    const variantRows = result.rows.filter(r => r.parent_stream_id === primary.id);
+    
+    let qualities = [{
+      label: "Auto",
+      url: primary.stream_url,
+      type: "auto",
+      headers: { 'User-Agent': primary.user_agent, 'Referer': primary.referer }
+    }];
+
+    for (const v of variantRows) {
+      qualities.push({
+        label: v.quality_label || 'Original',
+        url: v.stream_url,
+        height: v.resolution_height,
+        bitrate: v.bitrate,
+        headers: { 'User-Agent': v.user_agent, 'Referer': v.referer }
+      });
+    }
+
+    // Sort qualities: Auto first, then descending by height
+    qualities.sort((a, b) => {
+      if (a.type === 'auto') return -1;
+      if (b.type === 'auto') return 1;
+      return (b.height || 0) - (a.height || 0);
+    });
+
+    const backups = result.rows.filter(r => r.id !== primary.id && r.parent_stream_id == null).map(r => ({
       id: r.id,
       url: r.stream_url,
       quality: r.quality,
       headers: { 'User-Agent': r.user_agent, 'Referer': r.referer }
     }));
 
-    const channelRes = await db.query('SELECT playback_mode FROM channels WHERE id = $1', [id]);
+    const channelRes = await db.query('SELECT playback_mode, name FROM channels WHERE id = $1', [id]);
     const playbackMode = channelRes.rows[0]?.playback_mode || 'direct';
+    const channelName = channelRes.rows[0]?.name || 'Unknown Channel';
 
     success(res, {
       channel_id: parseInt(id),
+      channel: { id: parseInt(id), name: channelName },
+      qualities: qualities,
       primary_stream: {
         id: primary.id,
         url: primary.stream_url,

@@ -85,6 +85,47 @@ class StorageService {
     return prefs.getBool(StorageKeys.hasSeenOnboarding) ?? false;
   }
 
+  // --- Playback Settings ---
+  Future<void> setVideoQualityPreference(String quality) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('video_quality_preference', quality);
+  }
+
+  Future<String> getVideoQualityPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('video_quality_preference') ?? 'auto';
+  }
+
+  Future<void> setDataSaverEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('data_saver_enabled', enabled);
+  }
+
+  Future<bool> isDataSaverEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('data_saver_enabled') ?? false;
+  }
+
+  Future<void> setAutoQualityOnMobileData(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('auto_quality_mobile', enabled);
+  }
+
+  Future<bool> isAutoQualityOnMobileData() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('auto_quality_mobile') ?? true;
+  }
+
+  Future<void> setHdOnlyOnWifi(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hd_only_wifi', enabled);
+  }
+
+  Future<bool> isHdOnlyOnWifi() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('hd_only_wifi') ?? true;
+  }
+
   Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
     // Fix #21: Also clear cached channels/categories so a new user doesn't see

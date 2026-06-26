@@ -7,10 +7,12 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../constants.dart';
 import '../cubits/favorite_cubit.dart';
 import '../models/channel_model.dart';
 import '../services/api_service.dart';
+import '../services/storage_service.dart';
 import '../widgets/channel_logo.dart';
 
 class PlayerScreen extends StatefulWidget {
@@ -43,11 +45,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Map<String, dynamic>? _currentStreamMeta;
   bool _isRetryingStream = false;
   String _streamOverlayMessage = '';
-  // Fix #2: Separate timer with null reset to prevent stacking
   Timer? _bufferTimer;
   StreamSubscription? _playerSubscription;
-  // Track if playback succeeded after a retry — report as 'played_after_retry' (unstable)
   bool _hadFailureBeforePlaying = false;
+
+  // Video Quality state
+  List<dynamic> _qualities = [];
+  Map<String, dynamic>? _selectedQuality;
+  bool _dataSaverEnabled = false;
+  String _defaultQualityPref = 'auto';
+  bool _autoMobileData = true;
+  bool _hdOnlyWifi = true;
+  bool _isOnMobileData = false;
 
   // Animation controller for controls fade
   late AnimationController _controlsAnimController;
@@ -93,12 +102,58 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
     context.read<FavoriteCubit>().loadFavorites();
     _scrollController.addListener(_onScroll);
-    _fetchPlaybackAndInitialize();
+    _loadQualitySettingsAndFetch();
     _loadChannelData();
     _loadMoreLiveChannels();
   }
 
   // ──────────────────────── Player ────────────────────────
+
+  Future<void> _loadQualitySettingsAndFetch() async {
+    final storage = StorageService();
+    _defaultQualityPref = await storage.getVideoQualityPreference();
+    _dataSaverEnabled = await storage.isDataSaverEnabled();
+    _autoMobileData = await storage.isAutoQualityOnMobileData();
+    _hdOnlyWifi = await storage.isHdOnlyOnWifi();
+
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      _isOnMobileData = connectivityResult.contains(ConnectivityResult.mobile);
+    } catch (_) {}
+
+    _fetchPlaybackAndInitialize();
+  }
+
+  Map<String, dynamic>? _determineInitialQuality() {
+    if (_qualities.isEmpty) return null;
+
+    bool restrictToSD = _dataSaverEnabled || (_autoMobileData && _isOnMobileData);
+    bool blockHD = _hdOnlyWifi && _isOnMobileData;
+
+    List<dynamic> allowed = _qualities.where((q) {
+      if (q['type'] == 'auto') return restrictToSD == false; // Prefer explicit SD variants if restricted
+      int h = q['height'] ?? 0;
+      if (restrictToSD && h > 480) return false;
+      if (blockHD && h >= 720) return false;
+      return true;
+    }).toList();
+
+    if (allowed.isEmpty) allowed = _qualities; // Fallback
+
+    String targetLabel = _defaultQualityPref;
+    if (_dataSaverEnabled) targetLabel = '240p'; // Data saver defaults to lowest
+    else if (restrictToSD) targetLabel = '360p'; // Auto mobile defaults to medium-low
+
+    if (targetLabel == 'auto') {
+      return allowed.firstWhere((q) => q['type'] == 'auto', orElse: () => allowed.first);
+    } else {
+      for (var q in allowed) {
+        if (q['type'] == 'auto') continue;
+        if (q['label'] == targetLabel) return q;
+      }
+      return allowed.firstWhere((q) => q['type'] == 'auto', orElse: () => allowed.last);
+    }
+  }
 
   Future<void> _fetchPlaybackAndInitialize() async {
     // Fix #3: Cancel any pending buffer timer before starting a new stream to prevent
@@ -115,8 +170,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         final data = res['data'];
         _currentStreamMeta = data['primary_stream'];
         _backupStreams = data['backup_streams'] ?? [];
+        _qualities = data['qualities'] ?? [];
         
-        String urlToPlay = _currentStreamMeta!['url'];
+        _selectedQuality = _determineInitialQuality();
+        
+        String urlToPlay = _selectedQuality != null ? _selectedQuality!['url'] : _currentStreamMeta!['url'];
         await _initializePlayer(urlToPlay, _currentStreamMeta!['headers']);
       } else {
         throw Exception('Playback fetch failed');
@@ -132,7 +190,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
   }
 
-  Future<void> _initializePlayer(String url, [Map<String, dynamic>? rawHeaders]) async {
+  Future<void> _initializePlayer(String url, [Map<String, dynamic>? rawHeaders, Duration? startPosition]) async {
     _currentUrl = url;
     _playerSubscription?.cancel();
     _playerSubscription = null;
@@ -150,6 +208,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
       final media = Media(url, httpHeaders: headers.isNotEmpty ? headers : null);
       await _player.open(media);
+      if (startPosition != null) {
+        await _player.seek(startPosition);
+      }
       await _player.play();
 
       // ── Listen for buffering changes ──────────────────────────────────
@@ -244,6 +305,31 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         'stream_id': _currentStreamMeta?['id'],
       });
     } catch(e) {}
+
+    // Try lower quality first if it was a buffer stall
+    if (reason == 'buffer_timeout' && _selectedQuality != null && _qualities.isNotEmpty) {
+      int currentHeight = _selectedQuality!['height'] ?? 9999;
+      if (_selectedQuality!['type'] == 'auto') currentHeight = 9999; // Assume auto is max for downgrade
+
+      dynamic lowerQuality;
+      for (var q in _qualities) {
+        if (q['type'] == 'auto') continue;
+        int h = q['height'] ?? 0;
+        if (h > 0 && h < currentHeight) {
+          if (lowerQuality == null || h > (lowerQuality['height'] ?? 0)) {
+            lowerQuality = q;
+          }
+        }
+      }
+
+      if (lowerQuality != null) {
+        if (mounted) setState(() { _streamOverlayMessage = 'Auto-switching to lower quality...'; _isLoading = true; _hasError = false; });
+        _selectedQuality = lowerQuality;
+        _isRetryingStream = false;
+        await _initializePlayer(lowerQuality['url'], lowerQuality['headers'] ?? _currentStreamMeta!['headers']);
+        return;
+      }
+    }
 
     if (_backupStreams.isNotEmpty) {
       if (mounted) setState(() { _streamOverlayMessage = 'Trying backup source...'; _isLoading = true; _hasError = false; });
@@ -899,6 +985,31 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          // Quality selector
+          if (_qualities.isNotEmpty) ...[
+            GestureDetector(
+              onTap: _showQualitySelector,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.settings_suggest, size: 14, color: Colors.white),
+                    const SizedBox(width: 4),
+                    Text(
+                      _selectedQuality?['label'] ?? 'Auto',
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
           // Aspect ratio toggle
           GestureDetector(
             onTap: _cycleFit,
@@ -925,6 +1036,60 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         ],
       ),
     );
+  }
+
+  void _showQualitySelector() {
+    _controlsTimer?.cancel();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(AppColors.surface),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text('Video Quality', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              if (_qualities.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text('No qualities available', style: TextStyle(color: Colors.white54)),
+                )
+              else
+                ..._qualities.map((q) {
+                  final isSelected = _selectedQuality != null && _selectedQuality!['url'] == q['url'];
+                  return ListTile(
+                    title: Text(q['label'] ?? 'Unknown', style: TextStyle(color: isSelected ? const Color(AppColors.primary) : Colors.white)),
+                    trailing: isSelected ? const Icon(Icons.check, color: Color(AppColors.primary)) : null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _changeQuality(q);
+                    },
+                  );
+                }),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    ).then((_) => _showControlsWithTimer());
+  }
+
+  Future<void> _changeQuality(Map<String, dynamic> quality) async {
+    if (_selectedQuality != null && _selectedQuality!['url'] == quality['url']) return;
+    
+    final position = _player.state.position;
+
+    setState(() {
+      _selectedQuality = quality;
+      _streamOverlayMessage = 'Changing quality...';
+    });
+
+    final headers = quality['headers'] ?? _currentStreamMeta?['headers'] ?? {};
+    await _initializePlayer(quality['url'], headers, position);
   }
 
   // ──────────────────────── Channel Info ────────────────────────

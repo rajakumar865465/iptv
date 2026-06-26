@@ -6,6 +6,7 @@ import '../cubits/license_cubit.dart';
 import 'login_screen.dart';
 import 'license_status_screen.dart';
 import 'license_activation_screen.dart';
+import 'playback_settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -188,6 +189,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildMenuSection() {
     return Column(
       children: [
+        _buildMenuItem(Icons.settings_play_arrow, 'Playback Settings', () {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PlaybackSettingsScreen()));
+        }),
         _buildMenuItem(Icons.support_agent, 'Support', () {}),
         _buildMenuItem(Icons.policy, 'Privacy Policy', () {}),
         _buildMenuItem(Icons.description, 'Terms of Service', () {}),
