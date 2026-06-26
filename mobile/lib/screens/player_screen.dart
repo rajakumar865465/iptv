@@ -46,6 +46,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // Fix #2: Separate timer with null reset to prevent stacking
   Timer? _bufferTimer;
   StreamSubscription? _playerSubscription;
+  // Track if playback succeeded after a retry — report as 'played_after_retry' (unstable)
+  bool _hadFailureBeforePlaying = false;
 
   // Animation controller for controls fade
   late AnimationController _controlsAnimController;
@@ -181,6 +183,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             _streamOverlayMessage = '';
           });
           _showControlsWithTimer();
+          // Report playback result to backend
+          _reportPlaybackSuccess();
         }
       });
 
@@ -231,6 +235,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _bufferTimer?.cancel();
     _bufferTimer = null;
     _isRetryingStream = true;
+    _hadFailureBeforePlaying = true; // mark that we had a failure before success
 
     try {
       await _api.post('${ApiEndpoints.channels}/${_currentChannel.id}/report-failure', {
@@ -250,6 +255,19 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
 
     if (mounted) setState(() { _isLoading = false; _hasError = true; _streamOverlayMessage = ''; });
+  }
+
+  /// Reports successful playback to backend.
+  /// If the stream played after a prior failure/retry, marks it as 'unstable' (not offline).
+  Future<void> _reportPlaybackSuccess() async {
+    try {
+      final result = _hadFailureBeforePlaying ? 'played_after_retry' : 'played';
+      await _api.post('${ApiEndpoints.channels}/${_currentChannel.id}/playback-result', {
+        'result': result,
+        'status': _hadFailureBeforePlaying ? 'unstable' : 'online',
+        'stream_url': _currentUrl,
+      });
+    } catch (_) {}
   }
 
   // ──────────────────────── Data Loading ────────────────────────
@@ -362,6 +380,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _upcoming = [];
       _relatedChannels = [];
       _relatedSourceType = '';
+      _hadFailureBeforePlaying = false; // reset retry tracking for new channel
       _resetMoreLiveChannels();
     });
     if (_scrollController.hasClients) {

@@ -5,6 +5,7 @@ let healthStatusColumnExists = null;
 // Fix #26: Cache schema introspection results at module level to avoid per-request queries
 let channelStreamsTableExists = null;
 let channelFailColumnsExist = null;
+let mergedIntoColumnExists = null;
 
 async function checkHealthStatusColumn() {
   if (healthStatusColumnExists !== null) return healthStatusColumnExists;
@@ -18,6 +19,19 @@ async function checkHealthStatusColumn() {
     healthStatusColumnExists = false;
   }
   return healthStatusColumnExists;
+}
+
+async function checkMergedIntoColumn() {
+  if (mergedIntoColumnExists !== null) return mergedIntoColumnExists;
+  try {
+    const result = await db.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name = 'channels' AND column_name = 'merged_into_channel_id'`
+    );
+    mergedIntoColumnExists = result.rows.length > 0;
+  } catch (err) {
+    mergedIntoColumnExists = false;
+  }
+  return mergedIntoColumnExists;
 }
 
 async function checkChannelStreamsTable() {
@@ -59,87 +73,211 @@ const formatChannelRow = (req, row) => {
   };
 };
 
+// Normalize a raw language string to a canonical display name.
+// Handles ISO codes (hin, ben, tam …) and common alternate spellings.
+function normalizeLanguage(raw) {
+  if (!raw) return null;
+  const l = raw.trim().toLowerCase();
+  const map = {
+    // Hindi
+    hindi: 'Hindi', hin: 'Hindi', hi: 'Hindi',
+    // English
+    english: 'English', eng: 'English', en: 'English',
+    // Bengali
+    bengali: 'Bengali', bangla: 'Bengali', ben: 'Bengali', bn: 'Bengali',
+    // Tamil
+    tamil: 'Tamil', tam: 'Tamil', ta: 'Tamil',
+    // Telugu
+    telugu: 'Telugu', tel: 'Telugu', te: 'Telugu',
+    // Malayalam
+    malayalam: 'Malayalam', mal: 'Malayalam', ml: 'Malayalam',
+    // Kannada
+    kannada: 'Kannada', kan: 'Kannada', kn: 'Kannada',
+    // Marathi
+    marathi: 'Marathi', mar: 'Marathi', mr: 'Marathi',
+    // Punjabi
+    punjabi: 'Punjabi', pan: 'Punjabi', pa: 'Punjabi',
+    // Gujarati
+    gujarati: 'Gujarati', guj: 'Gujarati', gu: 'Gujarati',
+    // Odia
+    odia: 'Odia', oriya: 'Odia', ori: 'Odia', or: 'Odia',
+    // Assamese
+    assamese: 'Assamese', asm: 'Assamese', as: 'Assamese',
+    // Urdu
+    urdu: 'Urdu', urd: 'Urdu', ur: 'Urdu',
+    // Bhojpuri
+    bhojpuri: 'Bhojpuri', bho: 'Bhojpuri',
+    // Other South / North-East
+    nepali: 'Nepali', nep: 'Nepali', ne: 'Nepali',
+    sindhi: 'Sindhi', snd: 'Sindhi',
+    konkani: 'Konkani', kok: 'Konkani',
+    maithili: 'Maithili', mai: 'Maithili',
+    dogri: 'Dogri', doi: 'Dogri',
+    kashmiri: 'Kashmiri', ks: 'Kashmiri',
+    manipuri: 'Manipuri', mni: 'Manipuri',
+    bodo: 'Bodo', brx: 'Bodo',
+    santhali: 'Santhali', sat: 'Santhali',
+    khasi: 'Khasi',
+    mizo: 'Mizo', lus: 'Mizo',
+  };
+  return map[l] || (raw.trim().length > 0 ? raw.trim() : null);
+}
+
+// PLAYABLE health statuses — shown when workingOnly=true
+const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable'];
+// Hidden health statuses — always hidden from normal users
+const DEAD_STATUSES = ['offline', 'dead', 'forbidden_403', 'drm_or_unsupported', 'geo_blocked', 'requires_licensed_source'];
+// Allow unknown streams (channels not yet checked) when ALLOW_UNKNOWN_STREAMS=true in .env
+const ALLOW_UNKNOWN = process.env.ALLOW_UNKNOWN_STREAMS === 'true';
+
+// Build the health_status filter fragment for workingOnly mode
+function buildHealthFilter(paramIndex) {
+  const statusList = WORKING_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
+  const params = [...WORKING_STATUSES];
+  let fragment = `c.health_status IN (${statusList})`;
+  const nextIndex = paramIndex + params.length;
+
+  if (ALLOW_UNKNOWN) {
+    fragment = `(${fragment} OR c.health_status IS NULL OR c.health_status = 'unknown')`;
+  }
+  return { fragment, params, nextIndex };
+}
+
 // getChannels — main public API
-// Default: returns Indian active channels, workingOnly=true shows only health_status=online
+// Supports: categoryId, language, workingOnly, search, page, limit, premium, featured
 exports.getChannels = async (req, res) => {
   try {
-    const { category, search, featured, popular, page, limit, country, language, showOffline, workingOnly } = req.query;
+    const {
+      category,       // legacy: ILIKE on category name (keep for backwards compat)
+      categoryId,     // preferred: exact category_id match
+      search,
+      featured,
+      popular,
+      page,
+      limit,
+      country,
+      language,
+      showOffline,
+      workingOnly,
+      premium,        // 'true' | 'false' | 'all'
+    } = req.query;
+
     const usePagination = page !== undefined;
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.min(500, Math.max(1, parseInt(limit) || 20));
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 50));
 
-    // Always exclude merged/duplicate channels from user-facing API
-    const conditions = [`c.status NOT IN ('merged', 'duplicate', 'inactive')`];
+    console.log('[getChannels] filters:', {
+      categoryId, category, language, workingOnly, showOffline, search, premium, page: pageNum
+    });
+
+    // Always exclude merged/duplicate/inactive channels
+    const conditions = [
+      `c.status = 'active'`,
+      `c.stream_url IS NOT NULL`,
+      `c.stream_url != ''`,
+    ];
     const params = [];
     let paramIndex = 1;
 
-    // Fix #4: Only filter by health_status if the column actually exists (guard against fresh DBs)
+    // Guard: only add merged_into_channel_id IS NULL if column exists (migration 012)
+    const hasMergedInto = await checkMergedIntoColumn();
+    if (hasMergedInto) {
+      conditions.unshift(`c.merged_into_channel_id IS NULL`);
+    }
+
     const hasHealthStatus = await checkHealthStatusColumn();
+
     if (workingOnly === 'true') {
       if (hasHealthStatus) {
-        conditions.push(`c.health_status = 'online'`);
-        conditions.push(`c.status = 'active'`);
-      } else {
-        conditions.push(`c.status = 'active'`);
+        const { fragment, params: hParams, nextIndex } = buildHealthFilter(paramIndex);
+        conditions.push(fragment);
+        params.push(...hParams);
+        paramIndex = nextIndex;
       }
     } else if (showOffline !== 'true') {
-      conditions.push(`c.status = 'active'`);
+      // Default mode: hide clearly dead channels, show unknown/unstable
       if (hasHealthStatus) {
-        conditions.push(`(c.health_status != 'offline' OR c.health_status IS NULL)`);
+        const deadList = DEAD_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
+        conditions.push(`(c.health_status IS NULL OR c.health_status NOT IN (${deadList}))`);
+        params.push(...DEAD_STATUSES);
+        paramIndex += DEAD_STATUSES.length;
       }
     }
-    // showOffline=true: only exclude merged/duplicate (already in base condition)
+    // showOffline=true: no health filter (admin/debug mode)
 
+    // Country filter
     if (country) {
       conditions.push(`c.country ILIKE $${paramIndex++}`);
       params.push(`%${country}%`);
     }
 
-    // Language filter (Part 7)
-    if (language) {
-      conditions.push(`c.language ILIKE $${paramIndex++}`);
-      params.push(`%${language}%`);
+    // Language filter — exact normalized match
+    if (language && language.trim().length > 0) {
+      const normalizedLang = normalizeLanguage(language);
+      if (normalizedLang) {
+        conditions.push(`LOWER(c.language) = LOWER($${paramIndex++})`);
+        params.push(normalizedLang);
+      }
     }
 
-    // For paginated requests, also filter out channels without valid stream URLs
-    if (usePagination) {
-      conditions.push(`c.stream_url IS NOT NULL AND c.stream_url != ''`);
-    }
-
-    if (category) {
+    // Category filter — prefer exact categoryId, fallback to name ILIKE
+    if (categoryId) {
+      const catIdNum = parseInt(categoryId);
+      if (!isNaN(catIdNum)) {
+        conditions.push(`c.category_id = $${paramIndex++}`);
+        params.push(catIdNum);
+      }
+    } else if (category) {
       conditions.push(`cat.name ILIKE $${paramIndex++}`);
       params.push(`%${category}%`);
     }
+
+    // Premium filter
+    if (premium === 'true') {
+      conditions.push(`c.is_premium = true`);
+    } else if (premium === 'false') {
+      conditions.push(`(c.is_premium = false OR c.is_premium IS NULL)`);
+    }
+    // premium='all' or omitted: no filter
 
     if (featured === 'true' || popular === 'true') {
       conditions.push(`c.is_featured = true`);
     }
 
-    if (search) {
-      conditions.push(`(c.name ILIKE $${paramIndex} OR c.language ILIKE $${paramIndex} OR cat.name ILIKE $${paramIndex})`);
-      params.push(`%${search}%`);
+    // Search — across name, display_name, category name, language
+    if (search && search.trim().length > 0) {
+      conditions.push(
+        `(c.name ILIKE $${paramIndex} OR c.display_name ILIKE $${paramIndex} OR c.language ILIKE $${paramIndex} OR cat.name ILIKE $${paramIndex})`
+      );
+      params.push(`%${search.trim()}%`);
       paramIndex++;
     }
 
     const joinClause = `LEFT JOIN categories cat ON c.category_id = cat.id`;
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
-    const orderClause = `ORDER BY c.sort_order ASC, c.name ASC`;
+    const orderClause = `ORDER BY c.is_featured DESC NULLS LAST, c.health_score DESC NULLS LAST, c.sort_order ASC, c.name ASC`;
 
     if (usePagination) {
       const offset = (pageNum - 1) * limitNum;
 
-      const countResult = await db.query(
-        `SELECT COUNT(*) FROM channels c ${joinClause} ${whereClause}`,
-        params
-      );
+      const [countResult, dataResult] = await Promise.all([
+        db.query(`SELECT COUNT(*) FROM channels c ${joinClause} ${whereClause}`, params),
+        db.query(
+          `SELECT c.*, cat.name as category_name FROM channels c ${joinClause} ${whereClause} ${orderClause} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+          [...params, limitNum, offset]
+        ),
+      ]);
+
       const total = parseInt(countResult.rows[0].count, 10);
-
-      const dataResult = await db.query(
-        `SELECT c.*, cat.name as category_name FROM channels c ${joinClause} ${whereClause} ${orderClause} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
-        [...params, limitNum, offset]
-      );
-
       const formatted = dataResult.rows.map(row => formatChannelRow(req, row));
+
+      console.log(`[getChannels] total=${total}, returned=${formatted.length}, page=${pageNum}`);
+      if (formatted.length > 0) {
+        console.log('[getChannels] sample (first 5):',
+          formatted.slice(0, 5).map(c => `${c.name} | cat=${c.category_name} | lang=${c.language} | health=${c.health_status}`)
+        );
+      }
+
       return res.json({
         success: true,
         data: formatted,
@@ -147,8 +285,15 @@ exports.getChannels = async (req, res) => {
           page: pageNum,
           limit: limitNum,
           total,
-          hasMore: offset + dataResult.rows.length < total
-        }
+          hasMore: offset + dataResult.rows.length < total,
+        },
+        filters: {
+          categoryId: categoryId || null,
+          language: language || null,
+          workingOnly: workingOnly === 'true',
+          premium: premium || 'all',
+          search: search || null,
+        },
       });
     }
 
@@ -240,18 +385,87 @@ exports.getChannelsByCategory = async (req, res) => {
 
 exports.getCategories = async (req, res) => {
   try {
+    const { workingOnly } = req.query;
+    const hasHealthStatus = await checkHealthStatusColumn();
+
+    let channelFilter = `ch.status = 'active' AND ch.stream_url IS NOT NULL AND ch.stream_url != ''`;
+
+    const params = [];
+    let paramIndex = 1;
+
+    if (workingOnly === 'true' && hasHealthStatus) {
+      const statusList = WORKING_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
+      let healthPart = `ch.health_status IN (${statusList})`;
+      if (ALLOW_UNKNOWN) {
+        healthPart = `(${healthPart} OR ch.health_status IS NULL OR ch.health_status = 'unknown')`;
+      }
+      channelFilter += ` AND ${healthPart}`;
+      params.push(...WORKING_STATUSES);
+      paramIndex += WORKING_STATUSES.length;
+    } else if (hasHealthStatus) {
+      const deadList = DEAD_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
+      channelFilter += ` AND (ch.health_status IS NULL OR ch.health_status NOT IN (${deadList}))`;
+      params.push(...DEAD_STATUSES);
+      paramIndex += DEAD_STATUSES.length;
+    }
+
     const result = await db.query(
-      `SELECT c.*, COUNT(ch.id) as channel_count
-       FROM categories c
-       LEFT JOIN channels ch ON c.id = ch.category_id AND ch.status = 'active'
-       WHERE c.status = 'active'
-       GROUP BY c.id
-       ORDER BY c.sort_order ASC, c.name ASC`
+      `SELECT cat.id, cat.name, cat.icon_url, cat.status, cat.sort_order,
+              COUNT(ch.id)::int as channel_count
+       FROM categories cat
+       LEFT JOIN channels ch ON cat.id = ch.category_id AND (${channelFilter})
+       WHERE cat.status = 'active'
+       GROUP BY cat.id
+       HAVING COUNT(ch.id) > 0
+       ORDER BY cat.sort_order ASC, cat.name ASC`,
+      params
     );
     success(res, result.rows);
   } catch (err) {
     console.error('getCategories error:', err);
     error(res, 'Failed to fetch categories', 500);
+  }
+};
+
+exports.getLanguages = async (req, res) => {
+  try {
+    const { workingOnly } = req.query;
+    const hasHealthStatus = await checkHealthStatusColumn();
+
+    let channelFilter = `c.status = 'active' AND c.stream_url IS NOT NULL AND c.stream_url != '' AND c.language IS NOT NULL AND c.language != ''`;
+    const params = [];
+    let paramIndex = 1;
+
+    if (workingOnly === 'true' && hasHealthStatus) {
+      const statusList = WORKING_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
+      let healthPart = `c.health_status IN (${statusList})`;
+      if (ALLOW_UNKNOWN) {
+        healthPart = `(${healthPart} OR c.health_status IS NULL OR c.health_status = 'unknown')`;
+      }
+      channelFilter += ` AND ${healthPart}`;
+      params.push(...WORKING_STATUSES);
+      paramIndex += WORKING_STATUSES.length;
+    } else if (hasHealthStatus) {
+      const deadList = DEAD_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
+      channelFilter += ` AND (c.health_status IS NULL OR c.health_status NOT IN (${deadList}))`;
+      params.push(...DEAD_STATUSES);
+    }
+
+    const result = await db.query(
+      `SELECT
+         INITCAP(LOWER(TRIM(c.language))) as name,
+         COUNT(*)::int as channel_count
+       FROM channels c
+       WHERE ${channelFilter}
+       GROUP BY LOWER(TRIM(c.language))
+       HAVING COUNT(*) > 0
+       ORDER BY COUNT(*) DESC, LOWER(TRIM(c.language)) ASC`,
+      params
+    );
+    success(res, result.rows);
+  } catch (err) {
+    console.error('getLanguages error:', err);
+    error(res, 'Failed to fetch languages', 500);
   }
 };
 
@@ -539,14 +753,18 @@ exports.reportFailure = async (req, res) => {
             last_failure_at = NOW(), 
             failure_reason = $1 
         WHERE id = $2 
-        RETURNING fail_count
+        RETURNING fail_count, health_status
       `, [failReason, id]);
 
       if (updateRes.rows.length > 0) {
-        const failCount = updateRes.rows[0].fail_count;
-        if (failCount >= 5) {
-          const hasHealthStatus = await checkHealthStatusColumn();
-          if (hasHealthStatus) {
+        const { fail_count: failCount, health_status: currentHealth } = updateRes.rows[0];
+        const hasHealthStatus = await checkHealthStatusColumn();
+        if (hasHealthStatus) {
+          if (failCount >= 3 && failCount < 7 && currentHealth !== 'offline') {
+            // 3–6 failures → unstable (still shows in workingOnly mode)
+            await db.query(`UPDATE channels SET health_status = 'unstable' WHERE id = $1 AND health_status NOT IN ('online')`, [id]);
+          } else if (failCount >= 7) {
+            // 7+ consecutive failures → mark offline
             await db.query(`UPDATE channels SET health_status = 'offline' WHERE id = $1`, [id]);
           }
         }
@@ -616,5 +834,62 @@ exports.getChannelPlayback = async (req, res) => {
   } catch (err) {
     console.error('getChannelPlayback error:', err);
     error(res, 'Failed to fetch playback streams', 500);
+  }
+};
+
+// reportPlaybackResult — called by Flutter player when a stream plays (possibly after retry)
+// POST /api/channels/:id/playback-result  { result, status, stream_url, buffer_seconds }
+exports.reportPlaybackResult = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { result, status, stream_url, buffer_seconds } = req.body;
+
+    // Accepted results: 'played', 'played_after_retry', 'failed'
+    const validResults = ['played', 'played_after_retry', 'failed'];
+    if (!validResults.includes(result)) {
+      return error(res, 'Invalid result value', 400);
+    }
+
+    const hasHealthStatus = await checkHealthStatusColumn();
+    if (!hasHealthStatus) {
+      return success(res, { message: 'health_status column not available' });
+    }
+
+    let newHealthStatus = null;
+
+    if (result === 'played') {
+      newHealthStatus = 'online';
+    } else if (result === 'played_after_retry') {
+      // Buffers but eventually plays — mark unstable, not offline
+      newHealthStatus = 'unstable';
+    } else if (result === 'failed') {
+      // Only mark offline via this route if status explicitly says so
+      if (status === 'offline' || status === 'dead') {
+        newHealthStatus = 'offline';
+      }
+    }
+
+    if (newHealthStatus) {
+      await db.query(
+        `UPDATE channels SET health_status = $1, last_checked_at = NOW() WHERE id = $2`,
+        [newHealthStatus, id]
+      );
+
+      // Also update channel_streams if url provided
+      const hasStreamsTable = await checkChannelStreamsTable();
+      if (hasStreamsTable && stream_url) {
+        await db.query(
+          `UPDATE channel_streams SET health_status = $1, last_checked_at = NOW() WHERE channel_id = $2 AND stream_url = $3`,
+          [newHealthStatus, id, stream_url]
+        );
+      }
+
+      console.log(`[reportPlaybackResult] channel=${id} result=${result} → health_status=${newHealthStatus}`);
+    }
+
+    success(res, { success: true, health_status: newHealthStatus });
+  } catch (err) {
+    console.error('reportPlaybackResult error:', err);
+    error(res, 'Failed to report playback result', 500);
   }
 };

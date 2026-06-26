@@ -58,6 +58,7 @@ class ApiEndpoints {
   // Channels
   static const String channelList = channels;
   static const String categoryList = '$channels/categories';
+  static const String languageList = '$channels/languages';
   static const String channelSearch = '$channels/search';
 
   // User

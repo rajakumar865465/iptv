@@ -1,3 +1,3 @@
 class BackendConfig {
-  static const String baseUrl = 'https://iptv-6vbq.onrender.com';
+  static const String baseUrl = 'http://35.154.128.217';
 }

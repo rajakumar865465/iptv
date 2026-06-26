@@ -19,7 +19,7 @@ async function main() {
     db.query(`SELECT cat.name, COUNT(ch.id) cnt FROM channels ch LEFT JOIN categories cat ON ch.category_id=cat.id WHERE ch.country='IN' GROUP BY cat.name ORDER BY cnt DESC`),
     db.query(`SELECT language, COUNT(*) cnt FROM channels WHERE country='IN' GROUP BY language ORDER BY cnt DESC LIMIT 20`),
     db.query(`SELECT health_status, COUNT(*) cnt FROM channels WHERE country='IN' GROUP BY health_status ORDER BY cnt DESC`),
-    db.query(`SELECT health_reason, COUNT(*) cnt FROM channel_streams cs JOIN channels c ON cs.channel_id=c.id WHERE c.country='IN' AND cs.health_status='offline' GROUP BY health_reason ORDER BY cnt DESC LIMIT 15`),
+    db.query(`SELECT cs.health_reason, COUNT(*) cnt FROM channel_streams cs JOIN channels c ON cs.channel_id=c.id WHERE c.country='IN' AND cs.health_status='offline' GROUP BY cs.health_reason ORDER BY cnt DESC LIMIT 15`),
     db.query(`SELECT COUNT(*) c FROM channels WHERE country='IN' AND status='active' AND health_status='online' AND stream_url IS NOT NULL`),
   ]);
 

@@ -19,8 +19,9 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   Timer? _debounce;
-  
-  String? _selectedCategory;
+
+  int? _selectedCategoryId;
+  String? _selectedCategoryName;
   String? _selectedLanguage;
   bool _workingOnly = true;
 
@@ -40,8 +41,12 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-      context.read<ChannelCubit>().loadChannels();
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 300) {
+      final cubit = context.read<ChannelCubit>();
+      final state = cubit.state;
+      if (state is ChannelLoaded && state.hasMore && !state.isLoadingMore) {
+        cubit.loadChannels();
+      }
     }
   }
 
@@ -52,24 +57,31 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
         isRefresh: true,
         query: query,
         workingOnly: _workingOnly,
-        // keep current category/language filter active during search
       );
     });
   }
 
   void _toggleWorkingOnly(bool value) {
     setState(() => _workingOnly = value);
-    context.read<ChannelCubit>().loadChannels(isRefresh: true, workingOnly: _workingOnly);
+    context.read<ChannelCubit>().loadChannels(
+      isRefresh: true,
+      workingOnly: value,
+      categoryId: _selectedCategoryId ?? 0,
+      language: _selectedLanguage ?? '',
+    );
   }
 
-  // Fix #11: Category and language filters now go to server, not client-side post-filter.
-  // This ensures all pages are filtered correctly, not just the loaded page.
-  void _onCategorySelected(String? cat) {
-    setState(() => _selectedCategory = cat);
+  /// Category selected — use categoryId for exact backend matching
+  void _onCategorySelected(int? catId, String? catName) {
+    setState(() {
+      _selectedCategoryId = catId;
+      _selectedCategoryName = catName;
+    });
     context.read<ChannelCubit>().loadChannels(
       isRefresh: true,
       workingOnly: _workingOnly,
-      category: cat ?? '',
+      categoryId: catId ?? 0,
+      language: _selectedLanguage ?? '',
     );
   }
 
@@ -78,7 +90,25 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
     context.read<ChannelCubit>().loadChannels(
       isRefresh: true,
       workingOnly: _workingOnly,
+      categoryId: _selectedCategoryId ?? 0,
       language: lang ?? '',
+    );
+  }
+
+  void _clearAllFilters() {
+    setState(() {
+      _searchController.clear();
+      _selectedCategoryId = null;
+      _selectedCategoryName = null;
+      _selectedLanguage = null;
+      _workingOnly = true;
+    });
+    context.read<ChannelCubit>().loadChannels(
+      isRefresh: true,
+      query: '',
+      workingOnly: true,
+      categoryId: 0,
+      language: '',
     );
   }
 
@@ -90,10 +120,11 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
         child: BlocBuilder<ChannelCubit, ChannelState>(
           builder: (context, state) {
             if (state is ChannelLoading) return _buildShimmerGrid();
-            if (state is ChannelError) return _buildErrorWidget(state.message, () => context.read<ChannelCubit>().loadChannels(isRefresh: true));
-            if (state is ChannelLoaded) {
-              return _buildChannelList(state);
+            if (state is ChannelError) {
+              return _buildErrorWidget(state.message,
+                () => context.read<ChannelCubit>().loadChannels(isRefresh: true, workingOnly: _workingOnly));
             }
+            if (state is ChannelLoaded) return _buildChannelList(state);
             return _buildShimmerGrid();
           },
         ),
@@ -102,25 +133,10 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   }
 
   Widget _buildChannelList(ChannelLoaded state) {
-    final allChannels = state.channels;
-    final categories  = state.categories;
-
-    // Fix #11: Filtering is now fully server-side via API params.
-    // No client-side post-filter — avoids missing channels across pages.
-    final filtered = allChannels;
-
-    // Build Indian language list from loaded channels (for chip display only)
-    final indianLanguages = [
-      'Hindi','English','Bengali','Tamil','Telugu','Malayalam','Kannada',
-      'Marathi','Punjabi','Gujarati','Odia','Assamese','Urdu','Bhojpuri',
-    ];
-    final languages = allChannels
-        .map((c) => c.language)
-        .whereType<String>()
-        .where((l) => l.trim().isNotEmpty && l.toLowerCase() != 'unknown')
-        .toSet()
-        .where((l) => indianLanguages.any((il) => il.toLowerCase() == l.toLowerCase()))
-        .toList()..sort();
+    final channels = state.channels;
+    final categories = state.categories;
+    final languages = state.languages;
+    final hasFilters = _selectedCategoryId != null || _selectedLanguage != null;
 
     return CustomScrollView(
       controller: _scrollController,
@@ -141,16 +157,32 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
             ),
           ),
         ),
+
         // Search bar
         SliverToBoxAdapter(child: _buildSearchBar()),
-        // Filters Row (Working Only)
+
+        // Working Only toggle
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Working Only', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Working Only',
+                      style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    Text(
+                      _workingOnly
+                          ? 'Showing playable channels'
+                          : 'Showing all channels including offline',
+                      style: const TextStyle(color: Color(AppColors.textMuted), fontSize: 11),
+                    ),
+                  ],
+                ),
                 Switch(
                   value: _workingOnly,
                   onChanged: _toggleWorkingOnly,
@@ -160,26 +192,53 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
             ),
           ),
         ),
+
         // Category chips
         SliverToBoxAdapter(child: _buildCategoryChips(categories)),
+
         // Language chips
-        SliverToBoxAdapter(child: _buildLanguageFilter(languages)),
-        // Channel count
+        if (languages.isNotEmpty)
+          SliverToBoxAdapter(child: _buildLanguageChips(languages)),
+
+        // Channel count + filter info
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-            child: Text(
-              '${filtered.length} channels',
-              style: const TextStyle(
-                color: Color(AppColors.textMuted),
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
-              ),
+            padding: const EdgeInsets.fromLTRB(20, 6, 20, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _workingOnly
+                      ? '${state.totalCount} working channels'
+                      : '${state.totalCount} channels',
+                  style: const TextStyle(
+                    color: Color(AppColors.textMuted),
+                    fontSize: 12,
+                  ),
+                ),
+                if (_workingOnly && hasFilters)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 3),
+                    child: Text(
+                      'Some offline or unsupported channels are hidden.',
+                      style: TextStyle(color: Color(AppColors.textMuted), fontSize: 11),
+                    ),
+                  ),
+                if (!_workingOnly)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 3),
+                    child: Text(
+                      'Offline and unstable channels may appear.',
+                      style: TextStyle(color: Color(0xFFFF9800), fontSize: 11),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
-        // Grid or empty
-        if (filtered.isEmpty)
+
+        // Grid or empty state
+        if (channels.isEmpty)
           SliverFillRemaining(child: _buildEmptyWidget())
         else
           SliverPadding(
@@ -187,21 +246,44 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
             sliver: SliverGrid(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.85,
+                childAspectRatio: 0.80,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
               ),
               delegate: SliverChildBuilderDelegate(
-                (context, index) => _buildChannelCard(filtered[index]),
-                childCount: filtered.length,
+                (context, index) => _buildChannelCard(channels[index]),
+                childCount: channels.length,
               ),
             ),
           ),
+
+        // Loading more indicator
         if (state.isLoadingMore)
           const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(16.0),
               child: Center(child: CircularProgressIndicator()),
+            ),
+          ),
+
+        // Error banner (still showing cached data)
+        if (state.error != null)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2C1010),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(AppColors.primary).withOpacity(0.3)),
+                ),
+                child: Text(
+                  state.error!,
+                  style: const TextStyle(color: Colors.white60, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ),
             ),
           ),
       ],
@@ -249,6 +331,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   }
 
   Widget _buildCategoryChips(List<CategoryModel> categories) {
+    if (categories.isEmpty) return const SizedBox.shrink();
     return SizedBox(
       height: 44,
       child: ListView.builder(
@@ -257,21 +340,26 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
         itemCount: categories.length + 1,
         itemBuilder: (context, index) {
           if (index == 0) {
-            return _buildChip('All', _selectedCategory == null, () => _onCategorySelected(null));
+            return _buildChip(
+              'All',
+              _selectedCategoryId == null,
+              () => _onCategorySelected(null, null),
+            );
           }
           final cat = categories[index - 1];
+          final isSelected = _selectedCategoryId == cat.id;
+          final label = cat.channelCount > 0 ? '${cat.name} (${cat.channelCount})' : cat.name;
           return _buildChip(
-            cat.name,
-            _selectedCategory == cat.name,
-            () => _onCategorySelected(cat.name == _selectedCategory ? null : cat.name),
+            label,
+            isSelected,
+            () => _onCategorySelected(isSelected ? null : cat.id, isSelected ? null : cat.name),
           );
         },
       ),
     );
   }
 
-  Widget _buildLanguageFilter(List<String> languages) {
-    if (languages.isEmpty) return const SizedBox.shrink();
+  Widget _buildLanguageChips(List<LanguageModel> languages) {
     return SizedBox(
       height: 40,
       child: ListView.builder(
@@ -280,13 +368,18 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
         itemCount: languages.length + 1,
         itemBuilder: (context, index) {
           if (index == 0) {
-            return _buildChip('All', _selectedLanguage == null, () => _onLanguageSelected(null));
+            return _buildChip(
+              'All',
+              _selectedLanguage == null,
+              () => _onLanguageSelected(null),
+            );
           }
           final lang = languages[index - 1];
+          final isSelected = _selectedLanguage?.toLowerCase() == lang.name.toLowerCase();
           return _buildChip(
-            lang,
-            _selectedLanguage == lang,
-            () => _onLanguageSelected(lang == _selectedLanguage ? null : lang),
+            lang.name,
+            isSelected,
+            () => _onLanguageSelected(isSelected ? null : lang.name),
           );
         },
       ),
@@ -309,7 +402,11 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
               width: 1,
             ),
             boxShadow: isSelected
-                ? [BoxShadow(color: const Color(AppColors.primary).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 2))]
+                ? [BoxShadow(
+                    color: const Color(AppColors.primary).withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  )]
                 : null,
           ),
           child: Text(
@@ -327,8 +424,11 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
 
   Widget _buildChannelCard(ChannelModel channel) {
     final detailText = [channel.language, channel.quality ?? 'SD']
-        .where((e) => e != null && e.toString().trim().isNotEmpty)
+        .whereType<String>()
+        .where((e) => e.trim().isNotEmpty)
         .join(' • ');
+
+    final healthBadge = _buildHealthBadge(channel.healthStatus);
 
     return GestureDetector(
       onTap: () => _openPlayer(channel),
@@ -367,17 +467,54 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
                 ),
                 child: const Text(
                   'LIVE',
-                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.8),
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 0.8,
+                  ),
                 ),
               ),
             ),
+
+            // Health status badge (bottom-left)
+            if (healthBadge != null)
+              Positioned(
+                bottom: 8,
+                left: 8,
+                child: healthBadge,
+              ),
+
+            // Premium badge (top-left)
+            if (channel.isPremium)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFB300),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'PRO',
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ),
+
             // Content
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 18, 12, 12),
+              padding: const EdgeInsets.fromLTRB(12, 18, 12, 24),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo with ring
+                  // Logo
                   Container(
                     padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
@@ -388,7 +525,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
                       logoUrl: channel.logoUrl,
                       localLogoUrl: channel.localLogoUrl,
                       channelName: channel.name,
-                      size: 64,
+                      size: 60,
                       borderRadius: 10,
                       fit: BoxFit.contain,
                     ),
@@ -441,15 +578,67 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
     );
   }
 
+  /// Returns a small coloured badge for the channel's health status.
+  /// Returns null for 'online' (no badge needed — it's the default good state).
+  Widget? _buildHealthBadge(String? healthStatus) {
+    if (healthStatus == null) return null;
+    final h = healthStatus.toLowerCase();
+
+    Color color;
+    String label;
+
+    switch (h) {
+      case 'online':
+        return null; // clean — no badge
+      case 'unstable':
+        color = const Color(0xFFFF9800);
+        label = 'Unstable';
+        break;
+      case 'offline':
+      case 'dead':
+        color = const Color(0xFFF44336);
+        label = 'Offline';
+        break;
+      case 'drm_or_unsupported':
+        color = const Color(0xFF9E9E9E);
+        label = 'Unsupported';
+        break;
+      case 'geo_blocked':
+        color = const Color(0xFF9E9E9E);
+        label = 'Geo-Blocked';
+        break;
+      case 'requires_licensed_source':
+        color = const Color(0xFF9C27B0);
+        label = 'Source Req.';
+        break;
+      default:
+        return null; // unknown / not checked — no badge
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Colors.white),
+      ),
+    );
+  }
+
   void _openPlayer(ChannelModel channel) {
     final allChannels = context.read<ChannelCubit>().allChannels;
     final index = allChannels.indexWhere((c) => c.id == channel.id);
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PlayerScreen(
-        channel: channel,
-        channels: allChannels,
-        initialIndex: index >= 0 ? index : 0,
-      )),
+      MaterialPageRoute(
+        builder: (_) => PlayerScreen(
+          channel: channel,
+          channels: allChannels,
+          initialIndex: index >= 0 ? index : 0,
+        ),
+      ),
     );
   }
 
@@ -461,7 +650,11 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
             padding: EdgeInsets.fromLTRB(20, 16, 20, 16),
             child: Text(
               'Live TV',
-              style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ),
@@ -470,7 +663,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              childAspectRatio: 0.85,
+              childAspectRatio: 0.80,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
             ),
@@ -532,41 +725,46 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   }
 
   Widget _buildEmptyWidget() {
+    final hasActiveFilters = _selectedCategoryId != null ||
+        _selectedLanguage != null ||
+        _searchController.text.isNotEmpty;
+
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.tv_off_rounded, size: 56, color: Colors.white24),
-          const SizedBox(height: 16),
-          const Text(
-            'No channels found',
-            style: TextStyle(color: Colors.white54, fontSize: 16, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Try adjusting your filters',
-            style: TextStyle(color: Colors.white30, fontSize: 13),
-          ),
-          const SizedBox(height: 24),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _searchController.clear();
-                _selectedCategory = null;
-                _selectedLanguage = null;
-                _workingOnly = true;
-              });
-              context.read<ChannelCubit>().loadChannels(
-                isRefresh: true,
-                query: '',
-                workingOnly: true,
-                category: '',
-                language: '',
-              );
-            },
-            child: const Text('Clear Filters', style: TextStyle(color: Color(AppColors.primary))),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.tv_off_rounded, size: 56, color: Colors.white24),
+            const SizedBox(height: 16),
+            Text(
+              hasActiveFilters ? 'No channels match your filters' : 'No channels found',
+              style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _workingOnly
+                  ? 'Some channels may be offline or require a specific source.'
+                  : 'Try adjusting your filters.',
+              style: const TextStyle(color: Colors.white30, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            if (hasActiveFilters) ...[
+              const SizedBox(height: 24),
+              TextButton(
+                onPressed: _clearAllFilters,
+                child: const Text(
+                  'Clear Filters',
+                  style: TextStyle(color: Color(AppColors.primary)),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

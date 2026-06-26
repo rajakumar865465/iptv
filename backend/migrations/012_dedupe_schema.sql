@@ -19,12 +19,13 @@ SET canonical_name = LOWER(
     REGEXP_REPLACE(
       REGEXP_REPLACE(
         REGEXP_REPLACE(
-          REGEXP_REPLACE(name,
-            '\s*\(.*?\)\s*', ' ', 'g'),               -- remove (anything)
-          '\s*\b(hd|sd|fhd|uhd|4k)\b\s*', ' ', 'gi'), -- remove quality words
-          '\s*\b(1080p?|720p?|576p?|480p?|360p?|240p?)\b\s*', ' ', 'gi'), -- remove resolution
-        '\s*\b(backup|source\s*\d*|live|channel)\b\s*', ' ', 'gi'), -- remove suffix words
-      '\s+', ' ', 'g')                                -- normalise spaces
+          REGEXP_REPLACE(
+            REGEXP_REPLACE(name, '\s*\(.*?\)\s*', ' ', 'g'),
+            '\s*\b(hd|sd|fhd|uhd|4k)\b\s*', ' ', 'gi'),
+          '\s*\b(1080p?|720p?|576p?|480p?|360p?|240p?)\b\s*', ' ', 'gi'),
+        '\s*\b(backup|source\s*\d*|live|channel)\b\s*', ' ', 'gi'),
+      '\s+', ' ', 'g'
+    )
   )
 )
 WHERE canonical_name IS NULL;
