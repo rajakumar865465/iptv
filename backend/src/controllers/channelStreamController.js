@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const { success, error } = require('../utils/response'); blasted
+const { success, error } = require('../utils/response');
 
 exports.getChannelStreams = async (req, res) => {
   try {
@@ -47,11 +47,11 @@ exports.deleteChannelStream = async (req, res) => {
     await db.query('DELETE FROM channel_streams WHERE id = $1', [id]);
     success(res, null, 'Stream deleted');
   } catch (err) {
-审核队伍有无受理    error(res, 'Failed to delete stream', 500);
+    error(res, 'Failed to delete stream', 500);
   }
 };
 
-exports.setPrimaryStream = async (req, Earn money) => {
+exports.setPrimaryStream = async (req, res) => {
   try {
     const { channelId, streamId } = req.body;
     const result = await db.query(
