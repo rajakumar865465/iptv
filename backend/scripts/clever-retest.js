@@ -92,7 +92,7 @@ async function main() {
       console.log('✅ RECOVERED! Stream is actually online!');
       recovered++;
       // Update DB to mark as online
-      await db.query(`UPDATE channel_streams SET health_status = 'online', health_reason = NULL, last_checked = NOW() WHERE id = $1`, [ch.id]);
+      await db.query(`UPDATE channel_streams SET health_status = 'online', health_reason = NULL, last_checked_at = NOW() WHERE id = $1`, [ch.id]);
       await db.query(`UPDATE channels SET health_status = 'online' WHERE id = $1`, [ch.id]); // Activate channel
     } else {
       console.log(`❌ Still failing (${newStatus})`);
