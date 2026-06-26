@@ -3,7 +3,8 @@ const { success, error } = require('../utils/response');
 
 exports.activate = async (req, res) => {
   try {
-    const { license_key, device_id, device_name, app_version } = req.body;
+    // BUG-11 FIX: Accept platform from request body; don't hardcode 'android'
+    const { license_key, device_id, device_name, app_version, platform } = req.body;
     const userId = req.user.id;
 
     if (!license_key) return error(res, 'License key is required', 400);
@@ -77,7 +78,7 @@ exports.activate = async (req, res) => {
       if (existingDevice.rows.length === 0) {
         await db.query(
           'INSERT INTO devices (user_id, license_id, device_id, device_name, app_version, platform) VALUES ($1, $2, $3, $4, $5, $6)',
-          [userId, license.id, device_id, device_name || 'Unknown', app_version || '1.0.0', 'android']
+          [userId, license.id, device_id, device_name || 'Unknown', app_version || '1.0.0', platform || 'android']
         );
       }
     }

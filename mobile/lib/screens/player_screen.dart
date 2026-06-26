@@ -250,7 +250,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _player.stream.videoParams
           .where((p) => p.w != null && p.w! > 0)
           .first
-          .timeout(const Duration(seconds: 15), onTimeout: () => const VideoParams())
+          // PLAYBACK-02 FIX: Increased from 15s to 25s. On 2G/edge connections a
+          // legitimate HLS stream can take 20-25 seconds for the initial buffer fill.
+          .timeout(const Duration(seconds: 25), onTimeout: () => const VideoParams())
           .then((params) {
         if (mounted && params.w != null) {
           // Force HD/highest quality native track automatically to improve sharpness
@@ -279,9 +281,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       });
 
       // ── Safety timeout ────────────────────────────────────────────────
-      // If neither "playing=true" nor buffering events fire within 15 seconds
-      // the stream is genuinely dead. Fast failover (15s instead of 30s).
-      _bufferTimer = Timer(const Duration(seconds: 15), () {
+      // PLAYBACK-02 FIX: Increased from 15s to 25s to match videoParams timeout above.
+      // The buffer-stall timer (10s, only after stream starts playing) is unchanged.
+      _bufferTimer = Timer(const Duration(seconds: 25), () {
         if (mounted && _isLoading && !_hasError) {
           _handleStreamFailure('init_timeout');
         }
@@ -391,10 +393,19 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       }
 
       if (lowerQuality != null) {
+        final lowerLabel = lowerQuality['label'] as String? ?? 'lower quality';
         if (mounted) setState(() { _streamOverlayMessage = 'Auto-switching to lower quality...'; _isLoading = true; _hasError = false; });
         _selectedQuality = lowerQuality;
         _isRetryingStream = false;
         await _initializePlayer(lowerQuality['url'], lowerQuality['headers'] ?? _currentStreamMeta!['headers']);
+        // PLAYBACK-03: Inform user which quality they auto-switched to
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Auto-switched to $lowerLabel for smoother playback'),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
         return;
       }
 
@@ -1392,6 +1403,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (_selectedQuality != null && _selectedQuality!['url'] == quality['url']) return;
     
     final position = _player.state.position;
+    // PLAYBACK-03 FIX: capture the label before setState so we can show it in the snackbar
+    final qualityLabel = quality['label'] as String? ?? 'Unknown';
 
     setState(() {
       _selectedQuality = quality;
@@ -1400,6 +1413,17 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
     final headers = quality['headers'] ?? _currentStreamMeta?['headers'] ?? {};
     await _initializePlayer(quality['url'], headers, position);
+
+    // PLAYBACK-03: Brief toast so the user knows what quality they landed on
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Now playing at $qualityLabel'),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   // ──────────────────────── Channel Info ────────────────────────

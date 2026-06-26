@@ -190,7 +190,10 @@ exports.getChannels = async (req, res) => {
     if (workingOnly === 'true') {
       if (hasHealthStatus) {
         const { fragment, params: hParams, nextIndex } = buildHealthFilter(paramIndex);
-        conditions.push(`(${fragment} OR c.is_premium = true)`);
+        // FILTER-03 FIX: Premium channels are no longer exempted from the health filter.
+        // An offline premium channel shouldn't appear in "working only" mode — it will fail
+        // to play and frustrate users. The health filter now applies to all channels equally.
+        conditions.push(`(${fragment})`);
         params.push(...hParams);
         paramIndex = nextIndex;
       }
@@ -351,7 +354,7 @@ exports.searchChannels = async (req, res) => {
        LEFT JOIN categories cat ON c.category_id = cat.id
        WHERE c.status = 'active'
          AND c.status NOT IN ('merged','duplicate','inactive')
-         AND (c.name ILIKE $1 OR cat.name ILIKE $1 OR c.language ILIKE $1)
+         AND (c.name ILIKE $1 OR c.display_name ILIKE $1 OR cat.name ILIKE $1 OR c.language ILIKE $1)
        ORDER BY c.name ASC`,
       [`%${q}%`]
     );
@@ -924,10 +927,26 @@ exports.reportPlaybackResult = async (req, res) => {
       // Also update channel_streams if url provided
       const hasStreamsTable = await checkChannelStreamsTable();
       if (hasStreamsTable && stream_url) {
-        await db.query(
-          `UPDATE channel_streams SET health_status = $1, last_checked_at = NOW() WHERE channel_id = $2 AND stream_url = $3`,
-          [newHealthStatus, id, stream_url]
-        );
+        if (result === 'played') {
+          // DB-06 FIX: Increment health_score on success so streams can recover from
+          // a previously unstable state instead of staying deprioritized forever.
+          await db.query(
+            `UPDATE channel_streams
+             SET health_status = $1,
+                 health_score = LEAST(100, health_score + 10),
+                 success_count = success_count + 1,
+                 last_success_at = NOW(),
+                 last_checked_at = NOW()
+             WHERE channel_id = $2 AND stream_url = $3`,
+            [newHealthStatus, id, stream_url]
+          );
+        } else {
+          await db.query(
+            `UPDATE channel_streams SET health_status = $1, last_checked_at = NOW()
+             WHERE channel_id = $2 AND stream_url = $3`,
+            [newHealthStatus, id, stream_url]
+          );
+        }
       }
 
       console.log(`[reportPlaybackResult] channel=${id} result=${result} → health_status=${newHealthStatus}`);

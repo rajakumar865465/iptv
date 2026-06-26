@@ -146,9 +146,15 @@ exports.proxySegment = async (req, res) => {
     let proxyRes;
     try {
       proxyRes = await makeProxyRequest(targetUrl, { 'User-Agent': user_agent || 'ExoPlayer', 'Referer': referer || '' });
-    } catch(e) {
-      // Retry once on failure
-      proxyRes = await makeProxyRequest(targetUrl, { 'User-Agent': user_agent || 'ExoPlayer', 'Referer': referer || '' });
+    } catch (e) {
+      // PLAYBACK-05 FIX: Wrap the retry in its own try-catch.
+      // If both attempts fail, return a clean 502 so media_kit can trigger
+      // _handleStreamFailure instead of stalling silently on a no-body 500.
+      try {
+        proxyRes = await makeProxyRequest(targetUrl, { 'User-Agent': user_agent || 'ExoPlayer', 'Referer': referer || '' });
+      } catch (e2) {
+        return res.status(502).send('Upstream segment unavailable');
+      }
     }
 
     if (proxyRes.statusCode !== 200) {

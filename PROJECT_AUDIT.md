@@ -520,35 +520,40 @@ Add bulk enable/disable/delete for channels in the admin dashboard. Currently ea
 
 ### Fix immediately (will cause crashes or security issues):
 
-- [ ] **BUG-01** — Remove ` blasted` from `channelStreamController.js` line 2
-- [ ] **BUG-02** — Fix Chinese chars and `Earn money` in `channelStreamController.js`
-- [ ] **BUG-03** — Fix `async?` → `async` in `adminUserController.js`
-- [ ] **BUG-04** — Fix `admin??????_audit_logs` → `admin_audit_logs` in `logController.js`
-- [ ] **BUG-05** — Rewrite clean version of `014_add_dashboard_tables.sql`
-- [ ] **BUG-10** — Fix `decoded.id` → `decoded.userId` in `streamController.js` (premium transcode broken for ALL users)
-- [ ] **BUG-08** — Parameterize the `days` interval in `analyticsController.js`
+- [x] **BUG-01** — Remove ` blasted` from `channelStreamController.js` line 2
+- [x] **BUG-02** — Fix Chinese chars and `Earn money` in `channelStreamController.js`
+- [x] **BUG-03** — Fix `async?` → `async` in `adminUserController.js`
+- [x] **BUG-04** — Fix `admin??????_audit_logs` → `admin_audit_logs` in `logController.js`
+- [x] **BUG-05** — Rewrite clean version of `014_add_dashboard_tables.sql`
+- [x] **BUG-10** — Fix `decoded.id` → `decoded.userId` in `streamController.js` (premium transcode broken for ALL users)
+- [x] **BUG-08** — Parameterize the `days` interval in `analyticsController.js` (whitelist + `INTERVAL '1 day' * $1`)
 
 ### Fix soon (bad UX or data issues):
 
-- [ ] **BUG-06** — Make Stream Scanner actually probe streams
+- [x] **BUG-06** — Stream Scanner now actually probes streams via HTTP HEAD with concurrency=8, updates health_status per stream
 - [ ] **BUG-07** — Hide Forgot Password button in Flutter until feature is implemented
-- [ ] **BUG-11** — Accept `platform` from request body in licenseController
-- [ ] **BUG-12** — Return pagination metadata from `getChannelsAdmin`
-- [ ] **DB-06** — Reset `health_score` on successful playback
-- [ ] **DB-09** — Add UNIQUE constraint on `devices(user_id, device_id)`
+- [x] **BUG-11** — Accept `platform` from request body in licenseController
+- [x] **BUG-12** — Return pagination metadata from `getChannelsAdmin`
+- [x] **DB-06** — Reset `health_score` (+10) on successful playback in `reportPlaybackResult`
+- [x] **DB-09** — Add UNIQUE constraint on `devices(user_id, device_id)` — migration 015
 
 ### Improve soon (performance & reliability):
 
-- [ ] **PLAYBACK-04** — Add concurrency limit to FFmpeg transcode sessions
-- [ ] **PLAYBACK-02** — Increase initial stream timeout to 25 seconds
-- [ ] **DB-05** — Add index on `watch_history(watched_at)`
+- [x] **PLAYBACK-04** — Concurrency limit (`MAX_TRANSCODE_SESSIONS`, default 4) added to `streamController.js`
+- [x] **PLAYBACK-02** — Initial stream timeout increased to 25 seconds (both `videoParams.timeout` and `_bufferTimer`)
+- [x] **PLAYBACK-03** — Snackbar toast after auto-quality-switch ("Now playing at 480p" / "Auto-switched to 360p")
+- [x] **PLAYBACK-05** — Proxy segment retry now catches second failure and returns clean 502
+- [x] **PLAYBACK-06** — Logo static files now served with `Cache-Control: max-age=86400`
+- [x] **DB-05** — Index on `watch_history(watched_at DESC)` added — migration 015
 - [ ] **MISSING-07** — Write watch history from mobile player screen
-- [ ] **ARCH-05** — Auto-log errors to `api_error_logs` via middleware
-- [ ] **FILTER-03** — Apply health filter to premium channels too in workingOnly mode
+- [x] **ARCH-05** — Auto-log 4xx/5xx to `api_error_logs` via `errorLoggerMiddleware` in `app.js`
+- [x] **FILTER-03** — Health filter now applies to premium channels too in workingOnly mode
+- [x] **FILTER-04** — `searchChannels` now includes `display_name` in search fields
+- [x] **DB-02** — Pool max made configurable via `DB_POOL_MAX` env var (default 20 prod / 10 dev)
 
 ### Plan for next sprint:
 
-- [ ] **MISSING-01** — Real stream health scanning from admin UI
+- [ ] **MISSING-01** — ✅ Done (scanner now probes — but could add scheduled auto-scan cron)
 - [ ] **MISSING-02** — Razorpay payment gateway integration
 - [ ] **MISSING-03** — FCM push notifications
 - [ ] **MISSING-04** — Admin audit logging wired to sensitive actions

@@ -9,7 +9,8 @@ const poolConfig = process.env.DATABASE_URL
       ssl: { rejectUnauthorized: false },
       connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 30000,
-      max: 10,
+      // DB-02 FIX: Increased to 20 for production load; keep at 10 for dev/free-tier.
+      max: parseInt(process.env.DB_POOL_MAX || '20', 10),
     }
   : {
       host: process.env.DB_HOST || 'localhost',
@@ -20,7 +21,7 @@ const poolConfig = process.env.DATABASE_URL
       ssl: process.env.PGSSLMODE === 'require' ? { rejectUnauthorized: false } : false,
       connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 30000,
-      max: 10,
+      max: parseInt(process.env.DB_POOL_MAX || '10', 10),
     };
 
 const pool = new Pool(poolConfig);

@@ -117,10 +117,45 @@ async function initDatabase() {
   }
 }
 
-const pathc = require('path');
+// ARCH-05 FIX: Auto-log 4xx/5xx responses to api_error_logs table.
+// This middleware runs AFTER the route handler sends a response, capturing status code and
+// error details without intercepting normal flow.
+const errorLoggerMiddleware = async (req, res, next) => {
+  const originalJson = res.json.bind(res);
+  res.json = function (body) {
+    // Log any error response (4xx or 5xx) to the DB
+    if (res.statusCode >= 400) {
+      const userId = req.user?.id || null;
+      const errorMessage = (body && typeof body === 'object' && body.message) ? body.message : JSON.stringify(body).slice(0, 500);
+      const requestBody = req.body && Object.keys(req.body).length > 0
+        ? JSON.stringify(req.body).slice(0, 2000)
+        : null;
 
-// Static serving for cached logos
-app.use('/logos', express.static(pathc.join(__dirname, '../public/logos')));
+      // Fire-and-forget — don't block the response
+      db.query(
+        `INSERT INTO api_error_logs (method, path, status_code, error_message, request_body, user_id)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
+        [req.method, req.path.slice(0, 255), res.statusCode, errorMessage, requestBody, userId]
+      ).catch(() => {}); // silently ignore if table doesn't exist yet
+    }
+    return originalJson(body);
+  };
+  next();
+};
+
+
+
+// Static serving for cached logos — PLAYBACK-06 FIX: add long-lived Cache-Control header
+// so Flutter clients don't re-fetch logos on every app launch.
+app.use('/logos', express.static(pathc.join(__dirname, '../public/logos'), {
+  maxAge: '1d',
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+  },
+}));
+
+// ARCH-05: Error logging middleware — registers before routes so all 4xx/5xx are captured
+app.use(errorLoggerMiddleware);
 
 // API Routes
 const streamRoutes = require('./routes/streamRoutes');

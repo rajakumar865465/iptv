@@ -8,6 +8,10 @@ ffmpeg.setFfmpegPath(ffmpegStatic);
 // Keep track of active ffmpeg processes to prevent memory leaks
 const activeTranscodes = new Map();
 
+// PLAYBACK-04 FIX: Limit concurrent transcode sessions to protect server CPU.
+// Each FFmpeg process is CPU-intensive; 4 simultaneous sessions saturate a t2.small.
+const MAX_TRANSCODE_SESSIONS = parseInt(process.env.MAX_TRANSCODE_SESSIONS || '4', 10);
+
 exports.transcodeStream = async (req, res) => {
   const { channelId } = req.params;
   const { quality, token } = req.query;
@@ -20,11 +24,12 @@ exports.transcodeStream = async (req, res) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Check if user has an active premium license (duration > 1)
+    // BUG-10 FIX: JWT payload uses `userId`, not `id`. Using decoded.id was always undefined,
+    // causing every premium user to get a 403. Use decoded.userId instead.
     const licenseResult = await db.query(
       `SELECT * FROM licenses 
        WHERE user_id = $1 AND status = 'active' AND expires_at > NOW()`,
-      [decoded.id]
+      [decoded.userId]
     );
 
     if (licenseResult.rows.length === 0) {
@@ -37,6 +42,11 @@ exports.transcodeStream = async (req, res) => {
     }
 
     // 2. Fetch the channel stream URL
+    // PLAYBACK-04: Reject if too many active transcode sessions
+    if (activeTranscodes.size >= MAX_TRANSCODE_SESSIONS) {
+      return res.status(503).send('Server busy: too many active streams. Please try again shortly.');
+    }
+
     const channelResult = await db.query(
       'SELECT stream_url FROM channels WHERE id = $1',
       [channelId]
@@ -57,7 +67,7 @@ exports.transcodeStream = async (req, res) => {
     }
 
     // Generate a unique ID for this transcode session
-    const sessionId = `${decoded.id}_${channelId}_${Date.now()}`;
+    const sessionId = `${decoded.userId}_${channelId}_${Date.now()}`;
 
     // 4. Set Headers for streaming MPEG-TS
     res.setHeader('Content-Type', 'video/MP2T');
@@ -65,7 +75,7 @@ exports.transcodeStream = async (req, res) => {
     res.setHeader('Transfer-Encoding', 'chunked');
 
     // 5. Spawn FFmpeg Process
-    console.log(`[Stream] Starting transcode for User ${decoded.id} on Channel ${channelId} at ${quality}`);
+    console.log(`[Stream] Starting transcode for User ${decoded.userId} on Channel ${channelId} at ${quality}`);
     
     const command = ffmpeg(streamUrl)
       // Input options

@@ -166,19 +166,27 @@ exports.createChannel = async (req, res) => {
 
 exports.getChannelsAdmin = async (req, res) => {
   try {
-    // Add basic pagination to avoid loading all channels at once
+    // BUG-12 FIX: Return pagination metadata so the admin UI can show totals and page controls.
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
     const offset = (page - 1) * limit;
 
-    const countResult = await db.query('SELECT COUNT(*) FROM channels');
+    const [countResult, dataResult] = await Promise.all([
+      db.query('SELECT COUNT(*) FROM channels'),
+      db.query('SELECT * FROM channels ORDER BY sort_order ASC LIMIT $1 OFFSET $2', [limit, offset]),
+    ]);
+
     const total = parseInt(countResult.rows[0].count, 10);
 
-    const result = await db.query(
-      'SELECT * FROM channels ORDER BY sort_order ASC LIMIT $1 OFFSET $2',
-      [limit, offset]
-    );
-    success(res, result.rows, 'Success', 200);
+    success(res, {
+      data: dataResult.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        hasMore: offset + dataResult.rows.length < total,
+      },
+    }, 'Success', 200);
   } catch (err) {
     error(res, 'Failed to fetch channels', 500);
   }
