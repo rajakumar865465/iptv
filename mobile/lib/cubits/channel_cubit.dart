@@ -79,6 +79,10 @@ class ChannelCubit extends Cubit<ChannelState> {
       _hasMore = true;
       _totalCount = 0;
       _allChannels.clear();
+      if (workingOnly != null && _workingOnly != workingOnly) {
+        _allCategories.clear();
+        _allLanguages.clear();
+      }
       emit(ChannelLoading());
     } else {
       if (!_hasMore) return;

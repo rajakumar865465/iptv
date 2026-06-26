@@ -402,7 +402,7 @@ exports.getCategories = async (req, res) => {
       channelFilter += ` AND ${healthPart}`;
       params.push(...WORKING_STATUSES);
       paramIndex += WORKING_STATUSES.length;
-    } else if (hasHealthStatus) {
+    } else if (workingOnly !== 'false' && req.query.showOffline !== 'true' && hasHealthStatus) {
       const deadList = DEAD_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
       channelFilter += ` AND (ch.health_status IS NULL OR ch.health_status NOT IN (${deadList}))`;
       params.push(...DEAD_STATUSES);
@@ -445,7 +445,7 @@ exports.getLanguages = async (req, res) => {
       channelFilter += ` AND ${healthPart}`;
       params.push(...WORKING_STATUSES);
       paramIndex += WORKING_STATUSES.length;
-    } else if (hasHealthStatus) {
+    } else if (workingOnly !== 'false' && req.query.showOffline !== 'true' && hasHealthStatus) {
       const deadList = DEAD_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
       channelFilter += ` AND (c.health_status IS NULL OR c.health_status NOT IN (${deadList}))`;
       params.push(...DEAD_STATUSES);
