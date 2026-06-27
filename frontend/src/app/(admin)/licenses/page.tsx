@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getLicenses, getPlans, createLicense, extendLicense, suspendLicense, revokeLicense } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, KeyRound, X, Copy, Check, Search, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, KeyRound, X, Copy, Check, Search, RefreshCw, ChevronLeft, ChevronRight, Download, AlertTriangle } from 'lucide-react';
 
 interface License {
   id: string; license_key: string; plan_name: string; user_email: string;
@@ -25,8 +25,37 @@ function CopyKey({ k }: { k: string }) {
   return (
     <button onClick={copy} className="inline-flex items-center gap-1.5 font-mono text-xs text-slate-300 hover:text-cyan-400 transition-colors">
       {k}
-      {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-slate-500" />}
+      {copied ? <Check className="w-3 h-3 text-emerald-400 shrink-0" /> : <Copy className="w-3 h-3 text-slate-500 shrink-0" />}
     </button>
+  );
+}
+
+function ConfirmModal({ 
+  open, title, message, confirmText, confirmVariant, onConfirm, onCancel 
+}: { 
+  open: boolean; title: string; message: string; confirmText: string; confirmVariant: 'rose'|'amber'|'cyan'; 
+  onConfirm: () => void; onCancel: () => void;
+}) {
+  if (!open) return null;
+  const btnCls = {
+    rose:   'bg-rose-500 hover:bg-rose-600 text-white',
+    amber:  'bg-amber-500 hover:bg-amber-600 text-white',
+    cyan:   'bg-cyan-500 hover:bg-cyan-600 text-white',
+  };
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50">
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-sm shadow-2xl">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 rounded-xl bg-slate-800 border border-slate-700"><AlertTriangle className="w-5 h-5 text-amber-400" /></div>
+          <h3 className="text-lg font-bold text-slate-100">{title}</h3>
+        </div>
+        <p className="text-slate-400 text-sm mb-6">{message}</p>
+        <div className="flex gap-3">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-200 font-semibold hover:bg-slate-700 border border-slate-700">Cancel</button>
+          <button onClick={onConfirm} className={`flex-1 py-2.5 rounded-xl font-semibold ${btnCls[confirmVariant]}`}>{confirmText}</button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -41,7 +70,13 @@ export default function LicensesPage() {
   const [form, setForm] = useState({ plan_id: '', duration_days: 30, max_devices: 1 });
   const [saving, setSaving] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
-  const [page, setPage] = useState(1); const PAGE = 50;
+  const [page, setPage] = useState(1); const PAGE = 20;
+  
+  // Confirmation modal state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState<{ title: string; message: string; confirmText: string; confirmVariant: 'rose'|'amber'|'cyan'; action: () => void }>({
+    title: '', message: '', confirmText: '', confirmVariant: 'rose', action: () => {}
+  });
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -65,7 +100,25 @@ export default function LicensesPage() {
     finally { setSaving(false); }
   };
 
-  const act = async (fn: Promise<any>, id: string) => {
+  const exportCSV = () => {
+    const headers = ['Key', 'Plan', 'User Email', 'Status', 'Days', 'Devices', 'Expires', 'Created'];
+    const rows = filtered.map(l => [
+      l.license_key, l.plan_name, l.user_email, l.status, l.duration_days, l.max_devices, 
+      l.expires_at ? new Date(l.expires_at).toISOString().split('T')[0] : '', 
+      l.created_at ? new Date(l.created_at).toISOString().split('T')[0] : ''
+    ]);
+    const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `licenses-${new Date().toISOString().split('T')[0]}.csv`; a.click();
+  };
+
+  const requestConfirm = (title: string, message: string, confirmText: string, confirmVariant: 'rose'|'amber'|'cyan', action: () => void) => {
+    setConfirmConfig({ title, message, confirmText, confirmVariant, action });
+    setConfirmOpen(true);
+  };
+
+  const act = (fn: Promise<any>, id: string) => {
     setActionId(id); try { await fn; fetchAll(); } catch { alert('Action failed'); } finally { setActionId(null); }
   };
 
@@ -87,7 +140,12 @@ export default function LicensesPage() {
           <p className="text-slate-400 mt-1">{licenses.length} total — {licenses.filter(l=>l.status==='active').length} active</p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={fetchAll} className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200"><RefreshCw className="w-4 h-4" /></button>
+          <button onClick={exportCSV} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors text-sm" title="Export CSV">
+            <Download className="w-4 h-4" /><span className="hidden sm:inline">Export</span>
+          </button>
+          <button onClick={fetchAll} className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200" title="Refresh">
+            <RefreshCw className="w-4 h-4" />
+          </button>
           <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-white font-semibold hover:from-emerald-400 hover:to-cyan-400 shadow-lg shadow-emerald-500/20 transition-all">
             <Plus className="w-4 h-4" />Generate
           </button>
@@ -125,6 +183,13 @@ export default function LicensesPage() {
         )}
       </AnimatePresence>
 
+      <ConfirmModal 
+        open={confirmOpen} 
+        {...confirmConfig} 
+        onConfirm={() => { setConfirmOpen(false); confirmConfig.action(); }} 
+        onCancel={() => setConfirmOpen(false)} 
+      />
+
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" /><input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search key, email, plan…" className="w-full pl-9 pr-4 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50" /></div>
         <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-slate-300 text-sm focus:outline-none">
@@ -157,9 +222,9 @@ export default function LicensesPage() {
                       <td className="px-6 py-3 text-slate-500 text-xs">{l.expires_at ? new Date(l.expires_at).toLocaleDateString() : '—'}</td>
                       <td className="px-6 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {['active','unused'].includes(l.status) && <button disabled={actionId===l.id} onClick={() => act(extendLicense(l.id, 30), l.id)} className="px-2 py-1 text-xs rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/10 border border-slate-700 disabled:opacity-50">+30d</button>}
-                          {l.status === 'active' && <button disabled={actionId===l.id} onClick={() => act(suspendLicense(l.id), l.id)} className="px-2 py-1 text-xs rounded-lg bg-slate-800 text-amber-400 hover:bg-amber-500/10 border border-slate-700 disabled:opacity-50">Suspend</button>}
-                          {!['revoked','expired'].includes(l.status) && <button disabled={actionId===l.id} onClick={() => { if(confirm('Revoke this license?')) act(revokeLicense(l.id), l.id); }} className="px-2 py-1 text-xs rounded-lg bg-slate-800 text-rose-400 hover:bg-rose-500/10 border border-slate-700 disabled:opacity-50">Revoke</button>}
+                          {['active','unused'].includes(l.status) && <button disabled={actionId===l.id} onClick={() => requestConfirm('Extend License', `Add 30 days to this license?`, 'Extend', 'cyan', () => act(extendLicense(l.id, 30), l.id))} className="px-2 py-1 text-xs rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/10 border border-slate-700 disabled:opacity-50">+30d</button>}
+                          {l.status === 'active' && <button disabled={actionId===l.id} onClick={() => requestConfirm('Suspend License', 'This will temporarily disable the license. You can reactivate it later.', 'Suspend', 'amber', () => act(suspendLicense(l.id), l.id))} className="px-2 py-1 text-xs rounded-lg bg-slate-800 text-amber-400 hover:bg-amber-500/10 border border-slate-700 disabled:opacity-50">Suspend</button>}
+                          {!['revoked','expired'].includes(l.status) && <button disabled={actionId===l.id} onClick={() => requestConfirm('Revoke License', 'This will permanently revoke the license. The user will lose access immediately. This cannot be undone.', 'Revoke', 'rose', () => act(revokeLicense(l.id), l.id))} className="px-2 py-1 text-xs rounded-lg bg-slate-800 text-rose-400 hover:bg-rose-500/10 border border-slate-700 disabled:opacity-50">Revoke</button>}
                         </div>
                       </td>
                     </tr>

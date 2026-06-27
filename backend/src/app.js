@@ -163,9 +163,11 @@ app.use(errorLoggerMiddleware);
 
 // API Routes
 const streamRoutes = require('./routes/streamRoutes');
+const homeRoutes = require('./routes/home');
 app.use('/api/auth', authRoutes);
 app.use('/api/app', appConfigRoutes);
 app.use('/api/license', licenseRoutes);
+app.use('/api/home', homeRoutes);       // DTH-style structured home API
 app.use('/api/channels', channelRoutes);
 app.use('/api/categories', categoryRoutes); // Fix #31: Removed duplicate direct alias below
 app.use('/api/proxy', proxyRoutes);

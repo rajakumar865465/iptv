@@ -33,4 +33,31 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
+/**
+ * optionalAuth — like authMiddleware but does NOT reject unauthenticated requests.
+ * Sets req.user if a valid token is present, otherwise leaves req.user as undefined.
+ * Used for endpoints that work for both logged-in and anonymous users.
+ */
+const optionalAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next(); // No token — anonymous request, continue
+    }
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    const result = await db.query(
+      'SELECT id, full_name, email, mobile, status, role FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+    if (result.rows.length > 0 && result.rows[0].status !== 'blocked') {
+      req.user = result.rows[0];
+    }
+  } catch (_) {
+    // Invalid token — treat as anonymous
+  }
+  next();
+};
+
 module.exports = authMiddleware;
+module.exports.optionalAuth = optionalAuth;

@@ -144,7 +144,7 @@ function buildHealthFilter(paramIndex) {
 }
 
 // getChannels — main public API
-// Supports: categoryId, language, workingOnly, search, page, limit, premium, featured
+// Supports: categoryId, language, workingOnly, search, page, limit, premium, featured, sort
 exports.getChannels = async (req, res) => {
   try {
     const {
@@ -160,6 +160,7 @@ exports.getChannels = async (req, res) => {
       showOffline,
       workingOnly,
       premium,        // 'true' | 'false' | 'all'
+      sort,           // recommended | popular | premium | az | recent | quality | stable
     } = req.query;
 
     const usePagination = page !== undefined;
@@ -244,7 +245,12 @@ exports.getChannels = async (req, res) => {
     // premium='all' or omitted: no filter
 
     if (featured === 'true' || popular === 'true') {
-      conditions.push(`c.is_featured = true`);
+      if (featured === 'true') {
+        conditions.push(`c.is_featured = true`);
+      } else {
+        // popular: is_popular OR featured OR has any popularity_score
+        conditions.push(`(c.is_popular = true OR c.is_featured = true OR COALESCE(c.popularity_score, 0) > 0)`);
+      }
     }
 
     // Search — across name, display_name, category name, language
@@ -258,7 +264,40 @@ exports.getChannels = async (req, res) => {
 
     const joinClause = `LEFT JOIN categories cat ON c.category_id = cat.id`;
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
-    const orderClause = `ORDER BY c.is_featured DESC NULLS LAST, c.health_score DESC NULLS LAST, c.sort_order ASC, c.name ASC`;
+
+    // Build ORDER BY based on ?sort= param (default: recommended)
+    let orderClause;
+    switch (sort) {
+      case 'popular':
+        orderClause = `ORDER BY COALESCE(c.popularity_score,0) DESC, COALESCE(c.watch_count,0) DESC, c.name ASC`;
+        break;
+      case 'premium':
+        orderClause = `ORDER BY CASE WHEN c.is_premium=true THEN 0 ELSE 1 END, COALESCE(c.popularity_score,0) DESC, c.name ASC`;
+        break;
+      case 'az':
+        orderClause = `ORDER BY c.name ASC`;
+        break;
+      case 'recent':
+        orderClause = `ORDER BY c.created_at DESC NULLS LAST, c.name ASC`;
+        break;
+      case 'quality':
+        orderClause = `ORDER BY CASE WHEN LOWER(c.quality) IN ('4k','uhd','2160p') THEN 0 WHEN LOWER(c.quality) IN ('fhd','1080p') THEN 1 WHEN LOWER(c.quality) IN ('hd','720p') THEN 2 WHEN LOWER(c.quality) IN ('sd','480p','576p') THEN 3 ELSE 4 END, c.name ASC`;
+        break;
+      case 'stable':
+        orderClause = `ORDER BY COALESCE(c.health_score,0) DESC, COALESCE(c.popularity_score,0) DESC, c.name ASC`;
+        break;
+      case 'recommended':
+      default:
+        // DTH recommended: premium first → featured → popularity → watch count → health → sort_order → alpha
+        orderClause = `ORDER BY
+          CASE WHEN c.is_premium=true THEN 0 ELSE 1 END,
+          CASE WHEN c.is_featured=true THEN 0 ELSE 1 END,
+          COALESCE(c.popularity_score,0) DESC NULLS LAST,
+          COALESCE(c.watch_count,0) DESC NULLS LAST,
+          COALESCE(c.health_score,0) DESC NULLS LAST,
+          COALESCE(c.sort_order,999) ASC NULLS LAST,
+          c.name ASC`;
+    }
 
     if (usePagination) {
       const offset = (pageNum - 1) * limitNum;
@@ -296,6 +335,7 @@ exports.getChannels = async (req, res) => {
           workingOnly: workingOnly === 'true',
           premium: premium || 'all',
           search: search || null,
+          sort: sort || 'recommended',
         },
       });
     }
@@ -887,11 +927,11 @@ exports.getChannelPlayback = async (req, res) => {
 };
 
 // reportPlaybackResult — called by Flutter player when a stream plays (possibly after retry)
-// POST /api/channels/:id/playback-result  { result, status, stream_url, buffer_seconds }
+// POST /api/channels/:id/playback-result  { result, status, stream_url, buffer_seconds, user_id }
 exports.reportPlaybackResult = async (req, res) => {
   try {
     const { id } = req.params;
-    const { result, status, stream_url, buffer_seconds } = req.body;
+    const { result, status, stream_url, buffer_seconds, user_id } = req.body;
 
     // Accepted results: 'played', 'played_after_retry', 'failed'
     const validResults = ['played', 'played_after_retry', 'failed'];
@@ -950,6 +990,28 @@ exports.reportPlaybackResult = async (req, res) => {
       }
 
       console.log(`[reportPlaybackResult] channel=${id} result=${result} → health_status=${newHealthStatus}`);
+    }
+
+    // If play was successful, update watch_count and record watch history
+    if (result === 'played' || result === 'played_after_retry') {
+      // Increment watch_count and update popularity_score (fire-and-forget)
+      db.query(
+        `UPDATE channels SET
+           watch_count = COALESCE(watch_count, 0) + 1,
+           popularity_score = COALESCE(popularity_score, 0) + 3
+         WHERE id = $1`,
+        [id]
+      ).catch(() => {});
+
+      // Record in watch_history if user is identified (user_id from request body)
+      const uid = user_id || req.user?.id || null;
+      if (uid) {
+        db.query(
+          `INSERT INTO watch_history (user_id, channel_id, watched_at, watch_duration)
+           VALUES ($1, $2, NOW(), $3)`,
+          [uid, id, buffer_seconds || 0]
+        ).catch(() => {});
+      }
     }
 
     success(res, { success: true, health_status: newHealthStatus });

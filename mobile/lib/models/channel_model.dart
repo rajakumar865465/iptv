@@ -9,10 +9,15 @@ class ChannelModel {
   final String? language;
   final String? quality;
   final String status;
-  final String? healthStatus;   // online | unstable | offline | unknown | null
+  final String? healthStatus; // online | unstable | offline | unknown | null
   final bool isFeatured;
   final bool isPremium;
+  final bool isPopular;
   final int sortOrder;
+  final int popularityScore;
+  final int watchCount;
+  final int favoriteCount;
+  final bool showOnHome;
   final String? referrer;
   final String? userAgent;
   final String? country;
@@ -34,7 +39,12 @@ class ChannelModel {
     this.healthStatus,
     this.isFeatured = false,
     this.isPremium = false,
+    this.isPopular = false,
     this.sortOrder = 0,
+    this.popularityScore = 0,
+    this.watchCount = 0,
+    this.favoriteCount = 0,
+    this.showOnHome = true,
     this.referrer,
     this.userAgent,
     this.country,
@@ -55,12 +65,38 @@ class ChannelModel {
     return true;
   }
 
+  /// Quality display label — normalised short form
+  String get qualityLabel {
+    final q = (quality ?? '').toLowerCase();
+    if (q.contains('4k') || q.contains('uhd') || q.contains('2160')) return '4K';
+    if (q.contains('fhd') || q.contains('1080')) return 'FHD';
+    if (q.contains('hd') || q.contains('720')) return 'HD';
+    if (q.contains('sd') || q.contains('480') || q.contains('576')) return 'SD';
+    if (q.contains('360')) return '360p';
+    if (q.isEmpty) return 'SD';
+    return quality!.toUpperCase();
+  }
+
   factory ChannelModel.fromJson(Map<String, dynamic> json) {
     String? parseString(dynamic value) {
       if (value == null) return null;
       final str = value.toString().trim();
       if (str.toLowerCase() == 'unknown') return null;
       return str.isEmpty ? null : str;
+    }
+
+    int parseInt(dynamic value, [int fallback = 0]) {
+      if (value == null) return fallback;
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      return int.tryParse(value.toString()) ?? fallback;
+    }
+
+    bool parseBool(dynamic value, [bool fallback = false]) {
+      if (value == null) return fallback;
+      if (value is bool) return value;
+      final s = value.toString().toLowerCase();
+      return s == 'true' || s == '1';
     }
 
     return ChannelModel(
@@ -75,9 +111,14 @@ class ChannelModel {
       quality: parseString(json['quality']),
       status: json['status'] ?? 'active',
       healthStatus: parseString(json['health_status']),
-      isFeatured: json['is_featured'] ?? false,
-      isPremium: json['is_premium'] ?? false,
-      sortOrder: json['sort_order'] ?? 0,
+      isFeatured: parseBool(json['is_featured']),
+      isPremium: parseBool(json['is_premium']),
+      isPopular: parseBool(json['is_popular']),
+      sortOrder: parseInt(json['sort_order']),
+      popularityScore: parseInt(json['popularity_score']),
+      watchCount: parseInt(json['watch_count']),
+      favoriteCount: parseInt(json['favorite_count']),
+      showOnHome: parseBool(json['show_on_home'], true),
       referrer: json['referrer'],
       userAgent: json['user_agent'],
       country: parseString(json['country']),
@@ -127,6 +168,37 @@ class LanguageModel {
     return LanguageModel(
       name: json['name'] ?? '',
       channelCount: json['channel_count'] ?? 0,
+    );
+  }
+}
+
+/// A category section for the Home screen, as returned by /api/home
+class HomeCategorySection {
+  final int id;
+  final String name;
+  final String? iconUrl;
+  final int sortOrder;
+  final int channelCount;
+  final List<ChannelModel> channels;
+
+  const HomeCategorySection({
+    required this.id,
+    required this.name,
+    this.iconUrl,
+    this.sortOrder = 0,
+    this.channelCount = 0,
+    required this.channels,
+  });
+
+  factory HomeCategorySection.fromJson(Map<String, dynamic> json) {
+    final rawChannels = (json['channels'] as List? ?? []);
+    return HomeCategorySection(
+      id: json['id'],
+      name: json['name'] ?? '',
+      iconUrl: json['icon_url'],
+      sortOrder: json['sort_order'] ?? 0,
+      channelCount: json['channel_count'] ?? rawChannels.length,
+      channels: rawChannels.map((c) => ChannelModel.fromJson(c)).toList(),
     );
   }
 }

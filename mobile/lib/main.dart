@@ -4,6 +4,7 @@ import 'package:media_kit/media_kit.dart';
 import 'cubits/auth_cubit.dart';
 import 'cubits/license_cubit.dart';
 import 'cubits/channel_cubit.dart';
+import 'cubits/home_cubit.dart';
 import 'cubits/app_config_cubit.dart';
 import 'cubits/favorite_cubit.dart';
 import 'screens/splash_screen.dart';
@@ -26,6 +27,7 @@ class MyApp extends StatelessWidget {
         BlocProvider(create: (context) => AuthCubit()),
         BlocProvider(create: (context) => LicenseCubit()),
         BlocProvider(create: (context) => ChannelCubit()),
+        BlocProvider(create: (context) => HomeCubit()),
         BlocProvider(create: (context) => AppConfigCubit()),
         BlocProvider(create: (context) => FavoriteCubit()),
       ],

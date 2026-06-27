@@ -55,10 +55,19 @@ exports.addFavorite = async (req, res) => {
     if (channelResult.rows.length === 0) {
       return error(res, 'Channel not found', 404);
     }
-    await db.query(
-      'INSERT INTO favorites (user_id, channel_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+    const result = await db.query(
+      'INSERT INTO favorites (user_id, channel_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING id',
       [req.user.id, channelId]
     );
+    // If a row was inserted (not a duplicate), increment favorite_count
+    if (result.rows.length > 0) {
+      db.query(
+        `UPDATE channels SET favorite_count = COALESCE(favorite_count, 0) + 1,
+           popularity_score = COALESCE(popularity_score, 0) + 5
+         WHERE id = $1`,
+        [channelId]
+      ).catch(() => {}); // fire-and-forget, don't fail the request
+    }
     success(res, null, 'Added to favorites', 201);
   } catch (err) {
     console.error('addFavorite error:', err.message);
@@ -69,10 +78,20 @@ exports.addFavorite = async (req, res) => {
 exports.removeFavorite = async (req, res) => {
   try {
     const { channelId } = req.params;
-    await db.query(
-      'DELETE FROM favorites WHERE user_id = $1 AND channel_id = $2',
+    const result = await db.query(
+      'DELETE FROM favorites WHERE user_id = $1 AND channel_id = $2 RETURNING id',
       [req.user.id, channelId]
     );
+    // Decrement favorite_count only if a row was actually deleted
+    if (result.rows.length > 0) {
+      db.query(
+        `UPDATE channels SET
+           favorite_count = GREATEST(0, COALESCE(favorite_count, 0) - 1),
+           popularity_score = GREATEST(0, COALESCE(popularity_score, 0) - 5)
+         WHERE id = $1`,
+        [channelId]
+      ).catch(() => {});
+    }
     success(res, null, 'Removed from favorites');
   } catch (err) {
     error(res, 'Failed to remove favorite', 500);

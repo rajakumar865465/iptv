@@ -1,0 +1,288 @@
+const db = require('../config/db');
+const { success, error } = require('../utils/response');
+
+// PLAYABLE health statuses (mirrors channelController)
+const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable'];
+const ALLOW_UNKNOWN = process.env.ALLOW_UNKNOWN_STREAMS === 'true';
+
+const formatChannelRow = (req, row) => {
+  if (!row) return row;
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const baseUrl = `${protocol}://${req.get('host')}`;
+  const localUrl = row.local_logo_url ? `${baseUrl}${row.local_logo_url}` : null;
+  return {
+    ...row,
+    logo_url: localUrl || row.logo_url,
+    local_logo_url: localUrl,
+    logo_status: row.logo_status || 'unknown',
+  };
+};
+
+/**
+ * Build a health fragment and param list for playable channels.
+ * Returns { fragment, params, nextIndex }
+ */
+function buildHealthFilter(paramIndex) {
+  const statusList = WORKING_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
+  let fragment = `c.health_status IN (${statusList})`;
+  if (ALLOW_UNKNOWN) {
+    fragment = `(${fragment} OR c.health_status IS NULL OR c.health_status = 'unknown')`;
+  }
+  return { fragment, params: [...WORKING_STATUSES], nextIndex: paramIndex + WORKING_STATUSES.length };
+}
+
+/**
+ * Base WHERE conditions for home/playable channels.
+ * Returns { conditions, params, paramIndex }
+ */
+async function buildBaseConditions() {
+  const conditions = [
+    `c.status = 'active'`,
+    `c.stream_url IS NOT NULL`,
+    `c.stream_url != ''`,
+  ];
+  const params = [];
+  let paramIndex = 1;
+
+  // merged_into guard (migration 012)
+  try {
+    const res = await db.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='channels' AND column_name='merged_into_channel_id'`
+    );
+    if (res.rows.length > 0) conditions.unshift(`c.merged_into_channel_id IS NULL`);
+  } catch (_) {}
+
+  // health filter
+  try {
+    const res = await db.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='channels' AND column_name='health_status'`
+    );
+    if (res.rows.length > 0) {
+      const { fragment, params: hp, nextIndex } = buildHealthFilter(paramIndex);
+      conditions.push(`(${fragment})`);
+      params.push(...hp);
+      paramIndex = nextIndex;
+    }
+  } catch (_) {}
+
+  return { conditions, params, paramIndex };
+}
+
+/**
+ * Fetch N channels for a section, applying extra conditions/ordering.
+ */
+async function fetchSection(req, extraConditions, extraParams, orderSQL, limit, baseConditions, baseParams, baseParamIndex) {
+  const allConditions = [...baseConditions, ...extraConditions];
+  const allParams = [...baseParams, ...extraParams];
+  let idx = baseParamIndex;
+
+  // Remap extra param placeholders to correct indices
+  const remappedOrder = orderSQL;
+  const limitParam = idx + extraParams.length;
+
+  const sql = `
+    SELECT c.*, cat.name AS category_name
+    FROM channels c
+    LEFT JOIN categories cat ON c.category_id = cat.id
+    WHERE ${allConditions.join(' AND ')}
+    ${remappedOrder}
+    LIMIT $${allParams.length + 1}
+  `;
+
+  const result = await db.query(sql, [...allParams, limit]);
+  return result.rows.map(row => formatChannelRow(req, row));
+}
+
+/**
+ * GET /api/home
+ * Returns structured DTH-style home sections:
+ * - continue_watching (last 5 recently watched by the user, if auth)
+ * - premium_channels
+ * - popular_channels
+ * - featured_channels
+ * - categories: ordered list of category sections each with up to 15 channels
+ */
+exports.getHome = async (req, res) => {
+  try {
+    const userId = req.user?.id || null;
+
+    const { conditions: bc, params: bp } = await buildBaseConditions();
+
+    const JOIN = `LEFT JOIN categories cat ON c.category_id = cat.id`;
+    const BASE_WHERE = `WHERE ${bc.join(' AND ')}`;
+
+    const RECOMMENDED_ORDER = `
+      ORDER BY
+        CASE WHEN c.is_premium = true THEN 0 ELSE 1 END,
+        CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
+        COALESCE(c.popularity_score, 0) DESC,
+        COALESCE(c.watch_count, 0) DESC,
+        COALESCE(c.health_score, 0) DESC,
+        COALESCE(c.sort_order, 999) ASC,
+        c.name ASC
+    `;
+
+    // ── 1. Continue Watching ──────────────────────────────────────────────
+    let continueWatching = [];
+    if (userId) {
+      try {
+        const cwRes = await db.query(
+          `SELECT DISTINCT ON (wh.channel_id)
+             c.*, cat.name AS category_name,
+             wh.watched_at
+           FROM watch_history wh
+           JOIN channels c ON c.id = wh.channel_id
+           LEFT JOIN categories cat ON c.category_id = cat.id
+           WHERE wh.user_id = $1
+             AND c.status = 'active'
+             AND c.stream_url IS NOT NULL AND c.stream_url != ''
+           ORDER BY wh.channel_id, wh.watched_at DESC
+           LIMIT 10`,
+          [userId]
+        );
+        // Sort by most-recently-watched
+        const sorted = cwRes.rows.sort((a, b) => new Date(b.watched_at) - new Date(a.watched_at));
+        continueWatching = sorted.slice(0, 5).map(row => formatChannelRow(req, row));
+      } catch (e) {
+        console.error('[home] continue_watching error:', e.message);
+      }
+    }
+
+    // ── 2. Premium Channels ───────────────────────────────────────────────
+    let premiumChannels = [];
+    try {
+      const pres = await db.query(
+        `SELECT c.*, cat.name AS category_name
+         FROM channels c ${JOIN}
+         ${BASE_WHERE}
+           AND c.is_premium = true
+         ORDER BY
+           CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
+           COALESCE(c.popularity_score, 0) DESC,
+           COALESCE(c.sort_order, 999) ASC,
+           c.name ASC
+         LIMIT 20`,
+        bp
+      );
+      premiumChannels = pres.rows.map(row => formatChannelRow(req, row));
+    } catch (e) {
+      console.error('[home] premium_channels error:', e.message);
+    }
+
+    // ── 3. Popular Channels ───────────────────────────────────────────────
+    let popularChannels = [];
+    try {
+      const popRes = await db.query(
+        `SELECT c.*, cat.name AS category_name
+         FROM channels c ${JOIN}
+         ${BASE_WHERE}
+           AND (c.is_popular = true OR c.is_featured = true OR COALESCE(c.popularity_score, 0) > 0)
+         ORDER BY
+           CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
+           COALESCE(c.popularity_score, 0) DESC,
+           COALESCE(c.watch_count, 0) DESC,
+           COALESCE(c.sort_order, 999) ASC,
+           c.name ASC
+         LIMIT 20`,
+        bp
+      );
+      popularChannels = popRes.rows.map(row => formatChannelRow(req, row));
+    } catch (e) {
+      console.error('[home] popular_channels error:', e.message);
+    }
+
+    // ── 4. Featured Channels ──────────────────────────────────────────────
+    let featuredChannels = [];
+    try {
+      const fRes = await db.query(
+        `SELECT c.*, cat.name AS category_name
+         FROM channels c ${JOIN}
+         ${BASE_WHERE}
+           AND c.is_featured = true
+         ORDER BY
+           COALESCE(c.popularity_score, 0) DESC,
+           COALESCE(c.sort_order, 999) ASC,
+           c.name ASC
+         LIMIT 15`,
+        bp
+      );
+      featuredChannels = fRes.rows.map(row => formatChannelRow(req, row));
+    } catch (e) {
+      console.error('[home] featured_channels error:', e.message);
+    }
+
+    // ── 5. Category Sections ──────────────────────────────────────────────
+    let categories = [];
+    try {
+      // Get categories ordered by DTH sort_order
+      const catRes = await db.query(
+        `SELECT cat.id, cat.name, cat.icon_url, cat.sort_order
+         FROM categories cat
+         WHERE cat.status = 'active'
+         ORDER BY cat.sort_order ASC, cat.name ASC`
+      );
+
+      // For each category, fetch up to 15 playable channels
+      const CHANNELS_PER_SECTION = 15;
+      const catPromises = catRes.rows.map(async (cat) => {
+        try {
+          // bp already has the health filter params; add catId and limit as next params
+          const catParams = [...bp, cat.id, CHANNELS_PER_SECTION];
+          const catIdIdx = bp.length + 1;
+          const limitIdx = bp.length + 2;
+
+          const chRes = await db.query(
+            `SELECT c.*
+             FROM channels c
+             ${BASE_WHERE}
+               AND c.category_id = $${catIdIdx}
+             ORDER BY
+               CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
+               COALESCE(c.popularity_score, 0) DESC,
+               COALESCE(c.watch_count, 0) DESC,
+               COALESCE(c.sort_order, 999) ASC,
+               c.name ASC
+             LIMIT $${limitIdx}`,
+            catParams
+          );
+
+          if (chRes.rows.length === 0) return null;
+
+          return {
+            id: cat.id,
+            name: cat.name,
+            icon_url: cat.icon_url,
+            sort_order: cat.sort_order,
+            channel_count: chRes.rows.length,
+            channels: chRes.rows.map(row => formatChannelRow(req, {
+              ...row,
+              category_name: cat.name,
+            })),
+          };
+        } catch (e) {
+          console.error(`[home] category ${cat.name} error:`, e.message);
+          return null;
+        }
+      });
+
+      const results = await Promise.all(catPromises);
+      categories = results.filter(Boolean);
+    } catch (e) {
+      console.error('[home] categories error:', e.message);
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        continue_watching: continueWatching,
+        premium_channels: premiumChannels,
+        popular_channels: popularChannels,
+        featured_channels: featuredChannels,
+        categories,
+      },
+    });
+  } catch (err) {
+    console.error('[home] getHome error:', err);
+    return error(res, 'Failed to load home data', 500);
+  }
+};

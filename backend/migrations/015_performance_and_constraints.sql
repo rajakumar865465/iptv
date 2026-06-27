@@ -10,5 +10,14 @@ CREATE INDEX IF NOT EXISTS idx_watch_history_watched_at ON watch_history(watched
 -- DB-09: Prevent race-condition duplicate device rows.
 -- The application already does a SELECT-before-INSERT but that is not atomic.
 -- This constraint provides a database-level guarantee.
-ALTER TABLE devices
-  ADD CONSTRAINT IF NOT EXISTS uq_devices_user_device UNIQUE (user_id, device_id);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.table_constraints 
+        WHERE constraint_name = 'uq_devices_user_device' 
+          AND table_name = 'devices'
+    ) THEN
+        ALTER TABLE devices ADD CONSTRAINT uq_devices_user_device UNIQUE (user_id, device_id);
+    END IF;
+END $$;

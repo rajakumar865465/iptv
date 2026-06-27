@@ -61,6 +61,9 @@ class ApiEndpoints {
   static const String languageList = '$channels/languages';
   static const String channelSearch = '$channels/search';
 
+  // Home — DTH-style structured home page
+  static const String home = '$base/home';
+
   // User
   static const String profile = '$user/profile';
   static const String favorites = '$user/favorites';

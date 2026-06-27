@@ -78,6 +78,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   List<ChannelModel> _moreLiveChannels = [];
   final Set<int> _moreChannelIds = {};
   int _morePage = 1;
+
+  /// True if the current user has an active license (premium access)
+  bool get _isPremium => context.read<LicenseCubit>().state is LicenseActive;
   bool _moreHasMore = true;
   bool _moreLoading = false;
 
@@ -340,13 +343,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
           label: 'SWITCH',
-          textColor: AppColors.accent,
-          onPressed: () {
+          textColor: const Color(AppColors.accent),
+          onPressed: () async {
             if (_isPremium && !_currentUrl.contains('/api/stream/transcode/')) {
               if (mounted) setState(() { _streamOverlayMessage = 'Auto-switching to smooth proxy...'; _isLoading = true; _hasError = false; });
               _isRetryingStream = false;
-              final authState = context.read<AuthCubit>().state;
-              final token = authState is AuthAuthenticated ? authState.token : '';
+              final token = await StorageService().getToken() ?? '';
               final fallbackUrl = '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token';
               
               _currentStreamMeta = {
@@ -413,8 +415,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       if (_isPremium && !_currentUrl.contains('/api/stream/transcode/')) {
         if (mounted) setState(() { _streamOverlayMessage = 'Auto-switching to smooth proxy...'; _isLoading = true; _hasError = false; });
         _isRetryingStream = false;
-        final authState = context.read<AuthCubit>().state;
-        final token = authState is AuthAuthenticated ? authState.token : '';
+        final token = await StorageService().getToken() ?? '';
         final fallbackUrl = '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token';
         
         _currentStreamMeta = {

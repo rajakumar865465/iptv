@@ -58,11 +58,15 @@ class ChannelCubit extends Cubit<ChannelState> {
   int? _filterCategoryId;
   String? _filterCategoryName;
   String? _filterLanguage;
+  String _sortBy = 'recommended'; // recommended | popular | premium | az | recent | quality | stable
+  String _premiumFilter = 'all'; // all | true | false
 
   // Getters for UI
   int? get filterCategoryId => _filterCategoryId;
   String? get filterCategoryName => _filterCategoryName;
   String? get filterLanguage => _filterLanguage;
+  String get sortBy => _sortBy;
+  String get premiumFilter => _premiumFilter;
   bool get workingOnly => _workingOnly;
 
   Future<void> loadChannels({
@@ -73,6 +77,8 @@ class ChannelCubit extends Cubit<ChannelState> {
     int? categoryId,
     String? categoryName,
     String? language,
+    String? sortBy,
+    String? premiumFilter,
   }) async {
     if (isRefresh) {
       _currentPage = 1;
@@ -118,6 +124,9 @@ class ChannelCubit extends Cubit<ChannelState> {
       _filterLanguage = language.isEmpty ? null : language;
     }
 
+    if (sortBy != null) _sortBy = sortBy;
+    if (premiumFilter != null) _premiumFilter = premiumFilter;
+
     // Debug log
     developer.log(
       '[ChannelCubit] loadChannels\n'
@@ -144,6 +153,8 @@ class ChannelCubit extends Cubit<ChannelState> {
       } else {
         params['showOffline'] = 'true';
       }
+      if (_sortBy != 'recommended') params['sort'] = _sortBy;
+      if (_premiumFilter != 'all') params['premium'] = _premiumFilter;
 
       developer.log(
         '[ChannelCubit] API call: ${ApiEndpoints.channelList} params=$params',
