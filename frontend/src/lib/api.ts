@@ -43,8 +43,8 @@ export const loginAdmin = (email: string, password: string) =>
 export const getDashboardStats = () =>
   api.get('/dashboard/stats').then((r) => r.data.data);
 
-export const getUsers = () =>
-  api.get('/users').then((r) => r.data.data);
+export const getUsers = (params?: Record<string, string>) =>
+  api.get('/users', { params }).then((r) => r.data.data);
 
 export const getUser = (id: string) =>
   api.get(`/users/${id}`).then((r) => r.data.data);
@@ -141,6 +141,9 @@ export const createCategory = (data: Record<string, unknown>) =>
 
 export const updateCategory = (id: string, data: Record<string, unknown>) =>
   api.put(`/categories/${id}`, data).then((r) => r.data.data);
+
+export const deleteCategory = (id: string) =>
+  api.delete(`/categories/${id}`).then((r) => r.data.data);
 
 export const getLanguages = () =>
   api.get('/languages').then((r) => r.data.data);

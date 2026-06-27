@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getCategories, createCategory, updateCategory } from '@/lib/api';
+import { getCategories, createCategory, updateCategory, deleteCategory } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Pencil, Check, X, FolderOpen } from 'lucide-react';
+import { Plus, Pencil, Check, X, FolderOpen, Trash2 } from 'lucide-react';
 
 interface Category {
   id: string;
@@ -53,6 +53,16 @@ export default function CategoriesPage() {
       alert('Failed to save category');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Delete category "${name}"? All channels in this category will become uncategorised.`)) return;
+    try {
+      await deleteCategory(id);
+      fetchCategories();
+    } catch {
+      alert('Failed to delete category');
     }
   };
 
@@ -205,13 +215,22 @@ export default function CategoriesPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => openEdit(c)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-500/30 border border-slate-700 transition-all"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                          Edit
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => openEdit(c)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-500/30 border border-slate-700 transition-all"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(c.id, c.name)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/30 border border-slate-700 transition-all"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </motion.tr>
                   ))}

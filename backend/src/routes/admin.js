@@ -115,10 +115,11 @@ router.post('/channels/broken/:id/fix', brokenChannelController.fixChannel);
 router.get('/channels/duplicates', duplicateController.getDuplicates);
 router.post('/channels/duplicates/merge', duplicateController.mergeDuplicates);
 
-// ─── Categories ───────────────────────────────────
+// ─── Categories ───────────────────────────────────────
 router.post('/categories', adminController.createCategory);
 router.get('/categories', adminController.getCategoriesAdmin);
 router.put('/categories/:id', adminController.updateCategory);
+router.delete('/categories/:id', adminController.deleteCategory);
 
 // ─── Languages ────────────────────────────────────
 router.get('/languages', languageController.getLanguages);

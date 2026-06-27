@@ -35,13 +35,15 @@ app.use(helmet());
 // null/undefined, so we allow that too. Tighten this for web admin panels.
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
-  : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+  : [];
 
 app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (mobile apps, Postman, curl)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+    // If no specific origins are configured, allow all (open mode for EC2 / dev)
+    if (allowedOrigins.length === 0) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
     callback(new Error('Not allowed by CORS'));

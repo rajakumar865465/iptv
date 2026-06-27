@@ -407,6 +407,21 @@ exports.updateCategory = async (req, res) => {
   }
 };
 
+exports.deleteCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Unlink channels from this category before deleting
+    await db.query('UPDATE channels SET category_id = NULL WHERE category_id = $1', [id]);
+    await db.query('DELETE FROM categories WHERE id = $1', [id]);
+
+    await logAdminAction(req, req.user.id, 'delete_category', 'categories', id);
+
+    success(res, null, 'Category deleted');
+  } catch (err) {
+    error(res, 'Failed to delete category', 500);
+  }
+};
+
 // App Settings
 exports.getAppSettings = async (req, res) => {
   try {
