@@ -1,126 +1,184 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getLicenses, createLicense, extendLicense, suspendLicense, revokeLicense } from '@/lib/api';
+import { getLicenses, getPlans, createLicense, extendLicense, suspendLicense, revokeLicense } from '@/lib/api';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, KeyRound, X, Copy, Check, Search, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface License {
-  id: string;
-  license_key: string;
-  plan_name: string;
-  user_email: string;
-  status: string;
-  duration_days: number;
-  max_devices: number;
-  activated_at: string;
-  expires_at: string;
-  created_at: string;
+  id: string; license_key: string; plan_name: string; user_email: string;
+  status: string; duration_days: number; max_devices: number;
+  activated_at: string; expires_at: string; created_at: string;
+}
+
+const STATUS_CLS: Record<string, string> = {
+  active:    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  unused:    'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  expired:   'bg-rose-500/10 text-rose-400 border-rose-500/20',
+  suspended: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  revoked:   'bg-slate-800 text-slate-400 border-slate-700',
+};
+
+function CopyKey({ k }: { k: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => { navigator.clipboard.writeText(k); setCopied(true); setTimeout(() => setCopied(false), 1500); };
+  return (
+    <button onClick={copy} className="inline-flex items-center gap-1.5 font-mono text-xs text-slate-300 hover:text-cyan-400 transition-colors">
+      {k}
+      {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-slate-500" />}
+    </button>
+  );
 }
 
 export default function LicensesPage() {
-  const [plans, setPlans] = useState<any[]>([]);
   const [licenses, setLicenses] = useState<License[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({ plan_id: '', duration_days: 30, max_devices: 1 });
+  const [bulkCount, setBulkCount] = useState(1);
+  const [form, setForm] = useState({ plan_id: '', duration_days: 30, max_devices: 1 });
+  const [saving, setSaving] = useState(false);
+  const [actionId, setActionId] = useState<string | null>(null);
+  const [page, setPage] = useState(1); const PAGE = 50;
 
-  useEffect(() => {
-    fetchLicenses();
-    fetchPlans();
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
 
-  const fetchLicenses = () => {
-    getLicenses()
-      .then((data) => setLicenses(data || []))
+  const fetchAll = () => {
+    setLoading(true);
+    Promise.all([getLicenses(), getPlans()])
+      .then(([lic, pln]: any) => {
+        setLicenses(lic || []);
+        setPlans(Array.isArray(pln) ? pln : (pln?.data || []));
+      })
       .finally(() => setLoading(false));
   };
 
-  const fetchPlans = () => {
-    import('@/lib/api').then(({ getPlans }) => {
-      getPlans().then((res) => setPlans(res?.data || []));
-    });
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      const payload = { plan_id: form.plan_id ? parseInt(form.plan_id) : null, duration_days: form.duration_days, max_devices: form.max_devices };
+      for (let i = 0; i < bulkCount; i++) { await createLicense(payload as Record<string, unknown>); }
+      setShowModal(false); fetchAll();
+    } catch { alert('Failed to create license'); }
+    finally { setSaving(false); }
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const payload = { ...formData, plan_id: formData.plan_id ? parseInt(formData.plan_id) : null };
-      await createLicense(payload);
-      setShowModal(false);
-      fetchLicenses();
-    } catch {
-      alert('Failed to create license');
-    }
+  const act = async (fn: Promise<any>, id: string) => {
+    setActionId(id); try { await fn; fetchAll(); } catch { alert('Action failed'); } finally { setActionId(null); }
   };
+
+  const filtered = licenses.filter((l) => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || l.license_key?.toLowerCase().includes(q) || l.user_email?.toLowerCase().includes(q) || l.plan_name?.toLowerCase().includes(q);
+    const matchStatus = !statusFilter || l.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+  const paginated = filtered.slice((page - 1) * PAGE, page * PAGE);
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
+  const ic = 'w-full px-4 py-2.5 rounded-xl bg-slate-950/50 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 text-sm';
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Licenses</h1>
-        <button onClick={() => setShowModal(true)} className="px-4 py-2 rounded bg-red-600 text-white text-sm hover:bg-red-700">
-          + New License
-        </button>
+    <div className="space-y-6 pb-10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">Licenses</h1>
+          <p className="text-slate-400 mt-1">{licenses.length} total — {licenses.filter(l=>l.status==='active').length} active</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={fetchAll} className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200"><RefreshCw className="w-4 h-4" /></button>
+          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-white font-semibold hover:from-emerald-400 hover:to-cyan-400 shadow-lg shadow-emerald-500/20 transition-all">
+            <Plus className="w-4 h-4" />Generate
+          </button>
+        </div>
       </div>
-      {showModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Create License</h3>
-            <form onSubmit={handleCreate} className="space-y-3">
-              <select 
-                value={formData.plan_id} 
-                onChange={(e) => setFormData({ ...formData, plan_id: e.target.value })} 
-                className="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600 text-gray-100"
-              >
-                <option value="">No Plan (Custom)</option>
-                {plans.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name} (₹{p.price})</option>
-                ))}
-              </select>
-              <input type="number" placeholder="Duration (days)" value={formData.duration_days} onChange={(e) => setFormData({ ...formData, duration_days: Number(e.target.value) })} className="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600 text-gray-100" />
-              <input type="number" placeholder="Max Devices" value={formData.max_devices} onChange={(e) => setFormData({ ...formData, max_devices: Number(e.target.value) })} className="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600 text-gray-100" />
-              <div className="flex gap-2 pt-2">
-                <button type="submit" className="flex-1 py-2 rounded bg-red-600 text-white hover:bg-red-700">Create</button>
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2 rounded bg-gray-700 text-gray-200 hover:bg-gray-600">Cancel</button>
+
+      <AnimatePresence>
+        {showModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-md shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-cyan-500" />
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2"><KeyRound className="w-5 h-5 text-emerald-400" />Generate License(s)</h3>
+                <button onClick={() => setShowModal(false)}><X className="w-5 h-5 text-slate-400 hover:text-slate-200" /></button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+              <form onSubmit={handleCreate} className="space-y-4">
+                <div className="space-y-1"><label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Plan</label>
+                  <select value={form.plan_id} onChange={(e) => setForm({ ...form, plan_id: e.target.value })} className={ic}>
+                    <option value="">Custom (no plan)</option>
+                    {plans.map((p) => <option key={p.id} value={p.id}>{p.name} — ₹{p.price} / {p.duration_days}d</option>)}
+                  </select>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1"><label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Days</label><input type="number" min="1" value={form.duration_days} onChange={(e) => setForm({ ...form, duration_days: parseInt(e.target.value)||30 })} className={ic} /></div>
+                  <div className="space-y-1"><label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Devices</label><input type="number" min="1" value={form.max_devices} onChange={(e) => setForm({ ...form, max_devices: parseInt(e.target.value)||1 })} className={ic} /></div>
+                  <div className="space-y-1"><label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Qty</label><input type="number" min="1" max="100" value={bulkCount} onChange={(e) => setBulkCount(parseInt(e.target.value)||1)} className={ic} /></div>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-200 font-semibold hover:bg-slate-700 border border-slate-700">Cancel</button>
+                  <button type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-white font-semibold disabled:opacity-50">{saving ? 'Creating…' : `Generate ${bulkCount > 1 ? bulkCount + ' Keys' : 'Key'}`}</button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" /><input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search key, email, plan…" className="w-full pl-9 pr-4 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50" /></div>
+        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-slate-300 text-sm focus:outline-none">
+          <option value="">All Statuses</option>
+          {['active','unused','expired','suspended','revoked'].map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+
       {loading ? (
-        <div className="text-gray-400 animate-pulse">Loading licenses...</div>
+        <div className="flex justify-center h-48 items-center"><div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>
       ) : (
-        <div className="overflow-x-auto bg-gray-800 rounded-lg border border-gray-700">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-700">
-                <th className="px-4 py-3 text-left text-gray-400">Key</th>
-                <th className="px-4 py-3 text-left text-gray-400">Plan</th>
-                <th className="px-4 py-3 text-left text-gray-400">User</th>
-                <th className="px-4 py-3 text-left text-gray-400">Status</th>
-                <th className="px-4 py-3 text-left text-gray-400">Expires</th>
-                <th className="px-4 py-3 text-right text-gray-400">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {licenses.map((l) => (
-                <tr key={l.id} className="border-b border-gray-700 hover:bg-gray-700/50">
-                  <td className="px-4 py-3 font-mono text-xs">{l.license_key}</td>
-                  <td className="px-4 py-3 text-gray-400">{l.plan_name}</td>
-                  <td className="px-4 py-3 text-gray-400">{l.user_email || '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 ${l.status === 'active' ? 'bg-green-900 text-green-300' : l.status === 'unused' ? 'bg-blue-900 text-blue-300' : 'bg-yellow-900 text-yellow-300'} rounded text-xs`}>{l.status}</span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-400">{l.expires_at ? new Date(l.expires_at).toLocaleDateString() : '—'}</td>
-                  <td className="px-4 py-3 text-right space-x-1">
-                    <button onClick={() => extendLicense(l.id, 30).then(fetchLicenses)} className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600">+30d</button>
-                    <button onClick={() => suspendLicense(l.id).then(fetchLicenses)} className="text-xs px-2 py-1 rounded bg-orange-700 hover:bg-orange-600">Suspend</button>
-                    <button onClick={() => revokeLicense(l.id).then(fetchLicenses)} className="text-xs px-2 py-1 rounded bg-red-700 hover:bg-red-600">Revoke</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {licenses.length === 0 && <p className="p-6 text-gray-500 text-center">No licenses</p>}
-        </div>
+        <>
+          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-slate-400 uppercase bg-slate-800/50 border-b border-slate-700/50">
+                  <tr>
+                    <th className="px-6 py-4">License Key</th><th className="px-6 py-4">Plan</th>
+                    <th className="px-6 py-4">User</th><th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4">Expires</th><th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700/50">
+                  {paginated.map((l) => (
+                    <tr key={l.id} className="hover:bg-slate-800/30 transition-colors">
+                      <td className="px-6 py-3"><CopyKey k={l.license_key} /></td>
+                      <td className="px-6 py-3 text-slate-400">{l.plan_name || '—'}</td>
+                      <td className="px-6 py-3 text-slate-400 text-xs">{l.user_email || <span className="text-slate-600 italic">Unassigned</span>}</td>
+                      <td className="px-6 py-3"><span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border ${STATUS_CLS[l.status]||STATUS_CLS.revoked}`}>{l.status}</span></td>
+                      <td className="px-6 py-3 text-slate-500 text-xs">{l.expires_at ? new Date(l.expires_at).toLocaleDateString() : '—'}</td>
+                      <td className="px-6 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {['active','unused'].includes(l.status) && <button disabled={actionId===l.id} onClick={() => act(extendLicense(l.id, 30), l.id)} className="px-2 py-1 text-xs rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/10 border border-slate-700 disabled:opacity-50">+30d</button>}
+                          {l.status === 'active' && <button disabled={actionId===l.id} onClick={() => act(suspendLicense(l.id), l.id)} className="px-2 py-1 text-xs rounded-lg bg-slate-800 text-amber-400 hover:bg-amber-500/10 border border-slate-700 disabled:opacity-50">Suspend</button>}
+                          {!['revoked','expired'].includes(l.status) && <button disabled={actionId===l.id} onClick={() => { if(confirm('Revoke this license?')) act(revokeLicense(l.id), l.id); }} className="px-2 py-1 text-xs rounded-lg bg-slate-800 text-rose-400 hover:bg-rose-500/10 border border-slate-700 disabled:opacity-50">Revoke</button>}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {paginated.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500"><KeyRound className="w-8 h-8 mx-auto mb-2 text-slate-600" />No licenses found</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {pages > 1 && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-500">Page {page} of {pages} ({filtered.length} results)</span>
+              <div className="flex gap-2">
+                <button disabled={page<=1} onClick={() => setPage(page-1)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 disabled:opacity-40"><ChevronLeft className="w-4 h-4" /></button>
+                <button disabled={page>=pages} onClick={() => setPage(page+1)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 disabled:opacity-40"><ChevronRight className="w-4 h-4" /></button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

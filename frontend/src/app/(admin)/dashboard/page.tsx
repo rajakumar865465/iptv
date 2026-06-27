@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Users, MonitorSmartphone, KeyRound, CreditCard, AlertTriangle, Globe, Activity, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { Users, MonitorSmartphone, KeyRound, CreditCard, AlertTriangle, Globe, Activity, ArrowUpRight, ArrowDownRight, RefreshCw } from 'lucide-react';
 import { getDashboardStats } from '@/lib/api';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { motion } from 'framer-motion';
@@ -19,16 +19,27 @@ interface Stats {
 }
 
 const COLORS = ['#10b981', '#06b6d4', '#6366f1', '#8b5cf6', '#ec4899'];
+const REFRESH_INTERVAL = 60000; // 60 seconds
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchStats = useCallback((showRefreshing = false) => {
+    if (showRefreshing) setRefreshing(true);
+    getDashboardStats()
+      .then((data) => { setStats(data as Stats); setLastUpdate(new Date()); })
+      .finally(() => { setLoading(false); setRefreshing(false); });
+  }, []);
 
   useEffect(() => {
-    getDashboardStats()
-      .then((data) => setStats(data as Stats))
-      .finally(() => setLoading(false));
-  }, []);
+    fetchStats();
+    timerRef.current = setInterval(() => fetchStats(), REFRESH_INTERVAL);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [fetchStats]);
 
   if (loading || !stats) {
     return (
@@ -54,12 +65,12 @@ export default function DashboardPage() {
   })) || [];
 
   const statCards = [
-    { label: 'Total Revenue', value: `₹${stats.payments.total_revenue || 0}`, icon: CreditCard, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', trend: '+12%', isUp: true },
-    { label: 'Active Users', value: stats.users.active, icon: Users, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', trend: '+5%', isUp: true },
-    { label: 'Total Devices', value: stats.devices.total, icon: MonitorSmartphone, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20', trend: '+8%', isUp: true },
-    { label: 'Online Channels', value: stats.channels.online, icon: Globe, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', trend: '98%', isUp: true },
-    { label: 'Active Licenses', value: stats.licenses.active, icon: KeyRound, color: 'text-pink-400', bg: 'bg-pink-500/10', border: 'border-pink-500/20', trend: '-2%', isUp: false },
-    { label: 'Pending Payments', value: stats.payments.pending, icon: AlertTriangle, color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', trend: 'Needs Action', isUp: false },
+    { label: 'Total Revenue', value: `₹${Number(stats.payments.total_revenue || 0).toLocaleString('en-IN')}`, icon: CreditCard, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', trend: `${stats.payments.completed} paid`, isUp: true },
+    { label: 'Active Users', value: stats.users.active, icon: Users, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', trend: `+${stats.users.new_last_30d} this month`, isUp: true },
+    { label: 'Total Devices', value: stats.devices.total, icon: MonitorSmartphone, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20', trend: `${stats.users.total} users`, isUp: true },
+    { label: 'Online Channels', value: stats.channels.online, icon: Globe, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', trend: `${stats.channels.offline} offline`, isUp: stats.channels.offline === 0 },
+    { label: 'Active Licenses', value: stats.licenses.active, icon: KeyRound, color: 'text-pink-400', bg: 'bg-pink-500/10', border: 'border-pink-500/20', trend: `${stats.licenses.expired} expired`, isUp: stats.licenses.expired === 0 },
+    { label: 'Pending Payments', value: stats.payments.pending, icon: AlertTriangle, color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', trend: stats.payments.pending > 0 ? 'Needs Action' : 'All clear', isUp: stats.payments.pending === 0 },
   ];
 
   const containerVariants = {
@@ -91,7 +102,11 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700/50 rounded-full px-4 py-2 backdrop-blur-sm">
           <Activity className="w-4 h-4 text-emerald-400" />
-          <span className="text-sm font-medium text-slate-300">System Healthy</span>
+          <span className="text-sm font-medium text-slate-300">Live</span>
+          {lastUpdate && <span className="text-xs text-slate-500 ml-1">· {lastUpdate.toLocaleTimeString()}</span>}
+          <button onClick={() => fetchStats(true)} disabled={refreshing} className="ml-1 text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-40">
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 

@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const http = require('http');
+const { WebSocketServer } = require('ws');
 require('dotenv').config();
 
 // IPTV Live TV Backend Application
@@ -172,6 +174,10 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/internal', adminRoutes);
 app.use('/api/stream', streamRoutes);
 
+// WebSocket routes
+const websocketRoutes = require('./routes/websocket');
+app.use('/api/ws', websocketRoutes);
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
@@ -182,9 +188,44 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
+// WebSocket setup for real-time dashboard updates
+let wss;
+
+function broadcastToClients(type, data) {
+  if (!wss) return;
+  const message = JSON.stringify({ type, data, timestamp: new Date().toISOString() });
+  wss.clients.forEach(client => {
+    if (client.readyState === 1) { // WebSocket.OPEN
+      client.send(message);
+    }
+  });
+}
+
+// Make broadcast available globally
+global.broadcastToClients = broadcastToClients;
+
+// Export for use in other modules
+module.exports = { app, broadcastToClients };
+
 // Start server after DB init
 initDatabase().then(() => {
-  app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
+  const server = http.createServer(app);
+  
+  // Initialize WebSocket server
+  wss = new WebSocketServer({ server, path: '/ws' });
+  
+  wss.on('connection', (ws) => {
+    console.log('WebSocket client connected');
+    
+    // Send initial stats on connection
+    const dashboardController = require('./controllers/dashboardController');
+    dashboardController.getDashboardStats({ user: null }, {
+      json: (data) => ws.send(JSON.stringify({ type: 'stats', data, timestamp: new Date().toISOString() }))
+    });
+    
+    ws.on('close', () => console.log('WebSocket client disconnected'));
+    ws.on('error', (err) => console.error('WebSocket error:', err.message));
+  });
+  
+  server.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT} (WebSocket: ws://0.0.0.0:${PORT}/ws)`));
 });
-
-module.exports = app;

@@ -1,0 +1,119 @@
+'use client';
+
+import { useEffect, useRef, useState, useCallback } from 'react';
+
+interface WebSocketMessage {
+  type: string;
+  data: unknown;
+  timestamp: string;
+}
+
+type MessageHandler = (data: unknown) => void;
+
+export function useWebSocket(url: string, onMessage?: MessageHandler) {
+  const wsRef = useRef<WebSocket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
+  const handlersRef = useRef<Map<string, Set<MessageHandler>>>(new Map());
+
+  const connect = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    const ws = new WebSocket(url);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log('WebSocket connected');
+      setIsConnected(true);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const message: WebSocketMessage = JSON.parse(event.data);
+        setLastMessage(message);
+        
+        // Call global onMessage handler
+        if (onMessage) {
+          onMessage(message.data);
+        }
+        
+        // Call type-specific handlers
+        const handlers = handlersRef.current.get(message.type);
+        if (handlers) {
+          handlers.forEach(handler => handler(message.data));
+        }
+      } catch (err) {
+        console.error('Failed to parse WebSocket message:', err);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('WebSocket disconnected');
+      setIsConnected(false);
+      wsRef.current = null;
+      
+      // Reconnect after 3 seconds
+      setTimeout(connect, 3000);
+    };
+
+    ws.onerror = (err) => {
+      console.error('WebSocket error:', err);
+    };
+  }, [url, onMessage]);
+
+  const disconnect = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+  }, []);
+
+  const subscribe = useCallback((type: string, handler: MessageHandler) => {
+    if (!handlersRef.current.has(type)) {
+      handlersRef.current.set(type, new Set());
+    }
+    handlersRef.current.get(type)!.add(handler);
+    
+    return () => {
+      handlersRef.current.get(type)?.delete(handler);
+    };
+  }, []);
+
+  const send = useCallback((data: unknown) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(data));
+    }
+  }, []);
+
+  useEffect(() => {
+    connect();
+    return () => disconnect();
+  }, [connect, disconnect]);
+
+  return {
+    isConnected,
+    lastMessage,
+    send,
+    subscribe,
+  };
+}
+
+// Hook specifically for dashboard stats
+export function useDashboardStats() {
+  const [stats, setStats] = useState<unknown>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  
+  const wsUrl = typeof window !== 'undefined' 
+    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
+    : '';
+
+  const { isConnected: connected } = useWebSocket(wsUrl, (data) => {
+    setStats(data as unknown);
+  });
+
+  useEffect(() => {
+    setIsConnected(connected);
+  }, [connected]);
+
+  return { stats, isConnected };
+}

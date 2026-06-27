@@ -29,7 +29,12 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": ["iptv", "live-tv", "flutter", "api"],
+  "keywords": [
+    "iptv",
+    "live-tv",
+    "flutter",
+    "api"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -46,6 +51,7 @@
     "morgan": "^1.11.0",
     "pg": "^8.22.0",
     "sharp": "^0.35.2",
+    "ws": "^8.21.0",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
