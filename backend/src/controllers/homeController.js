@@ -18,6 +18,36 @@ const formatChannelRow = (req, row) => {
   };
 };
 
+// Fix #26: Cache schema introspection results at module level to avoid per-request queries
+let mergedIntoColumnExists = null;
+let healthStatusColumnExists = null;
+
+async function checkMergedIntoColumn() {
+  if (mergedIntoColumnExists !== null) return mergedIntoColumnExists;
+  try {
+    const result = await db.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='channels' AND column_name='merged_into_channel_id'`
+    );
+    mergedIntoColumnExists = result.rows.length > 0;
+  } catch (_) {
+    mergedIntoColumnExists = false;
+  }
+  return mergedIntoColumnExists;
+}
+
+async function checkHealthStatusColumn() {
+  if (healthStatusColumnExists !== null) return healthStatusColumnExists;
+  try {
+    const result = await db.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name='channels' AND column_name='health_status'`
+    );
+    healthStatusColumnExists = result.rows.length > 0;
+  } catch (_) {
+    healthStatusColumnExists = false;
+  }
+  return healthStatusColumnExists;
+}
+
 /**
  * Build a health fragment and param list for playable channels.
  * Returns { fragment, params, nextIndex }
@@ -44,26 +74,18 @@ async function buildBaseConditions() {
   const params = [];
   let paramIndex = 1;
 
-  // merged_into guard (migration 012)
-  try {
-    const res = await db.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='channels' AND column_name='merged_into_channel_id'`
-    );
-    if (res.rows.length > 0) conditions.unshift(`c.merged_into_channel_id IS NULL`);
-  } catch (_) {}
+  // merged_into guard (migration 012) - cached check
+  if (await checkMergedIntoColumn()) {
+    conditions.unshift(`c.merged_into_channel_id IS NULL`);
+  }
 
-  // health filter
-  try {
-    const res = await db.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='channels' AND column_name='health_status'`
-    );
-    if (res.rows.length > 0) {
-      const { fragment, params: hp, nextIndex } = buildHealthFilter(paramIndex);
-      conditions.push(`(${fragment})`);
-      params.push(...hp);
-      paramIndex = nextIndex;
-    }
-  } catch (_) {}
+  // health filter - cached check
+  if (await checkHealthStatusColumn()) {
+    const { fragment, params: hp, nextIndex } = buildHealthFilter(paramIndex);
+    conditions.push(`(${fragment})`);
+    params.push(...hp);
+    paramIndex = nextIndex;
+  }
 
   return { conditions, params, paramIndex };
 }
@@ -212,61 +234,69 @@ exports.getHome = async (req, res) => {
     }
 
     // ── 5. Category Sections ──────────────────────────────────────────────
+    // A-2 FIX: Use single query with JSON_AGG instead of N+1 parallel queries
     let categories = [];
     try {
-      // Get categories ordered by DTH sort_order
-      const catRes = await db.query(
-        `SELECT cat.id, cat.name, cat.icon_url, cat.sort_order
+      const catChannelsRes = await db.query(
+        `WITH ranked_channels AS (
+           SELECT 
+             c.*,
+             cat.name AS category_name,
+             cat.icon_url,
+             cat.sort_order AS cat_sort_order,
+             ROW_NUMBER() OVER (
+               PARTITION BY c.category_id 
+               ORDER BY 
+                 CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
+                 COALESCE(c.popularity_score, 0) DESC,
+                 COALESCE(c.watch_count, 0) DESC,
+                 COALESCE(c.sort_order, 999) ASC,
+                 c.name ASC
+             ) AS rn
+           FROM channels c
+           LEFT JOIN categories cat ON c.category_id = cat.id
+           ${BASE_WHERE}
+             AND cat.status = 'active'
+             AND c.category_id IS NOT NULL
+         )
+         SELECT 
+           cat.id,
+           cat.name,
+           cat.icon_url,
+           cat.sort_order AS cat_sort_order,
+           JSON_AGG(
+             JSON_BUILD_OBJECT(
+               'id', rc.id,
+               'name', rc.name,
+               'logo_url', rc.logo_url,
+               'stream_url', rc.stream_url,
+               'category_id', rc.category_id,
+               'category_name', rc.category_name,
+               'language', rc.language,
+               'quality', rc.quality,
+               'is_premium', rc.is_premium,
+               'is_featured', rc.is_featured,
+               'popularity_score', rc.popularity_score,
+               'watch_count', rc.watch_count
+             ) ORDER BY rc.rn
+           ) AS channels
          FROM categories cat
+         LEFT JOIN ranked_channels rc ON cat.id = rc.category_id AND rc.rn <= 15
          WHERE cat.status = 'active'
-         ORDER BY cat.sort_order ASC, cat.name ASC`
+         GROUP BY cat.id
+         HAVING COUNT(rc.id) > 0
+         ORDER BY cat.sort_order ASC, cat.name ASC`,
+        bp
       );
 
-      // For each category, fetch up to 15 playable channels
-      const CHANNELS_PER_SECTION = 15;
-      const catPromises = catRes.rows.map(async (cat) => {
-        try {
-          // bp already has the health filter params; add catId and limit as next params
-          const catParams = [...bp, cat.id, CHANNELS_PER_SECTION];
-          const catIdIdx = bp.length + 1;
-          const limitIdx = bp.length + 2;
-
-          const chRes = await db.query(
-            `SELECT c.*
-             FROM channels c
-             ${BASE_WHERE}
-               AND c.category_id = $${catIdIdx}
-             ORDER BY
-               CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
-               COALESCE(c.popularity_score, 0) DESC,
-               COALESCE(c.watch_count, 0) DESC,
-               COALESCE(c.sort_order, 999) ASC,
-               c.name ASC
-             LIMIT $${limitIdx}`,
-            catParams
-          );
-
-          if (chRes.rows.length === 0) return null;
-
-          return {
-            id: cat.id,
-            name: cat.name,
-            icon_url: cat.icon_url,
-            sort_order: cat.sort_order,
-            channel_count: chRes.rows.length,
-            channels: chRes.rows.map(row => formatChannelRow(req, {
-              ...row,
-              category_name: cat.name,
-            })),
-          };
-        } catch (e) {
-          console.error(`[home] category ${cat.name} error:`, e.message);
-          return null;
-        }
-      });
-
-      const results = await Promise.all(catPromises);
-      categories = results.filter(Boolean);
+      categories = catChannelsRes.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        icon_url: row.icon_url,
+        sort_order: row.cat_sort_order,
+        channel_count: row.channels?.length || 0,
+        channels: (row.channels || []).map(ch => formatChannelRow(req, ch))
+      }));
     } catch (e) {
       console.error('[home] categories error:', e.message);
     }

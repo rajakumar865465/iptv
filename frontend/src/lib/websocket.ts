@@ -103,8 +103,9 @@ export function useDashboardStats() {
   const [stats, setStats] = useState<unknown>(null);
   const [isConnected, setIsConnected] = useState(false);
   
-  const wsUrl = typeof window !== 'undefined' 
-    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
+  // Use API URL for WebSocket connection (same host as backend, not Next.js dev server)
+  const wsUrl = typeof window !== 'undefined'
+    ? `ws://${process.env.NEXT_PUBLIC_API_URL?.replace(/^https?:\/\//, '') || 'localhost:5000'}/ws`
     : '';
 
   const { isConnected: connected } = useWebSocket(wsUrl, (data) => {

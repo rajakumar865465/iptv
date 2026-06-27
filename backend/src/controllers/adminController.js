@@ -4,6 +4,36 @@ const { generateAdminToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
 const { generateLicenseKey } = require('../utils/helpers');
 
+/**
+ * Helper function to log admin actions to admin_audit_logs table
+ * @param {Object} req - Express request object
+ * @param {number} adminId - The admin's user ID
+ * @param {string} action - The action performed (e.g., 'login', 'update_user_status')
+ * @param {string} targetType - The type of resource (e.g., 'users', 'licenses', 'channels')
+ * @param {string|number} targetId - The ID of the target resource
+ * @param {Object} details - Additional details about the action (will be JSONB)
+ */
+const logAdminAction = async (req, adminId, action, targetType, targetId, details = {}) => {
+  try {
+    await db.query(
+      `INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details, ip_address, user_agent)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        adminId,
+        action,
+        targetType,
+        targetId,
+        JSON.stringify(details),
+        req.ip || req.connection?.remoteAddress,
+        req.get('User-Agent')
+      ]
+    );
+  } catch (err) {
+    // Log error should not break the main operation
+    console.error('Failed to log admin action:', err.message);
+  }
+};
+
 // Admin Login
 exports.adminLogin = async (req, res) => {
   try {
@@ -20,6 +50,9 @@ exports.adminLogin = async (req, res) => {
       return error(res, 'Invalid admin credentials', 401);
     }
 
+    // Log successful login
+    await logAdminAction(req, admin.id, 'login', 'admin', admin.id, { email: admin.email });
+
     const token = generateAdminToken({ userId: admin.id, email: admin.email, role: 'admin' });
     success(res, { token, admin: { id: admin.id, full_name: admin.full_name, email: admin.email } });
   } catch (err) {
@@ -30,10 +63,23 @@ exports.adminLogin = async (req, res) => {
 // Users
 exports.getUsers = async (req, res) => {
   try {
-    const result = await db.query(
-      'SELECT id, full_name, email, mobile, status, role, created_at, last_login_at FROM users ORDER BY created_at DESC'
-    );
-    success(res, result.rows);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
+
+    const [countResult, result] = await Promise.all([
+      db.query('SELECT COUNT(*) FROM users'),
+      db.query(
+        'SELECT id, full_name, email, mobile, status, role, created_at, last_login_at FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2',
+        [limit, offset]
+      ),
+    ]);
+
+    const total = parseInt(countResult.rows[0].count, 10);
+    success(res, {
+      data: result.rows,
+      pagination: { page, limit, total, hasMore: offset + result.rows.length < total }
+    });
   } catch (err) {
     error(res, 'Failed to fetch users', 500);
   }
@@ -61,6 +107,10 @@ exports.updateUserStatus = async (req, res) => {
       'UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING id, full_name, email, status',
       [status, id]
     );
+    if (result.rows.length === 0) return error(res, 'User not found', 404);
+
+    await logAdminAction(req, req.user.id, 'update_user_status', 'users', id, { status });
+
     success(res, result.rows[0], 'User status updated');
   } catch (err) {
     error(res, 'Failed to update user status', 500);
@@ -76,6 +126,9 @@ exports.createLicense = async (req, res) => {
       'INSERT INTO licenses (license_key, plan_id, status, duration_days, max_devices) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [key, plan_id, 'unused', duration_days || 30, max_devices || 1]
     );
+
+    await logAdminAction(req, req.user.id, 'create_license', 'licenses', result.rows[0].id, { plan_id, duration_days, max_devices });
+
     success(res, result.rows[0], 'License created', 201);
   } catch (err) {
     error(res, 'Failed to create license', 500);
@@ -84,13 +137,26 @@ exports.createLicense = async (req, res) => {
 
 exports.getLicenses = async (req, res) => {
   try {
-    const result = await db.query(
-      `SELECT l.*, p.name as plan_name, u.email as user_email FROM licenses l
-       LEFT JOIN plans p ON l.plan_id = p.id
-       LEFT JOIN users u ON l.user_id = u.id
-       ORDER BY l.created_at DESC`
-    );
-    success(res, result.rows);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
+
+    const [countResult, result] = await Promise.all([
+      db.query('SELECT COUNT(*) FROM licenses'),
+      db.query(
+        `SELECT l.*, p.name as plan_name, u.email as user_email FROM licenses l
+         LEFT JOIN plans p ON l.plan_id = p.id
+         LEFT JOIN users u ON l.user_id = u.id
+         ORDER BY l.created_at DESC LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      ),
+    ]);
+
+    const total = parseInt(countResult.rows[0].count, 10);
+    success(res, {
+      data: result.rows,
+      pagination: { page, limit, total, hasMore: offset + result.rows.length < total }
+    });
   } catch (err) {
     error(res, 'Failed to fetch licenses', 500);
   }
@@ -104,6 +170,10 @@ exports.updateLicense = async (req, res) => {
       'UPDATE licenses SET status = $1, user_id = $2, expires_at = $3, updated_at = NOW() WHERE id = $4 RETURNING *',
       [status, user_id, expires_at, id]
     );
+    if (result.rows.length === 0) return error(res, 'License not found', 404);
+
+    await logAdminAction(req, req.user.id, 'update_license', 'licenses', id, { status, user_id, expires_at });
+
     success(res, result.rows[0], 'License updated');
   } catch (err) {
     error(res, 'Failed to update license', 500);
@@ -118,6 +188,10 @@ exports.extendLicense = async (req, res) => {
       'UPDATE licenses SET expires_at = COALESCE(expires_at, NOW()) + interval \'1 day\' * $1, updated_at = NOW() WHERE id = $2 RETURNING *',
       [days, id]
     );
+    if (result.rows.length === 0) return error(res, 'License not found', 404);
+
+    await logAdminAction(req, req.user.id, 'extend_license', 'licenses', id, { days });
+
     success(res, result.rows[0], 'License extended');
   } catch (err) {
     error(res, 'Failed to extend license', 500);
@@ -131,6 +205,10 @@ exports.suspendLicense = async (req, res) => {
       "UPDATE licenses SET status = 'suspended', updated_at = NOW() WHERE id = $1 RETURNING *",
       [id]
     );
+    if (result.rows.length === 0) return error(res, 'License not found', 404);
+
+    await logAdminAction(req, req.user.id, 'suspend_license', 'licenses', id);
+
     success(res, result.rows[0], 'License suspended');
   } catch (err) {
     error(res, 'Failed to suspend license', 500);
@@ -144,6 +222,10 @@ exports.revokeLicense = async (req, res) => {
       "UPDATE licenses SET status = 'revoked', updated_at = NOW() WHERE id = $1 RETURNING *",
       [id]
     );
+    if (result.rows.length === 0) return error(res, 'License not found', 404);
+
+    await logAdminAction(req, req.user.id, 'revoke_license', 'licenses', id);
+
     success(res, result.rows[0], 'License revoked');
   } catch (err) {
     error(res, 'Failed to revoke license', 500);
@@ -158,6 +240,9 @@ exports.createChannel = async (req, res) => {
       'INSERT INTO channels (name, logo_url, stream_url, backup_stream_url, category_id, language, quality, status, is_featured, is_premium, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
       [name, logo_url, stream_url, backup_stream_url, category_id, language, quality, status, is_featured, is_premium, sort_order]
     );
+
+    await logAdminAction(req, req.user.id, 'create_channel', 'channels', result.rows[0].id, { name, category_id, language });
+
     success(res, result.rows[0], 'Channel created', 201);
   } catch (err) {
     error(res, 'Failed to create channel', 500);
@@ -217,6 +302,9 @@ exports.updateChannel = async (req, res) => {
       [...values, id]
     );
     if (result.rows.length === 0) return error(res, 'Channel not found', 404);
+
+    await logAdminAction(req, req.user.id, 'update_channel', 'channels', id, fields);
+
     success(res, result.rows[0], 'Channel updated');
   } catch (err) {
     error(res, 'Failed to update channel', 500);
@@ -227,6 +315,9 @@ exports.deleteChannel = async (req, res) => {
   try {
     const { id } = req.params;
     await db.query('DELETE FROM channels WHERE id = $1', [id]);
+
+    await logAdminAction(req, req.user.id, 'delete_channel', 'channels', id);
+
     success(res, null, 'Channel deleted');
   } catch (err) {
     error(res, 'Failed to delete channel', 500);
@@ -280,6 +371,9 @@ exports.createCategory = async (req, res) => {
       'INSERT INTO categories (name, icon_url, sort_order) VALUES ($1, $2, $3) RETURNING *',
       [name, icon_url, sort_order]
     );
+
+    await logAdminAction(req, req.user.id, 'create_category', 'categories', result.rows[0].id, { name, sort_order });
+
     success(res, result.rows[0], 'Category created', 201);
   } catch (err) {
     error(res, 'Failed to create category', 500);
@@ -303,6 +397,10 @@ exports.updateCategory = async (req, res) => {
       'UPDATE categories SET name = $1, icon_url = $2, status = $3, sort_order = $4, updated_at = NOW() WHERE id = $5 RETURNING *',
       [name, icon_url, status, sort_order, id]
     );
+    if (result.rows.length === 0) return error(res, 'Category not found', 404);
+
+    await logAdminAction(req, req.user.id, 'update_category', 'categories', id, { name, status, sort_order });
+
     success(res, result.rows[0], 'Category updated');
   } catch (err) {
     error(res, 'Failed to update category', 500);
@@ -326,12 +424,22 @@ exports.getAppSettings = async (req, res) => {
 exports.updateAppSettings = async (req, res) => {
   try {
     const updates = req.body;
-    for (const [key, value] of Object.entries(updates)) {
+    const keys = Object.keys(updates);
+    const values = Object.values(updates);
+    
+    if (keys.length > 0) {
+      // A-3 FIX: Use single bulk upsert with UNNEST instead of loop
       await db.query(
-        'INSERT INTO app_settings (setting_key, setting_value) VALUES ($1, $2) ON CONFLICT (setting_key) DO UPDATE SET setting_value = $2, updated_at = NOW()',
-        [key, value]
+        `INSERT INTO app_settings (setting_key, setting_value, updated_at)
+         SELECT * FROM UNNEST($1::text[], $2::text[]) AS t(key, value)
+         ON CONFLICT (setting_key) 
+         DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW()`,
+        [keys, values]
       );
     }
+
+    await logAdminAction(req, req.user.id, 'update_settings', 'app_settings', null, { updated_keys: keys });
+
     success(res, null, 'Settings updated');
   } catch (err) {
     error(res, 'Failed to update settings', 500);
@@ -341,13 +449,26 @@ exports.updateAppSettings = async (req, res) => {
 // Payments
 exports.getPayments = async (req, res) => {
   try {
-    const result = await db.query(
-      `SELECT p.*, u.full_name, u.email, pl.name as plan_name FROM payments p
-       LEFT JOIN users u ON p.user_id = u.id
-       LEFT JOIN plans pl ON p.plan_id = pl.id
-       ORDER BY p.created_at DESC`
-    );
-    success(res, result.rows);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
+
+    const [countResult, result] = await Promise.all([
+      db.query('SELECT COUNT(*) FROM payments'),
+      db.query(
+        `SELECT p.*, u.full_name, u.email, pl.name as plan_name FROM payments p
+         LEFT JOIN users u ON p.user_id = u.id
+         LEFT JOIN plans pl ON p.plan_id = pl.id
+         ORDER BY p.created_at DESC LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      ),
+    ]);
+
+    const total = parseInt(countResult.rows[0].count, 10);
+    success(res, {
+      data: result.rows,
+      pagination: { page, limit, total, hasMore: offset + result.rows.length < total }
+    });
   } catch (err) {
     error(res, 'Failed to fetch payments', 500);
   }
@@ -361,6 +482,10 @@ exports.updatePaymentStatus = async (req, res) => {
       'UPDATE payments SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
       [status, id]
     );
+    if (result.rows.length === 0) return error(res, 'Payment not found', 404);
+
+    await logAdminAction(req, req.user.id, 'update_payment_status', 'payments', id, { status });
+
     success(res, result.rows[0], 'Payment status updated');
   } catch (err) {
     error(res, 'Failed to update payment status', 500);

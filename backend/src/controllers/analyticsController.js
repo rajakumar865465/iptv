@@ -51,11 +51,12 @@ exports.getRevenueAnalytics = async (req, res) => {
 
 exports.getPlaybackAnalytics = async (req, res) => {
   try {
+    const days = sanitizeDays(req.query.days);
     const result = await db.query(`SELECT c.name, COUNT(*) as play_count
        FROM watch_history w JOIN channels c ON w.channel_id = c.id
        WHERE w.watched_at > NOW() - INTERVAL '1 day' * $1
        GROUP BY c.id, c.name ORDER BY play_count DESC LIMIT 20`,
-      [30]
+      [days]
     );
     success(res, result.rows);
   } catch (err) {

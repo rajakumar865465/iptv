@@ -19,12 +19,28 @@ exports.getProfile = async (req, res) => {
 exports.updateProfile = async (req, res) => {
   try {
     const { full_name, email, mobile } = req.body;
+
+    // Check for email/mobile uniqueness (exclude current user)
+    if (email || mobile) {
+      const existing = await db.query(
+        `SELECT id FROM users 
+         WHERE (email = $1 OR mobile = $2) AND id != $3`,
+        [email || '', mobile || '', req.user.id]
+      );
+      if (existing.rows.length > 0) {
+        return error(res, 'Email or mobile number already in use', 409);
+      }
+    }
+
     const result = await db.query(
       'UPDATE users SET full_name = $1, email = $2, mobile = $3, updated_at = NOW() WHERE id = $4 RETURNING id, full_name, email, mobile, status, role',
       [full_name, email, mobile, req.user.id]
     );
     success(res, result.rows[0], 'Profile updated successfully');
   } catch (err) {
+    if (err.code === '23505') {
+      return error(res, 'Email or mobile number already in use', 409);
+    }
     error(res, 'Failed to update profile', 500);
   }
 };

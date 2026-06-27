@@ -162,6 +162,8 @@ exports.proxySegment = async (req, res) => {
       // PLAYBACK-05 FIX: Wrap the retry in its own try-catch.
       // If both attempts fail, return a clean 502 so media_kit can trigger
       // _handleStreamFailure instead of stalling silently on a no-body 500.
+      // Add delay to allow transient upstream issues to resolve.
+      await new Promise(resolve => setTimeout(resolve, 100));
       try {
         proxyRes = await makeProxyRequest(targetUrl, headers);
       } catch (e2) {

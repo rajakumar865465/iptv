@@ -185,7 +185,7 @@ export const getApiErrors = (params?: Record<string, unknown>) =>
   api.get('/logs/api-errors', { params }).then((r) => r.data.data);
 
 export const getAdminActions = (params?: Record<string, unknown>) =>
-  api.get('/_logs/admin-actions', { params }).then((r) => r.data.data);
+  api.get('/logs/admin-actions', { params }).then((r) => r.data.data);
 
 export const getAdminUsers = () =>
   api.get('/admin-users').then((r) => r.data.data);

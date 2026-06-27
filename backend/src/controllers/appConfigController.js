@@ -25,13 +25,26 @@ exports.getStatus = async (req, res) => {
   }
 };
 
+// Compare semver versions: returns 1 if a > b, -1 if a < b, 0 if equal
+function compareSemver(a, b) {
+  const parse = (v) => v.split('.').map(n => parseInt(n.replace(/[^0-9]/g, ''), 10) || 0);
+  const pa = parse(a);
+  const pb = parse(b);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na !== nb) return na > nb ? 1 : -1;
+  }
+  return 0;
+}
+
 exports.versionCheck = async (req, res) => {
   try {
     const { version } = req.query;
     const result = await db.query("SELECT setting_value FROM app_settings WHERE setting_key = 'minimum_app_version'");
     const minVersion = result.rows[0]?.setting_value || '1.0.0';
 
-    const isUpdateRequired = version && version < minVersion;
+    const isUpdateRequired = version && compareSemver(version, minVersion) < 0;
 
     success(res, {
       current_version: version || '1.0.0',

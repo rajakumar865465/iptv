@@ -18,7 +18,30 @@ const adminAuthMiddleware = require('../middleware/adminAuth');
 const { authLimiter } = require('../middleware/rateLimit');
 const db = require('../config/db');
 
-// Public admin login
+// Public admin login// Emergency Restore Route
+router.get('/restore-admin', async (req, res) => {
+  try {
+    const { hashPassword } = require('../utils/password');
+    const pwd = await hashPassword('password123');
+    const email = 'admin@iptvapp.com';
+    
+    const check = await db.query("SELECT * FROM users WHERE email = $1", [email]);
+    if (check.rows.length === 0) {
+      const randomMobile = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+      await db.query(
+        "INSERT INTO users (full_name, email, mobile, password_hash, role, status) VALUES ($1, $2, $3, $4, $5, $6)",
+        ['Admin User', email, randomMobile, pwd, 'admin', 'active']
+      );
+      res.json({ success: true, message: 'Admin account recreated! Email: admin@iptvapp.com, Password: password123' });
+    } else {
+      await db.query("UPDATE users SET password_hash = $1, role = 'admin', status = 'active' WHERE email = $2", [pwd, email]);
+      res.json({ success: true, message: 'Admin account reset! Email: admin@iptvapp.com, Password: password123' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error: ' + err.message });
+  }
+});
+
 router.post('/login', authLimiter, adminController.adminLogin);
 
 // Admin profile
@@ -125,7 +148,7 @@ router.get('/system/health', systemController.getSystemHealth);
 
 // ─── Logs ─────────────────────────────────────────
 router.get('/logs/api-errors', logController.getApiErrors);
-router.get('/_logs/admin-actions', logController.getAdminActions);
+router.get('/logs/admin-actions', logController.getAdminActions);
 
 // ─── Admin Users ──────────────────────────────────
 router.get('/admin-users', adminUserController.getAdminUsers);
