@@ -84,7 +84,8 @@ export default function LicensesPage() {
     setLoading(true);
     Promise.all([getLicenses(), getPlans()])
       .then(([lic, pln]: any) => {
-        setLicenses(lic || []);
+        // Support both paginated { data: [] } and plain array
+        setLicenses(Array.isArray(lic) ? lic : (lic?.data || []));
         setPlans(Array.isArray(pln) ? pln : (pln?.data || []));
       })
       .finally(() => setLoading(false));

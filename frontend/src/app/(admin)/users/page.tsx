@@ -70,9 +70,10 @@ export default function UsersPage() {
   useEffect(() => {
     Promise.all([getUsers(), getLicenses(), getPayments()])
       .then(([u, l, p]: any) => {
-        setUsers(u || []);
-        setLicenses(l || []);
-        setAllPayments(p || []);
+        // Support both paginated { data: [] } shape and plain array
+        setUsers(Array.isArray(u) ? u : (u?.data || []));
+        setLicenses(Array.isArray(l) ? l : (l?.data || []));
+        setAllPayments(Array.isArray(p) ? p : (p?.data || []));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -229,10 +230,12 @@ export default function UsersPage() {
               {/* Footer Actions */}
               <div className="p-4 border-t border-slate-700 flex justify-end gap-2 shrink-0">
                 <button onClick={() => setSelectedUser(null)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 font-semibold hover:bg-slate-700 border border-slate-700">Close</button>
-                <button onClick={() => selectedUser && handleStatusChange(selectedUser)}
-                  className={`px-4 py-2 rounded-xl font-semibold ${selectedUser?.status === 'active' ? 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30'}`}>
-                  {selectedUser?.status === 'active' ? 'Block User' : 'Unblock User'}
-                </button>
+                {selectedUser?.role !== 'admin' && (
+                  <button onClick={() => selectedUser && handleStatusChange(selectedUser)}
+                    className={`px-4 py-2 rounded-xl font-semibold ${selectedUser?.status === 'active' ? 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30'}`}>
+                    {selectedUser?.status === 'active' ? 'Block User' : 'Unblock User'}
+                  </button>
+                )}
               </div>
             </motion.div>
           </motion.div>
@@ -267,10 +270,12 @@ export default function UsersPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-slate-400">{new Date(u.created_at).toLocaleDateString()}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <button onClick={(e) => { e.stopPropagation(); handleStatusChange(u); }}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${u.status === 'active' ? 'bg-slate-800 text-rose-400 hover:bg-rose-500/10 border border-slate-700' : 'bg-slate-800 text-emerald-400 hover:bg-emerald-500/10 border border-slate-700'}`}>
-                          {u.status === 'active' ? <><UserX className="w-3.5 h-3.5" /> Block</> : <><UserCheck className="w-3.5 h-3.5" /> Unblock</>}
-                        </button>
+                        {u.role !== 'admin' && (
+                          <button onClick={(e) => { e.stopPropagation(); handleStatusChange(u); }}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${u.status === 'active' ? 'bg-slate-800 text-rose-400 hover:bg-rose-500/10 border border-slate-700' : 'bg-slate-800 text-emerald-400 hover:bg-emerald-500/10 border border-slate-700'}`}>
+                            {u.status === 'active' ? <><UserX className="w-3.5 h-3.5" /> Block</> : <><UserCheck className="w-3.5 h-3.5" /> Unblock</>}
+                          </button>
+                        )}
                       </td>
                     </motion.tr>
                   ))}

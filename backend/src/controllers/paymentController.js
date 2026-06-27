@@ -48,7 +48,7 @@ exports.createRazorpayOrder = async (req, res) => {
     const userId = req.user.id;
 
     // Get plan details
-    const planResult = await db.query('SELECT * FROM plans WHERE id = $1 AND status = $1', [plan_id]);
+    const planResult = await db.query('SELECT * FROM plans WHERE id = $1 AND status = $2', [plan_id, 'active']);
     if (planResult.rows.length === 0) {
       return error(res, 'Plan not found', 404);
     }

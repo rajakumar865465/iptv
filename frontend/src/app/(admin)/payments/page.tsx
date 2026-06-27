@@ -63,7 +63,12 @@ export default function PaymentsPage() {
 
   const fetchPayments = () => {
     setLoading(true);
-    getPayments().then((d) => setPayments(d || [])).finally(() => setLoading(false));
+    getPayments()
+      .then((d: any) => {
+        // Support both paginated { data: [] } and plain array
+        setPayments(Array.isArray(d) ? d : (d?.data || []));
+      })
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchPayments(); }, []);
