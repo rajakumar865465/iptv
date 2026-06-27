@@ -15,15 +15,78 @@ import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/channel_logo.dart';
 import '../cubits/license_cubit.dart';
-import '../cubits/auth_cubit.dart';
 import '../utils/backend_config.dart';
+
+enum PlayerSourceType {
+  homeFeatured,
+  homePopular,
+  liveTv,
+  category,
+  search,
+  favorites,
+  related,
+  moreLive,
+}
+
+class ChannelSourceFilters {
+  final int? categoryId;
+  final String? categoryName;
+  final String? language;
+  final String? searchQuery;
+  final bool workingOnly;
+  final String sort;
+  final bool? premium;
+
+  const ChannelSourceFilters({
+    this.categoryId,
+    this.categoryName,
+    this.language,
+    this.searchQuery,
+    this.workingOnly = true,
+    this.sort = 'recommended',
+    this.premium,
+  });
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> map = {};
+    if (categoryId != null && categoryId != 0) {
+      map['categoryId'] = categoryId.toString();
+    }
+    if (categoryName != null && categoryName!.isNotEmpty) {
+      map['category'] = categoryName;
+    }
+    if (language != null && language!.isNotEmpty) {
+      map['language'] = language;
+    }
+    if (searchQuery != null && searchQuery!.isNotEmpty) {
+      map['search'] = searchQuery;
+    }
+    map['workingOnly'] = workingOnly ? 'true' : 'false';
+    if (sort.isNotEmpty && sort != 'recommended') {
+      map['sort'] = sort;
+    }
+    if (premium != null) {
+      map['premium'] = premium.toString();
+    }
+    return map;
+  }
+}
 
 class PlayerScreen extends StatefulWidget {
   final ChannelModel channel;
-  final List<ChannelModel>? channels;
-  final int? initialIndex;
+  final List<ChannelModel> channels;
+  final int initialIndex;
+  final PlayerSourceType sourceType;
+  final ChannelSourceFilters sourceFilters;
 
-  const PlayerScreen({super.key, required this.channel, this.channels, this.initialIndex});
+  const PlayerScreen({
+    super.key,
+    required this.channel,
+    required this.channels,
+    required this.initialIndex,
+    required this.sourceType,
+    required this.sourceFilters,
+  });
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -40,7 +103,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _showControls = true;
   String _currentUrl = '';
   late int _currentIndex;
-  late List<ChannelModel> _channelList;
+  late List<ChannelModel> _contextChannels;
+  late PlayerSourceType _sourceType;
+  late ChannelSourceFilters _sourceFilters;
+  bool _hasMoreBefore = false;
+  bool _hasMoreAfter = true;
+  int _previousPage = 1;
+  int _nextPage = 1;
   Timer? _controlsTimer;
   final GlobalKey _videoKey = GlobalKey();
 
@@ -49,6 +118,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _isRetryingStream = false;
   String _streamOverlayMessage = '';
   Timer? _bufferTimer;
+  Timer? _reconnectTimer;
+  int _retryAttempt = 0;
   StreamSubscription? _playerSubscription;
   bool _hadFailureBeforePlaying = false;
 
@@ -76,12 +147,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // More Live Channels pagination
   final ScrollController _scrollController = ScrollController();
   List<ChannelModel> _moreLiveChannels = [];
-  final Set<int> _moreChannelIds = {};
-  int _morePage = 1;
 
-  /// True if the current user has an active license (premium access)
-  bool get _isPremium => context.read<LicenseCubit>().state is LicenseActive;
-  bool _moreHasMore = true;
+  /// True if the current user has an active premium license with transcode access (duration > 1 day)
+  bool get _isPremium {
+    final s = context.read<LicenseCubit>().state;
+    if (s is! LicenseActive) return false;
+    return s.license.isPremium; // isPremium = durationDays > 1
+  }
   bool _moreLoading = false;
 
   final List<DateTime> _bufferingEvents = [];
@@ -89,9 +161,27 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   @override
   void initState() {
     super.initState();
-    _channelList = widget.channels ?? [widget.channel];
-    _currentIndex = widget.initialIndex ?? _channelList.indexWhere((c) => c.id == widget.channel.id);
-    if (_currentIndex < 0) _currentIndex = 0;
+    _contextChannels = List<ChannelModel>.from(widget.channels);
+    _currentIndex = widget.initialIndex;
+    if (_currentIndex < 0 || _currentIndex >= _contextChannels.length) {
+      _currentIndex = _contextChannels.indexWhere((c) => c.id == widget.channel.id);
+      if (_currentIndex < 0) {
+        _contextChannels.insert(0, widget.channel);
+        _currentIndex = 0;
+      }
+    }
+    _sourceType = widget.sourceType;
+    _sourceFilters = widget.sourceFilters;
+
+    // Calculate initial page limits
+    final limit = 50; // standard limit
+    _nextPage = (_contextChannels.length / limit).ceil() + 1;
+    _previousPage = 1;
+    _hasMoreBefore = false;
+    _hasMoreAfter = _sourceType == PlayerSourceType.liveTv ||
+                     _sourceType == PlayerSourceType.category ||
+                     _sourceType == PlayerSourceType.search;
+
     _currentUrl = _currentChannel.streamUrl;
 
     // Fix #1: Initialize media_kit player with optimized Netflix-style fast-start configuration
@@ -119,7 +209,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _scrollController.addListener(_onScroll);
     _loadQualitySettingsAndFetch();
     _loadChannelData();
-    _loadMoreLiveChannels();
+    _updateMoreChannelsFromContext();
   }
 
   // ──────────────────────── Player ────────────────────────
@@ -191,7 +281,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _selectedQuality = _determineInitialQuality();
         
         String urlToPlay = _selectedQuality != null ? _selectedQuality!['url'] : _currentStreamMeta!['url'];
-        await _initializePlayer(urlToPlay, _currentStreamMeta!['headers']);
+        final headersToUse = (_selectedQuality != null && _selectedQuality!['headers'] != null)
+            ? _selectedQuality!['headers']
+            : _currentStreamMeta!['headers'];
+        await _initializePlayer(urlToPlay, headersToUse);
       } else {
         throw Exception('Playback fetch failed');
       }
@@ -215,6 +308,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (mounted) setState(() { _isLoading = true; _hasError = false; });
 
     try {
+      // Dynamic cast to safely apply MPV options without cross-platform compiler issues
+      try {
+        final platform = _player.platform;
+        if (platform.runtimeType.toString().contains('NativePlayer') || platform.runtimeType.toString().contains('LibmpvPlayer')) {
+          await (platform as dynamic).setProperty('demuxer-readahead-secs', '15');
+          await (platform as dynamic).setProperty('network-timeout', '20');
+        }
+      } catch (_) {}
+
       final Map<String, String> headers = {};
       if (rawHeaders != null) {
         rawHeaders.forEach((k, v) {
@@ -277,6 +379,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             _isRetryingStream = false;
             _streamOverlayMessage = '';
           });
+          _retryAttempt = 0; // reset retry counter on success
           _showControlsWithTimer();
           // Report playback result to backend
           _reportPlaybackSuccess();
@@ -315,20 +418,34 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           _bufferingEvents.clear();
         }
 
+        // Show "Reconnecting..." overlay message after 3 seconds of sustained buffering
+        _reconnectTimer?.cancel();
+        _reconnectTimer = Timer(const Duration(seconds: 3), () {
+          if (mounted && alreadyStarted) {
+            setState(() {
+              _streamOverlayMessage = 'Reconnecting...';
+              _isLoading = true;
+            });
+          }
+        });
+
         _bufferTimer ??= Timer(const Duration(seconds: 10), () {
           if (mounted) _handleStreamFailure('buffer_timeout');
         });
       }
     } else {
-      // Buffering cleared — cancel stall timer and clear loading spinner
+      // Buffering cleared — cancel stall/reconnect timers and clear loading spinner
       _bufferTimer?.cancel();
       _bufferTimer = null;
+      _reconnectTimer?.cancel();
+      _reconnectTimer = null;
       if (mounted && _isLoading) {
         setState(() {
           _isLoading = false;
           _isRetryingStream = false;
           _streamOverlayMessage = '';
         });
+        _retryAttempt = 0; // reset retry counter on success
         _showControlsWithTimer();
       }
     }
@@ -336,26 +453,86 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   void _showNetworkSlowPrompt() {
     if (!mounted) return;
+
+    // First, try to find a lower quality variant available locally
+    final lowerQuality = _findLowerQuality();
+
+    // Only show the snackbar if there's actually something to switch to
+    final canSwitchQuality = lowerQuality != null;
+    final canSwitchTranscode = _isPremium && !_currentUrl.contains('/api/stream/transcode/');
+
+    if (!canSwitchQuality && !canSwitchTranscode) {
+      // Nothing to offer — skip the snackbar entirely
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Slow connection detected. Switch to Data Saver for smooth playback?'),
+        content: const Text('Slow connection detected. Switch to a lower quality?'),
         duration: const Duration(seconds: 6),
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
           label: 'SWITCH',
           textColor: const Color(AppColors.accent),
           onPressed: () async {
-            if (_isPremium && !_currentUrl.contains('/api/stream/transcode/')) {
-              if (mounted) setState(() { _streamOverlayMessage = 'Auto-switching to smooth proxy...'; _isLoading = true; _hasError = false; });
+            if (!mounted) return;
+
+            if (canSwitchQuality) {
+              // Prefer a local lower-quality variant — no proxy needed
+              final label = lowerQuality!['label'] as String? ?? 'lower quality';
+              setState(() {
+                _streamOverlayMessage = 'Switching to $label…';
+                _isLoading = true;
+                _hasError = false;
+              });
+              _selectedQuality = lowerQuality;
               _isRetryingStream = false;
-              final token = await StorageService().getToken() ?? '';
-              final fallbackUrl = '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token';
-              
-              _currentStreamMeta = {
-                'url': fallbackUrl,
-                'headers': {},
-              };
-              _initializePlayer(fallbackUrl, {});
+              await _initializePlayer(
+                lowerQuality['url'],
+                lowerQuality['headers'] ?? _currentStreamMeta?['headers'] ?? {},
+              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Switched to $label for smoother playback'),
+                  duration: const Duration(seconds: 3),
+                  behavior: SnackBarBehavior.floating,
+                ));
+              }
+            } else if (canSwitchTranscode) {
+              // Fall back to server-side transcode (premium only)
+              setState(() {
+                _streamOverlayMessage = 'Switching to proxy stream…';
+                _isLoading = true;
+                _hasError = false;
+              });
+              _isRetryingStream = false;
+              try {
+                final token = await StorageService().getToken() ?? '';
+                if (token.isEmpty) throw Exception('No token');
+                final fallbackUrl =
+                    '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token';
+                _currentStreamMeta = {'url': fallbackUrl, 'headers': {}};
+                await _initializePlayer(fallbackUrl, {});
+              } catch (e) {
+                // Transcode failed — restore the original stream silently
+                if (mounted) {
+                  setState(() { _isLoading = false; _hasError = false; _streamOverlayMessage = ''; });
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Proxy unavailable. Continuing on direct stream.'),
+                    duration: Duration(seconds: 3),
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                  // Re-init original stream
+                  _isRetryingStream = false;
+                  await _initializePlayer(
+                    _currentChannel.streamUrl,
+                    {
+                      if (_currentChannel.userAgent != null) 'User-Agent': _currentChannel.userAgent!,
+                      if (_currentChannel.referrer != null) 'Referer': _currentChannel.referrer!,
+                    },
+                  );
+                }
+              }
             }
           },
         ),
@@ -363,12 +540,54 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
+  /// Finds the next lower quality variant below the current selection, or null if none.
+  Map<String, dynamic>? _findLowerQuality() {
+    if (_qualities.isEmpty) return null;
+    int currentHeight = _selectedQuality?['height'] ?? 9999;
+    if (_selectedQuality?['type'] == 'auto') currentHeight = 9999;
+
+    Map<String, dynamic>? best;
+    for (final q in _qualities) {
+      if (q['type'] == 'auto') continue;
+      final h = (q['height'] as num?)?.toInt() ?? 0;
+      if (h > 0 && h < currentHeight) {
+        if (best == null || h > ((best['height'] as num?)?.toInt() ?? 0)) {
+          best = q;
+        }
+      }
+    }
+    return best;
+  }
+
   Future<void> _handleStreamFailure(String reason) async {
     if (_isRetryingStream) return;
     _bufferTimer?.cancel();
     _bufferTimer = null;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+
+    // Silent retry flow (Attempt 1: Retry once silently before falling back)
+    if (_retryAttempt < 1) {
+      _retryAttempt++;
+      if (mounted) {
+        setState(() {
+          _streamOverlayMessage = 'Still loading. Trying again...';
+          _isLoading = true;
+          _hasError = false;
+        });
+      }
+      await Future.delayed(const Duration(milliseconds: 1500));
+      // Re-initialize player with same parameters
+      final headersToUse = (_selectedQuality != null && _selectedQuality!['headers'] != null)
+          ? _selectedQuality!['headers']
+          : _currentStreamMeta?['headers'];
+      await _initializePlayer(_currentUrl, headersToUse);
+      return;
+    }
+
     _isRetryingStream = true;
     _hadFailureBeforePlaying = true; // mark that we had a failure before success
+    _retryAttempt = 0; // Reset for fallback streams
 
     try {
       await _api.post('${ApiEndpoints.channels}/${_currentChannel.id}/report-failure', {
@@ -415,15 +634,17 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       if (_isPremium && !_currentUrl.contains('/api/stream/transcode/')) {
         if (mounted) setState(() { _streamOverlayMessage = 'Auto-switching to smooth proxy...'; _isLoading = true; _hasError = false; });
         _isRetryingStream = false;
-        final token = await StorageService().getToken() ?? '';
-        final fallbackUrl = '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token';
-        
-        _currentStreamMeta = {
-          'url': fallbackUrl,
-          'headers': {},
-        };
-        await _initializePlayer(fallbackUrl, {});
-        return;
+        try {
+          final token = await StorageService().getToken() ?? '';
+          if (token.isEmpty) throw Exception('No token');
+          final fallbackUrl = '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token';
+          _currentStreamMeta = {'url': fallbackUrl, 'headers': {}};
+          await _initializePlayer(fallbackUrl, {});
+          return;
+        } catch (e) {
+          // Transcode unavailable — continue to backup stream fallback below
+          if (mounted) setState(() { _isLoading = false; _streamOverlayMessage = ''; });
+        }
       }
     }
 
@@ -500,17 +721,25 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   void _onScroll() {
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 500) {
-      _loadMoreLiveChannels();
+      if (_hasMoreAfter && !_moreLoading) {
+        _fetchContextChannelsPage(page: _nextPage);
+      }
     }
   }
 
-  Future<void> _loadMoreLiveChannels() async {
-    if (_moreLoading || !_moreHasMore) return;
+  Future<void> _fetchContextChannelsPage({required int page, bool prepend = false}) async {
+    if (_sourceType != PlayerSourceType.liveTv &&
+        _sourceType != PlayerSourceType.category &&
+        _sourceType != PlayerSourceType.search) {
+      return;
+    }
+
     if (mounted) setState(() { _moreLoading = true; });
     try {
       final res = await _api.get(ApiEndpoints.channels, queryParameters: {
-        'page': _morePage.toString(),
-        'limit': '20',
+        'page': page.toString(),
+        'limit': '50',
+        ..._sourceFilters.toJson(),
       });
       if (!mounted) return;
       if (res['success'] == true) {
@@ -518,83 +747,163 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         final pagination = res['pagination'] as Map<String, dynamic>?;
         final newChannels = data
             .map((c) => ChannelModel.fromJson(c))
-            .where((c) => c.id != _currentChannel.id && !_moreChannelIds.contains(c.id))
             .toList();
+
         setState(() {
-          for (final ch in newChannels) {
-            _moreChannelIds.add(ch.id);
-            _moreLiveChannels.add(ch);
+          final existingIds = _contextChannels.map((c) => c.id).toSet();
+          final filtered = newChannels.where((c) => !existingIds.contains(c.id)).toList();
+
+          if (prepend) {
+            _contextChannels.insertAll(0, filtered);
+            _currentIndex += filtered.length;
+            _previousPage = page;
+            _hasMoreBefore = page > 1;
+          } else {
+            _contextChannels.addAll(filtered);
+            _nextPage = page + 1;
+            _hasMoreAfter = pagination?['hasMore'] == true;
           }
-          _morePage++;
-          _moreHasMore = pagination?['hasMore'] == true;
           _moreLoading = false;
+          _updateMoreChannelsFromContext();
         });
       } else {
-        if (mounted) setState(() { _moreLoading = false; _moreHasMore = false; });
+        if (mounted) setState(() { _moreLoading = false; });
       }
     } catch (_) {
       if (mounted) setState(() { _moreLoading = false; });
     }
   }
 
-  void _resetMoreLiveChannels() {
-    _moreLiveChannels = [];
-    _moreChannelIds.clear();
-    _morePage = 1;
-    _moreHasMore = true;
-    _moreLoading = false;
+  void _updateMoreChannelsFromContext() {
+    if (_contextChannels.isEmpty) {
+      _moreLiveChannels = [];
+      return;
+    }
+    
+    final before = _contextChannels.sublist(
+      (_sourceType == PlayerSourceType.search || _sourceType == PlayerSourceType.favorites)
+          ? 0
+          : (_currentIndex - 6).clamp(0, _contextChannels.length),
+      _currentIndex.clamp(0, _contextChannels.length),
+    );
+    final after = _contextChannels.sublist(
+      (_currentIndex + 1).clamp(0, _contextChannels.length),
+      (_sourceType == PlayerSourceType.search || _sourceType == PlayerSourceType.favorites)
+          ? _contextChannels.length
+          : (_currentIndex + 15).clamp(0, _contextChannels.length),
+    );
+
+    final combined = [...after, ...before];
+    final Set<int> seenIds = {};
+    final List<ChannelModel> distinct = [];
+    
+    for (final ch in combined) {
+      if (ch.id != _currentChannel.id && seenIds.add(ch.id)) {
+        distinct.add(ch);
+      }
+    }
+
+    _moreLiveChannels = distinct;
   }
 
   // ──────────────────────── Channel Navigation ────────────────────────
 
-  ChannelModel get _currentChannel => _channelList[_currentIndex];
+  ChannelModel get _currentChannel => _contextChannels[_currentIndex];
 
-  void _playChannel(ChannelModel ch) {
-    int index = _channelList.indexWhere((c) => c.id == ch.id);
-    if (index < 0) {
-      _channelList.add(ch);
-      index = _channelList.length - 1;
-    }
-    setState(() {
-      _currentIndex = index;
-      _currentUrl = ch.streamUrl;
-      _nowPlaying = null;
-      _upcoming = [];
-      _relatedChannels = [];
-      _relatedSourceType = '';
-      _hadFailureBeforePlaying = false; // reset retry tracking for new channel
-      _resetMoreLiveChannels();
-    });
+  void _onChannelChanged({bool fetchNewContext = false}) {
+    _hadFailureBeforePlaying = false;
+    _nowPlaying = null;
+    _upcoming = [];
+    _relatedChannels = [];
+    _relatedSourceType = '';
+    
     if (_scrollController.hasClients) {
       _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     }
+    
     _fetchPlaybackAndInitialize();
     _loadChannelData();
-    _loadMoreLiveChannels();
+
+    if (fetchNewContext) {
+      _fetchContextChannelsPage(page: 1);
+    } else {
+      _updateMoreChannelsFromContext();
+    }
+  }
+
+  void _playChannel(ChannelModel ch) {
+    int index = _contextChannels.indexWhere((c) => c.id == ch.id);
+    if (index >= 0) {
+      setState(() {
+        _currentIndex = index;
+      });
+      _onChannelChanged(fetchNewContext: false);
+    } else {
+      setState(() {
+        _sourceFilters = ChannelSourceFilters(
+          categoryId: ch.categoryId,
+          categoryName: ch.categoryName,
+          workingOnly: _sourceFilters.workingOnly,
+          sort: 'recommended',
+        );
+        _sourceType = PlayerSourceType.category;
+        _contextChannels = [ch];
+        _currentIndex = 0;
+        _previousPage = 1;
+        _nextPage = 1;
+        _hasMoreBefore = false;
+        _hasMoreAfter = true;
+      });
+      _onChannelChanged(fetchNewContext: true);
+    }
   }
 
   void _playNextChannel() {
-    if (_channelList.length < 2) return;
-    int next = (_currentIndex + 1) % _channelList.length;
-    for (int i = 0; i < _channelList.length; i++) {
-      if (_channelList[next].streamUrl.isNotEmpty) {
-        _playChannel(_channelList[next]);
+    if (_contextChannels.isEmpty) return;
+    int next = _currentIndex + 1;
+    if (next >= _contextChannels.length) {
+      if (_hasMoreAfter && !_moreLoading) {
+        _fetchContextChannelsPage(page: _nextPage).then((_) {
+          if (_currentIndex + 1 < _contextChannels.length) {
+            setState(() {
+              _currentIndex++;
+            });
+            _onChannelChanged();
+          }
+        });
         return;
+      } else {
+        next = 0; // Wrap around
       }
-      next = (next + 1) % _channelList.length;
     }
+    setState(() {
+      _currentIndex = next;
+    });
+    _onChannelChanged();
   }
 
   void _playPreviousChannel() {
-    if (_channelList.length < 2) return;
-    int prev = (_currentIndex - 1 + _channelList.length) % _channelList.length;
-    for (int i = 0; i < _channelList.length; i++) {
-      if (_channelList[prev].streamUrl.isNotEmpty) {
-        _playChannel(_channelList[prev]);
+    if (_contextChannels.isEmpty) return;
+    int prev = _currentIndex - 1;
+    if (prev < 0) {
+      if (_hasMoreBefore && _previousPage > 1 && !_moreLoading) {
+        _fetchContextChannelsPage(page: _previousPage - 1, prepend: true).then((_) {
+          if (_currentIndex > 0) {
+            setState(() {
+              _currentIndex--;
+            });
+            _onChannelChanged();
+          }
+        });
         return;
+      } else {
+        prev = _contextChannels.length - 1; // Wrap around
       }
-      prev = (prev - 1 + _channelList.length) % _channelList.length;
     }
+    setState(() {
+      _currentIndex = prev;
+    });
+    _onChannelChanged();
   }
 
   // ──────────────────────── Controls Logic ────────────────────────
@@ -716,6 +1025,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     // Fix #14: Dispose video player FIRST before animation controller to prevent
     // animation callbacks firing after widget is unmounted
     _bufferTimer?.cancel();
+    _reconnectTimer?.cancel();
     _controlsTimer?.cancel();
     _playerSubscription?.cancel();
     _player.dispose();
@@ -917,7 +1227,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   _actionButton(Icons.refresh_rounded, 'Retry', _retry),
-                  if (_channelList.length > 1) ...[
+                  if (_contextChannels.length > 1) ...[
                     const SizedBox(width: 12),
                     _actionButton(Icons.skip_next_rounded, 'Next', _playNextChannel, outlined: true),
                   ],
@@ -1182,10 +1492,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               ),
             ),
           ),
-          if (_channelList.length > 1) ...[
+          if (_contextChannels.length > 1) ...[
             const SizedBox(width: 10),
             Text(
-              '${_currentIndex + 1} / ${_channelList.length}',
+              '${_currentIndex + 1} / ${_contextChannels.length}',
               style: const TextStyle(color: Colors.white60, fontSize: 11),
             ),
           ],
@@ -1757,11 +2067,43 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   // ──────────────────────── More Live Channels (paginated) ────────────────────────
 
+  String get _moreSectionTitle {
+    switch (_sourceType) {
+      case PlayerSourceType.favorites:
+        return 'MORE FAVORITES';
+      case PlayerSourceType.search:
+        if (_sourceFilters.searchQuery != null && _sourceFilters.searchQuery!.isNotEmpty) {
+          return 'MORE RESULTS FOR "${_sourceFilters.searchQuery!.toUpperCase()}"';
+        }
+        return 'MORE FROM SEARCH';
+      case PlayerSourceType.category:
+        if (_sourceFilters.categoryName != null && _sourceFilters.categoryName!.isNotEmpty) {
+          return 'MORE ${_sourceFilters.categoryName!.toUpperCase()}';
+        }
+        return 'MORE FROM CATEGORY';
+      case PlayerSourceType.homeFeatured:
+      case PlayerSourceType.homePopular:
+        if (_sourceFilters.categoryName != null && _sourceFilters.categoryName!.isNotEmpty) {
+          return 'MORE ${_sourceFilters.categoryName!.toUpperCase()}';
+        }
+        return 'MORE LIVE CHANNELS';
+      case PlayerSourceType.liveTv:
+      default:
+        if (_sourceFilters.categoryId != null && _sourceFilters.categoryId != 0) {
+          if (_sourceFilters.categoryName != null && _sourceFilters.categoryName!.isNotEmpty) {
+            return 'MORE ${_sourceFilters.categoryName!.toUpperCase()}';
+          }
+          return 'MORE FROM CATEGORY';
+        }
+        return 'MORE LIVE CHANNELS';
+    }
+  }
+
   Widget _buildMoreLiveHeader() {
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-        child: _sectionHeader('MORE LIVE CHANNELS'),
+        child: _sectionHeader(_moreSectionTitle),
       ),
     );
   }
@@ -1823,13 +2165,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: _moreLoading && _moreLiveChannels.isNotEmpty
           ? const Center(child: CircularProgressIndicator(color: Color(AppColors.primary), strokeWidth: 2))
-          : !_moreHasMore && _moreLiveChannels.isNotEmpty
+          : !_hasMoreAfter && _moreLiveChannels.isNotEmpty
               ? const Center(child: Text("You've reached the end", style: TextStyle(color: Colors.white24, fontSize: 12)))
               : const SizedBox.shrink(),
     );
   }
 
   Widget _buildMoreLiveCard(ChannelModel ch) {
+    final sub = [ch.categoryName, ch.language]
+        .whereType<String>()
+        .where((e) => e.trim().isNotEmpty && e.toLowerCase() != 'unknown')
+        .join(' • ');
+
     return GestureDetector(
       onTap: () => _playChannel(ch),
       child: Container(
@@ -1841,19 +2188,34 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         child: Stack(
           children: [
             Positioned(
-              top: 5,
-              right: 5,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(3)),
-                child: const Text('LIVE', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w800, color: Colors.white)),
+              top: 6,
+              right: 6,
+              child: Row(
+                children: [
+                  if (ch.isPremium) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFD700),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: const Text('PREMIUM', style: TextStyle(fontSize: 6, fontWeight: FontWeight.w900, color: Colors.black)),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(3)),
+                    child: const Text('LIVE', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w800, color: Colors.white)),
+                  ),
+                ],
               ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: Row(
                 children: [
-                  ChannelLogo(logoUrl: ch.logoUrl, localLogoUrl: ch.localLogoUrl, channelName: ch.name, size: 38, borderRadius: 8),
+                  ChannelLogo(logoUrl: ch.logoUrl, localLogoUrl: ch.localLogoUrl, channelName: ch.name, size: 40, borderRadius: 8),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
@@ -1862,10 +2224,23 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                       children: [
                         Text(ch.name, maxLines: 1, overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+                        if (sub.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 9, color: Colors.white38)),
+                        ],
                         const SizedBox(height: 3),
-                        Text(_getCategoryLabel(ch.categoryName),
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 9, color: Colors.white38)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.white10,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text(
+                            ch.qualityLabel,
+                            style: const TextStyle(fontSize: 8, color: Colors.white70, fontWeight: FontWeight.w600),
+                          ),
+                        ),
                       ],
                     ),
                   ),

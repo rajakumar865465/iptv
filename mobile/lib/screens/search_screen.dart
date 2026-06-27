@@ -77,7 +77,7 @@ class _SearchScreenState extends State<SearchScreen> {
               itemCount: state.channels.length,
               itemBuilder: (context, index) {
                 final channel = state.channels[index];
-                return _buildChannelTile(channel);
+                return _buildChannelTile(channel, state.channels, index);
               },
             );
           }
@@ -119,7 +119,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildChannelTile(ChannelModel channel) {
+  Widget _buildChannelTile(ChannelModel channel, List<ChannelModel> searchResults, int index) {
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: const Color(AppColors.surfaceLight),
@@ -136,13 +136,13 @@ class _SearchScreenState extends State<SearchScreen> {
         child: const Text('LIVE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
       ),
       onTap: () {
-        final allChannels = context.read<ChannelCubit>().allChannels;
-        final index = allChannels.indexWhere((c) => c.id == channel.id);
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => PlayerScreen(
             channel: channel,
-            channels: allChannels,
-            initialIndex: index >= 0 ? index : 0,
+            channels: searchResults,
+            initialIndex: index,
+            sourceType: PlayerSourceType.search,
+            sourceFilters: ChannelSourceFilters(searchQuery: _searchController.text),
           )),
         );
       },

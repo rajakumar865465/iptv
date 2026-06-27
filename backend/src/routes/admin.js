@@ -82,6 +82,7 @@ router.post('/channel-streams', channelStreamController.createChannelStream);
 router.put('/channel-streams/:id', channelStreamController.updateChannelStream);
 router.delete('/channel-streams/:id', channelStreamController.deleteChannelStream);
 router.put('/channel-streams/:id/primary', channelStreamController.setPrimaryStream);
+router.post('/channel-streams/:id/diagnose', channelStreamController.diagnoseChannelStream);
 
 // ─── Broken Channels ──────────────────────────────
 router.get('/channels/broken', brokenChannelController.getBrokenChannels);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { getAppSettings, updateAppSettings } from '@/lib/api';
 import { motion } from 'framer-motion';
 import { Settings, Save, Plus, Trash2, CheckCircle, X, AlertCircle, Info } from 'lucide-react';

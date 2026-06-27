@@ -124,13 +124,20 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     shell?.navigateToLiveTV(categoryId: categoryId, categoryName: categoryName, language: language);
   }
 
-  void _openPlayer(ChannelModel channel, List<ChannelModel> allChannels) {
-    final index = allChannels.indexWhere((c) => c.id == channel.id);
+  void _openPlayer({
+    required ChannelModel channel,
+    required List<ChannelModel> contextChannels,
+    required PlayerSourceType sourceType,
+    required ChannelSourceFilters filters,
+  }) {
+    final index = contextChannels.indexWhere((c) => c.id == channel.id);
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => PlayerScreen(
         channel: channel,
-        channels: allChannels,
+        channels: contextChannels,
         initialIndex: index >= 0 ? index : 0,
+        sourceType: sourceType,
+        sourceFilters: filters,
       ),
     ));
   }
@@ -153,7 +160,6 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
   }
 
   Widget _buildContent(HomeLoaded state) {
-    final all = state.allChannels;
     return RefreshIndicator(
       color: const Color(AppColors.primary),
       backgroundColor: const Color(AppColors.surface),
@@ -168,7 +174,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
           // 1. Continue Watching
           if (state.continueWatching.isNotEmpty) ...[
             SliverToBoxAdapter(child: _sectionTitle('Continue Watching', onSeeAll: () => _seeAll())),
-            SliverToBoxAdapter(child: _buildFeaturedRow(state.continueWatching, all)),
+            SliverToBoxAdapter(child: _buildFeaturedRow(state.continueWatching, PlayerSourceType.homeFeatured, const ChannelSourceFilters())),
           ],
           // 2. Premium Channels
           if (state.premiumChannels.isNotEmpty) ...[
@@ -176,7 +182,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                 icon: Icons.workspace_premium_rounded,
                 iconColor: const Color(0xFFFFB300),
                 onSeeAll: () => _seeAll())),
-            SliverToBoxAdapter(child: _buildFeaturedRow(state.premiumChannels, all)),
+            SliverToBoxAdapter(child: _buildFeaturedRow(state.premiumChannels, PlayerSourceType.homeFeatured, const ChannelSourceFilters(premium: true))),
           ],
           // 3. Popular Channels
           if (state.popularChannels.isNotEmpty) ...[
@@ -184,7 +190,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                 icon: Icons.local_fire_department_rounded,
                 iconColor: const Color(0xFFFF5722),
                 onSeeAll: () => _seeAll())),
-            SliverToBoxAdapter(child: _buildGridRow(state.popularChannels.take(12).toList(), all)),
+            SliverToBoxAdapter(child: _buildGridRow(state.popularChannels.take(12).toList(), PlayerSourceType.homePopular, const ChannelSourceFilters(sort: 'popular'))),
           ],
           // 4. Featured Live
           if (state.featuredChannels.isNotEmpty) ...[
@@ -192,13 +198,13 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                 icon: Icons.live_tv_rounded,
                 iconColor: const Color(AppColors.primary),
                 onSeeAll: () => _seeAll())),
-            SliverToBoxAdapter(child: _buildFeaturedRow(state.featuredChannels, all)),
+            SliverToBoxAdapter(child: _buildFeaturedRow(state.featuredChannels, PlayerSourceType.homeFeatured, const ChannelSourceFilters())),
           ],
           // 5. Category Sections
           for (final section in state.categories) ...[
             SliverToBoxAdapter(child: _sectionTitle(section.name,
                 onSeeAll: () => _seeAll(categoryId: section.id, categoryName: section.name))),
-            SliverToBoxAdapter(child: _buildGridRow(section.channels, all)),
+            SliverToBoxAdapter(child: _buildGridRow(section.channels, PlayerSourceType.category, ChannelSourceFilters(categoryId: section.id, categoryName: section.name))),
           ],
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],
@@ -292,7 +298,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
 
   // ─── Featured Horizontal Scroll Row ──────────────────────────────────────
 
-  Widget _buildFeaturedRow(List<ChannelModel> channels, List<ChannelModel> allChannels) {
+  Widget _buildFeaturedRow(List<ChannelModel> channels, PlayerSourceType sourceType, ChannelSourceFilters filters) {
     return SizedBox(
       height: 190,
       child: ListView.builder(
@@ -303,7 +309,12 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
         itemBuilder: (context, index) {
           return _FeaturedCard(
             channel: channels[index],
-            onTap: () => _openPlayer(channels[index], allChannels),
+            onTap: () => _openPlayer(
+              channel: channels[index],
+              contextChannels: channels,
+              sourceType: sourceType,
+              filters: filters,
+            ),
           );
         },
       ),
@@ -312,7 +323,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
 
   // ─── Grid (2-column compact) Row ──────────────────────────────────────────
 
-  Widget _buildGridRow(List<ChannelModel> channels, List<ChannelModel> allChannels) {
+  Widget _buildGridRow(List<ChannelModel> channels, PlayerSourceType sourceType, ChannelSourceFilters filters) {
     // Horizontal scrolling row of compact channel cards
     return SizedBox(
       height: 160,
@@ -324,7 +335,12 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
         itemBuilder: (context, index) {
           return _CompactCard(
             channel: channels[index],
-            onTap: () => _openPlayer(channels[index], allChannels),
+            onTap: () => _openPlayer(
+              channel: channels[index],
+              contextChannels: channels,
+              sourceType: sourceType,
+              filters: filters,
+            ),
           );
         },
       ),

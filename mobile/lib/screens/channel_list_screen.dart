@@ -519,9 +519,28 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   void _openPlayer(ChannelModel channel) {
     final allChannels = context.read<ChannelCubit>().allChannels;
     final index = allChannels.indexWhere((c) => c.id == channel.id);
+
+    final filters = ChannelSourceFilters(
+      categoryId: _selectedCategoryId,
+      categoryName: _selectedCategoryName,
+      language: _selectedLanguage,
+      searchQuery: _searchController.text,
+      workingOnly: _workingOnly,
+      sort: _selectedSort,
+    );
+
+    final PlayerSourceType sourceType = (_selectedCategoryId != null && _selectedCategoryId != 0)
+        ? PlayerSourceType.category
+        : (_searchController.text.isNotEmpty ? PlayerSourceType.search : PlayerSourceType.liveTv);
+
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => PlayerScreen(
-        channel: channel, channels: allChannels, initialIndex: index >= 0 ? index : 0)),
+        channel: channel,
+        channels: allChannels,
+        initialIndex: index >= 0 ? index : 0,
+        sourceType: sourceType,
+        sourceFilters: filters,
+      )),
     );
   }
 }

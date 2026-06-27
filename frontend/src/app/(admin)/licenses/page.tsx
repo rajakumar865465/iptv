@@ -118,7 +118,7 @@ export default function LicensesPage() {
     setConfirmOpen(true);
   };
 
-  const act = (fn: Promise<any>, id: string) => {
+  const act = async (fn: Promise<any>, id: string) => {
     setActionId(id); try { await fn; fetchAll(); } catch { alert('Action failed'); } finally { setActionId(null); }
   };
 

@@ -18,7 +18,7 @@ interface User {
 
 interface Device { id: string; device_name: string; device_type: string; status: string; last_active_at: string; }
 
-interface License { id: string; license_key: string; plan_name: string; status: string; expires_at: string; }
+interface License { id: string; license_key: string; plan_name: string; status: string; expires_at: string; user_email?: string; }
 
 interface Payment { id: string; plan_name: string; amount: number; status: string; created_at: string; }
 

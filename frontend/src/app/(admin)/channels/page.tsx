@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getChannels, getCategories, createChannel, updateChannel, deleteChannel, getChannelStreams, createChannelStream, updateChannelStream, deleteChannelStream } from '@/lib/api';
+import { getChannels, getCategories, createChannel, updateChannel, deleteChannel, getChannelStreams, createChannelStream, updateChannelStream, deleteChannelStream, diagnoseChannelStream } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, Trash2, Tv, Globe2, Languages, Signal, X, Pencil, List, ChevronLeft, ChevronRight, Link2, Check, XCircle, Play, Edit3, RefreshCw } from 'lucide-react';
 
@@ -11,7 +11,27 @@ interface Channel {
   status: string; health_status: string; is_premium: boolean; is_featured: boolean;
   sort_order: number; backup_stream_url: string;
 }
-interface Stream { id: string; stream_url: string; quality: string; priority: number; health_status: string; source_name: string; is_active?: boolean; }
+interface Stream { 
+  id: string; 
+  stream_url: string; 
+  quality: string; 
+  priority: number; 
+  health_status: string; 
+  source_name: string; 
+  is_active?: boolean;
+  user_agent?: string;
+  referer?: string;
+  origin?: string;
+  headers_json?: any;
+  playback_mode?: string;
+  codec_video?: string;
+  codec_audio?: string;
+  container_type?: string;
+  segment_type?: string;
+  health_reason?: string;
+  android_playable?: boolean;
+  vlc_playable?: boolean;
+}
 
 const emptyForm = { name: '', stream_url: '', backup_stream_url: '', logo_url: '', category_id: '', language: 'Hindi', quality: 'HD', status: 'active', is_premium: false, is_featured: false, sort_order: 0 };
 
@@ -38,8 +58,23 @@ export default function ChannelsPage() {
   const [form, setForm] = useState(emptyForm);
   const [streams, setStreams] = useState<Stream[]>([]);
   const [streamChannelId, setStreamChannelId] = useState<string | null>(null);
-  const [streamForm, setStreamForm] = useState({ stream_url: '', quality: 'HD', priority: 1, source_name: '', is_active: true });
+  
+  const emptyStreamForm = {
+    stream_url: '',
+    quality: 'HD',
+    priority: 1,
+    source_name: '',
+    is_active: true,
+    user_agent: '',
+    referer: '',
+    origin: '',
+    headers_json: '',
+    playback_mode: 'direct'
+  };
+
+  const [streamForm, setStreamForm] = useState(emptyStreamForm);
   const [editingStreamId, setEditingStreamId] = useState<string | null>(null);
+  const [diagnosingId, setDiagnosingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [selectedStreams, setSelectedStreams] = useState<Set<string>>(new Set());
 
@@ -67,7 +102,7 @@ export default function ChannelsPage() {
   };
   const openStreams = async (c: Channel) => {
     setStreamChannelId(c.id); 
-    setStreamForm({ stream_url: '', quality: 'HD', priority: 1, source_name: '', is_active: true });
+    setStreamForm(emptyStreamForm);
     setEditingStreamId(null);
     setSelectedStreams(new Set());
     try { const d = await getChannelStreams(c.id); setStreams(d || []); } catch { setStreams([]); }
@@ -99,7 +134,7 @@ export default function ChannelsPage() {
     try { 
       const d = await createChannelStream({ ...streamForm, channel_id: streamChannelId }); 
       setStreams((p) => [...p, d]); 
-      setStreamForm({ stream_url: '', quality: 'HD', priority: 1, source_name: '', is_active: true }); 
+      setStreamForm(emptyStreamForm); 
     }
     catch { alert('Failed to add stream'); }
     finally { setSaving(false); }
@@ -111,9 +146,24 @@ export default function ChannelsPage() {
       const d = await updateChannelStream(editingStreamId, streamForm);
       setStreams((p) => p.map((s) => (s.id === editingStreamId ? { ...s, ...d } : s)));
       setEditingStreamId(null);
-      setStreamForm({ stream_url: '', quality: 'HD', priority: 1, source_name: '', is_active: true });
+      setStreamForm(emptyStreamForm);
     } catch { alert('Failed to update stream'); }
     finally { setSaving(false); }
+  };
+
+  const handleDiagnoseStream = async (sid: string) => {
+    setDiagnosingId(sid);
+    try {
+      const result = await diagnoseChannelStream(sid);
+      if (streamChannelId) {
+        const d = await getChannelStreams(streamChannelId);
+        setStreams(d || []);
+      }
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to run diagnosis');
+    } finally {
+      setDiagnosingId(null);
+    }
   };
 
   const handleDeleteStream = async (sid: string) => {
@@ -129,13 +179,18 @@ export default function ChannelsPage() {
       quality: s.quality || 'HD', 
       priority: s.priority || 1, 
       source_name: s.source_name || '',
-      is_active: s.is_active !== false
+      is_active: s.is_active !== false,
+      user_agent: s.user_agent || '',
+      referer: s.referer || '',
+      origin: s.origin || '',
+      headers_json: s.headers_json ? (typeof s.headers_json === 'string' ? s.headers_json : JSON.stringify(s.headers_json, null, 2)) : '',
+      playback_mode: s.playback_mode || 'direct'
     });
   };
 
   const cancelEditStream = () => {
     setEditingStreamId(null);
-    setStreamForm({ stream_url: '', quality: 'HD', priority: 1, source_name: '', is_active: true });
+    setStreamForm(emptyStreamForm);
   };
 
   const toggleStreamSelection = (id: string) => {
@@ -227,7 +282,7 @@ export default function ChannelsPage() {
 
   const StreamsModal = () => (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-3xl shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
+      <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-4xl shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500" />
         <div className="flex justify-between items-center mb-5">
           <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2"><Link2 className="w-5 h-5 text-purple-400" />Stream Sources</h3>
@@ -242,7 +297,7 @@ export default function ChannelsPage() {
         </div>
 
         {/* Stream List */}
-        <div className="space-y-2 mb-5">
+        <div className="space-y-3 mb-5 max-h-[45vh] overflow-y-auto pr-1">
           {streams.length > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 text-xs text-slate-400 border-b border-slate-700/50">
               <input 
@@ -265,19 +320,35 @@ export default function ChannelsPage() {
               <div className="min-w-0 flex-1">
                 {editingStreamId === s.id ? (
                   <form onSubmit={handleUpdateStream} className="space-y-3">
-                    <input value={streamForm.stream_url} onChange={(e) => setStreamForm({ ...streamForm, stream_url: e.target.value })} placeholder="Stream URL" className="w-full px-3 py-2 text-sm rounded-lg bg-slate-950 border border-slate-600 text-slate-200" required />
-                    <div className="grid grid-cols-4 gap-2">
-                      <select value={streamForm.quality} onChange={(e) => setStreamForm({ ...streamForm, quality: e.target.value })} className="px-2 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-600 text-slate-200">
+                    <input value={streamForm.stream_url} onChange={(e) => setStreamForm({ ...streamForm, stream_url: e.target.value })} placeholder="Stream URL" className="w-full px-3 py-2 text-sm rounded-lg bg-slate-950 border border-slate-700 text-slate-200" required />
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                      <select value={streamForm.quality} onChange={(e) => setStreamForm({ ...streamForm, quality: e.target.value })} className="px-2 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-750 text-slate-200">
                         {['SD','HD','FHD','4K'].map(q => <option key={q}>{q}</option>)}
                       </select>
-                      <input type="number" min="1" value={streamForm.priority} onChange={(e) => setStreamForm({ ...streamForm, priority: parseInt(e.target.value)||1 })} placeholder="Priority" className="px-2 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-600 text-slate-200" />
-                      <input value={streamForm.source_name} onChange={(e) => setStreamForm({ ...streamForm, source_name: e.target.value })} placeholder="Source" className="px-2 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-600 text-slate-200" />
-                      <label className="flex items-center gap-1.5 text-xs text-slate-300">
-                        <input type="checkbox" checked={streamForm.is_active} onChange={(e) => setStreamForm({ ...streamForm, is_active: e.target.checked })} className="w-3.5 h-3.5 rounded bg-slate-950 border-slate-600" />
+                      <input type="number" min="1" value={streamForm.priority} onChange={(e) => setStreamForm({ ...streamForm, priority: parseInt(e.target.value)||1 })} placeholder="Priority" className="px-2 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-750 text-slate-200" />
+                      <input value={streamForm.source_name} onChange={(e) => setStreamForm({ ...streamForm, source_name: e.target.value })} placeholder="Source" className="px-2 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-750 text-slate-200" />
+                      <select value={streamForm.playback_mode} onChange={(e) => setStreamForm({ ...streamForm, playback_mode: e.target.value })} className="px-2 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-750 text-slate-200">
+                        <option value="direct">Direct Play</option>
+                        <option value="proxy">HLS Proxy</option>
+                      </select>
+                      <label className="flex items-center gap-1.5 text-xs text-slate-300 px-2 py-1 bg-slate-950 border border-slate-750 rounded-lg cursor-pointer">
+                        <input type="checkbox" checked={streamForm.is_active} onChange={(e) => setStreamForm({ ...streamForm, is_active: e.target.checked })} className="w-3.5 h-3.5 rounded bg-slate-950 border border-slate-750" />
                         Active
                       </label>
                     </div>
-                    <div className="flex gap-2">
+
+                    <div className="space-y-2 border-t border-slate-800 pt-2">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Custom Headers (Optional)</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <input value={streamForm.user_agent} onChange={(e) => setStreamForm({ ...streamForm, user_agent: e.target.value })} placeholder="User-Agent" className="px-2 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-750 text-slate-200" />
+                        <input value={streamForm.referer} onChange={(e) => setStreamForm({ ...streamForm, referer: e.target.value })} placeholder="Referer" className="px-2 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-750 text-slate-200" />
+                        <input value={streamForm.origin} onChange={(e) => setStreamForm({ ...streamForm, origin: e.target.value })} placeholder="Origin" className="px-2 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-750 text-slate-200" />
+                      </div>
+                      <textarea value={streamForm.headers_json} onChange={(e) => setStreamForm({ ...streamForm, headers_json: e.target.value })} placeholder='Headers JSON (e.g. {"Cookie": "key=val"})' rows={1} className="w-full px-2 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-750 text-slate-200 font-mono" />
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
                       <button type="submit" disabled={saving} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20">
                         <Check className="w-3.5 h-3.5" /> Save
                       </button>
@@ -288,12 +359,36 @@ export default function ChannelsPage() {
                   </form>
                 ) : (
                   <>
-                    <p className="text-xs font-mono text-slate-300 truncate">{s.stream_url}</p>
-                    <div className="flex flex-wrap gap-2 mt-2 items-center">
-                      <span className="bg-slate-700/80 px-2 py-0.5 rounded text-xs text-slate-300">{s.quality}</span>
-                      <span className="text-xs text-slate-500">Priority {s.priority}</span>
-                      {s.source_name && <span className="text-xs text-slate-500">• {s.source_name}</span>}
+                    <div className="flex items-center gap-2">
+                      <span className="bg-slate-700/80 px-2 py-0.5 rounded text-[10px] font-bold text-slate-300">{s.quality}</span>
+                      <p className="text-xs font-mono text-slate-300 truncate flex-1">{s.stream_url}</p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-x-2 gap-y-1.5 mt-2 items-center text-[11px] text-slate-400">
+                      <span className="text-slate-500">Priority {s.priority}</span>
+                      {s.source_name && <span>• {s.source_name}</span>}
+                      <span>• Playback: <strong className="text-slate-300 font-semibold">{s.playback_mode || 'direct'}</strong></span>
+                      
+                      {(s.codec_video || s.codec_audio) && (
+                        <span className="bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 text-[10px] text-cyan-400 font-mono">
+                          {s.codec_video || 'N/A'}/{s.codec_audio || 'N/A'}
+                        </span>
+                      )}
+                      
+                      {s.container_type && (
+                        <span className="text-[10px] text-slate-500">({s.container_type}/{s.segment_type})</span>
+                      )}
+
+                      <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold ${s.android_playable !== false ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
+                        Android: {s.android_playable !== false ? 'OK' : 'ERR'}
+                      </span>
+
+                      <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold ${s.vlc_playable !== false ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
+                        VLC: {s.vlc_playable !== false ? 'OK' : 'ERR'}
+                      </span>
+
                       <StreamHealthIndicator status={s.health_status} />
+                      {s.health_reason && <span className="text-rose-400/80 italic font-mono text-[10px]">({s.health_reason})</span>}
                       {s.is_active === false && <span className="text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded">Inactive</span>}
                     </div>
                   </>
@@ -301,6 +396,15 @@ export default function ChannelsPage() {
               </div>
               {editingStreamId !== s.id && (
                 <div className="flex items-center gap-1 shrink-0">
+                  <button 
+                    type="button" 
+                    onClick={() => handleDiagnoseStream(s.id)} 
+                    disabled={diagnosingId !== null} 
+                    title="Run deep validation check"
+                    className="p-1.5 text-purple-400 hover:bg-purple-500/10 rounded-lg border border-transparent hover:border-purple-500/30 transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${diagnosingId === s.id ? 'animate-spin' : ''}`} />
+                  </button>
                   <button onClick={() => startEditStream(s)} className="p-1.5 text-cyan-400 hover:bg-cyan-500/10 rounded-lg border border-transparent hover:border-cyan-500/30 transition-all">
                     <Edit3 className="w-3.5 h-3.5" />
                   </button>
@@ -324,17 +428,33 @@ export default function ChannelsPage() {
         <form onSubmit={handleAddStream} className="border-t border-slate-700 pt-4 space-y-3">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Add New Stream</p>
           <input value={streamForm.stream_url} onChange={(e) => setStreamForm({ ...streamForm, stream_url: e.target.value })} placeholder="Stream URL *" className={ic} required />
-          <div className="grid grid-cols-4 gap-2">
+          
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             <select value={streamForm.quality} onChange={(e) => setStreamForm({ ...streamForm, quality: e.target.value })} className="px-3 py-2.5 rounded-xl bg-slate-950/50 border border-slate-700 text-slate-100 text-sm">
               {['SD','HD','FHD','4K'].map(q => <option key={q}>{q}</option>)}
             </select>
             <input type="number" min="1" value={streamForm.priority} onChange={(e) => setStreamForm({ ...streamForm, priority: parseInt(e.target.value)||1 })} placeholder="Priority" className="px-3 py-2.5 rounded-xl bg-slate-950/50 border border-slate-700 text-slate-100 text-sm" />
             <input value={streamForm.source_name} onChange={(e) => setStreamForm({ ...streamForm, source_name: e.target.value })} placeholder="Source name" className="px-3 py-2.5 rounded-xl bg-slate-950/50 border border-slate-700 text-slate-100 text-sm" />
+            <select value={streamForm.playback_mode} onChange={(e) => setStreamForm({ ...streamForm, playback_mode: e.target.value })} className="px-3 py-2.5 rounded-xl bg-slate-950/50 border border-slate-700 text-slate-100 text-sm">
+              <option value="direct">Direct Play</option>
+              <option value="proxy">HLS Proxy</option>
+            </select>
             <label className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-950/50 border border-slate-700 cursor-pointer">
               <input type="checkbox" checked={streamForm.is_active} onChange={(e) => setStreamForm({ ...streamForm, is_active: e.target.checked })} className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-purple-500 focus:ring-purple-500/50" />
               <span className="text-sm text-slate-300">Active</span>
             </label>
           </div>
+
+          <div className="space-y-2 border-t border-slate-800/80 pt-2.5">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Custom Headers (Optional)</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <input value={streamForm.user_agent} onChange={(e) => setStreamForm({ ...streamForm, user_agent: e.target.value })} placeholder="User-Agent" className="px-3 py-2 rounded-xl bg-slate-950/50 border border-slate-700 text-slate-100 text-xs" />
+              <input value={streamForm.referer} onChange={(e) => setStreamForm({ ...streamForm, referer: e.target.value })} placeholder="Referer" className="px-3 py-2 rounded-xl bg-slate-950/50 border border-slate-700 text-slate-100 text-xs" />
+              <input value={streamForm.origin} onChange={(e) => setStreamForm({ ...streamForm, origin: e.target.value })} placeholder="Origin" className="px-3 py-2 rounded-xl bg-slate-950/50 border border-slate-700 text-slate-100 text-xs" />
+            </div>
+            <textarea value={streamForm.headers_json} onChange={(e) => setStreamForm({ ...streamForm, headers_json: e.target.value })} placeholder='Headers JSON (e.g. {"Cookie": "abc=123"})' rows={1} className="w-full px-3 py-2 rounded-xl bg-slate-950/50 border border-slate-700 text-slate-100 text-xs font-mono" />
+          </div>
+
           <button type="submit" disabled={saving} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold disabled:opacity-50 transition-all">
             {saving ? 'Adding…' : 'Add Stream'}
           </button>

@@ -86,14 +86,19 @@ exports.proxyManifest = async (req, res) => {
       return res.send(cachedManifest.data);
     }
 
-    const streamRes = await db.query('SELECT stream_url, user_agent, referer FROM channel_streams WHERE id = $1', [streamId]);
+    const streamRes = await db.query('SELECT * FROM channel_streams WHERE id = $1', [streamId]);
     if (streamRes.rows.length === 0) return res.status(404).send('Stream not found');
-    const { stream_url, user_agent, referer } = streamRes.rows[0];
+    const stream = streamRes.rows[0];
+    const stream_url = stream.stream_url;
 
-    const proxyRes = await makeProxyRequest(stream_url, {
-      'User-Agent': user_agent || 'ExoPlayer',
-      'Referer': referer || ''
-    });
+    const headers = {
+      'User-Agent': stream.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      ...(stream.referer ? { 'Referer': stream.referer } : {}),
+      ...(stream.origin ? { 'Origin': stream.origin } : {}),
+      ...(stream.headers_json ? stream.headers_json : {})
+    };
+
+    const proxyRes = await makeProxyRequest(stream_url, headers);
 
     if (proxyRes.statusCode !== 200) {
       return res.status(proxyRes.statusCode).send('Upstream error');
@@ -140,18 +145,25 @@ exports.proxySegment = async (req, res) => {
 
     const targetUrl = Buffer.from(b64url.replace('.ts', ''), 'base64').toString('utf8');
     
-    const streamRes = await db.query('SELECT user_agent, referer FROM channel_streams WHERE id = $1', [streamId]);
-    const { user_agent, referer } = streamRes.rows[0] || {};
+    const streamRes = await db.query('SELECT * FROM channel_streams WHERE id = $1', [streamId]);
+    const stream = streamRes.rows[0] || {};
+
+    const headers = {
+      'User-Agent': stream.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      ...(stream.referer ? { 'Referer': stream.referer } : {}),
+      ...(stream.origin ? { 'Origin': stream.origin } : {}),
+      ...(stream.headers_json ? stream.headers_json : {})
+    };
 
     let proxyRes;
     try {
-      proxyRes = await makeProxyRequest(targetUrl, { 'User-Agent': user_agent || 'ExoPlayer', 'Referer': referer || '' });
+      proxyRes = await makeProxyRequest(targetUrl, headers);
     } catch (e) {
       // PLAYBACK-05 FIX: Wrap the retry in its own try-catch.
       // If both attempts fail, return a clean 502 so media_kit can trigger
       // _handleStreamFailure instead of stalling silently on a no-body 500.
       try {
-        proxyRes = await makeProxyRequest(targetUrl, { 'User-Agent': user_agent || 'ExoPlayer', 'Referer': referer || '' });
+        proxyRes = await makeProxyRequest(targetUrl, headers);
       } catch (e2) {
         return res.status(502).send('Upstream segment unavailable');
       }

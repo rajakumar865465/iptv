@@ -82,6 +82,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                         channel: channel,
                         channels: state.favorites,
                         initialIndex: index,
+                        sourceType: PlayerSourceType.favorites,
+                        sourceFilters: const ChannelSourceFilters(),
                       )),
                     );
                   },

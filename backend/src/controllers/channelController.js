@@ -825,13 +825,40 @@ exports.getChannelPlayback = async (req, res) => {
   try {
     const { id } = req.params;
     
+    // Get protocol and host to build absolute proxy URLs if needed
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const baseUrl = `${protocol}://${host}`;
+
     // Fix #26: Use cached table check
     const hasStreamsTable = await checkChannelStreamsTable();
+
+    const compileHeaders = (stream) => {
+      return {
+        'User-Agent': stream.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        ...(stream.referer ? { 'Referer': stream.referer } : {}),
+        ...(stream.origin ? { 'Origin': stream.origin } : {}),
+        ...(stream.headers_json ? stream.headers_json : {})
+      };
+    };
+
+    const getPlayUrl = (stream) => {
+      if (stream.playback_mode === 'proxy') {
+        return `${baseUrl}/api/proxy/${stream.id}/master.m3u8`;
+      }
+      return stream.final_url || stream.stream_url;
+    };
 
     if (!hasStreamsTable) {
       const result = await db.query('SELECT name, stream_url, backup_stream_url, user_agent, referrer FROM channels WHERE id = $1', [id]);
       if (result.rows.length === 0) return error(res, 'Channel not found', 404);
       const row = result.rows[0];
+      
+      const defaultHeaders = {
+        'User-Agent': row.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        ...(row.referrer ? { 'Referer': row.referrer } : {})
+      };
+
       return success(res, {
         channel_id: parseInt(id),
         channel: { id: parseInt(id), name: row.name || 'Unknown Channel' },
@@ -839,10 +866,10 @@ exports.getChannelPlayback = async (req, res) => {
           label: "Auto",
           url: row.stream_url,
           type: "auto",
-          headers: { 'User-Agent': row.user_agent, 'Referer': row.referrer }
+          headers: defaultHeaders
         }],
-        primary_stream: { url: row.stream_url, quality: 'auto', headers: { 'User-Agent': row.user_agent, 'Referer': row.referrer }, playback_mode: 'direct' },
-        backup_streams: row.backup_stream_url ? [{ url: row.backup_stream_url, quality: 'auto', headers: { 'User-Agent': row.user_agent, 'Referer': row.referrer } }] : []
+        primary_stream: { url: row.stream_url, quality: 'auto', headers: defaultHeaders, playback_mode: 'direct' },
+        backup_streams: row.backup_stream_url ? [{ url: row.backup_stream_url, quality: 'auto', headers: defaultHeaders }] : []
       });
     }
 
@@ -874,18 +901,18 @@ exports.getChannelPlayback = async (req, res) => {
     
     let qualities = [{
       label: "Auto",
-      url: primary.stream_url,
+      url: getPlayUrl(primary),
       type: "auto",
-      headers: { 'User-Agent': primary.user_agent, 'Referer': primary.referer }
+      headers: compileHeaders(primary)
     }];
 
     for (const v of variantRows) {
       qualities.push({
         label: v.quality_label || 'Original',
-        url: v.stream_url,
+        url: getPlayUrl(v),
         height: v.resolution_height,
         bitrate: v.bitrate,
-        headers: { 'User-Agent': v.user_agent, 'Referer': v.referer }
+        headers: compileHeaders(v)
       });
     }
 
@@ -898,13 +925,12 @@ exports.getChannelPlayback = async (req, res) => {
 
     const backups = result.rows.filter(r => r.id !== primary.id && r.parent_stream_id == null).map(r => ({
       id: r.id,
-      url: r.stream_url,
+      url: getPlayUrl(r),
       quality: r.quality,
-      headers: { 'User-Agent': r.user_agent, 'Referer': r.referer }
+      headers: compileHeaders(r)
     }));
 
-    const channelRes = await db.query('SELECT playback_mode, name FROM channels WHERE id = $1', [id]);
-    const playbackMode = channelRes.rows[0]?.playback_mode || 'direct';
+    const channelRes = await db.query('SELECT name FROM channels WHERE id = $1', [id]);
     const channelName = channelRes.rows[0]?.name || 'Unknown Channel';
 
     success(res, {
@@ -913,10 +939,11 @@ exports.getChannelPlayback = async (req, res) => {
       qualities: qualities,
       primary_stream: {
         id: primary.id,
-        url: primary.stream_url,
+        url: getPlayUrl(primary),
+        final_url: primary.final_url || primary.stream_url,
         quality: primary.quality,
-        headers: { 'User-Agent': primary.user_agent, 'Referer': primary.referer },
-        playback_mode: playbackMode
+        headers: compileHeaders(primary),
+        playback_mode: primary.playback_mode || 'direct'
       },
       backup_streams: backups
     });

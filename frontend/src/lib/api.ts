@@ -130,6 +130,9 @@ export const updateChannelStream = (id: string, data: Record<string, unknown>) =
 export const deleteChannelStream = (id: string) =>
   api.delete(`/channel-streams/${id}`).then((r) => r.data.data);
 
+export const diagnoseChannelStream = (id: string) =>
+  api.post(`/channel-streams/${id}/diagnose`).then((r) => r.data.data);
+
 export const getCategories = () =>
   api.get('/categories').then((r) => r.data.data);
 
