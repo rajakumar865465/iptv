@@ -113,27 +113,25 @@ async function runScanJob(jobId, scope, categoryId) {
         const probe = await probeUrl(stream.stream_url);
         const newStatus = probe.ok ? 'online' : (probe.reason === 'timeout' ? 'unstable' : 'offline');
 
+        const scoreDelta = probe.ok ? 10 : (probe.reason === 'timeout' ? -10 : -20);
+
         if (stream.src === 'stream' && hasStreamsTable) {
           // Update channel_streams row
           if (hasHealthReason) {
             await db.query(
               `UPDATE channel_streams
                SET health_status=$1, last_checked_at=NOW(), health_reason=$2,
-                   health_score = CASE WHEN $1::text='online'   THEN LEAST(100, health_score+10)
-                                       WHEN $1::text='unstable' THEN GREATEST(0, health_score-10)
-                                       ELSE GREATEST(0, health_score-20) END
+                   health_score = GREATEST(0, LEAST(100, health_score + $4::int))
                WHERE id=$3`,
-              [newStatus, probe.reason, stream.id]
+              [newStatus, probe.reason, stream.id, scoreDelta]
             );
           } else {
             await db.query(
               `UPDATE channel_streams
                SET health_status=$1, last_checked_at=NOW(),
-                   health_score = CASE WHEN $1::text='online'   THEN LEAST(100, health_score+10)
-                                       WHEN $1::text='unstable' THEN GREATEST(0, health_score-10)
-                                       ELSE GREATEST(0, health_score-20) END
+                   health_score = GREATEST(0, LEAST(100, health_score + $3::int))
                WHERE id=$2`,
-              [newStatus, stream.id]
+              [newStatus, stream.id, scoreDelta]
             );
           }
           // Mirror to channels table
