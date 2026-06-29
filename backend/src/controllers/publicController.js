@@ -37,11 +37,14 @@ exports.getPlans = async (req, res) => {
       `SELECT id, name, slug, price, regular_price, duration_days, max_devices, description,
               sort_order, offer_label, is_popular, is_best_value
        FROM plans
-       WHERE is_active = true AND is_visible = true AND COALESCE(status, 'active') != 'archived'
-       ORDER BY sort_order ASC, id ASC`
+       WHERE COALESCE(status, 'active') = 'active'
+         AND COALESCE(is_visible, true) = true
+         AND COALESCE(is_active, true) = true
+       ORDER BY COALESCE(sort_order, 0) ASC, id ASC`
     );
     return success(res, result.rows);
   } catch (err) {
+    console.error('getPlans error:', err.message);
     return error(res, 'Failed to fetch plans', 500);
   }
 };
