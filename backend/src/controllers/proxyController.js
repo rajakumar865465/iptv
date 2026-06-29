@@ -91,11 +91,25 @@ exports.proxyManifest = async (req, res) => {
     const stream = streamRes.rows[0];
     const stream_url = stream.stream_url;
 
+    // Sanitize headers_json — only allow safe header names (prevent header injection)
+    const ALLOWED_HEADER_NAMES = new Set([
+      'user-agent', 'referer', 'origin', 'accept', 'accept-language',
+      'x-forwarded-for', 'x-requested-with', 'cookie',
+    ]);
+    const safeExtraHeaders = {};
+    if (stream.headers_json && typeof stream.headers_json === 'object') {
+      for (const [k, v] of Object.entries(stream.headers_json)) {
+        if (ALLOWED_HEADER_NAMES.has(k.toLowerCase())) {
+          safeExtraHeaders[k] = v;
+        }
+      }
+    }
+
     const headers = {
       'User-Agent': stream.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       ...(stream.referer ? { 'Referer': stream.referer } : {}),
       ...(stream.origin ? { 'Origin': stream.origin } : {}),
-      ...(stream.headers_json ? stream.headers_json : {})
+      ...safeExtraHeaders,
     };
 
     const proxyRes = await makeProxyRequest(stream_url, headers);
@@ -143,26 +157,65 @@ exports.proxySegment = async (req, res) => {
       return res.send(cachedSegment.data);
     }
 
-    const targetUrl = Buffer.from(b64url.replace('.ts', ''), 'base64').toString('utf8');
-    
+    // Decode the target URL and validate it against allowed hosts (SSRF prevention)
+    let targetUrl;
+    try {
+      targetUrl = Buffer.from(b64url.replace('.ts', ''), 'base64').toString('utf8');
+      // Validate it's a proper URL
+      const parsed = new URL(targetUrl);
+      // Only allow http/https — block file://, ftp://, data:, etc.
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return res.status(400).send('Invalid segment URL');
+      }
+      // Block access to private/internal IP ranges and metadata services
+      const host = parsed.hostname.toLowerCase();
+      const BLOCKED_PATTERNS = [
+        /^localhost$/,
+        /^127\./,
+        /^10\./,
+        /^172\.(1[6-9]|2\d|3[01])\./,
+        /^192\.168\./,
+        /^169\.254\./,      // AWS metadata service
+        /^::1$/,            // IPv6 loopback
+        /^fc00:/,           // IPv6 private
+        /^fe80:/,           // IPv6 link-local
+        /^0\./,
+      ];
+      if (BLOCKED_PATTERNS.some(p => p.test(host))) {
+        return res.status(400).send('Invalid segment URL');
+      }
+    } catch {
+      return res.status(400).send('Invalid segment URL');
+    }
+
     const streamRes = await db.query('SELECT * FROM channel_streams WHERE id = $1', [streamId]);
     const stream = streamRes.rows[0] || {};
 
+    // Sanitize headers_json — only allow a safe set of header names to prevent header injection
+    const ALLOWED_HEADER_NAMES = new Set([
+      'user-agent', 'referer', 'origin', 'accept', 'accept-language',
+      'x-forwarded-for', 'x-requested-with', 'cookie',
+    ]);
+    const safeExtraHeaders = {};
+    if (stream.headers_json && typeof stream.headers_json === 'object') {
+      for (const [k, v] of Object.entries(stream.headers_json)) {
+        if (ALLOWED_HEADER_NAMES.has(k.toLowerCase())) {
+          safeExtraHeaders[k] = v;
+        }
+      }
+    }
+
     const headers = {
-      'User-Agent': stream.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'User-Agent': stream.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       ...(stream.referer ? { 'Referer': stream.referer } : {}),
       ...(stream.origin ? { 'Origin': stream.origin } : {}),
-      ...(stream.headers_json ? stream.headers_json : {})
+      ...safeExtraHeaders,
     };
 
     let proxyRes;
     try {
       proxyRes = await makeProxyRequest(targetUrl, headers);
     } catch (e) {
-      // PLAYBACK-05 FIX: Wrap the retry in its own try-catch.
-      // If both attempts fail, return a clean 502 so media_kit can trigger
-      // _handleStreamFailure instead of stalling silently on a no-body 500.
-      // Add delay to allow transient upstream issues to resolve.
       await new Promise(resolve => setTimeout(resolve, 100));
       try {
         proxyRes = await makeProxyRequest(targetUrl, headers);
@@ -179,11 +232,10 @@ exports.proxySegment = async (req, res) => {
     res.setHeader('Content-Type', 'video/mp2t');
     for await (const chunk of proxyRes) {
       chunks.push(chunk);
-      res.write(chunk); // Stream directly to client
+      res.write(chunk);
     }
     res.end();
 
-    // Save to cache after streaming
     const fullBuffer = Buffer.concat(chunks);
     segmentCache.set(cacheKey, fullBuffer);
 

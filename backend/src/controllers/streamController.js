@@ -14,9 +14,15 @@ const MAX_TRANSCODE_SESSIONS = parseInt(process.env.MAX_TRANSCODE_SESSIONS || '4
 
 exports.transcodeStream = async (req, res) => {
   const { channelId } = req.params;
-  const { quality, token } = req.query;
+  const { quality } = req.query;
 
-  // 1. Auth & Premium Check
+  // Accept token from Authorization header (preferred) or query param (legacy fallback)
+  // Avoid query-param tokens in new clients — they appear in server logs and browser history
+  const authHeader = req.headers['authorization'];
+  const token = (authHeader && authHeader.startsWith('Bearer '))
+    ? authHeader.slice(7)
+    : req.query.token;  // legacy fallback; remove once all mobile clients update
+
   if (!token) {
     return res.status(401).send('Unauthorized: No token provided');
   }
