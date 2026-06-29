@@ -16,17 +16,10 @@ router.post('/orders/create', authLimiter, pub.createOrder);
 router.post('/payments/verify', authLimiter, pub.verifyPayment);
 router.get('/payments/status/:orderId', apiLimiter, pub.getOrderStatus);
 
-// License check
-router.post('/license/check', apiLimiter, pub.checkLicense);
+// License check — use stricter auth limiter to prevent key enumeration
+router.post('/license/check', authLimiter, pub.checkLicense);
 
 // Scratch card offer — returns hidden 7-day plan metadata only
 router.get('/offers/7day', apiLimiter, pub.getSevenDayOffer);
-
-// PUBLIC DEBUG: Raw license list for troubleshooting (no auth required)
-router.get('/debug/licenses', async (req, res) => {
-  const db = require('../config/db');
-  const li = await db.query("SELECT id, license_key, status, user_id, plan_id, payment_id, created_at FROM licenses ORDER BY created_at DESC");
-  res.json({ count: li.rows.length, rows: li.rows });
-});
 
 module.exports = router;

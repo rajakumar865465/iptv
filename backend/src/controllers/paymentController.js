@@ -10,10 +10,12 @@ try {
   console.log('[Payment] Razorpay not installed - run: npm install razorpay');
 }
 
-const razorpayClient = razorpay ? new razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || 'your_key_id',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || 'your_key_secret'
-}) : null;
+const razorpayClient = (razorpay && process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET)
+  ? new razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    })
+  : null;
 
 exports.getPlans = async (req, res) => {
   try {
@@ -98,10 +100,13 @@ exports.verifyRazorpayPayment = async (req, res) => {
       return error(res, 'Payment gateway not configured', 503);
     }
 
-    // Verify signature
+    // Verify signature — always use the env var, never a hardcoded fallback
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      return error(res, 'Payment gateway not configured', 503);
+    }
     const crypto = require('crypto');
     const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'your_key_secret')
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest('hex');
 
@@ -153,8 +158,15 @@ exports.verifyRazorpayPayment = async (req, res) => {
 
 exports.manualRequest = async (req, res) => {
   try {
-    const { plan_id, amount, payment_method } = req.body;
+    const { plan_id, payment_method } = req.body;
     const userId = req.user.id;
+
+    // Always pull the amount from the plan — never trust client-supplied amount
+    const planResult = await db.query('SELECT price FROM plans WHERE id = $1 AND status = $2', [plan_id, 'active']);
+    if (planResult.rows.length === 0) {
+      return error(res, 'Plan not found or inactive', 404);
+    }
+    const amount = planResult.rows[0].price;
 
     const result = await db.query(
       `INSERT INTO payments (user_id, plan_id, amount, payment_method, status)

@@ -26,10 +26,11 @@ exports.activate = async (req, res) => {
       return error(res, 'This license key has already been used by another account', 400);
     }
 
-    // Check statuses
+    // Check statuses — including expired
     if (license.license_status === 'revoked') return error(res, 'This license has been revoked', 400);
     if (license.license_status === 'suspended') return error(res, 'This license has been suspended', 400);
     if (license.license_status === 'blocked') return error(res, 'This license has been blocked', 400);
+    if (license.license_status === 'expired') return error(res, 'This license has expired', 400);
 
     // Check user status
     const userResult = await db.query('SELECT status FROM users WHERE id = $1', [userId]);

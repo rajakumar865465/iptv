@@ -246,6 +246,7 @@ exports.createOrder = async (req, res) => {
 
 // POST /api/public/payments/verify
 exports.verifyPayment = async (req, res) => {
+  const client = await require('../config/db').pool.connect();
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
@@ -253,7 +254,7 @@ exports.verifyPayment = async (req, res) => {
       return error(res, 'Missing payment verification fields', 400);
     }
 
-    // Verify HMAC-SHA256 signature
+    // Verify HMAC-SHA256 signature BEFORE touching the DB
     if (!process.env.RAZORPAY_KEY_SECRET) {
       return error(res, 'Razorpay key secret not configured', 500);
     }
@@ -266,21 +267,26 @@ exports.verifyPayment = async (req, res) => {
       return error(res, 'Payment verification failed: invalid signature', 400);
     }
 
-    // Load order
-    const orderResult = await db.query(
+    // Use a transaction + SELECT FOR UPDATE to prevent double-spend race condition
+    await client.query('BEGIN');
+
+    const orderResult = await client.query(
       `SELECT po.*, p.name AS plan_name, p.duration_days, p.max_devices
        FROM public_orders po
        JOIN plans p ON po.plan_id = p.id
-       WHERE po.order_id = $1`,
+       WHERE po.order_id = $1
+       FOR UPDATE`,          // locks the row so concurrent requests queue up
       [razorpay_order_id]
     );
     if (orderResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return error(res, 'Order not found', 404);
     }
     const order = orderResult.rows[0];
 
-    // Idempotency: already paid
+    // Idempotency: already paid — return existing license
     if (order.status === 'paid' && order.license_id) {
+      await client.query('ROLLBACK');
       const licResult = await db.query(
         `SELECT l.license_key, l.status, l.duration_days, l.max_devices, p.name AS plan_name
          FROM licenses l LEFT JOIN plans p ON l.plan_id = p.id WHERE l.id = $1`,
@@ -295,80 +301,58 @@ exports.verifyPayment = async (req, res) => {
       }, 'Payment already verified');
     }
 
-    // Generate license
+    // Generate license key
     const licenseKey = generateLicenseKey();
-    console.log('[DEBUG verifyPayment] Generated license key:', licenseKey, 'for order:', razorpay_order_id);
 
     // Insert payment record
-    const paymentInsert = await db.query(
+    const paymentInsert = await client.query(
       `INSERT INTO payments (plan_id, amount, currency, payment_method, transaction_id, status,
         order_id, customer_name, mobile, gateway_order_id, gateway_signature, paid_at)
        VALUES ($1, $2, 'INR', 'razorpay', $3, 'completed', $4, $5, $6, $4, $7, NOW())
        RETURNING id`,
       [
-        order.plan_id,
-        order.amount,
-        razorpay_payment_id,
-        razorpay_order_id,
-        order.customer_name,
-        order.mobile,
-        razorpay_signature,
+        order.plan_id, order.amount, razorpay_payment_id, razorpay_order_id,
+        order.customer_name, order.mobile, razorpay_signature,
       ]
     );
     const paymentId = paymentInsert.rows[0].id;
-    console.log('[DEBUG verifyPayment] Payment inserted, id:', paymentId);
 
-    // Insert license (try with payment_id + customer_email first, fallback without)
-    let licenseId;
+    // Insert license with customer email for admin visibility
     const customerEmail = order.email ? order.email.toLowerCase().trim() : null;
+    let licenseId;
     try {
-      const licenseInsert = await db.query(
+      const licenseInsert = await client.query(
         `INSERT INTO licenses (license_key, plan_id, payment_id, customer_email, status, duration_days, max_devices)
          VALUES ($1, $2, $3, $4, 'unused', $5, $6)
          RETURNING id`,
         [licenseKey, order.plan_id, paymentId, customerEmail, order.duration_days, order.max_devices]
       );
       licenseId = licenseInsert.rows[0].id;
-      console.log('[DEBUG verifyPayment] License inserted with payment_id, id:', licenseId);
     } catch (colErr) {
-      // Fallback: payment_id or customer_email column may not exist if migrations not yet applied
-      console.log('[DEBUG verifyPayment] payment_id insert failed:', colErr.message);
+      // Fallback for older schema without payment_id/customer_email columns
       if (colErr.message && (colErr.message.includes('payment_id') || colErr.message.includes('customer_email'))) {
-        try {
-          const licenseInsert = await db.query(
-            `INSERT INTO licenses (license_key, plan_id, payment_id, status, duration_days, max_devices)
-             VALUES ($1, $2, $3, 'unused', $4, $5)
-             RETURNING id`,
-            [licenseKey, order.plan_id, paymentId, order.duration_days, order.max_devices]
-          );
-          licenseId = licenseInsert.rows[0].id;
-          console.log('[DEBUG verifyPayment] License inserted with payment_id (no email), id:', licenseId);
-        } catch (colErr2) {
-          // Final fallback: no payment_id either
-          const licenseInsert = await db.query(
-            `INSERT INTO licenses (license_key, plan_id, status, duration_days, max_devices)
-             VALUES ($1, $2, 'unused', $3, $4)
-             RETURNING id`,
-            [licenseKey, order.plan_id, order.duration_days, order.max_devices]
-          );
-          licenseId = licenseInsert.rows[0].id;
-          console.log('[DEBUG verifyPayment] License inserted without payment_id, id:', licenseId);
-        }
+        const licenseInsert = await client.query(
+          `INSERT INTO licenses (license_key, plan_id, status, duration_days, max_devices)
+           VALUES ($1, $2, 'unused', $3, $4)
+           RETURNING id`,
+          [licenseKey, order.plan_id, order.duration_days, order.max_devices]
+        );
+        licenseId = licenseInsert.rows[0].id;
       } else {
         throw colErr;
       }
     }
 
     // Mark order paid
-    console.log('[DEBUG verifyPayment] Marking order paid, licenseId:', licenseId);
-    await db.query(
+    await client.query(
       `UPDATE public_orders
        SET status = 'paid', gateway_payment_id = $1, gateway_signature = $2, license_id = $3, updated_at = NOW()
        WHERE order_id = $4`,
       [razorpay_payment_id, razorpay_signature, licenseId, razorpay_order_id]
     );
 
-    console.log('[DEBUG verifyPayment] SUCCESS: License generated:', licenseKey, 'order_id:', razorpay_order_id);
+    await client.query('COMMIT');
+
     return success(res, {
       license_key: licenseKey,
       plan_name: order.plan_name,
@@ -377,8 +361,11 @@ exports.verifyPayment = async (req, res) => {
       order_id: razorpay_order_id,
     }, 'Payment verified and license generated');
   } catch (err) {
-    console.error('[DEBUG verifyPayment] FULL ERROR:', err.message, err.stack);
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('verifyPayment error:', err.message);
     return error(res, 'Failed to verify payment', 500);
+  } finally {
+    client.release();
   }
 };
 
@@ -552,14 +539,20 @@ exports.updateWebsiteSettings = async (req, res) => {
   try {
     const updates = req.body;
     const allowed = new Set(WEBSITE_KEYS);
-    for (const [key, value] of Object.entries(updates)) {
-      if (!allowed.has(key)) continue;
-      await db.query(
-        `INSERT INTO app_settings (setting_key, setting_value) VALUES ($1, $2)
-         ON CONFLICT (setting_key) DO UPDATE SET setting_value = $2, updated_at = NOW()`,
-        [key, value]
-      );
+    // Filter to only allowed keys
+    const filteredEntries = Object.entries(updates).filter(([key]) => allowed.has(key));
+    if (filteredEntries.length === 0) {
+      return success(res, null, 'No valid settings to update');
     }
+    const keys = filteredEntries.map(([k]) => k);
+    const values = filteredEntries.map(([, v]) => String(v ?? ''));
+    // Single atomic bulk upsert — avoids partial updates and multiple round-trips
+    await db.query(
+      `INSERT INTO app_settings (setting_key, setting_value, updated_at)
+       SELECT t.key, t.value, NOW() FROM UNNEST($1::text[], $2::text[]) AS t(key, value)
+       ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW()`,
+      [keys, values]
+    );
     return success(res, null, 'Settings updated');
   } catch (err) {
     return error(res, 'Failed to update website settings', 500);

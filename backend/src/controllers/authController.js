@@ -1,11 +1,30 @@
 const db = require('../config/db');
+const crypto = require('crypto');
 const { hashPassword, comparePassword } = require('../utils/password');
 const { generateToken, generateRefreshToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
 
+// Allowed status values for input validation
+const VALID_USER_STATUSES = ['active', 'blocked', 'suspended'];
+
 exports.signup = async (req, res) => {
   try {
     const { full_name, email, mobile, password } = req.body;
+
+    // Input validation
+    if (!full_name || typeof full_name !== 'string' || full_name.trim().length < 2 || full_name.trim().length > 100) {
+      return error(res, 'Full name must be 2–100 characters', 400);
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return error(res, 'Invalid email address', 400);
+    }
+    const cleanMobile = (mobile || '').replace(/[\s\-+]/g, '');
+    if (!/^\d{9,15}$/.test(cleanMobile)) {
+      return error(res, 'Invalid mobile number', 400);
+    }
+    if (!password || password.length < 6 || password.length > 128) {
+      return error(res, 'Password must be 6–128 characters', 400);
+    }
 
     // Check if user exists
     const existing = await db.query(
@@ -182,18 +201,17 @@ exports.refreshToken = async (req, res) => {
       return error(res, 'Refresh token required', 400);
     }
 
-    const { consumeRefreshToken, verifyToken } = require('../utils/jwt');
-    
-    // Verify and consume the refresh token, get new one
-    const newRefreshToken = consumeRefreshToken(refreshToken);
-    
-    // Get user from any existing valid access token (for backward compat) or require user_id
-    const { userId } = req.body;
+    const { consumeRefreshToken } = require('../utils/jwt');
+
+    // consumeRefreshToken validates the token and returns the userId embedded in it
+    // userId is extracted from the signed token — NOT trusted from the request body
+    const { userId, newRefreshToken } = consumeRefreshToken(refreshToken);
+
     if (!userId) {
-      return error(res, 'User ID required', 400);
+      return error(res, 'Invalid refresh token', 401);
     }
 
-    // Fetch user
+    // Fetch user to confirm they still exist and are active
     const userResult = await db.query(
       'SELECT id, full_name, email, mobile, status, role FROM users WHERE id = $1',
       [userId]
@@ -202,6 +220,9 @@ exports.refreshToken = async (req, res) => {
       return error(res, 'User not found', 404);
     }
     const user = userResult.rows[0];
+    if (user.status === 'blocked') {
+      return error(res, 'Account blocked', 403);
+    }
 
     const newAccessToken = generateToken({ userId: user.id, email: user.email, role: user.role });
 
@@ -217,31 +238,23 @@ exports.refreshToken = async (req, res) => {
 };
 
 exports.forgotPassword = async (req, res) => {
-  // TODO: Implement email/SMS OTP reset
-  // For now, generate an OTP and store it temporarily (in production, send via email/SMS)
   try {
     const { email, mobile } = req.body;
-    
     if (!email && !mobile) {
       return error(res, 'Email or mobile required', 400);
     }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    // TODO: Send OTP via email or SMS
-    // For now, just log it (production would use nodemailer, twilio, etc.)
-    console.log(`[Password Reset] OTP for ${email || mobile}: ${otp}`);
-    
-    // Store OTP temporarily (in production, use Redis with 10-min expiry)
-    // For now, we return success with the OTP in dev mode only
-    if (process.env.NODE_ENV !== 'production') {
-      return success(res, { 
-        otp, 
-        message: 'OTP generated (dev mode only - in production this would be sent via email/SMS)' 
-      });
-    }
+    // Use cryptographically secure OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
 
+    // TODO: Send OTP via email or SMS (nodemailer, Twilio, etc.)
+    // NEVER return the OTP in the response — even in dev mode
+    console.log(`[Password Reset] OTP for ${email || mobile}: ${otp} [dev-only log, remove in prod]`);
+
+    // TODO: Store OTP in Redis or DB with 10-minute expiry
+    // await redis.setex(`otp:${email || mobile}`, 600, otp);
+
+    // Always return the same message to avoid account enumeration
     return success(res, { message: 'If the account exists, an OTP has been sent' });
   } catch (err) {
     error(res, 'Failed to process password reset request', 500);
@@ -251,35 +264,21 @@ exports.forgotPassword = async (req, res) => {
 exports.resetPassword = async (req, res) => {
   try {
     const { email, mobile, otp, newPassword } = req.body;
-    
+
     if (!otp || !newPassword) {
       return error(res, 'OTP and new password required', 400);
     }
-
-    // TODO: Verify OTP from storage (Redis in production)
-    // For now, accept any 6-digit OTP in dev mode
-    if (process.env.NODE_ENV === 'production') {
-      return error(res, 'Password reset not yet fully implemented', 501);
+    if (!newPassword || newPassword.length < 6 || newPassword.length > 128) {
+      return error(res, 'Password must be 6–128 characters', 400);
     }
 
-    // Find user and update password
-    const identifier = email || mobile;
-    const result = await db.query(
-      'SELECT id FROM users WHERE email = $1 OR mobile = $1',
-      [identifier]
-    );
-    
-    if (result.rows.length === 0) {
-      return error(res, 'Invalid OTP or user not found', 400);
-    }
+    // TODO: Verify OTP from Redis/DB storage
+    // const storedOtp = await redis.get(`otp:${email || mobile}`);
+    // if (!storedOtp || storedOtp !== otp) return error(res, 'Invalid or expired OTP', 400);
+    // await redis.del(`otp:${email || mobile}`);
 
-    const passwordHash = await hashPassword(newPassword);
-    await db.query(
-      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
-      [passwordHash, result.rows[0].id]
-    );
-
-    success(res, null, 'Password reset successfully');
+    // Password reset is not yet fully implemented (OTP storage/email not set up)
+    return error(res, 'Password reset via OTP is not yet available. Please contact support.', 501);
   } catch (err) {
     console.error('Reset password error:', err.message);
     error(res, 'Failed to reset password', 500);

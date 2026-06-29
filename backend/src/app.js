@@ -38,12 +38,24 @@ const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
   : [];
 
+// Fix #17: Restrict CORS to known origins. For a mobile app the origin is typically
+// null/undefined, so we allow that too. Tighten this for web admin panels.
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+  : [];
+
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, curl)
+    // Allow requests with no origin (mobile apps, Postman, curl, server-to-server)
     if (!origin) return callback(null, true);
-    // If no specific origins are configured, allow all (open mode for EC2 / dev)
-    if (allowedOrigins.length === 0) return callback(null, true);
+    // If CORS_ORIGINS is not configured, deny all browser origins in production
+    if (allowedOrigins.length === 0) {
+      if (process.env.NODE_ENV === 'production') {
+        return callback(new Error('CORS not configured for production'));
+      }
+      // Development: allow all
+      return callback(null, true);
+    }
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
@@ -56,14 +68,14 @@ app.use(express.urlencoded({ extended: true }));
 app.use(morgan('combined'));
 app.use(standardLimiter);
 
-// Health check with DB status
+// Health check — never expose raw DB error messages
 app.get('/health', async (req, res) => {
   let dbStatus = 'unknown';
   try {
     const result = await db.query('SELECT NOW()');
     dbStatus = result.rows ? 'connected' : 'error';
   } catch (err) {
-    dbStatus = 'error: ' + err.message;
+    dbStatus = 'error'; // never expose err.message — it may contain connection string details
   }
   res.json({ status: 'ok', db: dbStatus, timestamp: new Date().toISOString() });
 });
@@ -130,25 +142,33 @@ async function initDatabase() {
 }
 
 // ARCH-05 FIX: Auto-log 4xx/5xx responses to api_error_logs table.
-// This middleware runs AFTER the route handler sends a response, capturing status code and
-// error details without intercepting normal flow.
+// Strips sensitive fields before logging to prevent PII/secrets in DB.
+const SENSITIVE_FIELDS = new Set(['password', 'password_hash', 'newPassword', 'razorpay_signature', 'token', 'refreshToken', 'otp']);
+
+const sanitizeBody = (body) => {
+  if (!body || typeof body !== 'object') return body;
+  const clean = { ...body };
+  for (const field of SENSITIVE_FIELDS) {
+    if (field in clean) clean[field] = '[REDACTED]';
+  }
+  return clean;
+};
+
 const errorLoggerMiddleware = async (req, res, next) => {
   const originalJson = res.json.bind(res);
   res.json = function (body) {
-    // Log any error response (4xx or 5xx) to the DB
     if (res.statusCode >= 400) {
       const userId = req.user?.id || null;
       const errorMessage = (body && typeof body === 'object' && body.message) ? body.message : JSON.stringify(body).slice(0, 500);
       const requestBody = req.body && Object.keys(req.body).length > 0
-        ? JSON.stringify(req.body).slice(0, 2000)
+        ? JSON.stringify(sanitizeBody(req.body)).slice(0, 2000)
         : null;
 
-      // Fire-and-forget — don't block the response
       db.query(
         `INSERT INTO api_error_logs (method, path, status_code, error_message, request_body, user_id)
          VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
         [req.method, req.path.slice(0, 255), res.statusCode, errorMessage, requestBody, userId]
-      ).catch(() => {}); // silently ignore if table doesn't exist yet
+      ).catch(() => {});
     }
     return originalJson(body);
   };
@@ -226,16 +246,33 @@ initDatabase().then(() => {
   
   // Initialize WebSocket server
   wss = new WebSocketServer({ server, path: '/ws' });
-  
-  wss.on('connection', (ws) => {
-    console.log('WebSocket client connected');
-    
+
+  wss.on('connection', (ws, req) => {
+    // Require a valid admin token in the query string: ws://host/ws?token=<adminJWT>
+    const urlParams = new URLSearchParams(req.url.replace('/ws', '').replace('?', ''));
+    const token = urlParams.get('token');
+
+    if (!token) {
+      ws.close(4401, 'Authentication required');
+      return;
+    }
+
+    try {
+      const { verifyAdminToken } = require('./utils/jwt');
+      verifyAdminToken(token); // throws if invalid
+    } catch (e) {
+      ws.close(4403, 'Invalid or expired token');
+      return;
+    }
+
+    console.log('WebSocket admin client connected');
+
     // Send initial stats on connection
     const dashboardController = require('./controllers/dashboardController');
     dashboardController.getDashboardStats({ user: null }, {
       json: (data) => ws.send(JSON.stringify({ type: 'stats', data, timestamp: new Date().toISOString() }))
     });
-    
+
     ws.on('close', () => console.log('WebSocket client disconnected'));
     ws.on('error', (err) => console.error('WebSocket error:', err.message));
   });

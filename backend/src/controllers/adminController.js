@@ -103,6 +103,10 @@ exports.updateUserStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
+    const VALID_STATUSES = ['active', 'blocked', 'suspended'];
+    if (!VALID_STATUSES.includes(status)) {
+      return error(res, `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`, 400);
+    }
     const result = await db.query(
       'UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING id, full_name, email, status',
       [status, id]
@@ -141,30 +145,25 @@ exports.getLicenses = async (req, res) => {
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
     const offset = (page - 1) * limit;
 
-    // Debug: log raw count
-    const countResult = await db.query('SELECT COUNT(*) FROM licenses');
+    const [countResult, result] = await Promise.all([
+      db.query('SELECT COUNT(*) FROM licenses'),
+      db.query(
+        `SELECT l.*, p.name as plan_name,
+                COALESCE(u.email, l.customer_email) as user_email
+         FROM licenses l
+         LEFT JOIN plans p ON l.plan_id = p.id
+         LEFT JOIN users u ON l.user_id = u.id
+         ORDER BY l.created_at DESC LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      ),
+    ]);
+
     const total = parseInt(countResult.rows[0].count, 10);
-    console.log('[DEBUG getLicenses] Total licenses in DB:', total);
-
-    // Query licenses, using customer_email as fallback for guest (public) purchases
-    const result = await db.query(
-      `SELECT l.*, p.name as plan_name,
-              COALESCE(u.email, l.customer_email) as user_email
-       FROM licenses l
-       LEFT JOIN plans p ON l.plan_id = p.id
-       LEFT JOIN users u ON l.user_id = u.id
-       ORDER BY l.created_at DESC LIMIT $1 OFFSET $2`,
-      [limit, offset]
-    );
-    console.log('[DEBUG getLicenses] Rows returned:', result.rows.length);
-    console.log('[DEBUG getLicenses] First row sample:', result.rows[0] ? { id: result.rows[0].id, key: result.rows[0].license_key, status: result.rows[0].status } : 'none');
-
     success(res, {
       data: result.rows,
       pagination: { page, limit, total, hasMore: offset + result.rows.length < total }
     });
   } catch (err) {
-    console.error('[DEBUG getLicenses] ERROR:', err.message);
     error(res, 'Failed to fetch licenses', 500);
   }
 };
@@ -190,7 +189,10 @@ exports.updateLicense = async (req, res) => {
 exports.extendLicense = async (req, res) => {
   try {
     const { id } = req.params;
-    const { days } = req.body;
+    const days = parseInt(req.body.days);
+    if (!days || days < 1 || days > 3650) {
+      return error(res, 'days must be a positive integer between 1 and 3650', 400);
+    }
     const result = await db.query(
       'UPDATE licenses SET expires_at = COALESCE(expires_at, NOW()) + interval \'1 day\' * $1, updated_at = NOW() WHERE id = $2 RETURNING *',
       [days, id]
@@ -445,16 +447,22 @@ exports.getAppSettings = async (req, res) => {
 
 exports.updateAppSettings = async (req, res) => {
   try {
+    const ALLOWED_SETTINGS_KEYS = [
+      'hero_title', 'hero_subtitle', 'support_whatsapp', 'support_email',
+      'upi_id', 'payment_qr_url', 'telegram_url', 'apk_download_url',
+      'stats_channels_count', 'stats_categories_count', 'stats_users_count',
+      'app_name', 'support_phone', 'maintenance_mode', 'app_version_required',
+    ];
     const updates = req.body;
-    const keys = Object.keys(updates);
-    const values = Object.values(updates);
-    
+    const filteredEntries = Object.entries(updates).filter(([k]) => ALLOWED_SETTINGS_KEYS.includes(k));
+    const keys = filteredEntries.map(([k]) => k);
+    const values = filteredEntries.map(([, v]) => String(v ?? ''));
+
     if (keys.length > 0) {
-      // A-3 FIX: Use single bulk upsert with UNNEST instead of loop
       await db.query(
         `INSERT INTO app_settings (setting_key, setting_value, updated_at)
-         SELECT * FROM UNNEST($1::text[], $2::text[]) AS t(key, value)
-         ON CONFLICT (setting_key) 
+         SELECT t.key, t.value, NOW() FROM UNNEST($1::text[], $2::text[]) AS t(key, value)
+         ON CONFLICT (setting_key)
          DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW()`,
         [keys, values]
       );
@@ -500,6 +508,10 @@ exports.updatePaymentStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
+    const VALID_PAYMENT_STATUSES = ['pending', 'completed', 'failed', 'refunded', 'cancelled'];
+    if (!VALID_PAYMENT_STATUSES.includes(status)) {
+      return error(res, `Invalid status. Must be one of: ${VALID_PAYMENT_STATUSES.join(', ')}`, 400);
+    }
     const result = await db.query(
       'UPDATE payments SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
       [status, id]
