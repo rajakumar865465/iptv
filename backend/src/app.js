@@ -32,14 +32,8 @@ app.set('trust proxy', 1);
 
 // Middleware
 app.use(helmet());
-// Fix #17: Restrict CORS to known origins. For a mobile app the origin is typically
-// null/undefined, so we allow that too. Tighten this for web admin panels.
-const allowedOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
-  : [];
-
-// Fix #17: Restrict CORS to known origins. For a mobile app the origin is typically
-// null/undefined, so we allow that too. Tighten this for web admin panels.
+// Restrict CORS to known origins. For mobile apps the origin is typically
+// null/undefined, so we allow that too. Tighten in production via CORS_ORIGINS env var.
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
   : [];

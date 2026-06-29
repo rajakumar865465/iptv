@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { broadcastToClients } = require('../app');
+// Use the global broadcast function set in app.js to avoid a circular dependency
+// (websocket.js is required by app.js, so importing app.js here creates a cycle)
 const dashboardController = require('../controllers/dashboardController');
 const adminAuthMiddleware = require('../middleware/adminAuth');
 
@@ -22,7 +23,7 @@ router.post('/broadcast-stats', adminAuthMiddleware, async (req, res) => {
       status: () => ({ json: () => {} })
     });
 
-    broadcastToClients('stats', stats);
+    global.broadcastToClients?.('stats', stats);
 
     res.json({ success: true, message: 'Stats broadcast sent to all clients' });
   } catch (err) {
