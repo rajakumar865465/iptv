@@ -83,10 +83,23 @@ export default function LicensesPage() {
   const fetchAll = () => {
     setLoading(true);
     Promise.all([getLicenses(), getPlans()])
-      .then(([lic, pln]: any) => {
-        // Support both paginated { data: [] } and plain array
-        setLicenses(Array.isArray(lic) ? lic : (lic?.data || []));
-        setPlans(Array.isArray(pln) ? pln : (pln?.data || []));
+      .then(([licRes, plnRes]: any) => {
+        // Debug: log full API response
+        console.log('[DEBUG] getLicenses raw response:', licRes);
+        console.log('[DEBUG] getPlans raw response:', plnRes);
+
+        // Both return { data: [...], pagination: {...} } from r.data.data
+        const licData = licRes?.data || [];
+        const plnData = plnRes?.data || [];
+        console.log('[DEBUG] extracted licData:', licData, 'isArray:', Array.isArray(licData));
+        console.log('[DEBUG] extracted plnData:', plnData, 'isArray:', Array.isArray(plnData));
+
+        setLicenses(Array.isArray(licData) ? licData : []);
+        setPlans(Array.isArray(plnData) ? plnData : []);
+      })
+      .catch(err => {
+        console.error('Failed to fetch licenses:', err);
+        alert('Error: ' + (err.response?.data?.message || err.message || 'Failed to load licenses'));
       })
       .finally(() => setLoading(false));
   };

@@ -69,14 +69,14 @@ class LicenseCubit extends Cubit<LicenseState> {
         emit(LicenseError(response['message'] ?? 'Activation failed'));
       }
     } catch (e) {
-      if (e is DioException && e.response?.data is Map) {
-        final data = e.response!.data as Map;
-        if (data['error'] == 'DEVICE_LIMIT_REACHED') {
+      if (e is DioException) {
+        final data = e.response?.data;
+        if (data is Map && data['error'] == 'DEVICE_LIMIT_REACHED') {
           emit(LicenseDeviceLimitReached(licenseKey, data['message'] ?? 'Device limit reached'));
           return;
         }
       }
-      emit(LicenseError(e.toString()));
+      emit(LicenseError('Activation failed. Please try again.'));
     }
   }
 }

@@ -141,23 +141,30 @@ exports.getLicenses = async (req, res) => {
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
     const offset = (page - 1) * limit;
 
-    const [countResult, result] = await Promise.all([
-      db.query('SELECT COUNT(*) FROM licenses'),
-      db.query(
-        `SELECT l.*, p.name as plan_name, u.email as user_email FROM licenses l
-         LEFT JOIN plans p ON l.plan_id = p.id
-         LEFT JOIN users u ON l.user_id = u.id
-         ORDER BY l.created_at DESC LIMIT $1 OFFSET $2`,
-        [limit, offset]
-      ),
-    ]);
-
+    // Debug: log raw count
+    const countResult = await db.query('SELECT COUNT(*) FROM licenses');
     const total = parseInt(countResult.rows[0].count, 10);
+    console.log('[DEBUG getLicenses] Total licenses in DB:', total);
+
+    // Query licenses, using customer_email as fallback for guest (public) purchases
+    const result = await db.query(
+      `SELECT l.*, p.name as plan_name,
+              COALESCE(u.email, l.customer_email) as user_email
+       FROM licenses l
+       LEFT JOIN plans p ON l.plan_id = p.id
+       LEFT JOIN users u ON l.user_id = u.id
+       ORDER BY l.created_at DESC LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+    console.log('[DEBUG getLicenses] Rows returned:', result.rows.length);
+    console.log('[DEBUG getLicenses] First row sample:', result.rows[0] ? { id: result.rows[0].id, key: result.rows[0].license_key, status: result.rows[0].status } : 'none');
+
     success(res, {
       data: result.rows,
       pagination: { page, limit, total, hasMore: offset + result.rows.length < total }
     });
   } catch (err) {
+    console.error('[DEBUG getLicenses] ERROR:', err.message);
     error(res, 'Failed to fetch licenses', 500);
   }
 };

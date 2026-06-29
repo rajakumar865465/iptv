@@ -75,7 +75,12 @@ class HomeCubit extends Cubit<HomeState> {
       final res = await _api.get(ApiEndpoints.home);
 
       if (res['success'] == true) {
-        final data = res['data'] as Map<String, dynamic>;
+        final rawData = res['data'];
+        if (rawData is! Map<String, dynamic>) {
+          emit(HomeError('Invalid response format from server'));
+          return;
+        }
+        final data = rawData;
 
         final continueWatching = _parseChannels(data['continue_watching']);
         final premiumChannels  = _parseChannels(data['premium_channels']);

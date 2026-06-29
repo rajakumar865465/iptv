@@ -130,6 +130,9 @@ exports.verifyRazorpayPayment = async (req, res) => {
     const licenseKey = generateLicenseKey();
     const planResult = await db.query('SELECT * FROM plans WHERE id = $1', [payment.plan_id]);
     const plan = planResult.rows[0];
+    if (!plan) {
+      return error(res, 'Plan not found for this payment', 404);
+    }
 
     await db.query(
       `INSERT INTO licenses (license_key, plan_id, user_id, status, duration_days, max_devices, activated_at, expires_at)

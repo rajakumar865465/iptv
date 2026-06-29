@@ -45,8 +45,8 @@ class FavoriteCubit extends Cubit<FavoriteState> {
         await _api.post('/api/user/favorites/$channelId', {});
       }
       await loadFavorites();
-    } catch (e) {
-      emit(FavoriteError(e.toString()));
+    } catch (_) {
+      emit(FavoriteError('Failed to update favorites. Please try again.'));
     }
   }
 }

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, MonitorSmartphone, KeyRound, CreditCard, Globe, Zap,
   AlertTriangle, FileStack, Settings, Bell, BarChart3, ScrollText, Activity, Shield,
+  Package, Globe2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -27,6 +28,8 @@ const navItems = [
   { href: '/logs', label: 'Logs', icon: ScrollText },
   { href: '/system', label: 'System Health', icon: Activity },
   { href: '/admin-users', label: 'Admin Users', icon: Shield },
+  { href: '/app-releases', label: 'App Releases', icon: Package },
+  { href: '/website-settings', label: 'Website Settings', icon: Globe2 },
 ];
 
 export default function Sidebar() {

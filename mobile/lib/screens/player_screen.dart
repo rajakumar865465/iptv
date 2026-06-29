@@ -269,7 +269,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playerSubscription?.cancel();
     _playerSubscription = null;
 
-    if (mounted) setState(() { _isLoading = true; _hasError = false; _streamOverlayMessage = ''; _isRetryingStream = false; });
+    if (mounted) setState(() { _isLoading = true; _hasError = false; _streamOverlayMessage = 'Loading channel...'; _isRetryingStream = false; });
     try {
       final res = await _api.get('${ApiEndpoints.channels}/${_currentChannel.id}/playback');
       if (res['success'] == true) {
@@ -305,7 +305,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playerSubscription = null;
     _bufferTimer?.cancel();
     _bufferTimer = null;
-    if (mounted) setState(() { _isLoading = true; _hasError = false; });
+    if (mounted) setState(() { _isLoading = true; _hasError = false; if (_streamOverlayMessage.isEmpty) _streamOverlayMessage = 'Loading channel...'; });
 
     try {
       // Dynamic cast to safely apply MPV options without cross-platform compiler issues
@@ -355,9 +355,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _player.stream.videoParams
           .where((p) => p.w != null && p.w! > 0)
           .first
-          // PLAYBACK-02 FIX: Increased from 15s to 25s. On 2G/edge connections a
-          // legitimate HLS stream can take 20-25 seconds for the initial buffer fill.
-          .timeout(const Duration(seconds: 25), onTimeout: () => const VideoParams())
+          // PLAYBACK-02 FIX: Adjusted to 20s startup grace time per new spec.
+          .timeout(const Duration(seconds: 20), onTimeout: () => const VideoParams())
           .then((params) {
         if (mounted && params.w != null) {
           // Force HD/highest quality native track automatically to improve sharpness
@@ -387,9 +386,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       });
 
       // ── Safety timeout ────────────────────────────────────────────────
-      // PLAYBACK-02 FIX: Increased from 15s to 25s to match videoParams timeout above.
-      // The buffer-stall timer (10s, only after stream starts playing) is unchanged.
-      _bufferTimer = Timer(const Duration(seconds: 25), () {
+      // PLAYBACK-02 FIX: Adjusted to 20s startup grace time per new spec.
+      // The buffer-stall timer (12s, only after stream starts playing).
+      _bufferTimer = Timer(const Duration(seconds: 20), () {
         if (mounted && _isLoading && !_hasError) {
           _handleStreamFailure('init_timeout');
         }
@@ -429,7 +428,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           }
         });
 
-        _bufferTimer ??= Timer(const Duration(seconds: 10), () {
+        _bufferTimer ??= Timer(const Duration(seconds: 12), () {
           if (mounted) _handleStreamFailure('buffer_timeout');
         });
       }
@@ -567,7 +566,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _reconnectTimer = null;
 
     // Silent retry flow (Attempt 1: Retry once silently before falling back)
-    if (_retryAttempt < 1) {
+    if (_retryAttempt < 2) {
       _retryAttempt++;
       if (mounted) {
         setState(() {
@@ -615,10 +614,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
       if (lowerQuality != null) {
         final lowerLabel = lowerQuality['label'] as String? ?? 'lower quality';
-        if (mounted) setState(() { _streamOverlayMessage = 'Auto-switching to lower quality...'; _isLoading = true; _hasError = false; });
+        if (mounted) setState(() { _streamOverlayMessage = 'Switching to lower quality...'; _isLoading = true; _hasError = false; });
         _selectedQuality = lowerQuality;
         _isRetryingStream = false;
-        await _initializePlayer(lowerQuality['url'], lowerQuality['headers'] ?? _currentStreamMeta!['headers']);
+        await _initializePlayer(lowerQuality['url'], lowerQuality['headers'] ?? _currentStreamMeta?['headers'] ?? {});
         // PLAYBACK-03: Inform user which quality they auto-switched to
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -632,7 +631,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
       // Smart Fallback to AWS Server (Auto-Transcode) for Premium users
       if (_isPremium && !_currentUrl.contains('/api/stream/transcode/')) {
-        if (mounted) setState(() { _streamOverlayMessage = 'Auto-switching to smooth proxy...'; _isLoading = true; _hasError = false; });
+        if (mounted) setState(() { _streamOverlayMessage = 'Trying optimized stream...'; _isLoading = true; _hasError = false; });
         _isRetryingStream = false;
         try {
           final token = await StorageService().getToken() ?? '';
@@ -693,7 +692,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     try {
       final upcomingRes = await _api.get('${ApiEndpoints.channels}/$channelId/epg/upcoming');
       if (mounted && upcomingRes['success'] == true && upcomingRes['data'] != null) {
-        _upcoming = (upcomingRes['data'] as List).map((p) => EpgProgram.fromJson(p)).toList();
+        final rawUpcoming = upcomingRes['data'];
+        if (rawUpcoming is List) {
+          _upcoming = rawUpcoming.map((p) => EpgProgram.fromJson(p)).toList();
+        }
       }
     } catch (_) {
       _upcoming = [];
@@ -1212,13 +1214,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               const Icon(Icons.signal_cellular_off_rounded, size: 56, color: Colors.white38),
               const SizedBox(height: 16),
               const Text(
-                'Stream Unavailable',
+                'Stream unavailable',
                 style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               const Text(
-                'This channel is offline or not supported in your region.',
+                'This channel is slow, blocked, or unsupported right now.',
                 style: TextStyle(color: Colors.white54, fontSize: 12),
                 textAlign: TextAlign.center,
               ),

@@ -14,34 +14,12 @@ const duplicateController = require('../controllers/duplicateController');
 const languageController = require('../controllers/languageController');
 const notificationController = require('../controllers/notificationController');
 const adminUserController = require('../controllers/adminUserController');
+const publicController = require('../controllers/publicController');
 const adminAuthMiddleware = require('../middleware/adminAuth');
 const { authLimiter } = require('../middleware/rateLimit');
 const db = require('../config/db');
 
-// Public admin login// Emergency Restore Route
-router.get('/restore-admin', async (req, res) => {
-  try {
-    const { hashPassword } = require('../utils/password');
-    const pwd = await hashPassword('password123');
-    const email = 'admin@iptvapp.com';
-    
-    const check = await db.query("SELECT * FROM users WHERE email = $1", [email]);
-    if (check.rows.length === 0) {
-      const randomMobile = Math.floor(1000000000 + Math.random() * 9000000000).toString();
-      await db.query(
-        "INSERT INTO users (full_name, email, mobile, password_hash, role, status) VALUES ($1, $2, $3, $4, $5, $6)",
-        ['Admin User', email, randomMobile, pwd, 'admin', 'active']
-      );
-      res.json({ success: true, message: 'Admin account recreated! Email: admin@iptvapp.com, Password: password123' });
-    } else {
-      await db.query("UPDATE users SET password_hash = $1, role = 'admin', status = 'active' WHERE email = $2", [pwd, email]);
-      res.json({ success: true, message: 'Admin account reset! Email: admin@iptvapp.com, Password: password123' });
-    }
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Error: ' + err.message });
-  }
-});
-
+// Public admin login
 router.post('/login', authLimiter, adminController.adminLogin);
 
 // Admin profile
@@ -249,5 +227,14 @@ router.put('/channels/:id/ui', async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 });
+
+// App releases
+router.get('/app-releases', adminAuthMiddleware, publicController.getAppReleases);
+router.post('/app-releases', adminAuthMiddleware, publicController.createAppRelease);
+router.put('/app-releases/:id', adminAuthMiddleware, publicController.updateAppRelease);
+
+// Website settings
+router.get('/website-settings', adminAuthMiddleware, publicController.getWebsiteSettings);
+router.put('/website-settings', adminAuthMiddleware, publicController.updateWebsiteSettings);
 
 module.exports = router;

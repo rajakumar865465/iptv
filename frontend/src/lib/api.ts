@@ -204,3 +204,20 @@ export const runMaintenance = (job: string) =>
 
 export const getMaintenanceStatus = () =>
   api.get('/maintenance/status').then((r) => r.data.data);
+
+// App releases
+export const getAppReleases = () =>
+  api.get('/app-releases').then((r) => r.data.data);
+
+export const createAppRelease = (data: Record<string, unknown>) =>
+  api.post('/app-releases', data).then((r) => r.data.data);
+
+export const updateAppRelease = (id: string, data: Record<string, unknown>) =>
+  api.put(`/app-releases/${id}`, data).then((r) => r.data.data);
+
+// Website settings
+export const getWebsiteSettings = () =>
+  api.get('/website-settings').then((r) => r.data.data);
+
+export const updateWebsiteSettings = (data: Record<string, unknown>) =>
+  api.put('/website-settings', data).then((r) => r.data.data);

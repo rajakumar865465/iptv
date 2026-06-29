@@ -4,7 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const http = require('http');
 const { WebSocketServer } = require('ws');
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
 // IPTV Live TV Backend Application
 
@@ -22,6 +22,7 @@ const proxyRoutes = require('./routes/proxy');
 const userRoutes = require('./routes/users');
 const paymentRoutes = require('./routes/payments');
 const adminRoutes = require('./routes/admin');
+const publicRoutes = require('./routes/public');
 const channelController = require('./controllers/channelController');
 
 const app = express();
@@ -156,11 +157,11 @@ const errorLoggerMiddleware = async (req, res, next) => {
 
 
 
-const pathc = require('path');
+const path = require('path');
 
 // Static serving for cached logos — PLAYBACK-06 FIX: add long-lived Cache-Control header
 // so Flutter clients don't re-fetch logos on every app launch.
-app.use('/logos', express.static(pathc.join(__dirname, '../public/logos'), {
+app.use('/logos', express.static(path.join(__dirname, '../public/logos'), {
   maxAge: '1d',
   setHeaders: (res) => {
     res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
@@ -183,6 +184,7 @@ app.use('/api/proxy', proxyRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/internal', adminRoutes);
+app.use('/api/public', publicRoutes);
 app.use('/api/stream', streamRoutes);
 
 // WebSocket routes

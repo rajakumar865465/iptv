@@ -69,11 +69,11 @@ export default function UsersPage() {
 
   useEffect(() => {
     Promise.all([getUsers(), getLicenses(), getPayments()])
-      .then(([u, l, p]: any) => {
+      .then(([u, l, p]) => {
         // Support both paginated { data: [] } shape and plain array
-        setUsers(Array.isArray(u) ? u : (u?.data || []));
-        setLicenses(Array.isArray(l) ? l : (l?.data || []));
-        setAllPayments(Array.isArray(p) ? p : (p?.data || []));
+        setUsers(Array.isArray(u) ? u : ((u as any)?.data || []));
+        setLicenses(Array.isArray(l) ? l : ((l as any)?.data || []));
+        setAllPayments(Array.isArray(p) ? p : ((p as any)?.data || []));
       })
       .finally(() => setLoading(false));
   }, []);

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getChannels, getCategories, createChannel, updateChannel, deleteChannel, getChannelStreams, createChannelStream, updateChannelStream, deleteChannelStream, diagnoseChannelStream } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, Trash2, Tv, Globe2, Languages, Signal, X, Pencil, List, ChevronLeft, ChevronRight, Link2, Check, XCircle, Play, Edit3, RefreshCw } from 'lucide-react';
+import ChannelLogoImage from '@/components/ChannelLogoImage';
 
 interface Channel {
   id: string; name: string; logo_url: string; stream_url: string;
@@ -512,7 +513,13 @@ export default function ChannelsPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
-                            {c.logo_url ? <img src={c.logo_url} alt={c.name} className="w-full h-full object-contain p-1" /> : <Tv className="w-5 h-5 text-slate-500" />}
+                            <ChannelLogoImage
+                              src={c.logo_url || ''}
+                              alt={c.name}
+                              className="w-full h-full object-contain p-1"
+                              fallbackClassName="text-xs"
+                              containerClassName="w-full h-full"
+                            />
                           </div>
                           <div>
                             <p className="font-semibold text-slate-200 group-hover:text-cyan-400 transition-colors line-clamp-1">{c.name}</p>
