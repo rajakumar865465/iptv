@@ -19,6 +19,7 @@ import StickyMobileCTA from '@/components/public/StickyMobileCTA';
 import type { Metadata } from 'next';
 import type { Plan, Category, Channel } from '@/lib/publicApi';
 
+export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'IPTVLive - Live TV for Every Indian Home',
   description:
@@ -106,9 +107,12 @@ export default async function HomePage() {
     plans = await getPublicPlans();
     categories = await getCategories();
     popularChannels = await getPopularChannels();
-  } catch {
+  } catch (error) {
+    console.error("Error fetching data for homepage:", error);
     // Backend not available during build, use defaults
   }
+  
+  console.log("popularChannels length:", popularChannels.length);
 
   // Homepage shows only: 1 Day Trial, 1 Month (Most Popular), 1 Year (Best Value)
   const planTrial = plans.find(p => p.duration_days <= 1 || /trial|1.*day/i.test(p.name));
@@ -215,7 +219,9 @@ export default async function HomePage() {
             {popularChannels.length === 0 && (
               <div className="text-center text-slate-500 py-12">
                 <Tv className="w-8 h-8 mx-auto mb-3 text-slate-600" />
-                <p>Channels loading soon...</p>
+                <p>FOOBAR LOADING...</p>
+                <pre>{JSON.stringify(popularChannels, null, 2)}</pre>
+                <p>Length: {popularChannels.length}</p>
               </div>
             )}
           </div>

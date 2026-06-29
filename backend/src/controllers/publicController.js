@@ -40,7 +40,7 @@ exports.getPlans = async (req, res) => {
        WHERE COALESCE(status, 'active') = 'active'
          AND COALESCE(is_visible, true) = true
          AND COALESCE(is_active, true) = true
-       ORDER BY COALESCE(sort_order, 0) ASC, id ASC`
+       ORDER BY COALESCE(sort_order, 0) ASC, id DESC`
     );
     return success(res, result.rows);
   } catch (err) {

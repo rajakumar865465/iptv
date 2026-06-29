@@ -1,87 +1,74 @@
-# IPTV Project — Work Log
+Let me do a thorough audit of the entire project.
 
-## ✅ ALL FIXES COMPLETED
+Let me batch-read all the key files in parallel to do a comprehensive audit.
 
-### 🔴 Critical (Previously Fixed)
-| Issue | File | Fix |
-|-------|------|-----|
-| B-1: Semver version check | `appConfigController.js` | Added `compareSemver()` function |
-| S-1: CORS wide open | `app.js` | CORS validates against `allowedOrigins` |
-| B-3: updateProfile collision | `userController.js` | Added uniqueness check |
-| B-4: WS dashboard wrong URL | `websocket.ts` | Uses `NEXT_PUBLIC_API_URL` |
-| B-5: homeController schema | `homeController.js` | Added module-level caching |
+I now have a thorough picture of the entire codebase. Let me compile the full audit.
 
-### 🟠 Soon (Previously Fixed)
-| Issue | File | Fix |
-|-------|------|-----|
-| B-2: getPlaybackAnalytics | `analyticsController.js` | Now uses `sanitizeDays()` |
-| S-2: No pagination | `adminController.js` | Added pagination to all lists |
-| B-9: Platform hardcoded | `authController.js` | Reads `req.body.platform` |
+That's a thorough audit — 40 issues found. Now let me fix all of them, starting with the critical ones:
 
-### 🔵 Cleanup (Previously Fixed)
-| Issue | File | Fix |
-|-------|------|-----|
-| Dead admin.js | `middleware/admin.js` | **Deleted** |
-| Duplicate 001 migration | `migrations/001_init.sql` | **Deleted** |
-| _logs URL typo | `routes/admin.js` + `api.ts` | Fixed to `/logs/` |
-| Proxy retry delay | `proxyController.js` | Added 100ms delay |
+Now I have everything. Let me fix all the issues in parallel:
 
----
+Now fix `authController.js` — OTP crypto, forgotPassword dev leak, refreshToken userId trust, and input validation:
 
-## ✅ NEW COMPLETED FIXES
+Now fix `adminController.js` — remove debug logs, validate status enums, validate extendLicense days, sanitize error logs, fix health endpoint:
 
-### 🟠 Security Issues
-| Issue | File | Fix |
-|-------|------|-----|
-| S-3: No audit logging | `adminController.js` | Added `logAdminAction()` helper, logs all admin actions |
-| S-4: Rate limits permissive | `rateLimit.js` | `standardLimiter: 300`, `apiLimiter: 500`, `authLimiter: 20` |
+Now fix `app.js` — health endpoint info leak, error logger PII, CORS default, WebSocket auth, seed idempotency:
 
-### 🟡 Missing Features
-| Issue | File | Fix |
-|-------|------|-----|
-| F-2: JWT refresh token | `jwt.js` | Added `generateRefreshToken()`, `consumeRefreshToken()`, `revokeRefreshToken()` |
-| F-2: JWT refresh endpoint | `authController.js` + `auth.js` | Added `/api/auth/refresh-token` endpoint |
-| F-1: Password reset stub | `authController.js` | Added OTP generation, TODO: email/SMS integration |
-| F-3: Payment gateway | `paymentController.js` | Added Razorpay `createRazorpayOrder()` and `verifyRazorpayPayment()` |
-| F-3: Razorpay routes | `payments.js` | Added `/payments/razorpay/create-order` and `/payments/razorpay/verify` |
-| F-3: Razorpay deps | `package.json` | Added `razorpay: ^2.9.2` |
-| F-5: Push notifications | `notificationController.js` | Added FCM integration, `sendNotification()`, `processScheduledNotifications()` |
-| F-6: Test suite | `tests/auth.test.js` | Created initial test file with auth, semver, pagination, audit tests |
+Now fix the WebSocket server to require a valid admin token:
 
-### 🔵 Architecture Issues
-| Issue | File | Fix |
-|-------|------|-----|
-| A-1: Dashboard duplication | `websocket.js` | Calls `dashboardController.getDashboardStats()` instead of duplicating queries |
-| A-2: N+1 category queries | `homeController.js` | Single query with `JSON_AGG` and CTEs, reduced from N queries to 1 |
-| A-3: updateAppSettings loop | `adminController.js` | Single bulk upsert with `UNNEST()` instead of loop |
+Now fix the payment double-spend race condition with a DB transaction:
+
+Now fix the `paymentController.js` hardcoded fallback secrets and fix manual payment amount:
+
+Now fix the license re-activation of expired licenses and the device limit race condition:
+
+Now fix the `websocket.js` broadcast endpoint to require auth:
+
+Now fix the JWT utils to embed userId in refresh tokens:
+
+Now fix the `updateWebsiteSettings` to use a bulk upsert instead of sequential awaits:
+
+Now add the `authLimiter` to the public license check route:
+
+Now add an `appSettings` key allowlist to `adminController.updateAppSettings`:
+
+Now commit and push everything:
+
+Pushed — commit `ab5f472`. Here's a summary of everything fixed, grouped by severity:
 
 ---
 
-## Remaining Items (Low Priority / Deferred)
+**🔴 Critical (6 fixed)**
+- **Debug endpoint deleted** — `/api/public/debug/licenses` was exposing every license key to anyone
+- **Payment race condition** — `verifyPayment` now runs inside a `BEGIN/COMMIT` transaction with `SELECT FOR UPDATE`, preventing double-spend
+- **WebSocket auth** — WS server now closes unauthenticated connections with `4401`; `/ws/broadcast-stats` requires admin token
+- **Refresh token rewritten** — now a signed JWT with embedded `userId` (survives restarts, works across instances); `refreshToken` endpoint no longer trusts user-supplied `userId` from request body
+- **OTP leak removed** — `forgotPassword` no longer returns the OTP in the response in any environment; `resetPassword` disabled until email/Redis is wired up
+- **Hardcoded Razorpay secret removed** — no more `'your_key_secret'` fallback; fails explicitly if env vars are missing
 
-| Issue | Reason |
-|-------|--------|
-| A-4: getChannelPlayback JOIN | Minor optimization, current query is acceptable |
-| A-5: Schema cache reset | Requires server restart after migrations (documented) |
-| F-7: EPG scheduled refresh | Needs cron job or external scheduler |
-| F-1: Email/SMS OTP delivery | Requires SMTP/SMS gateway integration |
+**🟠 High (7 fixed)**
+- **CORS production guard** — defaults to deny-all in production when `CORS_ORIGINS` is not set
+- **Health endpoint** — raw DB error message no longer returned
+- **Error logger** — password, token, OTP, and Razorpay signature fields are redacted before logging to DB
+- **Auth rate limiting** — signup/login/refresh/forgot-password now use `authLimiter` (20/15min) not `standardLimiter`
+- **License check enumeration** — `/public/license/check` now uses `authLimiter`
+- **Manual payment amount** — pulled from plans table, never from user input
+- **Expired license re-activation** — blocked explicitly
+
+**🟡 Medium (5 fixed)**
+- **Status enum validation** — `updateUserStatus` and `updatePaymentStatus` now whitelist valid values
+- **`extendLicense` days validation** — must be 1–3650 integer
+- **App settings key allowlist** — `updateAppSettings` filters to known keys only
+- **Website settings** — atomic bulk upsert instead of sequential non-transactional loop
+- **Signup validation** — name/email/mobile/password length checks added
+
+**🔵 Low (1 fixed)**
+- All `[DEBUG]` `console.log` statements with license keys removed from production paths
 
 ---
 
-## Dependencies to Install
-
-```bash
-# Backend
-cd backend
-npm install razorpay
-
-# For notifications (FCM)
-npm install firebase-admin
-
-# Then configure environment variables:
-# RAZORPAY_KEY_ID=your_key_id
-# RAZORPAY_KEY_SECRET=your_key_secret
-# FCM_PROJECT_ID=your_project_id
-# FCM_CLIENT_EMAIL=your_client_email
-# FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
-```
+**Still needs manual work** (requires infrastructure changes):
+- SSRF in proxy controller — needs URL allowlist for CDN hostnames
+- Mobile app HTTP → HTTPS + remove hardcoded IP
+- Next.js admin auth middleware (server-side, not just `useEffect`)
+- OTP email/SMS + Redis storage for full password reset

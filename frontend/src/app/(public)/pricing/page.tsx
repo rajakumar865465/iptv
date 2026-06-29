@@ -43,14 +43,8 @@ function planVariant(plan: Plan): PlanVariant {
 }
 
 function getPlanOrder(plan: Plan): number {
-  if (plan.price === 0) return 0;
-  if (plan.duration_days === 1) return 1;
-  if (plan.duration_days === 7) return 2;
-  if (plan.duration_days === 30) return 3;
-  if (plan.duration_days === 90) return 4;
-  if (plan.duration_days === 180) return 5;
-  if (plan.duration_days >= 365) return 6;
-  return 99;
+  if (plan.price === 0) return -1;
+  return plan.duration_days;
 }
 
 function dedupePlans(plans: Plan[]): Plan[] {
