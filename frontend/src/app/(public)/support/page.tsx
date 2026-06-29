@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Support — IPTVLive' };
+export const dynamic = 'force-dynamic';
 
 const COMMON_ISSUES = [
   { issue: 'License key not working', fix: 'Make sure you are copying the full key including dashes. Keys look like IPTV-XXXX-XXXX-XXXX.' },

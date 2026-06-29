@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: 'Download APK — IPTVLive',
   description: 'Download the latest IPTV Live APK for Android. Free to download, license required to stream.',
 };
+export const dynamic = 'force-dynamic';
 
 const INSTALL_STEPS = [
   { step: 1, text: 'Download the APK file from the button above.' },
