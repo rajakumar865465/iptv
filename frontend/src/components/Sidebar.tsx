@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, MonitorSmartphone, KeyRound, CreditCard, Globe, Zap,
@@ -38,8 +39,18 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 h-screen bg-gray-900 text-gray-300 flex flex-col border-r border-gray-800">
-      <div className="p-4 border-b border-gray-800">
-        <h1 className="text-xl font-bold text-blue-500">NivaTV Admin</h1>
+      <div className="p-4 border-b border-gray-800 flex items-center gap-2.5">
+        <Image src="/logo.png" alt="NivaTV" width={32} height={32} className="h-8 w-auto object-contain" />
+        <div className="flex flex-col leading-none">
+          <span
+            className="text-base font-bold tracking-tight"
+            style={{ fontFamily: 'var(--font-poppins)' }}
+          >
+            <span className="text-white">Niva</span>
+            <span className="text-red-400">TV</span>
+          </span>
+          <span className="text-[10px] font-semibold text-gray-500 tracking-widest uppercase mt-0.5">Admin</span>
+        </div>
       </div>
       <nav className="flex-1 overflow-y-auto p-2 space-y-1">
         {navItems.map((item) => {

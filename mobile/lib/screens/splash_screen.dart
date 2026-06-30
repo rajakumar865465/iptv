@@ -12,6 +12,7 @@ import 'home_screen.dart';
 import 'license_activation_screen.dart';
 import 'login_screen.dart';
 import 'maintenance_screen.dart';
+import 'package:dio/dio.dart';
 import 'onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -77,9 +78,35 @@ class _SplashScreenState extends State<SplashScreen> {
         authCubit.setToken(token); // Ensure token is set on auth service
 
         // Verify token is still valid by calling /me
-        final meResult = await authCubit.me();
-        if (meResult == null) {
-          // Token invalid - clear and go to login
+        Map<String, dynamic>? meResult;
+        bool isNetworkError = false;
+        
+        try {
+          meResult = await authCubit.me(throwOnError: true);
+        } catch (e) {
+          if (e is DioException) {
+            if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+              // Token invalid - clear and go to login
+              await StorageService().clearAll();
+              if (context.mounted) {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                );
+              }
+              return;
+            } else if (
+              e.type == DioExceptionType.connectionError ||
+              e.type == DioExceptionType.connectionTimeout ||
+              e.type == DioExceptionType.receiveTimeout ||
+              e.type == DioExceptionType.sendTimeout
+            ) {
+              isNetworkError = true;
+            }
+          }
+        }
+
+        if (meResult == null && !isNetworkError) {
+          // Token invalid or other error - clear and go to login
           await StorageService().clearAll();
           if (context.mounted) {
             Navigator.of(context).pushReplacement(
@@ -90,7 +117,7 @@ class _SplashScreenState extends State<SplashScreen> {
         }
 
         // Check user status
-        if (meResult['status'] == 'blocked') {
+        if (meResult != null && meResult['status'] == 'blocked') {
           if (context.mounted) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const BlockedScreen()),
@@ -105,7 +132,7 @@ class _SplashScreenState extends State<SplashScreen> {
         if (!context.mounted) return;
 
         final licenseState = context.read<LicenseCubit>().state;
-        if (licenseState is LicenseActive) {
+        if (licenseState is LicenseActive || (isNetworkError && licenseState is LicenseError)) {
           await context.read<ChannelCubit>().loadChannels();
           if (context.mounted) {
             Navigator.of(context).pushReplacement(
@@ -128,7 +155,7 @@ class _SplashScreenState extends State<SplashScreen> {
           }
         }
       } catch (e) {
-        // On error, fall back to login
+        // On unexpected error, fall back to login
         if (context.mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -151,21 +178,26 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: const Color(AppColors.primary),
-                borderRadius: BorderRadius.circular(24),
+            Image.asset(
+              'assets/images/logo.png',
+              width: 96,
+              height: 96,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(height: 20),
+            RichText(
+              text: TextSpan(
+                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+                children: const [
+                  TextSpan(text: 'Niva', style: TextStyle(color: Colors.white)),
+                  TextSpan(text: 'TV', style: TextStyle(color: Color(0xFFEF4444))),
+                ],
               ),
-              child: const Icon(Icons.live_tv, size: 60, color: Colors.white),
             ),
-            const SizedBox(height: 24),
-            Text(
-              'IPTV Live TV',
-              style: Theme.of(context).textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold, letterSpacing: 1.2),
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 32),
             const SizedBox(
               width: 40,
               child: LinearProgressIndicator(

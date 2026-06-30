@@ -12,6 +12,7 @@ class ChannelLogo extends StatelessWidget {
   final double size;
   final double borderRadius;
   final BoxFit fit;
+  final String? cacheKey;
 
   const ChannelLogo({
     super.key,
@@ -21,6 +22,7 @@ class ChannelLogo extends StatelessWidget {
     this.size = 56,
     this.borderRadius = 8,
     this.fit = BoxFit.contain,
+    this.cacheKey,
   });
 
   String? get _imageUrl {
@@ -99,6 +101,7 @@ class ChannelLogo extends StatelessWidget {
       borderRadius: BorderRadius.circular(borderRadius),
       child: CachedNetworkImage(
         imageUrl: urlToLoad,
+        cacheKey: cacheKey != null ? '${cacheKey}_${urlToLoad.hashCode}' : null,
         width: size,
         height: size,
         fit: fit,

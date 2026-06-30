@@ -15,5 +15,6 @@ router.get('/:id/playback', apiLimiter, channelController.getChannelPlayback);
 router.get('/:id/related', apiLimiter, channelController.getRelatedChannels);
 router.post('/:id/report-failure', apiLimiter, channelController.reportFailure);
 router.post('/:id/playback-result', apiLimiter, channelController.reportPlaybackResult);
+router.post('/:id/display-report', apiLimiter, channelController.reportChannelDisplay);
 
 module.exports = router;

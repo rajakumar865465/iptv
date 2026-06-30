@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Tv } from 'lucide-react';
+import Image from 'next/image';
 
 export default function PublicFooter() {
   return (
@@ -11,14 +11,18 @@ export default function PublicFooter() {
 
           {/* Brand */}
           <div className="md:col-span-1">
-            <Link href="/" className="flex items-center gap-2 mb-4 w-fit">
-              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-                <Tv className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-bold text-white text-lg">NivaTV</span>
+            <Link href="/" className="flex items-center gap-2.5 mb-4 w-fit">
+              <Image src="/logo.png" alt="NivaTV" width={32} height={32} className="h-8 w-auto object-contain" />
+              <span
+                className="text-lg font-bold tracking-tight leading-none select-none"
+                style={{ fontFamily: 'var(--font-poppins)' }}
+              >
+                <span className="text-white">Niva</span>
+                <span className="text-red-400">TV</span>
+              </span>
             </Link>
             <p className="text-slate-500 text-sm leading-relaxed mb-4">
-              Premium IPTV app for Indian &amp; regional channels. Watch live TV anytime on your Android device.
+              Premium live TV app for Indian &amp; regional channels. Watch live TV anytime on your Android device.
             </p>
             <Link
               href="/support"

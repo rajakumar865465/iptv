@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { loginAdmin } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -38,8 +39,11 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-900">
       <div className="w-full max-w-md p-8 bg-gray-800 rounded-lg shadow-lg border border-gray-700">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-blue-500">NivaTV Admin</h1>
-          <p className="text-gray-400 mt-1">Sign in to the dashboard</p>
+          <div className="flex justify-center mb-3">
+            <Image src="/logo.png" alt="NivaTV" width={80} height={80} className="h-20 w-auto object-contain" />
+          </div>
+          <p className="text-sm font-semibold text-gray-400 tracking-widest uppercase">Admin Panel</p>
+          <p className="text-gray-500 mt-1 text-sm">Sign in to the dashboard</p>
         </div>
         {error && (
           <div className="mb-4 p-3 rounded bg-red-900/50 text-red-300 text-sm border border-red-800">
@@ -54,7 +58,7 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 rounded bg-gray-700 border border-gray-600 text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="w-full px-4 py-2 rounded bg-gray-700 border border-gray-600 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="admin@example.com"
             />
           </div>
@@ -65,14 +69,14 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 rounded bg-gray-700 border border-gray-600 text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="w-full px-4 py-2 rounded bg-gray-700 border border-gray-600 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="••••••••"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 rounded bg-red-600 text-white font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+            className="w-full py-2.5 rounded bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>

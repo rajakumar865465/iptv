@@ -52,7 +52,7 @@ function SuccessContent() {
         <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
         <h1 className="text-2xl font-bold text-white mb-3">Something went wrong</h1>
         <p className="text-slate-400 mb-6">{error || 'License key not found for this order. Contact support.'}</p>
-        <Link href="/support" className="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm transition-colors">
+        <Link href="/support" className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-colors">
           Contact Support
         </Link>
       </div>
@@ -109,7 +109,7 @@ function SuccessContent() {
           <ol className="space-y-3">
             {ACTIVATION_STEPS.map((step, i) => (
               <li key={i} className="flex items-start gap-3">
-                <span className="w-6 h-6 shrink-0 rounded-full bg-red-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">
+                <span className="w-6 h-6 shrink-0 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">
                   {i + 1}
                 </span>
                 <span className="text-slate-300 text-sm leading-relaxed">{step}</span>
@@ -120,7 +120,7 @@ function SuccessContent() {
 
         {/* Action buttons */}
         <div className="flex flex-col sm:flex-row gap-3">
-          <Link href="/download" className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm transition-colors">
+          <Link href="/download" className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-colors">
             <Download className="w-4 h-4" /> Download APK
           </Link>
           <Link href="/license" className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm transition-colors border border-white/10">

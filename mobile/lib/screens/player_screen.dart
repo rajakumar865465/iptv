@@ -131,7 +131,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _autoMobileData = true;
   bool _hdOnlyWifi = true;
   bool _isOnMobileData = false;
-  String _fitMode = 'auto';
+  String _fitMode = 'original';
+  bool _rememberFitModeForChannel = false;
+  // Per-channel smart display: auto-detected aspect ratio from stream
+  String? _autoDetectedFitMode;
+  String _detectedAspectRatioType = 'unknown';
+  int? _detectedVideoWidth;
+  int? _detectedVideoHeight;
   // Animation controller for controls fade
   late AnimationController _controlsAnimController;
   late Animation<double> _controlsOpacity;
@@ -157,6 +163,16 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _moreLoading = false;
 
   final List<DateTime> _bufferingEvents = [];
+
+  // Slow connection overlay
+  bool _showSlowConnectionOverlay = false;
+  bool _slowOverlaySuppressedForSession = false;
+  DateTime? _lastSlowWarningAt;
+  Timer? _slowOverlayTimer;
+
+  // In-player toast (replaces quality-switch SnackBars)
+  String _playerToast = '';
+  Timer? _playerToastTimer;
 
   @override
   void initState() {
@@ -220,7 +236,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _dataSaverEnabled = await storage.isDataSaverEnabled();
     _autoMobileData = await storage.isAutoQualityOnMobileData();
     _hdOnlyWifi = await storage.isHdOnlyOnWifi();
-    _fitMode = await storage.getVideoFitMode();
+
+    await _resolveFitMode();
 
     try {
       final connectivityResult = await Connectivity().checkConnectivity();
@@ -228,6 +245,144 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     } catch (_) {}
 
     _fetchPlaybackAndInitialize();
+  }
+
+  /// Resolve the best fit mode for the current channel using the 5-level priority chain:
+  /// 1. User saved mode for this channel
+  /// 2. Admin/backend recommended mode for this channel
+  /// 3. App auto-detected mode from stream dimensions
+  /// 4. Global default mode
+  /// 5. Safe fallback = Original
+  Future<void> _resolveFitMode() async {
+    final storage = StorageService();
+
+    // Priority 1: User saved mode for this channel
+    final channelFitMode = await storage.getChannelFitMode(_currentChannel.id);
+    if (channelFitMode != null) {
+      _fitMode = channelFitMode;
+      _rememberFitModeForChannel = true;
+      return;
+    }
+
+    _rememberFitModeForChannel = false;
+
+    // Priority 2: Admin/backend recommended mode
+    if (_currentChannel.defaultFitMode != 'original' &&
+        _currentChannel.defaultFitMode != 'unknown' &&
+        _currentChannel.defaultFitMode.isNotEmpty) {
+      _fitMode = _currentChannel.defaultFitMode;
+      // News channels: never default to crop modes unless user explicitly saved
+      if (_isNewsChannel && !['original', 'fit'].contains(_fitMode)) {
+        _fitMode = 'original';
+      }
+      return;
+    }
+
+    // Priority 3: Auto-detected mode from stream dimensions
+    if (_autoDetectedFitMode != null) {
+      _fitMode = _autoDetectedFitMode!;
+      if (_isNewsChannel && !['original', 'fit'].contains(_fitMode)) {
+        _fitMode = 'original';
+      }
+      return;
+    }
+
+    // Priority 4: Global default mode
+    _fitMode = await storage.getVideoFitMode();
+    if (_fitMode == 'auto') _fitMode = 'original';
+
+    // Priority 5: Safe fallback (original)
+    if (!['original', 'fit', 'fill', 'zoom', 'stretch'].contains(_fitMode)) {
+      _fitMode = 'original';
+    }
+
+    // News channels: never default to crop modes unless user explicitly saved
+    if (_isNewsChannel && !['original', 'fit'].contains(_fitMode)) {
+      _fitMode = 'original';
+    }
+  }
+
+  /// Whether the current channel is a news channel that should never be cropped by default
+  bool get _isNewsChannel {
+    final cat = (_currentChannel.categoryName ?? '').toLowerCase();
+    final name = _currentChannel.name.toLowerCase();
+    return cat.contains('news') || name.contains('news') || name.contains('tak') || name.contains('aaj');
+  }
+
+  /// Detect aspect ratio from the video stream and set auto-detected fit mode
+  void _detectAspectRatio({int? paramsWidth, int? paramsHeight}) {
+    // Prefer explicit params from videoParams stream, fallback to player.state
+    final w = paramsWidth ?? _player.state.width;
+    final h = paramsHeight ?? _player.state.height;
+    if (w == null || h == null || w == 0 || h == 0) return;
+
+    _detectedVideoWidth = w;
+    _detectedVideoHeight = h;
+    final ratio = w / h;
+
+    if ((ratio - 16 / 9).abs() < 0.05) {
+      _detectedAspectRatioType = '16:9';
+    } else if ((ratio - 4 / 3).abs() < 0.05) {
+      _detectedAspectRatioType = '4:3';
+    } else if (ratio > 2.0) {
+      _detectedAspectRatioType = 'wide';
+    } else if (ratio < 1.0) {
+      _detectedAspectRatioType = 'vertical';
+    } else {
+      _detectedAspectRatioType = 'unusual';
+    }
+
+    // Auto-detect recommended fit mode (priority 3)
+    // Don't override if user or server already set a mode
+    if (_rememberFitModeForChannel) return;
+    if (_currentChannel.defaultFitMode != 'original' &&
+        _currentChannel.defaultFitMode != 'unknown' &&
+        _currentChannel.defaultFitMode.isNotEmpty) return;
+
+    if (_detectedAspectRatioType == '4:3') {
+      _autoDetectedFitMode = 'stretch'; // safe for 4:3 — don't crop, but fill screen
+    } else if (_detectedAspectRatioType == '16:9') {
+      _autoDetectedFitMode = 'fill'; // 16:9 is standard, fill to cover wide screens
+    } else if (_detectedAspectRatioType == 'wide' || _detectedAspectRatioType == 'unusual') {
+      _autoDetectedFitMode = 'fill'; // unusual ratio — fill is safest to avoid black bars
+    } else {
+      _autoDetectedFitMode = null;
+    }
+
+    // News channels: never auto-detect to a crop mode
+    if (_isNewsChannel && _autoDetectedFitMode != null &&
+        !['original', 'fit'].contains(_autoDetectedFitMode)) {
+      _autoDetectedFitMode = 'original';
+    }
+
+    _fitMode = _autoDetectedFitMode ?? _fitMode;
+
+    // Report detected aspect ratio to backend for admin visibility
+    _reportDisplayInfo();
+
+    if (mounted) setState(() {});
+  }
+
+  /// Returns why the current fit mode is active
+  String _getFitModeSource() {
+    if (_rememberFitModeForChannel) return 'Your saved preference';
+    if (_currentChannel.defaultFitMode != 'original' &&
+        _currentChannel.defaultFitMode != 'unknown' &&
+        _currentChannel.defaultFitMode.isNotEmpty) return 'Admin recommended';
+    if (_autoDetectedFitMode != null) return 'Auto-detected';
+    return 'Global default';
+  }
+
+  /// Report detected display info to backend for admin visibility
+  Future<void> _reportDisplayInfo() async {
+    try {
+      await _api.post('${ApiEndpoints.channels}/${_currentChannel.id}/display-report', {
+        'aspect_ratio_type': _detectedAspectRatioType,
+        'video_width': _detectedVideoWidth,
+        'video_height': _detectedVideoHeight,
+        'detected_fit_mode': _autoDetectedFitMode,
+      });
+    } catch (_) {}
   }
 
   Map<String, dynamic>? _determineInitialQuality() {
@@ -378,10 +533,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             _isRetryingStream = false;
             _streamOverlayMessage = '';
           });
+          // Detect aspect ratio and re-resolve fit mode from stream dimensions
+          _detectAspectRatio(paramsWidth: params.w, paramsHeight: params.h);
           _retryAttempt = 0; // reset retry counter on success
           _showControlsWithTimer();
           // Report playback result to backend
           _reportPlaybackSuccess();
+          // Fallback: retry detection after delay (web platforms may populate dimensions late)
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted && _detectedAspectRatioType == 'unknown') {
+              _detectAspectRatio();
+            }
+          });
         }
       });
 
@@ -412,7 +575,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _bufferingEvents.add(now);
         _bufferingEvents.removeWhere((t) => now.difference(t).inSeconds > 60);
 
-        if (_bufferingEvents.length >= 3 && _isPremium && !_currentUrl.contains('/api/stream/transcode/')) {
+        if (_bufferingEvents.length >= 3 && !_currentUrl.contains('/api/stream/transcode/')) {
           _showNetworkSlowPrompt();
           _bufferingEvents.clear();
         }
@@ -447,96 +610,88 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _retryAttempt = 0; // reset retry counter on success
         _showControlsWithTimer();
       }
+      // Hide slow connection overlay when playback resumes
+      _hideSlowConnectionOverlay();
     }
   }
 
   void _showNetworkSlowPrompt() {
     if (!mounted) return;
 
-    // First, try to find a lower quality variant available locally
-    final lowerQuality = _findLowerQuality();
+    // Guard: cooldown (60s) and session suppression
+    final now = DateTime.now();
+    if (_slowOverlaySuppressedForSession) return;
+    if (_lastSlowWarningAt != null && now.difference(_lastSlowWarningAt!).inSeconds < 60) return;
 
-    // Only show the snackbar if there's actually something to switch to
+    final lowerQuality = _findLowerQuality();
     final canSwitchQuality = lowerQuality != null;
     final canSwitchTranscode = _isPremium && !_currentUrl.contains('/api/stream/transcode/');
 
-    if (!canSwitchQuality && !canSwitchTranscode) {
-      // Nothing to offer — skip the snackbar entirely
+    if (!canSwitchQuality && !canSwitchTranscode) return;
+
+    _lastSlowWarningAt = now;
+
+    // Auto quality mode: switch silently without bothering the user
+    if (_defaultQualityPref == 'auto' && canSwitchQuality) {
+      _autoSwitchQualityQuietly(lowerQuality!);
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Slow connection detected. Switch to a lower quality?'),
-        duration: const Duration(seconds: 6),
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: 'SWITCH',
-          textColor: const Color(AppColors.accent),
-          onPressed: () async {
-            if (!mounted) return;
+    // Manual mode: show dark in-player overlay prompt
+    setState(() { _showSlowConnectionOverlay = true; });
+    _slowOverlayTimer?.cancel();
+    _slowOverlayTimer = Timer(const Duration(seconds: 5), _hideSlowConnectionOverlay);
+  }
 
-            if (canSwitchQuality) {
-              // Prefer a local lower-quality variant — no proxy needed
-              final label = lowerQuality!['label'] as String? ?? 'lower quality';
-              setState(() {
-                _streamOverlayMessage = 'Switching to $label…';
-                _isLoading = true;
-                _hasError = false;
-              });
-              _selectedQuality = lowerQuality;
-              _isRetryingStream = false;
-              await _initializePlayer(
-                lowerQuality['url'],
-                lowerQuality['headers'] ?? _currentStreamMeta?['headers'] ?? {},
-              );
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('Switched to $label for smoother playback'),
-                  duration: const Duration(seconds: 3),
-                  behavior: SnackBarBehavior.floating,
-                ));
-              }
-            } else if (canSwitchTranscode) {
-              // Fall back to server-side transcode (premium only)
-              setState(() {
-                _streamOverlayMessage = 'Switching to proxy stream…';
-                _isLoading = true;
-                _hasError = false;
-              });
-              _isRetryingStream = false;
-              try {
-                final token = await StorageService().getToken() ?? '';
-                if (token.isEmpty) throw Exception('No token');
-                final fallbackUrl =
-                    '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token';
-                _currentStreamMeta = {'url': fallbackUrl, 'headers': {}};
-                await _initializePlayer(fallbackUrl, {});
-              } catch (e) {
-                // Transcode failed — restore the original stream silently
-                if (mounted) {
-                  setState(() { _isLoading = false; _hasError = false; _streamOverlayMessage = ''; });
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Proxy unavailable. Continuing on direct stream.'),
-                    duration: Duration(seconds: 3),
-                    behavior: SnackBarBehavior.floating,
-                  ));
-                  // Re-init original stream
-                  _isRetryingStream = false;
-                  await _initializePlayer(
-                    _currentChannel.streamUrl,
-                    {
-                      if (_currentChannel.userAgent != null) 'User-Agent': _currentChannel.userAgent!,
-                      if (_currentChannel.referrer != null) 'Referer': _currentChannel.referrer!,
-                    },
-                  );
-                }
-              }
-            }
-          },
-        ),
-      ),
+  void _hideSlowConnectionOverlay() {
+    _slowOverlayTimer?.cancel();
+    if (mounted) setState(() { _showSlowConnectionOverlay = false; });
+  }
+
+  Future<void> _autoSwitchQualityQuietly(Map<String, dynamic> lowerQuality) async {
+    final label = lowerQuality['label'] as String? ?? 'lower quality';
+    _showPlayerToast('Optimizing playback → $label');
+    setState(() {
+      _selectedQuality = lowerQuality;
+      _streamOverlayMessage = 'Optimizing playback...';
+      _isLoading = true;
+      _hasError = false;
+    });
+    _isRetryingStream = false;
+    await _initializePlayer(
+      lowerQuality['url'],
+      lowerQuality['headers'] ?? _currentStreamMeta?['headers'] ?? {},
     );
+  }
+
+  void _showPlayerToast(String msg) {
+    _playerToastTimer?.cancel();
+    if (mounted) setState(() { _playerToast = msg; });
+    _playerToastTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() { _playerToast = ''; });
+    });
+  }
+
+  Future<void> _switchToTranscode() async {
+    setState(() { _streamOverlayMessage = 'Switching to proxy stream…'; _isLoading = true; _hasError = false; });
+    _isRetryingStream = false;
+    try {
+      final token = await StorageService().getToken() ?? '';
+      if (token.isEmpty) throw Exception('No token');
+      final fallbackUrl = '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token';
+      _currentStreamMeta = {'url': fallbackUrl, 'headers': {}};
+      await _initializePlayer(fallbackUrl, {});
+    } catch (e) {
+      if (mounted) {
+        setState(() { _isLoading = false; _hasError = false; _streamOverlayMessage = ''; });
+        _showPlayerToast('Proxy unavailable. Resuming stream.');
+        _isRetryingStream = false;
+        await _initializePlayer(_currentChannel.streamUrl, {
+          if (_currentChannel.userAgent != null) 'User-Agent': _currentChannel.userAgent!,
+          if (_currentChannel.referrer != null) 'Referer': _currentChannel.referrer!,
+        });
+      }
+    }
   }
 
   /// Finds the next lower quality variant below the current selection, or null if none.
@@ -618,14 +773,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _selectedQuality = lowerQuality;
         _isRetryingStream = false;
         await _initializePlayer(lowerQuality['url'], lowerQuality['headers'] ?? _currentStreamMeta?['headers'] ?? {});
-        // PLAYBACK-03: Inform user which quality they auto-switched to
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Auto-switched to $lowerLabel for smoother playback'),
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ));
-        }
+        // Inform user which quality they auto-switched to
+        _showPlayerToast('Switched to $lowerLabel for smoother playback');
         return;
       }
 
@@ -814,6 +963,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   void _onChannelChanged({bool fetchNewContext = false}) {
     _hadFailureBeforePlaying = false;
+    // Reset auto-detected display state for new channel
+    _autoDetectedFitMode = null;
+    _detectedAspectRatioType = 'unknown';
+    _detectedVideoWidth = null;
+    _detectedVideoHeight = null;
+    // Re-resolve fit mode per channel priority chain
+    _resolveFitMode().then((_) {
+      if (mounted) setState(() {});
+    });
+    _slowOverlaySuppressedForSession = false;
+    _hideSlowConnectionOverlay();
+    if (mounted) setState(() { _playerToast = ''; });
     _nowPlaying = null;
     _upcoming = [];
     _relatedChannels = [];
@@ -912,23 +1073,16 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   BoxFit _getBoxFit() {
     String mode = _fitMode;
-    if (mode == 'auto') {
-      final width = _player.state.width;
-      final height = _player.state.height;
-      if (width != null && height != null && height > 0) {
-        final aspect = width / height;
-        if (aspect > 1.6 && aspect < 1.9) {
-          mode = 'fill';
-        } else {
-          mode = 'fit';
-        }
-      } else {
-        mode = 'fit';
-      }
+    // Migrate old 'auto' preference to 'original'
+    if (mode == 'auto') mode = 'original';
+
+    if (mode == 'original') {
+      return BoxFit.contain;
     }
 
     switch (mode) {
       case 'fill':
+        return BoxFit.cover;
       case 'zoom':
         return BoxFit.cover;
       case 'stretch':
@@ -940,19 +1094,68 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   double _getTransformScale() {
-    if (_fitMode == 'zoom') return 1.15;
+    if (_fitMode == 'zoom') return 1.10;
     return 1.0;
   }
 
   String _getFitLabel() {
     switch (_fitMode) {
+      case 'original': return 'Original';
+      case 'auto': return 'Original'; // migration
       case 'fit': return 'Fit';
       case 'fill': return 'Fill';
       case 'zoom': return 'Zoom';
       case 'stretch': return 'Stretch';
-      case 'auto':
-      default: return 'Auto';
+      default: return 'Original';
     }
+  }
+
+  /// Get the recommended fit mode for the current channel based on category
+  /// and detected aspect ratio — used to show the "Recommended" badge
+  String _getRecommendedFitMode() {
+    if (_isNewsChannel) return 'original';
+    if (_currentChannel.defaultFitMode != 'original' &&
+        _currentChannel.defaultFitMode != 'unknown' &&
+        _currentChannel.defaultFitMode.isNotEmpty) {
+      return _currentChannel.defaultFitMode;
+    }
+    if (_currentChannel.hasInternalBlackBars) return 'zoom';
+    if (_detectedAspectRatioType == '4:3') return 'original';
+    return 'original'; // safe default for most TV
+  }
+
+  void _onDoubleTapFitToggle() {
+    const cycle = ['original', 'fill', 'zoom'];
+    var current = _fitMode;
+    if (!cycle.contains(current)) current = 'original'; // Normalize to cycle
+    final idx = cycle.indexOf(current);
+    final next = cycle[(idx + 1) % cycle.length];
+    setState(() { _fitMode = next; });
+    _showFitToast(next);
+    
+    if (_rememberFitModeForChannel) {
+      StorageService().setChannelFitMode(_currentChannel.id, _fitMode);
+    } else {
+      StorageService().setVideoFitMode(_fitMode);
+    }
+    
+    _showControlsWithTimer();
+  }
+
+  void _showFitToast(String mode) {
+    const labels = {
+      'original': 'Original TV size',
+      'auto': 'Original TV size', // migration
+      'fit': 'Fit to screen',
+      'fill': 'Filled screen',
+      'zoom': 'Zoom mode',
+      'stretch': 'Stretched',
+    };
+    String label = labels[mode] ?? 'Original TV size';
+    if (_isNewsChannel && (mode == 'fill' || mode == 'zoom' || mode == 'stretch')) {
+      label += ' (may crop tickers)';
+    }
+    _showPlayerToast(label);
   }
 
   void _toggleControls() {
@@ -967,7 +1170,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _controlsTimer?.cancel();
     setState(() { _showControls = true; });
     _controlsAnimController.forward();
-    _controlsTimer = Timer(const Duration(seconds: 4), _hideControls);
+    _controlsTimer = Timer(const Duration(seconds: 3), _hideControls);
   }
 
   void _hideControls() {
@@ -986,19 +1189,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
-    _showControlsWithTimer();
-  }
-
-  void _cycleFit() {
-    final modes = ['auto', 'fit', 'fill', 'zoom', 'stretch'];
-    int currentIndex = modes.indexOf(_fitMode);
-    if (currentIndex == -1) currentIndex = 0;
-    
-    setState(() {
-      _fitMode = modes[(currentIndex + 1) % modes.length];
-    });
-    
-    StorageService().setVideoFitMode(_fitMode);
     _showControlsWithTimer();
   }
 
@@ -1029,6 +1219,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _bufferTimer?.cancel();
     _reconnectTimer?.cancel();
     _controlsTimer?.cancel();
+    _slowOverlayTimer?.cancel();
+    _playerToastTimer?.cancel();
     _playerSubscription?.cancel();
     _player.dispose();
     _controlsAnimController.dispose();
@@ -1070,21 +1262,27 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Widget _buildFullscreen() {
     return GestureDetector(
       onTap: _toggleControls,
+      onDoubleTap: _onDoubleTapFitToggle,
       behavior: HitTestBehavior.opaque,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          _buildVideoSurface(),
-          if (_isLoading) _buildLoadingOverlay(),
-          if (_hasError) _buildErrorOverlay(),
-          // Controls overlay — always in DOM, opacity-animated
-          FadeTransition(
-            opacity: _controlsOpacity,
-            child: IgnorePointer(
-              ignoring: !_showControls,
-              child: _buildControlsOverlay(fullscreen: true),
+          // Video fills the entire screen — no SafeArea, no constraints
+          Positioned.fill(child: _buildVideoSurface()),
+          if (_isLoading) Positioned.fill(child: _buildLoadingOverlay()),
+          if (_hasError) Positioned.fill(child: _buildErrorOverlay()),
+          // Controls overlay — safe padding on controls only, not video
+          Positioned.fill(
+            child: FadeTransition(
+              opacity: _controlsOpacity,
+              child: IgnorePointer(
+                ignoring: !_showControls,
+                child: _buildControlsOverlay(fullscreen: true),
+              ),
             ),
           ),
+          _buildSlowConnectionOverlay(),
+          _buildPlayerToast(),
         ],
       ),
     );
@@ -1095,7 +1293,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Widget _buildPortrait() {
     return Column(
       children: [
-        // ── Video area (16:9) ──
         AspectRatio(
           aspectRatio: 16 / 9,
           child: Container(
@@ -1104,28 +1301,28 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               fit: StackFit.expand,
               children: [
                 _buildVideoSurface(),
-
-                // ← Transparent tap layer directly above video surface
                 Positioned.fill(
                   child: GestureDetector(
                     onTap: _toggleControls,
+                    onDoubleTap: _onDoubleTapFitToggle,
                     behavior: HitTestBehavior.translucent,
                     child: const SizedBox.expand(),
                   ),
                 ),
-
-                if (_isLoading) _buildLoadingOverlay(),
-                if (_hasError) _buildErrorOverlay(),
-
-                // Controls overlay
+                if (_isLoading) Positioned.fill(child: _buildLoadingOverlay()),
+                if (_hasError) Positioned.fill(child: _buildErrorOverlay()),
                 if (!_hasError && !_isLoading)
-                  FadeTransition(
-                    opacity: _controlsOpacity,
-                    child: IgnorePointer(
-                      ignoring: !_showControls,
-                      child: _buildControlsOverlay(),
+                  Positioned.fill(
+                    child: FadeTransition(
+                      opacity: _controlsOpacity,
+                      child: IgnorePointer(
+                        ignoring: !_showControls,
+                        child: _buildControlsOverlay(),
+                      ),
                     ),
                   ),
+                _buildSlowConnectionOverlay(),
+                _buildPlayerToast(),
               ],
             ),
           ),
@@ -1172,14 +1369,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // ──────────────────────── Video Surface ────────────────────────
 
   Widget _buildVideoSurface() {
-    return Transform.scale(
-      key: _videoKey,
-      scale: _getTransformScale(),
-      child: Video(
-        controller: _videoController,
-        fit: _getBoxFit(),
-        controls: NoVideoControls,
-        filterQuality: FilterQuality.high,
+    return SizedBox.expand(
+      child: ClipRect(
+        child: Transform.scale(
+          key: _videoKey,
+          scale: _getTransformScale(),
+          child: Video(
+            controller: _videoController,
+            fit: _getBoxFit(),
+            controls: NoVideoControls,
+            filterQuality: FilterQuality.high,
+          ),
+        ),
       ),
     );
   }
@@ -1242,6 +1443,139 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
+  // ──────────────────────── Slow Connection Overlay ────────────────────────
+
+  Widget _buildSlowConnectionOverlay() {
+    final safe = MediaQuery.of(context).padding;
+    return IgnorePointer(
+      ignoring: !_showSlowConnectionOverlay,
+      child: AnimatedOpacity(
+        opacity: _showSlowConnectionOverlay ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 300),
+        child: AnimatedSlide(
+          offset: _showSlowConnectionOverlay ? Offset.zero : const Offset(0, 0.15),
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              margin: EdgeInsets.fromLTRB(16, 0, 16, 68 + safe.bottom),
+              constraints: const BoxConstraints(maxWidth: 520),
+              decoration: BoxDecoration(
+                color: const Color(0xEA0A0A0A),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withOpacity(0.12)),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 20, offset: const Offset(0, 4)),
+                ],
+              ),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.signal_cellular_alt_1_bar_rounded, color: Colors.orangeAccent, size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Network is unstable',
+                          style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 3),
+                        const Text(
+                          'Switch to lower quality for smoother playback.',
+                          style: TextStyle(color: Colors.white60, fontSize: 11),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            GestureDetector(
+                              onTap: () {
+                                _slowOverlaySuppressedForSession = true;
+                                _hideSlowConnectionOverlay();
+                              },
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                child: Text(
+                                  'Not now',
+                                  style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            GestureDetector(
+                              onTap: () async {
+                                _hideSlowConnectionOverlay();
+                                final lowerQuality = _findLowerQuality();
+                                if (lowerQuality != null) {
+                                  final label = lowerQuality['label'] as String? ?? 'lower quality';
+                                  setState(() {
+                                    _selectedQuality = lowerQuality;
+                                    _streamOverlayMessage = 'Switching to $label…';
+                                    _isLoading = true;
+                                    _hasError = false;
+                                  });
+                                  _isRetryingStream = false;
+                                  await _initializePlayer(
+                                    lowerQuality['url'],
+                                    lowerQuality['headers'] ?? _currentStreamMeta?['headers'] ?? {},
+                                  );
+                                  _showPlayerToast('Switched to $label for smoother playback');
+                                } else if (_isPremium && !_currentUrl.contains('/api/stream/transcode/')) {
+                                  _switchToTranscode();
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: const Color(AppColors.primary),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  'Switch',
+                                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlayerToast() {
+    return IgnorePointer(
+      child: AnimatedOpacity(
+        opacity: _playerToast.isNotEmpty ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 250),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xCC000000),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(_playerToast, style: const TextStyle(color: Colors.white, fontSize: 12)),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _actionButton(IconData icon, String label, VoidCallback onTap, {bool outlined = false}) {
     return outlined
         ? OutlinedButton.icon(
@@ -1269,73 +1603,108 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // ──────────────────────── Pro Player Controls Overlay ────────────────────────
 
   Widget _buildControlsOverlay({bool fullscreen = false}) {
+    final safe = MediaQuery.of(context).padding;
     return GestureDetector(
-      onTap: _toggleControls, // tap on controls = reset auto-hide timer
+      onTap: _toggleControls,
       child: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            stops: [0.0, 0.35, 0.65, 1.0],
+            stops: [0.0, 0.25, 0.70, 1.0],
             colors: [
-              Color(0xCC000000),
-              Color(0x22000000),
-              Color(0x22000000),
-              Color(0xCC000000),
+              Color(0xDD000000),
+              Color(0x55000000),
+              Color(0x33000000),
+              Color(0xDD000000),
             ],
           ),
         ),
         child: Column(
           children: [
-            // ── Top bar ──
-            _buildControlsTopBar(),
+            _buildControlsTopBar(fullscreen: fullscreen, safeTop: fullscreen ? safe.top : 0),
             const Spacer(),
-            // ── Center play controls ──
             _buildCenterControls(),
             const Spacer(),
-            // ── Bottom bar ──
-            _buildControlsBottomBar(),
+            _buildControlsBottomBar(fullscreen: fullscreen, safeBottom: fullscreen ? safe.bottom : 0),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildControlsTopBar() {
+  Widget _buildControlsTopBar({bool fullscreen = false, double safeTop = 0}) {
+    final logoSize = fullscreen ? 48.0 : 36.0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 4, 8, 0),
+      padding: EdgeInsets.fromLTRB(4, 4 + safeTop, 8, 0),
       child: Row(
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _isFullScreen ? _toggleFullScreen : () => Navigator.of(context).pop(),
           ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // Channel logo + title with dark backdrop for visibility
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0x99000000), Color(0x44000000)],
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  _currentChannel.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    shadows: [Shadow(blurRadius: 8, color: Colors.black)],
+                Container(
+                  width: logoSize,
+                  height: logoSize,
+                  margin: const EdgeInsets.only(right: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.black45,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: ChannelLogo(
+                      key: ValueKey(_currentChannel.id),
+                      logoUrl: _currentChannel.logoUrl,
+                      localLogoUrl: _currentChannel.localLogoUrl,
+                      channelName: _currentChannel.name,
+                      cacheKey: 'player_${_currentChannel.id}',
+                      size: logoSize,
+                      borderRadius: 8,
+                    ),
+                  ),
                 ),
-                if (_currentChannel.categoryName != null)
-                  Text(
-                    _currentChannel.categoryName!,
-                    style: const TextStyle(color: Colors.white60, fontSize: 11),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _currentChannel.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (_currentChannel.categoryName != null)
+                        Text(
+                          _currentChannel.categoryName!,
+                          style: const TextStyle(color: Colors.white70, fontSize: 11),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
                   ),
+                ),
               ],
             ),
           ),
+          const Spacer(),
           // LIVE indicator
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 6),
@@ -1437,13 +1806,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildControlsBottomBar() {
+  Widget _buildControlsBottomBar({bool fullscreen = false, double safeBottom = 0}) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + safeBottom),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // Quality selector
           // Quality selector
           Builder(builder: (context) {
             String buttonLabel = 'Auto';
@@ -1478,9 +1846,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             );
           }),
           const SizedBox(width: 10),
-          // Aspect ratio toggle
+          // Video size / fit mode selector
           GestureDetector(
-            onTap: _cycleFit,
+            onTap: _showFitSelector,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
@@ -1488,9 +1856,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: Colors.white24),
               ),
-              child: Text(
-                _getFitLabel(),
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+              child: Row(
+                children: [
+                  const Icon(Icons.aspect_ratio_rounded, size: 14, color: Colors.white),
+                  const SizedBox(width: 4),
+                  Text(
+                    _getFitLabel() + (_detectedAspectRatioType != 'unknown' ? ' · $_detectedAspectRatioType' : ''),
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1628,6 +2002,240 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     ).then((_) => _showControlsWithTimer());
   }
 
+  // ──────────────────────── Fit Mode Selector ────────────────────────
+
+  void _showFitSelector() {
+    _controlsTimer?.cancel();
+
+    // Build context-aware descriptions
+    String origDesc = 'Preserve full broadcast frame';
+    String fitDesc = 'Show full video, black bars allowed';
+    String fillDesc = 'Fill screen, edges may crop';
+    String zoomDesc = 'Reduce black bars with slight zoom';
+    String stretchDesc = 'Fill screen, may distort';
+
+    if (_isNewsChannel) {
+      origDesc += ' — Recommended for news';
+    } else if (_detectedAspectRatioType == '4:3') {
+      origDesc += ' — Safe for 4:3 channels';
+      zoomDesc = 'Zoom into 4:3 frame (may crop)';
+    } else if (_currentChannel.hasInternalBlackBars) {
+      zoomDesc = 'Remove black bars with controlled zoom';
+    }
+
+    final options = [
+      ('original', 'Original', origDesc),
+      ('fit',      'Fit',      fitDesc),
+      ('fill',     'Fill',     fillDesc),
+      ('zoom',     'Zoom',     zoomDesc),
+      ('stretch',  'Stretch',  stretchDesc),
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Container(
+              decoration: BoxDecoration(
+                color: const Color(AppColors.surface).withOpacity(0.98),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1), width: 1)),
+              ),
+              child: SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                    ),
+                    const SizedBox(height: 24),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('Video Size', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _getFitModeSource() + (_detectedAspectRatioType != 'unknown' ? ' · $_detectedAspectRatioType' : ''),
+                          style: const TextStyle(color: Colors.white38, fontSize: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...options.map((opt) {
+                      final isSelected = _fitMode == opt.$1;
+                      return _buildFitTile(opt.$1, opt.$2, opt.$3, isSelected, () {
+                        setState(() { _fitMode = opt.$1; });
+                        setModalState(() {});
+                        
+                        if (_rememberFitModeForChannel) {
+                          StorageService().setChannelFitMode(_currentChannel.id, _fitMode);
+                        } else {
+                          StorageService().setVideoFitMode(_fitMode);
+                        }
+                        
+                        _showFitToast(opt.$1);
+                        Navigator.pop(ctx);
+                      });
+                    }),
+                    if (_fitMode == 'fill' || _fitMode == 'zoom')
+                      Container(
+                        margin: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.amber.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline, color: Colors.amber, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                _isNewsChannel
+                                  ? 'News channels: This mode may crop tickers, headlines, logos, or subtitles. Original/Fit is recommended.'
+                                  : 'This mode may crop channel logos, tickers, or subtitles.',
+                                style: const TextStyle(color: Colors.amber, fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Remember for this channel',
+                                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Always use ${_getFitLabel()} for ${_currentChannel.name}',
+                                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            value: _rememberFitModeForChannel,
+                            activeColor: const Color(AppColors.primary),
+                            onChanged: (val) {
+                              setModalState(() {
+                                _rememberFitModeForChannel = val;
+                              });
+                              if (val) {
+                                StorageService().setChannelFitMode(_currentChannel.id, _fitMode);
+                              } else {
+                                StorageService().removeChannelFitMode(_currentChannel.id);
+                                StorageService().setVideoFitMode(_fitMode); // update global default to current just in case
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            );
+          }
+        );
+      },
+    ).then((_) => _showControlsWithTimer());
+  }
+
+  Widget _buildFitTile(String mode, String label, String sub, bool isSelected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(AppColors.primary).withOpacity(0.1) : Colors.transparent,
+          border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05), width: 1)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected ? const Color(AppColors.primary) : Colors.white38,
+                  width: 2,
+                ),
+              ),
+              child: isSelected
+                  ? Center(child: Container(width: 10, height: 10, decoration: const BoxDecoration(color: Color(AppColors.primary), shape: BoxShape.circle)))
+                  : null,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: isSelected ? const Color(AppColors.primary) : Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (mode == _getRecommendedFitMode()) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(AppColors.primary).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'Recommended',
+                            style: TextStyle(color: Color(AppColors.primary), fontSize: 9, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    sub,
+                    style: TextStyle(
+                      color: isSelected ? const Color(AppColors.primary).withOpacity(0.8) : Colors.white54,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showPremiumPaywall() {
     Navigator.pop(context); // Close bottom sheet
     showDialog(
@@ -1727,16 +2335,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     final headers = quality['headers'] ?? _currentStreamMeta?['headers'] ?? {};
     await _initializePlayer(quality['url'], headers, position);
 
-    // PLAYBACK-03: Brief toast so the user knows what quality they landed on
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Now playing at $qualityLabel'),
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+    _showPlayerToast('Playing at $qualityLabel');
   }
 
   // ──────────────────────── Channel Info ────────────────────────
@@ -1748,53 +2347,118 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     final showLang = lang != null && lang.trim().isNotEmpty && lang.toLowerCase() != 'unknown';
     final showQuality = quality != null && quality.trim().isNotEmpty;
 
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ChannelLogo(
-          logoUrl: _currentChannel.logoUrl,
-          localLogoUrl: _currentChannel.localLogoUrl,
-          channelName: _currentChannel.name,
-          size: 62,
-          borderRadius: 14,
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _currentChannel.name,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 7,
-                runSpacing: 5,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ChannelLogo(
+              key: ValueKey('info_${_currentChannel.id}'),
+              logoUrl: _currentChannel.logoUrl,
+              localLogoUrl: _currentChannel.localLogoUrl,
+              channelName: _currentChannel.name,
+              cacheKey: 'info_${_currentChannel.id}',
+              size: 62,
+              borderRadius: 14,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _liveBadge(),
-                  _infoChip(categoryLabel, Icons.category_outlined),
-                  if (showLang) _infoChip(lang, Icons.language_outlined),
-                  if (showQuality) _infoChip(quality, Icons.hd_outlined),
+                  Text(
+                    _currentChannel.name,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 5,
+                    children: [
+                      _liveBadge(),
+                      _infoChip(categoryLabel, Icons.category_outlined),
+                      if (showLang) _infoChip(lang, Icons.language_outlined),
+                      if (showQuality) _infoChip(quality, Icons.hd_outlined),
+                    ],
+                  ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-        BlocBuilder<FavoriteCubit, FavoriteState>(
-          builder: (context, state) {
-            final isFav = state is FavoriteLoaded && state.favorites.any((c) => c.id == _currentChannel.id);
-            return IconButton(
-              icon: Icon(isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  color: isFav ? Colors.red : Colors.white54, size: 26),
-              onPressed: () => context.read<FavoriteCubit>().toggleFavorite(_currentChannel.id, isFavorite: isFav),
-            );
-          },
+        const SizedBox(height: 12),
+        // Action buttons row
+        Row(
+          children: [
+            BlocBuilder<FavoriteCubit, FavoriteState>(
+              builder: (context, state) {
+                final isFav = state is FavoriteLoaded && state.favorites.any((c) => c.id == _currentChannel.id);
+                return _actionChip(
+                  icon: isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                  label: isFav ? 'Saved' : 'Save',
+                  color: isFav ? Colors.red : Colors.white54,
+                  onTap: () => context.read<FavoriteCubit>().toggleFavorite(_currentChannel.id, isFavorite: isFav),
+                );
+              },
+            ),
+            const SizedBox(width: 10),
+            _actionChip(
+              icon: Icons.share_rounded,
+              label: 'Share',
+              color: Colors.white54,
+              onTap: _shareChannel,
+            ),
+            const SizedBox(width: 10),
+            _actionChip(
+              icon: Icons.flag_outlined,
+              label: 'Report',
+              color: Colors.white54,
+              onTap: _reportChannel,
+            ),
+          ],
         ),
       ],
     );
+  }
+
+  Widget _actionChip({required IconData icon, required String label, required Color color, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(AppColors.surface),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: color),
+            const SizedBox(width: 5),
+            Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _shareChannel() {
+    _showPlayerToast('Share not available yet');
+  }
+
+  void _reportChannel() {
+    _showPlayerToast('Report submitted. Thank you.');
+    try {
+      _api.post('${ApiEndpoints.channels}/${_currentChannel.id}/report-failure', {
+        'reason': 'user_report',
+        'stream_url': _currentUrl,
+      });
+    } catch (_) {}
   }
 
   Widget _liveBadge() {

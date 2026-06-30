@@ -2,7 +2,7 @@ const { pool } = require('../src/config/db');
 const { hashPassword } = require('../src/utils/password');
 
 async function createAdmin() {
-  const email = 'admin@iptvapp.com';
+  const email = 'admin@nivatv.in';
   const password = 'AdminPassword123';
   const fullName = 'System Admin';
   const mobile = '1234567890';

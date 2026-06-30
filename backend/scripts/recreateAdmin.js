@@ -4,7 +4,7 @@ const { hashPassword } = require('../src/utils/password');
 
 async function recreateAdmin() {
   try {
-    const email = 'admin@iptvapp.com';
+    const email = 'admin@nivatv.in';
     const pwd = await hashPassword('password123');
 
     const check = await db.query("SELECT * FROM users WHERE email = $1", [email]);

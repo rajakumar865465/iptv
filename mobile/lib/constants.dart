@@ -1,5 +1,5 @@
 class AppConstants {
-  static const String appName = 'IPTV Live TV';
+  static const String appName = 'NivaTV';
   // Fix #6 & #30: Removed duplicate baseUrl — use BackendConfig.baseUrl everywhere.
   // AppConstants.baseUrl previously pointed to the emulator (10.0.2.2:5000) which
   // breaks on real devices. BackendConfig is the single source of truth for the URL.
@@ -10,14 +10,14 @@ class AppConstants {
 
 class AppColors {
   // Dark theme colors (JioTV-like)
-  static const int primary = 0xFFE50914;
+  static const int primary = 0xFF1A56DB;
   static const int background = 0xFF121212;
   static const int surface = 0xFF1E1E1E;
   static const int surfaceLight = 0xFF2C2C2C;
   static const int textPrimary = 0xFFFFFFFF;
   static const int textSecondary = 0xFFB3B3B3;
   static const int textMuted = 0xFF757575;
-  static const int accent = 0xFFE50914;
+  static const int accent = 0xFF1A56DB;
   static const int liveRed = 0xFFFF0000;
   static const int success = 0xFF4CAF50;
   static const int warning = 0xFFFF9800;
@@ -60,6 +60,7 @@ class ApiEndpoints {
   static const String categoryList = '$channels/categories';
   static const String languageList = '$channels/languages';
   static const String channelSearch = '$channels/search';
+  static const String channelDisplayReport = '$channels'; // POST /:id/display-report
 
   // Home — DTH-style structured home page
   static const String home = '$base/home';

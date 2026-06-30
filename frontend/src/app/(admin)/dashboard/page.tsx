@@ -98,7 +98,7 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">
             Overview
           </h1>
-          <p className="text-slate-400 mt-1">Here's what's happening with your IPTV service today.</p>
+          <p className="text-slate-400 mt-1">Here's what's happening with your NivaTV service today.</p>
         </div>
         <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700/50 rounded-full px-4 py-2 backdrop-blur-sm">
           <Activity className="w-4 h-4 text-emerald-400" />

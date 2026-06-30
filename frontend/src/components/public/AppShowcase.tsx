@@ -51,7 +51,7 @@ function BrowseScreen() {
           <div
             key={cat}
             className={`text-[9px] px-2.5 py-1 rounded-full font-medium shrink-0 ${
-              i === 0 ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-white/40'
+              i === 0 ? 'bg-indigo-500/20 text-indigo-400' : 'bg-white/5 text-white/40'
             }`}
           >
             {cat}
@@ -79,8 +79,8 @@ function BrowseScreen() {
             </div>
             {ch.live && (
               <div className="flex items-center gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-[8px] text-red-400 font-medium">LIVE</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                <span className="text-[8px] text-indigo-400 font-medium">LIVE</span>
               </div>
             )}
           </div>
@@ -103,8 +103,8 @@ function PlayerScreen() {
           </div>
           {/* Fake channel watermark */}
           <div className="absolute top-2 left-2 flex items-center gap-1.5">
-            <div className="w-5 h-5 rounded bg-red-500/20 flex items-center justify-center">
-              <Radio className="w-3 h-3 text-red-400" />
+            <div className="w-5 h-5 rounded bg-indigo-500/20 flex items-center justify-center">
+              <Radio className="w-3 h-3 text-indigo-400" />
             </div>
             <span className="text-[8px] text-white/50 font-medium">Star Plus</span>
           </div>
@@ -117,7 +117,7 @@ function PlayerScreen() {
         <div className="w-full mt-3 space-y-2">
           {/* Progress bar */}
           <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-            <div className="w-2/3 h-full bg-red-500 rounded-full" />
+            <div className="w-2/3 h-full bg-indigo-500 rounded-full" />
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[9px] text-white/30">14:32</span>
@@ -126,8 +126,8 @@ function PlayerScreen() {
           {/* Control buttons */}
           <div className="flex items-center justify-center gap-6">
             <Settings className="w-4 h-4 text-white/40" />
-            <div className="w-10 h-10 rounded-full bg-red-500/20 border border-red-500/30 flex items-center justify-center">
-              <Play className="w-4 h-4 text-red-400 ml-0.5" />
+            <div className="w-10 h-10 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+              <Play className="w-4 h-4 text-indigo-400 ml-0.5" />
             </div>
             <Heart className="w-4 h-4 text-white/40" />
           </div>
@@ -142,8 +142,8 @@ function LicenseScreen() {
     <div className="flex flex-col h-full bg-[#0c0c0e]">
       <StatusBar />
       <div className="flex-1 flex flex-col items-center justify-center px-5">
-        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-red-500/20 to-red-900/20 border border-red-500/20 flex items-center justify-center mb-5">
-          <Key className="w-8 h-8 text-red-400" />
+        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-red-500/20 to-red-900/20 border border-indigo-500/20 flex items-center justify-center mb-5">
+          <Key className="w-8 h-8 text-indigo-400" />
         </div>
         <p className="text-sm font-bold text-white mb-1">Activate License</p>
         <p className="text-[10px] text-white/40 text-center mb-6 leading-relaxed">
@@ -163,7 +163,7 @@ function LicenseScreen() {
           </div>
         </div>
         {/* Activate button */}
-        <div className="w-full bg-red-600 rounded-xl py-2.5 text-center mb-4">
+        <div className="w-full bg-indigo-600 rounded-xl py-2.5 text-center mb-4">
           <span className="text-xs font-semibold text-white">Activate Now</span>
         </div>
         {/* Success state */}
@@ -202,9 +202,9 @@ function PhoneFrame({ screen, title, subtitle }: PhoneFrameProps) {
     >
       <div className="relative">
         {/* Glow effect */}
-        <div className="absolute -inset-2 bg-red-600/0 rounded-[40px] blur-xl transition-all duration-500 group-hover:bg-red-600/10" />
+        <div className="absolute -inset-2 bg-indigo-600/0 rounded-[40px] blur-xl transition-all duration-500 group-hover:bg-indigo-600/10" />
         {/* Phone frame */}
-        <div className="relative w-[180px] sm:w-[200px] rounded-[32px] sm:rounded-[36px] bg-gradient-to-b from-[#2a2a2c] via-[#1e1e20] to-[#141416] border border-white/10 group-hover:border-red-500/30 transition-colors duration-500 shadow-2xl shadow-black/50 p-[6px] sm:p-[7px] pb-2.5 sm:pb-3">
+        <div className="relative w-[180px] sm:w-[200px] rounded-[32px] sm:rounded-[36px] bg-gradient-to-b from-[#2a2a2c] via-[#1e1e20] to-[#141416] border border-white/10 group-hover:border-indigo-500/30 transition-colors duration-500 shadow-2xl shadow-black/50 p-[6px] sm:p-[7px] pb-2.5 sm:pb-3">
           {/* Notch */}
           <div className="flex justify-center pt-1 mb-1">
             <div className="w-[45px] sm:w-[50px] h-[11px] sm:h-[13px] bg-black rounded-full" />
@@ -221,7 +221,7 @@ function PhoneFrame({ screen, title, subtitle }: PhoneFrameProps) {
       </div>
       {/* Label */}
       <div className="mt-5 text-center">
-        <p className="text-sm sm:text-base font-semibold text-white group-hover:text-red-400 transition-colors duration-300">
+        <p className="text-sm sm:text-base font-semibold text-white group-hover:text-indigo-400 transition-colors duration-300">
           {title}
         </p>
         <p className="text-xs text-slate-500 mt-1 group-hover:text-slate-400 transition-colors duration-300">

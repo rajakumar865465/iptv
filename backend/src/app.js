@@ -6,7 +6,7 @@ const http = require('http');
 const { WebSocketServer } = require('ws');
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
-// IPTV Live TV Backend Application
+// NivaTV Backend Application
 
 const errorHandler = require('./middleware/errorHandler');
 const { standardLimiter } = require('./middleware/rateLimit');
@@ -138,6 +138,10 @@ async function initDatabase() {
       await db.query(sql);
       console.log('Seed data applied');
     }
+
+    // Run automatic data recovery checks
+    const recovery = require('./utils/recovery');
+    await recovery.runRecovery();
   } catch (err) {
     console.error('Database initialization error:', err.message);
   }

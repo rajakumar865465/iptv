@@ -87,7 +87,7 @@ export default async function PricingPage() {
 
         {/* Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 bg-red-600/15 border border-red-500/30 rounded-full px-4 py-1.5 text-red-400 text-sm font-medium mb-4">
+          <div className="inline-flex items-center gap-2 bg-indigo-600/15 border border-indigo-500/30 rounded-full px-4 py-1.5 text-indigo-400 text-sm font-medium mb-4">
             Launch Pricing — Limited Time
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-white mb-4">Simple, Honest Pricing</h1>
@@ -111,7 +111,7 @@ export default async function PricingPage() {
           <div className="max-w-2xl mx-auto bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 mb-10 text-center">
             {plan1mPrice && (
               <p className="text-slate-300 text-sm">
-                <span className="text-red-400 font-semibold">Most Popular:</span> 1 Month plan for regular viewers — only ₹{plan1mPrice}/month
+                <span className="text-indigo-400 font-semibold">Most Popular:</span> 1 Month plan for regular viewers — only ₹{plan1mPrice}/month
               </p>
             )}
             {plan1yPrice && (
@@ -146,7 +146,7 @@ export default async function PricingPage() {
             const Icon = t.icon;
             return (
               <div key={t.title} className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-                <Icon className="w-6 h-6 text-red-400 mx-auto mb-2" />
+                <Icon className="w-6 h-6 text-indigo-400 mx-auto mb-2" />
                 <h3 className="text-white text-sm font-semibold mb-1">{t.title}</h3>
                 <p className="text-slate-400 text-xs leading-relaxed">{t.desc}</p>
               </div>

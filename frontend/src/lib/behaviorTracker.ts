@@ -2,13 +2,13 @@
 
 // Keys stored in localStorage
 const K = {
-  pages: 'iptv_pages_visited',
-  sessions: 'iptv_session_count',
-  pricingSeconds: 'iptv_pricing_seconds',
-  trialUsed: 'iptv_trial_used',
-  offerShown: 'iptv_offer_shown',
-  offerPrice: 'iptv_offer_price',
-  lastSession: 'iptv_last_session',
+  pages: 'nivatv_pages_visited',
+  sessions: 'nivatv_session_count',
+  pricingSeconds: 'nivatv_pricing_seconds',
+  trialUsed: 'nivatv_trial_used',
+  offerShown: 'nivatv_offer_shown',
+  offerPrice: 'nivatv_offer_price',
+  lastSession: 'nivatv_last_session',
 } as const;
 
 function ls(key: string): string | null {

@@ -5,8 +5,8 @@ const { hashPassword } = require('../src/utils/password');
 async function resetAdmin() {
   try {
     const passwordHash = await hashPassword('password123');
-    await db.query("UPDATE users SET password_hash = $1 WHERE email = 'admin@iptvapp.com'", [passwordHash]);
-    console.log("Password reset successfully for admin@iptvapp.com");
+    await db.query("UPDATE users SET password_hash = $1 WHERE email = 'admin@nivatv.in'", [passwordHash]);
+    console.log("Password reset successfully for admin@nivatv.in");
   } catch (err) {
     console.error(err);
   } finally {

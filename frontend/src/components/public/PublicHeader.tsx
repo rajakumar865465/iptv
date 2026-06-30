@@ -1,8 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Tv, Key, Download } from 'lucide-react';
+import { Menu, X, Key, Download } from 'lucide-react';
 
 const navLinks = [
   { href: '/', label: 'Home' },
@@ -43,12 +44,14 @@ export default function PublicHeader() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center group-hover:bg-blue-500 transition-colors">
-              <Tv className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-white text-base sm:text-lg">
-              NivaTV
+          <Link href="/" className="flex items-center gap-2 shrink-0">
+            <Image src="/logo.png" alt="NivaTV" width={40} height={40} className="h-9 w-auto object-contain" priority />
+            <span
+              className="text-xl font-bold tracking-tight leading-none select-none hidden sm:block"
+              style={{ fontFamily: 'var(--font-poppins)' }}
+            >
+              <span className="text-white">Niva</span>
+              <span className="text-red-400">TV</span>
             </span>
           </Link>
 
@@ -60,7 +63,7 @@ export default function PublicHeader() {
                 href={link.href}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   pathname === link.href
-                    ? 'text-red-400 bg-red-500/10'
+                    ? 'text-blue-400 bg-blue-500/10'
                     : 'text-slate-300 hover:text-white hover:bg-white/5'
                 }`}
               >
@@ -73,7 +76,7 @@ export default function PublicHeader() {
           <div className="hidden md:flex items-center gap-3">
             <Link
               href="/pricing"
-              className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors"
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors"
             >
               Buy Now
             </Link>
@@ -102,7 +105,7 @@ export default function PublicHeader() {
                   onClick={() => setMenuOpen(false)}
                   className={`block px-4 py-3.5 rounded-xl text-base font-medium transition-colors ${
                     pathname === link.href
-                      ? 'text-red-400 bg-red-500/10'
+                      ? 'text-blue-400 bg-blue-500/10'
                       : 'text-slate-300 hover:text-white hover:bg-white/5'
                   }`}
                 >
@@ -114,7 +117,7 @@ export default function PublicHeader() {
               <Link
                 href="/pricing"
                 onClick={() => setMenuOpen(false)}
-                className="flex items-center justify-center gap-2 w-full px-4 py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-base font-bold transition-colors"
+                className="flex items-center justify-center gap-2 w-full px-4 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-base font-bold transition-colors"
               >
                 <Key className="w-5 h-5" /> Buy License
               </Link>

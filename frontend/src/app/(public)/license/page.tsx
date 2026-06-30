@@ -7,7 +7,7 @@ import type { LicenseCheckResult } from '@/lib/publicApi';
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   unused: { label: 'Not Activated', color: 'text-amber-400' },
   active: { label: 'Active', color: 'text-green-400' },
-  expired: { label: 'Expired', color: 'text-red-400' },
+  expired: { label: 'Expired', color: 'text-indigo-400' },
   suspended: { label: 'Suspended', color: 'text-orange-400' },
   revoked: { label: 'Revoked', color: 'text-red-500' },
 };
@@ -39,8 +39,8 @@ export default function LicensePage() {
     <div className="pt-24 pb-20 px-4">
       <div className="max-w-md mx-auto">
         <div className="text-center mb-10">
-          <div className="w-14 h-14 rounded-2xl bg-red-600/20 flex items-center justify-center mx-auto mb-4">
-            <Key className="w-7 h-7 text-red-400" />
+          <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 flex items-center justify-center mx-auto mb-4">
+            <Key className="w-7 h-7 text-indigo-400" />
           </div>
           <h1 className="text-3xl font-extrabold text-white mb-2">License Status</h1>
           <p className="text-slate-400 text-sm">Enter your license key to check its current status.</p>
@@ -50,16 +50,16 @@ export default function LicensePage() {
           <label className="block text-sm font-medium text-slate-300 mb-2">License Key</label>
           <input
             type="text"
-            placeholder="IPTV-XXXX-XXXX-XXXX"
+            placeholder="NVT-XXXX-XXXX-XXXX"
             value={key}
             onChange={e => setKey(e.target.value.toUpperCase())}
             onKeyDown={e => e.key === 'Enter' && handleCheck()}
-            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-white font-mono placeholder-slate-600 text-sm focus:outline-none focus:border-red-500/50 mb-4"
+            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-white font-mono placeholder-slate-600 text-sm focus:outline-none focus:border-indigo-500/50 mb-4"
           />
           <button
             onClick={handleCheck}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-semibold text-sm transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm transition-colors"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             {loading ? 'Checking...' : 'Check License'}
@@ -67,7 +67,7 @@ export default function LicensePage() {
         </div>
 
         {error && (
-          <div className="flex items-center gap-2 bg-red-600/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-xl mb-6">
+          <div className="flex items-center gap-2 bg-indigo-600/10 border border-indigo-500/30 text-indigo-400 text-sm px-4 py-3 rounded-xl mb-6">
             <AlertCircle className="w-4 h-4 shrink-0" /> {error}
           </div>
         )}
@@ -78,7 +78,7 @@ export default function LicensePage() {
             <div className="p-8 pb-6 border-b border-white/5 flex flex-col items-center justify-center text-center">
               <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-5 ${
                 result.status === 'active' ? 'bg-green-500/10 text-green-400' : 
-                result.status === 'expired' ? 'bg-red-500/10 text-red-400' : 'bg-amber-500/10 text-amber-400'
+                result.status === 'expired' ? 'bg-red-500/10 text-indigo-400' : 'bg-amber-500/10 text-amber-400'
               }`}>
                 {result.status === 'active' ? <CheckCircle className="w-8 h-8" /> : <Clock className="w-8 h-8" />}
               </div>

@@ -28,10 +28,10 @@ export default async function DownloadPage() {
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          <div className="w-16 h-16 rounded-2xl bg-red-600/20 flex items-center justify-center mx-auto mb-5">
-            <Smartphone className="w-8 h-8 text-red-400" />
+          <div className="w-16 h-16 rounded-2xl bg-indigo-600/20 flex items-center justify-center mx-auto mb-5">
+            <Smartphone className="w-8 h-8 text-indigo-400" />
           </div>
-          <h1 className="text-4xl font-extrabold text-white mb-3">Download IPTV Live</h1>
+          <h1 className="text-4xl font-extrabold text-white mb-3">Download NivaTV</h1>
           <p className="text-slate-400">Free Android app. License key required to stream channels.</p>
         </div>
 
@@ -41,7 +41,7 @@ export default async function DownloadPage() {
             <>
               <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
                 <div>
-                  <h2 className="text-white font-bold text-xl">IPTV Live v{release.version}</h2>
+                  <h2 className="text-white font-bold text-xl">NivaTV v{release.version}</h2>
                   <p className="text-slate-400 text-sm">Latest stable release</p>
                 </div>
                 <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 text-green-400 text-sm font-medium px-3 py-1.5 rounded-full">
@@ -91,7 +91,7 @@ export default async function DownloadPage() {
               <a
                 href={release.apk_url}
                 download
-                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-lg transition-colors shadow-lg shadow-red-500/20"
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg transition-colors shadow-lg shadow-indigo-500/20"
               >
                 <Download className="w-6 h-6" /> Download APK (v{release.version})
               </a>
@@ -110,7 +110,7 @@ export default async function DownloadPage() {
           <ol className="space-y-4">
             {INSTALL_STEPS.map(s => (
               <li key={s.step} className="flex items-start gap-4">
-                <span className="w-7 h-7 shrink-0 rounded-full bg-red-600 text-white text-sm font-bold flex items-center justify-center">
+                <span className="w-7 h-7 shrink-0 rounded-full bg-indigo-600 text-white text-sm font-bold flex items-center justify-center">
                   {s.step}
                 </span>
                 <p className="text-slate-300 text-sm leading-relaxed pt-0.5">{s.text}</p>
@@ -120,10 +120,10 @@ export default async function DownloadPage() {
         </div>
 
         {/* No license yet CTA */}
-        <div className="text-center bg-gradient-to-r from-red-600/15 to-orange-600/10 border border-red-500/20 rounded-2xl p-6">
+        <div className="text-center bg-gradient-to-r from-indigo-600/15 to-violet-600/10 border border-indigo-500/20 rounded-2xl p-6">
           <p className="text-white font-semibold mb-2">Don&apos;t have a license key yet?</p>
           <p className="text-slate-400 text-sm mb-4">Purchase a plan to get your license key and unlock all channels.</p>
-          <Link href="/pricing" className="inline-block px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm transition-colors">
+          <Link href="/pricing" className="inline-block px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-colors">
             View Plans & Buy License
           </Link>
         </div>

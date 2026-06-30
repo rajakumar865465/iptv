@@ -4,7 +4,7 @@ const { hashPassword } = require('../src/utils/password');
 
 async function createSuperAdmin() {
   try {
-    const email = 'superadmin@iptvapp.com';
+    const email = 'superadmin@nivatv.in';
     const rawPassword = 'password123';
     
     const check = await db.query("SELECT * FROM users WHERE email = $1", [email]);
@@ -23,13 +23,13 @@ async function createSuperAdmin() {
       console.log("Creation successful. Email: " + email + ", Password: " + rawPassword);
     }
     
-    // Also let's fix admin@iptvapp.com if it's broken
-    const adminCheck = await db.query("SELECT * FROM users WHERE email = 'admin@iptvapp.com'");
+    // Also let's fix admin@nivatv.in if it's broken
+    const adminCheck = await db.query("SELECT * FROM users WHERE email = 'admin@nivatv.in'");
     if (adminCheck.rows.length > 0) {
-      console.log("Fixing admin@iptvapp.com role/status/mobile just in case...");
+      console.log("Fixing admin@nivatv.in role/status/mobile just in case...");
       const pwd = await hashPassword('password123');
-      await db.query("UPDATE users SET password_hash = $1, role = 'admin', status = 'active', mobile = COALESCE(mobile, '0000000000') WHERE email = 'admin@iptvapp.com'", [pwd]);
-      console.log("Fixed admin@iptvapp.com");
+      await db.query("UPDATE users SET password_hash = $1, role = 'admin', status = 'active', mobile = COALESCE(mobile, '0000000000') WHERE email = 'admin@nivatv.in'", [pwd]);
+      console.log("Fixed admin@nivatv.in");
     }
 
   } catch (err) {

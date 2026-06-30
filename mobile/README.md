@@ -1,6 +1,6 @@
-# iptv_app
+# NivaTV
 
-A new Flutter project.
+Flutter mobile app for NivaTV - Premium live TV for Indian channels.
 
 ## Getting Started
 

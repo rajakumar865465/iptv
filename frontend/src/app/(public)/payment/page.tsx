@@ -85,7 +85,7 @@ function PaymentForm() {
         description: order.plan_name,
         order_id: order.order_id,
         prefill: { name: order.customer_name, email: order.email, contact: order.mobile },
-        theme: { color: '#ef4444' },
+        theme: { color: '#6366f1' },
         handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
           try {
             await verifyPayment({
@@ -145,7 +145,7 @@ function PaymentForm() {
               <select
                 value={selectedPlanId ?? ''}
                 onChange={e => setSelectedPlanId(parseInt(e.target.value))}
-                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-500/50"
+                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500/50"
               >
                 {plans.map(p => (
                   <option key={p.id} value={p.id}>
@@ -158,8 +158,8 @@ function PaymentForm() {
 
           {/* Selected plan summary */}
           {selectedPlan && !isOfferFlow && (
-            <div className="bg-red-600/10 border border-red-500/20 rounded-xl px-4 py-3 text-sm">
-              <span className="text-red-400 font-semibold">{selectedPlan.name}</span>
+            <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-xl px-4 py-3 text-sm">
+              <span className="text-indigo-400 font-semibold">{selectedPlan.name}</span>
               <span className="text-slate-400 ml-2">· ₹{Math.round(selectedPlan.price)} · {selectedPlan.max_devices} device{selectedPlan.max_devices > 1 ? 's' : ''}</span>
             </div>
           )}
@@ -177,13 +177,13 @@ function PaymentForm() {
                 placeholder={f.placeholder}
                 value={form[f.name as keyof typeof form]}
                 onChange={e => setForm(prev => ({ ...prev, [f.name]: e.target.value }))}
-                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-red-500/50"
+                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-indigo-500/50"
               />
             </div>
           ))}
 
           {error && (
-            <div className="flex items-center gap-2 bg-red-600/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-xl">
+            <div className="flex items-center gap-2 bg-indigo-600/10 border border-indigo-500/30 text-indigo-400 text-sm px-4 py-3 rounded-xl">
               <AlertCircle className="w-4 h-4 shrink-0" /> {error}
             </div>
           )}
@@ -191,7 +191,7 @@ function PaymentForm() {
           <button
             onClick={handlePay}
             disabled={loading || !selectedPlan}
-            className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-red-600 hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-base transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-base transition-colors"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
             {loading

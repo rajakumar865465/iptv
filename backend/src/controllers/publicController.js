@@ -15,7 +15,7 @@ function getRazorpay() {
 
 function generateLicenseKey() {
   const part = () => crypto.randomBytes(2).toString('hex').toUpperCase();
-  return `IPTV-${part()}-${part()}-${part()}`;
+  return `NVT-${part()}-${part()}-${part()}`;
 }
 
 const formatChannelRow = (req, row) => {

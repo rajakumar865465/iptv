@@ -105,7 +105,7 @@ export default function BrowsePage() {
             placeholder="Search channels..."
             value={query}
             onChange={e => setQuery(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-red-500/50 text-sm"
+            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 text-sm"
           />
         </div>
 
@@ -118,7 +118,7 @@ export default function BrowsePage() {
               disabled={isLoading}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-all disabled:opacity-50 ${
                 activeCategory === cat
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20'
                   : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 border border-white/10'
               }`}
             >
@@ -157,7 +157,7 @@ export default function BrowsePage() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {filtered.map(ch => (
-                <div key={ch.id} className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col items-center gap-2 hover:border-red-500/30 hover:bg-white/[0.07] transition-all">
+                <div key={ch.id} className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col items-center gap-2 hover:border-indigo-500/30 hover:bg-white/[0.07] transition-all">
                   <div className="w-12 h-12 rounded-lg bg-white/10">
                     <ChannelLogoImage
                       src={ch.logo_url || ''}

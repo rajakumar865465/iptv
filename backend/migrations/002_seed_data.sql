@@ -1,4 +1,4 @@
--- IPTV Live TV - Seed Data
+-- NivaTV - Seed Data
 -- Created: 2026-06-23
 
 -- Insert default app settings
@@ -10,9 +10,9 @@ INSERT INTO app_settings (setting_key, setting_value) VALUES
 ('payment_enabled', 'true'),
 ('trial_enabled', 'true'),
 ('support_whatsapp', 'https://wa.me/911234567890'),
-('support_email', 'support@iptvapp.com'),
-('privacy_policy_url', 'https://iptvapp.com/privacy'),
-('terms_url', 'https://iptvapp.com/terms'),
+('support_email', 'support@nivatv.in'),
+('privacy_policy_url', 'https://nivatv.in/privacy'),
+('terms_url', 'https://nivatv.in/terms'),
 ('announcement_message', ''),
 ('banner_message', ''),
 ('ads_enabled', 'false')

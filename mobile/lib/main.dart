@@ -32,7 +32,7 @@ class MyApp extends StatelessWidget {
         BlocProvider(create: (context) => FavoriteCubit()),
       ],
       child: MaterialApp(
-        title: 'IPTV Live TV',
+        title: 'NivaTV',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
         home: const SplashScreen(),

@@ -98,14 +98,28 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   const SizedBox(height: 40),
                   Center(
-                    child: Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: const Color(AppColors.primary),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Icon(Icons.live_tv, size: 40, color: Colors.white),
+                    child: Column(
+                      children: [
+                        Image.asset(
+                          'assets/images/logo.png',
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.contain,
+                        ),
+                        const SizedBox(height: 10),
+                        RichText(
+                          text: TextSpan(
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                            children: const [
+                              TextSpan(text: 'Niva', style: TextStyle(color: Colors.white)),
+                              TextSpan(text: 'TV', style: TextStyle(color: Color(0xFFEF4444))),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 32),

@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: 'Support — NivaTV' };
 export const dynamic = 'force-dynamic';
 
 const COMMON_ISSUES = [
-  { issue: 'License key not working', fix: 'Make sure you are copying the full key including dashes. Keys look like IPTV-XXXX-XXXX-XXXX.' },
+  { issue: 'License key not working', fix: 'Make sure you are copying the full key including dashes. Keys look like NVT-XXXX-XXXX-XXXX.' },
   { issue: 'Channels buffering or not loading', fix: 'Check your internet speed. Try switching from WiFi to mobile data or vice versa. If the issue persists, report the channel inside the app.' },
   { issue: 'Payment done but no license key', fix: 'Check your payment success page or visit the License Check page. If it\'s still missing, contact us with your transaction ID.' },
   { issue: 'App crashes on startup', fix: 'Make sure you have the latest APK installed. Download the latest version from our Download page.' },
@@ -110,12 +110,12 @@ export default async function SupportPage() {
         </div>
 
         {/* License check CTA */}
-        <div className="bg-gradient-to-r from-red-600/15 to-transparent border border-red-500/20 rounded-2xl p-6 flex items-center gap-4">
-          <Key className="w-8 h-8 text-red-400 shrink-0" />
+        <div className="bg-gradient-to-r from-indigo-600/15 to-transparent border border-indigo-500/20 rounded-2xl p-6 flex items-center gap-4">
+          <Key className="w-8 h-8 text-indigo-400 shrink-0" />
           <div>
             <p className="text-white font-semibold mb-1">Check Your License Status</p>
             <p className="text-slate-400 text-sm mb-3">Verify your license key, activation status and expiry date.</p>
-            <Link href="/license" className="text-sm text-red-400 hover:text-red-300 font-medium underline underline-offset-2">
+            <Link href="/license" className="text-sm text-indigo-400 hover:text-blue-300 font-medium underline underline-offset-2">
               Go to License Check →
             </Link>
           </div>

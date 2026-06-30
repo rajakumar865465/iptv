@@ -78,9 +78,9 @@ export default function FeaturesPage() {
           {FEATURES.map(f => {
             const Icon = f.icon;
             return (
-              <div key={f.title} className="flex gap-5 bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-red-500/30 transition-colors">
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-red-600/15 flex items-center justify-center">
-                  <Icon className="w-6 h-6 text-red-400" />
+              <div key={f.title} className="flex gap-5 bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-indigo-500/30 transition-colors">
+                  <div className="w-12 h-12 shrink-0 rounded-xl bg-indigo-600/15 flex items-center justify-center">
+                  <Icon className="w-6 h-6 text-indigo-400" />
                 </div>
                 <div>
                   <h3 className="text-white font-bold mb-2">{f.title}</h3>
@@ -91,11 +91,11 @@ export default function FeaturesPage() {
           })}
         </div>
 
-        <div className="text-center bg-gradient-to-r from-red-600/15 to-transparent border border-red-500/20 rounded-2xl p-8">
+        <div className="text-center bg-gradient-to-r from-indigo-600/15 to-transparent border border-indigo-500/20 rounded-2xl p-8">
           <h2 className="text-2xl font-bold text-white mb-3">Ready to get started?</h2>
           <p className="text-slate-400 mb-6">Choose a plan and start watching live TV today.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/pricing" className="px-8 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold transition-colors">
+            <Link href="/pricing" className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-colors">
               View Pricing
             </Link>
             <Link href="/download" className="flex items-center justify-center gap-2 px-8 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors border border-white/10">

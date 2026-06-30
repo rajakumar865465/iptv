@@ -1,11 +1,11 @@
 {
-    "name": "iptv_app",
-    "short_name": "iptv_app",
+    "name": "NivaTV",
+    "short_name": "NivaTV",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#1A56DB",
+    "theme_color": "#1A56DB",
+    "description": "Premium live TV app for Indian channels",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

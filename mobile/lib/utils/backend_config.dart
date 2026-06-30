@@ -15,6 +15,6 @@ class BackendConfig {
 
   static const String baseUrl = String.fromEnvironment(
     'BACKEND_URL',
-    defaultValue: isDev ? 'http://localhost:5000' : 'http://35.154.128.217',
+    defaultValue: 'http://35.154.128.217',
   );
 }

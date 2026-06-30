@@ -67,7 +67,7 @@ function monthlyPrice(plan: Plan): number | null {
 
 const cardClasses: Record<PlanVariant, string> = {
   'most-popular':
-    'bg-gradient-to-b from-red-600/25 via-red-600/10 to-transparent border-red-500/60 shadow-xl shadow-red-500/15',
+    'bg-gradient-to-b from-indigo-600/25 via-indigo-600/10 to-transparent border-indigo-500/60 shadow-xl shadow-indigo-500/15',
   'save-more':
     'bg-gradient-to-b from-green-600/15 via-green-600/5 to-transparent border-green-500/40',
   'best-value':
@@ -76,14 +76,14 @@ const cardClasses: Record<PlanVariant, string> = {
 };
 
 const priceColor: Record<PlanVariant, string> = {
-  'most-popular': 'text-red-400',
+  'most-popular': 'text-indigo-400',
   'save-more': 'text-green-400',
   'best-value': 'text-amber-400',
   starter: 'text-white',
 };
 
 const iconColor: Record<PlanVariant, string> = {
-  'most-popular': 'text-red-400',
+  'most-popular': 'text-indigo-400',
   'save-more': 'text-green-400',
   'best-value': 'text-amber-400',
   starter: 'text-green-400',
@@ -111,7 +111,7 @@ export default function PlanCard({ plan, ctaText, variant = 'starter' }: Props) 
   let badgeClass = '';
   if (variant === 'most-popular') {
     badgeText = 'Most Popular';
-    badgeClass = 'bg-red-600 text-white';
+    badgeClass = 'bg-indigo-600 text-white';
   } else if (variant === 'save-more') {
     badgeText = 'Save More';
     badgeClass = 'bg-green-600 text-white';
@@ -121,12 +121,12 @@ export default function PlanCard({ plan, ctaText, variant = 'starter' }: Props) 
   }
 
   let offerBadgeClass = 'bg-white/10 text-slate-300';
-  if (variant === 'most-popular') offerBadgeClass = 'bg-red-600 text-white';
+  if (variant === 'most-popular') offerBadgeClass = 'bg-indigo-600 text-white';
   else if (variant === 'save-more') offerBadgeClass = 'bg-green-600 text-white';
   else if (variant === 'best-value') offerBadgeClass = 'bg-amber-500 text-black';
 
   let btnClass = 'bg-white/10 hover:bg-white/20 text-white border border-white/10';
-  if (variant === 'most-popular') btnClass = 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/20';
+  if (variant === 'most-popular') btnClass = 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20';
   else if (variant === 'save-more') btnClass = 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/20';
   else if (variant === 'best-value') btnClass = 'bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20';
 

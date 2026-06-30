@@ -4,9 +4,9 @@ import { Save, Globe, Loader2, CheckCircle } from 'lucide-react';
 import { getWebsiteSettings, updateWebsiteSettings } from '@/lib/api';
 
 const FIELDS = [
-  { key: 'app_name', label: 'App Name', placeholder: 'IPTV Live', type: 'text' },
+  { key: 'app_name', label: 'App Name', placeholder: 'NivaTV', type: 'text' },
   { key: 'hero_title', label: 'Hero Title', placeholder: 'Watch Live TV Anytime', type: 'text' },
-  { key: 'hero_subtitle', label: 'Hero Subtitle', placeholder: 'Premium IPTV Live TV App...', type: 'text' },
+  { key: 'hero_subtitle', label: 'Hero Subtitle', placeholder: 'Premium live TV app for Indian channels...', type: 'text' },
   { key: 'stats_channels_count', label: 'Stats: Channel Count', placeholder: '500+', type: 'text' },
   { key: 'stats_categories_count', label: 'Stats: Category Count', placeholder: '20+', type: 'text' },
   { key: 'stats_users_count', label: 'Stats: User Count', placeholder: '10,000+', type: 'text' },

@@ -24,7 +24,7 @@ export default function StickyMobileCTA() {
         <div className="flex gap-3 px-4 pt-3" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
           <Link
             href="/pricing"
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold text-sm transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-sm transition-colors"
           >
             <Key className="w-4 h-4" /> Buy License
           </Link>

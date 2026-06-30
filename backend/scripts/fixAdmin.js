@@ -5,8 +5,8 @@ const { hashPassword } = require('../src/utils/password');
 async function fixAdmin() {
   try {
     const pwd = await hashPassword('password123');
-    await db.query("UPDATE users SET password_hash = $1, role = 'admin', status = 'active' WHERE email = 'admin@iptvapp.com'", [pwd]);
-    console.log("Successfully fixed admin@iptvapp.com with password123, role=admin, status=active");
+    await db.query("UPDATE users SET password_hash = $1, role = 'admin', status = 'active' WHERE email = 'admin@nivatv.in'", [pwd]);
+    console.log("Successfully fixed admin@nivatv.in with password123, role=admin, status=active");
   } catch (err) {
     console.error("Error:", err);
   } finally {

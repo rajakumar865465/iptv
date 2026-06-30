@@ -24,6 +24,9 @@ class ChannelModel {
   final String? localLogoUrl;
   final String? logoStatus;
   final int? healthScore;
+  final String defaultFitMode;
+  final String aspectRatioType;
+  final bool hasInternalBlackBars;
 
   ChannelModel({
     required this.id,
@@ -51,6 +54,9 @@ class ChannelModel {
     this.localLogoUrl,
     this.logoStatus,
     this.healthScore,
+    this.defaultFitMode = 'original',
+    this.aspectRatioType = 'unknown',
+    this.hasInternalBlackBars = false,
   });
 
   /// True if this channel is likely playable (shown when workingOnly=true)
@@ -125,6 +131,9 @@ class ChannelModel {
       localLogoUrl: json['local_logo_url'],
       logoStatus: json['logo_status'],
       healthScore: json['health_score'],
+      defaultFitMode: json['default_fit_mode'] ?? 'original',
+      aspectRatioType: json['aspect_ratio_type'] ?? 'unknown',
+      hasInternalBlackBars: parseBool(json['has_internal_black_bars']),
     );
   }
 }

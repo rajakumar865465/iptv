@@ -1,4 +1,4 @@
--- IPTV Live TV - Initial Database Schema
+-- NivaTV - Initial Database Schema
 -- Created: 2026-06-23
 
 -- Enable UUID extension

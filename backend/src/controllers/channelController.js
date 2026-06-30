@@ -1047,3 +1047,43 @@ exports.reportPlaybackResult = async (req, res) => {
     error(res, 'Failed to report playback result', 500);
   }
 };
+
+exports.reportChannelDisplay = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { aspect_ratio_type, video_width, video_height, detected_fit_mode } = req.body;
+
+    const validRatios = ['16:9', '4:3', 'unknown', 'wide', 'vertical', 'bad_metadata', 'unusual'];
+    const cleanRatio = validRatios.includes(aspect_ratio_type) ? aspect_ratio_type : null;
+    const cleanNote = [
+      video_width ? `w:${video_width}` : '',
+      video_height ? `h:${video_height}` : '',
+      detected_fit_mode ? `fit:${detected_fit_mode}` : '',
+    ].filter(Boolean).join(' ') || null;
+
+    const displayStatus = [
+      cleanRatio || 'unknown',
+      detected_fit_mode || 'auto',
+    ].join('/');
+
+    if (!cleanRatio && !cleanNote) {
+      return error(res, 'No valid display data provided', 400);
+    }
+
+    // Only update aspect_ratio_type and fit_note, never overwrite admin-set default_fit_mode
+    await db.query(
+      `UPDATE channels SET
+        aspect_ratio_type = COALESCE($1, aspect_ratio_type),
+        fit_note = COALESCE($2, fit_note),
+        player_display_status = $3,
+        updated_at = NOW()
+      WHERE id = $4`,
+      [cleanRatio, cleanNote, displayStatus, id]
+    );
+
+    success(res, { success: true });
+  } catch (err) {
+    console.error('reportChannelDisplay error:', err);
+    error(res, 'Failed to report display info', 500);
+  }
+};

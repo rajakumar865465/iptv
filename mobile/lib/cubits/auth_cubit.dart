@@ -161,11 +161,12 @@ class AuthCubit extends Cubit<AuthState> {
     _authService.setToken(token);
   }
 
-  Future<Map<String, dynamic>?> me() async {
+  Future<Map<String, dynamic>?> me({bool throwOnError = false}) async {
     try {
       final result = await _authService.me();
       return result;
     } catch (e) {
+      if (throwOnError) rethrow;
       return null;
     }
   }
