@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// Backend configuration loaded at build time via --dart-define.
 ///
 /// Usage (development):
@@ -9,11 +11,10 @@
 /// If BACKEND_URL is not supplied, falls back to the production HTTPS URL.
 /// Never hardcode the IP directly in source — use --dart-define or a CI secret.
 class BackendConfig {
-  /// Whether we are in debug/dev mode.
-  static const bool isDev = bool.fromEnvironment('DART_VM_PRODUCT') == false;
+  static const bool isDev = !kReleaseMode;
 
   static const String baseUrl = String.fromEnvironment(
     'BACKEND_URL',
-    defaultValue: 'http://35.154.128.217',
+    defaultValue: isDev ? 'http://localhost:5000' : 'http://35.154.128.217',
   );
 }
