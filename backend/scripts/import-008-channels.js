@@ -44,8 +44,8 @@ async function import008() {
       const streamCheck = await db.query('SELECT id FROM channel_streams WHERE channel_id = $1 AND stream_url = $2', [channelId, streamUrl]);
       if (streamCheck.rows.length === 0) {
         await db.query(`
-          INSERT INTO channel_streams (channel_id, stream_url, resolution, status, is_backup)
-          VALUES ($1, $2, 'SD', 'active', false)
+          INSERT INTO channel_streams (channel_id, stream_url, quality, health_status, is_primary)
+          VALUES ($1, $2, 'SD', 'online', false)
         `, [channelId, streamUrl]);
         streamsAdded++;
         console.log(`[MERGE] Added premium stream to existing channel: ${name}`);
@@ -61,8 +61,8 @@ async function import008() {
       
       // Also add to channel_streams
       await db.query(`
-        INSERT INTO channel_streams (channel_id, stream_url, resolution, status, is_backup)
-        VALUES ($1, $2, 'SD', 'active', false)
+        INSERT INTO channel_streams (channel_id, stream_url, quality, health_status, is_primary)
+        VALUES ($1, $2, 'SD', 'online', true)
       `, [newId, streamUrl]);
       
       added++;
