@@ -8,7 +8,7 @@ import type { Plan } from '@/lib/publicApi';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
-  title: 'Pricing — IPTVLive',
+  title: 'Pricing — NivaTV',
   description: 'Simple, transparent pricing for premium Indian live TV. Daily trial, monthly and yearly plans.',
 };
 

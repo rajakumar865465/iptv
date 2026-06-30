@@ -81,7 +81,7 @@ function PaymentForm() {
         key: order.key_id,
         amount: order.amount,
         currency: order.currency,
-        name: 'IPTV Live',
+        name: 'NivaTV',
         description: order.plan_name,
         order_id: order.order_id,
         prefill: { name: order.customer_name, email: order.email, contact: order.mobile },

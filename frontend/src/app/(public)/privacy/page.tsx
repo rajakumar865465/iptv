@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Privacy Policy — IPTVLive' };
+export const metadata: Metadata = { title: 'Privacy Policy — NivaTV' };
 
 export default function PrivacyPage() {
   return (

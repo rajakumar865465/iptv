@@ -44,11 +44,11 @@ export default function PublicHeader() {
         <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 group shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center group-hover:bg-red-500 transition-colors">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center group-hover:bg-blue-500 transition-colors">
               <Tv className="w-5 h-5 text-white" />
             </div>
             <span className="font-bold text-white text-base sm:text-lg">
-              IPTV<span className="text-red-500">Live</span>
+              NivaTV
             </span>
           </Link>
 

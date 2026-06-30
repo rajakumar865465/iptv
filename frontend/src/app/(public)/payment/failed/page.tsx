@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { XCircle, RefreshCw, Headphones } from 'lucide-react';
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Payment Failed — IPTVLive' };
+export const metadata: Metadata = { title: 'Payment Failed — NivaTV' };
 
 export default function PaymentFailedPage() {
   return (

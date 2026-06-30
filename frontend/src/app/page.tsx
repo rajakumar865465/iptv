@@ -21,7 +21,7 @@ import type { Plan, Category, Channel } from '@/lib/publicApi';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
-  title: 'IPTVLive - Live TV for Every Indian Home',
+  title: 'NivaTV - Live TV for Every Indian Home',
   description:
     'Watch Hindi, Bengali, Tamil, Telugu, Malayalam and 500+ Indian live channels on Android. Buy a license, download the APK and start watching.',
 };

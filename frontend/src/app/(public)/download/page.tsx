@@ -5,8 +5,8 @@ import type { Metadata } from 'next';
 import PageTracker from '@/components/public/PageTracker';
 
 export const metadata: Metadata = {
-  title: 'Download APK — IPTVLive',
-  description: 'Download the latest IPTV Live APK for Android. Free to download, license required to stream.',
+  title: 'Download APK — NivaTV',
+  description: 'Download the latest NivaTV APK for Android. Free to download, license required to stream.',
 };
 export const dynamic = 'force-dynamic';
 

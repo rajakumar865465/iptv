@@ -3,7 +3,7 @@ import { MessageCircle, Mail, Phone, Clock, Key } from 'lucide-react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Support — IPTVLive' };
+export const metadata: Metadata = { title: 'Support — NivaTV' };
 export const dynamic = 'force-dynamic';
 
 const COMMON_ISSUES = [

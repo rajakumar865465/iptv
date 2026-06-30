@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Terms & Conditions — IPTVLive' };
+export const metadata: Metadata = { title: 'Terms & Conditions — NivaTV' };
 
 export default function TermsPage() {
   return (
@@ -12,7 +12,7 @@ export default function TermsPage() {
         {[
           {
             title: '1. Acceptance of Terms',
-            content: `By purchasing a license and using the IPTV Live application, you agree to these Terms and Conditions. If you do not agree, do not use the service.`,
+            content: `By purchasing a license and using the NivaTV application, you agree to these Terms and Conditions. If you do not agree, do not use the service.`,
           },
           {
             title: '2. License Usage',

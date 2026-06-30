@@ -7,8 +7,8 @@ import type { Metadata } from 'next';
 import PageTracker from '@/components/public/PageTracker';
 
 export const metadata: Metadata = {
-  title: 'Features — IPTVLive',
-  description: 'Explore all features of the IPTV Live Android app.',
+  title: 'Features — NivaTV',
+  description: 'Explore all features of the NivaTV Android app.',
 };
 
 const FEATURES = [

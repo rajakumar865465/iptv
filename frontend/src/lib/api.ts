@@ -31,6 +31,11 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+    // Provide actionable message for network errors (backend unreachable)
+    if (!err.response) {
+      const url = err.config?.baseURL ? `${err.config.baseURL}${err.config.url}` : err.config?.url || '';
+      err.message = `Cannot reach backend server. Check that the backend is running and NEXT_PUBLIC_API_URL is correct. (${url})`;
+    }
     return Promise.reject(err);
   }
 );

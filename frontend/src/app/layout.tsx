@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "IPTV Admin Dashboard",
-  description: "Admin panel for IPTV Live TV",
+  title: "NivaTV Admin Dashboard",
+  description: "Admin panel for NivaTV",
 };
 
 export default function RootLayout({

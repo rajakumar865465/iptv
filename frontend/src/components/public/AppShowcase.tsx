@@ -152,7 +152,7 @@ function LicenseScreen() {
         {/* Key input mock */}
         <div className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 mb-3">
           <div className="flex items-center justify-center gap-2">
-            {['IPTV', '••••', '••••', '••••'].map((part, i) => (
+            {['NVT', '••••', '••••', '••••'].map((part, i) => (
               <span
                 key={i}
                 className="text-[11px] font-mono text-white/30 tracking-wider"

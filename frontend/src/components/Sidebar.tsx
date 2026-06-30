@@ -39,7 +39,7 @@ export default function Sidebar() {
   return (
     <aside className="w-64 h-screen bg-gray-900 text-gray-300 flex flex-col border-r border-gray-800">
       <div className="p-4 border-b border-gray-800">
-        <h1 className="text-xl font-bold text-red-500">IPTV Admin</h1>
+        <h1 className="text-xl font-bold text-blue-500">NivaTV Admin</h1>
       </div>
       <nav className="flex-1 overflow-y-auto p-2 space-y-1">
         {navItems.map((item) => {

@@ -12,10 +12,10 @@ export default function PublicFooter() {
           {/* Brand */}
           <div className="md:col-span-1">
             <Link href="/" className="flex items-center gap-2 mb-4 w-fit">
-              <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
                 <Tv className="w-5 h-5 text-white" />
               </div>
-              <span className="font-bold text-white text-lg">IPTV<span className="text-red-500">Live</span></span>
+              <span className="font-bold text-white text-lg">NivaTV</span>
             </Link>
             <p className="text-slate-500 text-sm leading-relaxed mb-4">
               Premium IPTV app for Indian &amp; regional channels. Watch live TV anytime on your Android device.
@@ -98,7 +98,7 @@ export default function PublicFooter() {
         {/* Bottom */}
         <div className="border-t border-white/[0.06] pt-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <p className="text-slate-600 text-xs">
-            &copy; {new Date().getFullYear()} IPTVLive. All rights reserved.
+            &copy; {new Date().getFullYear()} NivaTV. All rights reserved.
           </p>
           <p className="text-slate-700 text-xs max-w-md text-right leading-relaxed">
             For entertainment use only. Channel availability may change based on stream or source status.

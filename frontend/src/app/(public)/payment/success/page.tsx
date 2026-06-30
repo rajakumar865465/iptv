@@ -9,7 +9,7 @@ import LicenseKeyDisplay from '@/components/public/LicenseKeyDisplay';
 import { markTrialUsed } from '@/lib/behaviorTracker';
 
 const ACTIVATION_STEPS = [
-  'Download & install the IPTV Live APK.',
+  'Download & install the NivaTV APK.',
   'Open the app and create an account or log in.',
   'Go to License Activation in the app.',
   'Paste your license key and tap Activate.',

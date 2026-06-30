@@ -18,15 +18,20 @@ const emptyForm = { name: '', icon_url: '', status: 'active', sort_order: 0 };
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  const fetchCategories = () =>
+  const fetchCategories = () => {
+    setLoading(true);
+    setError('');
     getCategories()
       .then((data) => setCategories(data || []))
+      .catch((err) => setError(err?.message || 'Failed to load categories'))
       .finally(() => setLoading(false));
+  }
 
   useEffect(() => { fetchCategories(); }, []);
 
@@ -165,6 +170,14 @@ export default function CategoriesPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {error && (
+        <div className="flex items-center gap-2 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
+          <button onClick={fetchCategories} className="ml-auto px-3 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold hover:bg-rose-500/20 transition-all">Retry</button>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center h-48 items-center">

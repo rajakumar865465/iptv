@@ -3,7 +3,7 @@ import PublicHeader from '@/components/public/PublicHeader';
 import PublicFooter from '@/components/public/PublicFooter';
 
 export const metadata: Metadata = {
-  title: 'IPTVLive — Premium Indian Live TV App',
+  title: 'NivaTV — Premium Indian Live TV App',
   description: 'Watch Hindi, Bengali, Tamil, Telugu, Malayalam and 500+ Indian channels on your Android device. Buy a license and start watching live TV today.',
 };
 
