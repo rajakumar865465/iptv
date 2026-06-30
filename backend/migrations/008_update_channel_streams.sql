@@ -5,7 +5,9 @@
 -- ============================================================
 -- STEP 1: Ensure all necessary categories exist
 -- ============================================================
-INSERT INTO categories (name, icon_url, status, sort_order) VALUES
+INSERT INTO categories (name, icon_url, status, sort_order)
+SELECT val.name, val.icon_url, val.status, val.sort_order 
+FROM (VALUES 
   ('Hindi Entertainment', '', 'active', 1),
   ('Hindi News',          '', 'active', 2),
   ('Hindi Movies',        '', 'active', 3),
@@ -25,7 +27,10 @@ INSERT INTO categories (name, icon_url, status, sort_order) VALUES
   ('Business News',       '', 'active', 17),
   ('Doordarshan',         '', 'active', 18),
   ('Regional',            '', 'active', 19)
-ON CONFLICT (name) DO NOTHING;
+) AS val(name, icon_url, status, sort_order)
+WHERE NOT EXISTS (
+  SELECT 1 FROM categories c WHERE c.name = val.name
+);
 
 -- ============================================================
 -- STEP 2: Clear existing channels and re-insert fresh ones
