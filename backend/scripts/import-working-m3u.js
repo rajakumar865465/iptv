@@ -279,20 +279,24 @@ async function main() {
       if (chanCheck.rows.length > 0) {
         // Channel exists — add this as an additional stream (backup source)
         const chanId = chanCheck.rows[0].id;
-        await db.query(
-          `INSERT INTO channel_streams
-             (channel_id, stream_url, quality, priority, source_name, health_status, health_score)
-           VALUES ($1, $2, $3, 2, 'working-m3u', 'unknown', 100)
-           ON CONFLICT (channel_id, stream_url) DO NOTHING`,
-          [chanId, url, quality]
-        );
-        // Update logo if missing
+        const streamCheck = await db.query('SELECT id FROM channel_streams WHERE channel_id = $1 AND stream_url = $2', [chanId, url]);
+        if (streamCheck.rows.length === 0) {
+          await db.query(
+            `INSERT INTO channel_streams
+               (channel_id, stream_url, quality, priority, source_name, health_status, health_score)
+             VALUES ($1, $2, $3, 2, 'working-m3u', 'unknown', 100)`,
+            [chanId, url, quality]
+          );
+        }
+        // Update logo and force status to active if missing
         if (tvgLogo) {
           await db.query(
             `UPDATE channels SET logo_url = COALESCE(NULLIF(logo_url,''), $1),
-               updated_at = NOW() WHERE id = $2`,
+               status = 'active', updated_at = NOW() WHERE id = $2`,
             [tvgLogo, chanId]
           );
+        } else {
+          await db.query(`UPDATE channels SET status = 'active', updated_at = NOW() WHERE id = $1`, [chanId]);
         }
         // Update has_backup_streams
         await db.query(
@@ -324,8 +328,7 @@ async function main() {
       await db.query(
         `INSERT INTO channel_streams
            (channel_id, stream_url, quality, priority, source_name, health_status, health_score)
-         VALUES ($1,$2,$3,1,'working-m3u','unknown',100)
-         ON CONFLICT DO NOTHING`,
+         VALUES ($1,$2,$3,1,'working-m3u','unknown',100)`,
         [newId, url, quality]
       );
 
