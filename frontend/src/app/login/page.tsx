@@ -24,7 +24,11 @@ export default function LoginPage() {
         router.push('/dashboard');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
+      if (!err.response) {
+        setError('Cannot connect to server. Please check your internet.');
+      } else {
+        setError(err.response?.data?.message || 'Login failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -34,7 +38,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-900">
       <div className="w-full max-w-md p-8 bg-gray-800 rounded-lg shadow-lg border border-gray-700">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-red-500">IPTV Admin</h1>
+          <h1 className="text-2xl font-bold text-blue-500">NivaTV Admin</h1>
           <p className="text-gray-400 mt-1">Sign in to the dashboard</p>
         </div>
         {error && (

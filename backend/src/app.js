@@ -30,8 +30,12 @@ const app = express();
 // Trust proxy for rate limiters (required for Render/Heroku)
 app.set('trust proxy', 1);
 
-// Middleware
-app.use(helmet());
+// Middleware — helmet with cross-origin policies relaxed so browser frontends on
+// different origins (localhost:3000 in dev, or a deployed domain) can reach the API.
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+}));
 // Restrict CORS to known origins. For mobile apps the origin is typically
 // null/undefined, so we allow that too. Tighten in production via CORS_ORIGINS env var.
 const allowedOrigins = process.env.CORS_ORIGINS
