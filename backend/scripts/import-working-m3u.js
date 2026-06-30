@@ -28,8 +28,11 @@ const REPLACE_DEAD = args.includes('--replace-dead');
 
 // Only require DB when actually writing
 const db = DRY_RUN ? null : require('../src/config/db');
-const M3U_PATH   = path.join(__dirname, '..', '..', 'working_iptv.m3u');
 
+// Parse --file argument if provided, otherwise default to working_iptv.m3u in root
+const fileArgIndex = args.indexOf('--file');
+const customFile = fileArgIndex !== -1 ? args[fileArgIndex + 1] : '../../working_iptv.m3u';
+const M3U_PATH   = path.join(__dirname, customFile);
 // ── Quality inference ──────────────────────────────────────────────────────
 function inferQuality(name) {
   const n = (name || '').toLowerCase();

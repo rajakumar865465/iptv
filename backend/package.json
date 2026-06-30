@@ -21,7 +21,7 @@
     "activate": "node scripts/activate-working-channels.js",
     "report": "node scripts/generate-report.js",
     "import-working": "node scripts/import-working-m3u.js",
-    "import-working-dry": "node scripts/import-working-m3u.js --dry-run",
+    "import-all-custom": "node scripts/import-008-channels.js && node scripts/import-working-m3u.js && node scripts/import-working-m3u.js --file ../updated_channels.m3u",
     "import-working-replace": "node scripts/import-working-m3u.js --replace-dead",
     "import-premium": "node scripts/import-008-channels.js",
     "fix-categories": "node scripts/fix-imported-categories.js",
