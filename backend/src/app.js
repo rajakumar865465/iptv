@@ -283,5 +283,17 @@ initDatabase().then(() => {
     ws.on('error', (err) => console.error('WebSocket error:', err.message));
   });
   
-  server.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT} (WebSocket: ws://0.0.0.0:${PORT}/ws)`));
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT} (WebSocket: ws://0.0.0.0:${PORT}/ws)`);
+    
+    // Start automated stream health scanner in the background (runs every hour)
+    const { runHealthScan } = require('./jobs/stream_scanner');
+    setInterval(() => {
+      runHealthScan().catch(err => console.error('Scheduled health scan failed:', err));
+    }, 60 * 60 * 1000);
+    // Optionally trigger a scan a few minutes after startup
+    setTimeout(() => {
+      runHealthScan().catch(err => console.error('Initial health scan failed:', err));
+    }, 5 * 60 * 1000);
+  });
 });
