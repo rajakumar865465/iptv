@@ -151,7 +151,8 @@ exports.proxyManifest = async (req, res) => {
       if (!fullUrl) return line;
       // encode fullUrl and pass it to our segment proxy
       const encoded = Buffer.from(fullUrl).toString('base64');
-      return `/api/proxy/segment/${streamId}/${encoded}.ts`;
+      const ext = fullUrl.includes('.m3u8') ? '.m3u8' : '.ts';
+      return `/api/proxy/segment/${streamId}/${encoded}${ext}`;
     }).join('\n');
 
     manifestCache.set(streamId, rewritten);
@@ -199,7 +200,8 @@ exports.proxySegment = async (req, res) => {
     // Decode the target URL and validate it against allowed hosts (SSRF prevention)
     let targetUrl;
     try {
-      targetUrl = Buffer.from(b64url.replace('.ts', ''), 'base64').toString('utf8');
+      const cleanB64 = b64url.replace('.ts', '').replace('.m3u8', '');
+      targetUrl = Buffer.from(cleanB64, 'base64').toString('utf8');
       // Validate it's a proper URL
       const parsed = new URL(targetUrl);
       // Only allow http/https — block file://, ftp://, data:, etc.
@@ -271,8 +273,11 @@ exports.proxySegment = async (req, res) => {
       return res.status(proxyRes.statusCode).send('Upstream error');
     }
 
-    // Stream the data directly to the client
-    res.setHeader('Content-Type', 'video/mp2t');
+    // Stream the data directly to the client, preserving the upstream Content-Type.
+    // This is critical because some segments are actually child .m3u8 playlists,
+    // and ExoPlayer will crash if a playlist is served as video/mp2t.
+    const contentType = proxyRes.headers['content-type'] || (targetUrl.includes('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp2t');
+    res.setHeader('Content-Type', contentType);
 
     // Fix #9: Use stream.pipeline() instead of proxyRes.pipe(res).
     // pipeline() handles backpressure properly — if the client reads slowly,
