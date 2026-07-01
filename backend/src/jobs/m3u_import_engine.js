@@ -116,7 +116,15 @@ const runImportJob = async (jobId) => {
     }
 
     // 5. Process Grouped Channels
+    let processed = 0;
     for (const [canonical, channelData] of Object.entries(groupedChannels)) {
+      processed++;
+      if (processed % 100 === 0) {
+        await db.query(
+          'UPDATE import_jobs SET inserted = $1, updated = $2, skipped = $3 WHERE id = $4',
+          [inserted, updated, skipped, jobId]
+        );
+      }
       try {
         // Check if channel already exists
         let existingChannel = null;
