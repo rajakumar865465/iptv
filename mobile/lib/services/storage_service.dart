@@ -155,10 +155,22 @@ class StorageService {
     return prefs.getBool('hd_only_wifi') ?? true;
   }
 
+  /// Clears only auth credentials (token + user data + cached content).
+  /// Does NOT touch onboarding flags, device ID, or app settings so the user
+  /// doesn't have to redo onboarding or re-pair their device on next login.
+  /// Use this for session expiry / invalid token cases.
+  Future<void> clearAuthData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(StorageKeys.token);
+    await prefs.remove(StorageKeys.user);
+    await prefs.remove(StorageKeys.cachedChannels);
+    await prefs.remove(StorageKeys.cachedCategories);
+  }
+
+  /// Full wipe — only call this on explicit user-initiated "Sign Out".
+  /// Clears everything including onboarding and device ID.
   Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
-    // Fix #21: Also clear cached channels/categories so a new user doesn't see
-    // the previous user's cached channel list after logout.
     await prefs.remove(StorageKeys.token);
     await prefs.remove(StorageKeys.user);
     await prefs.remove(StorageKeys.deviceId);

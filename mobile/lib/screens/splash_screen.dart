@@ -79,35 +79,42 @@ class _SplashScreenState extends State<SplashScreen> {
 
         // Verify token is still valid by calling /me
         Map<String, dynamic>? meResult;
-        bool isNetworkError = false;
-        
+        // Treat any non-401/403 failure as a temporary server/network problem.
+        // Only a confirmed 401/403 should force the user to re-login.
+        bool isTemporaryError = false;
+
         try {
           meResult = await authCubit.me(throwOnError: true);
         } catch (e) {
           if (e is DioException) {
             if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
-              // Token invalid - clear and go to login
-              await StorageService().clearAll();
+              // Token is genuinely invalid — clear auth data only (not onboarding/settings)
+              // and redirect to login.
+              await StorageService().clearAuthData();
               if (context.mounted) {
                 Navigator.of(context).pushReplacement(
                   MaterialPageRoute(builder: (_) => const LoginScreen()),
                 );
               }
               return;
-            } else if (
-              e.type == DioExceptionType.connectionError ||
-              e.type == DioExceptionType.connectionTimeout ||
-              e.type == DioExceptionType.receiveTimeout ||
-              e.type == DioExceptionType.sendTimeout
-            ) {
-              isNetworkError = true;
             }
+            // Any other DioException (5xx server errors, timeouts, network loss,
+            // DNS failures, connection refused, etc.) is a temporary problem.
+            // The token may still be valid — don't clear it, let the user through.
+            isTemporaryError = true;
+          } else {
+            // Non-DioException (parse error, null pointer, etc.) — also temporary.
+            // Previously this fell through with isNetworkError=false and cleared the
+            // token, forcing re-login even when the session was perfectly valid.
+            isTemporaryError = true;
           }
         }
 
-        if (meResult == null && !isNetworkError) {
-          // Token invalid or other error - clear and go to login
-          await StorageService().clearAll();
+        // Only force login if the /me call returned a non-success 200 response
+        // (i.e., API responded but explicitly said the session is invalid).
+        // Temporary errors keep the token alive so the user stays logged in.
+        if (meResult == null && !isTemporaryError) {
+          await StorageService().clearAuthData();
           if (context.mounted) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -132,7 +139,7 @@ class _SplashScreenState extends State<SplashScreen> {
         if (!context.mounted) return;
 
         final licenseState = context.read<LicenseCubit>().state;
-        if (licenseState is LicenseActive || (isNetworkError && licenseState is LicenseError)) {
+        if (licenseState is LicenseActive || (isTemporaryError && licenseState is LicenseError)) {
           await context.read<ChannelCubit>().loadChannels();
           if (context.mounted) {
             Navigator.of(context).pushReplacement(

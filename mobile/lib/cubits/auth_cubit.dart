@@ -117,24 +117,17 @@ class AuthCubit extends Cubit<AuthState> {
         if (meResult != null) {
           emit(AuthAuthenticated());
         } else {
-          await _storage.clearAll();
+          // /me returned 200 but success=false — session is explicitly invalid.
+          // Use clearAuthData (not clearAll) to preserve onboarding/device ID.
+          await _storage.clearAuthData();
           emit(AuthUnauthenticated());
         }
       } catch (e) {
         if (e is DioException && (e.response?.statusCode == 401 || e.response?.statusCode == 403)) {
-          final data = e.response?.data;
-          bool isTokenError = false;
-          if (data is Map && data['message'] != null) {
-            final msg = data['message'].toString().toLowerCase();
-            if (msg.contains('invalid token') || msg.contains('token expired') || e.response?.statusCode == 403) {
-              isTokenError = true;
-            }
-          }
-          if (isTokenError) {
-            await _storage.clearAll();
-            emit(AuthUnauthenticated());
-            return;
-          }
+          // Confirmed invalid token — clear auth data only, preserve app settings.
+          await _storage.clearAuthData();
+          emit(AuthUnauthenticated());
+          return;
         }
         // Fix #22: Only treat network/connectivity errors as "offline authenticated".
         // Server 500s or unknown errors should NOT silently pass the auth gate.
@@ -147,9 +140,10 @@ class AuthCubit extends Cubit<AuthState> {
           // Genuine network outage — allow offline access
           emit(AuthAuthenticated());
         } else {
-          // Any other error (500, etc.) — require re-login to be safe
-          await _storage.clearAll();
-          emit(AuthUnauthenticated());
+          // Any other error (5xx, unknown) — treat as temporary server issue.
+          // The token may still be valid; don't clear it or the user loses their
+          // session every time the server has a hiccup.
+          emit(AuthAuthenticated());
         }
       }
     } else {

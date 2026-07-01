@@ -9,6 +9,7 @@
         android:label="NivaTV"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
+        android:roundIcon="@mipmap/launcher_icon"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
