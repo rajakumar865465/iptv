@@ -238,7 +238,16 @@ exports.updateReportStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
     
-    await db.query('UPDATE channel_reports SET status = $1, updated_at = NOW() WHERE id = $2', [status, id]);
+    const reportRes = await db.query('SELECT channel_id FROM channel_reports WHERE id = $1', [id]);
+    if (reportRes.rows.length > 0) {
+      const channelId = reportRes.rows[0].channel_id;
+      await db.query(`
+        UPDATE channel_reports 
+        SET status = $1, updated_at = NOW() 
+        WHERE channel_id = $2 AND status = 'pending'
+      `, [status, channelId]);
+    }
+    
     success(res, { message: 'Report status updated' });
   } catch (err) {
     console.error('updateReportStatus error:', err);

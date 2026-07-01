@@ -41,11 +41,11 @@ export default function ReportedChannelsPage() {
 
   useEffect(() => { fetchReports(); }, []);
 
-  const handleResolve = async (id: string) => {
+  const handleResolve = async (report: Report) => {
     setProcessing(true);
     try {
-      await updateReportStatus(id, 'resolved');
-      setReports(prev => prev.filter(r => r.report_id !== id));
+      await updateReportStatus(report.report_id, 'resolved');
+      setReports(prev => prev.filter(r => r.channel_id !== report.channel_id));
       setSelectedReport(null);
     } catch {
       alert('Failed to update status');
@@ -60,7 +60,7 @@ export default function ReportedChannelsPage() {
     try {
       await hideChannel(report.channel_id, 'Broken stream reported by users', false);
       await updateReportStatus(report.report_id, 'hidden');
-      setReports(prev => prev.filter(r => r.report_id !== report.report_id));
+      setReports(prev => prev.filter(r => r.channel_id !== report.channel_id));
       setSelectedReport(null);
     } catch {
       alert('Failed to hide channel');
@@ -220,7 +220,7 @@ export default function ReportedChannelsPage() {
                   Hide Channel
                 </button>
                 <button 
-                  onClick={() => handleResolve(selectedReport.report_id)}
+                  onClick={() => handleResolve(selectedReport)}
                   disabled={processing}
                   className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold"
                 >
