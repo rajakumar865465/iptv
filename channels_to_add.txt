@@ -1,0 +1,230 @@
+============================================================
+       INDIAN IPTV CHANNEL TEST RESULTS
+       Date: 2026-07-01
+       Source: iptv-org.github.io/iptv/index.m3u
+============================================================
+
+SUMMARY:
+  Working Channels    : 20 (33%)
+  Not Working Channels: 14 (23%)
+  Unstable Channels   : 27 (44%)
+  Total Tested        : 61
+
+============================================================
+                    WORKING CHANNELS (20)
+============================================================
+
+--- ENTERTAINMENT ---
+[OK] Colors TV
+     URL: https://d1g8wgjurz8via.cloudfront.net/bpk-tv/ColorsHD/default/ColorsHD.m3u8
+
+[OK] Sony SAB
+     URL: http://103.253.18.58:8000/play/a00r
+
+--- NEWS ---
+[OK] ABP News
+     URL: https://d1rc86nwwc9fag.cloudfront.net/vglive-sk-472500/abpnews/master.m3u8
+
+[OK] India TV
+     URL: https://pl-indiatvnews.akamaized.net/out/v1/db79179b608641ceaa5a4d0dd0dca8da/index.m3u8
+
+[OK] NDTV India
+     URL: https://raw.githubusercontent.com/amazeyourself/adaptive-streams/refs/heads/main/streams/in/YuppTV/NDTVIndia.m3u8
+
+[OK] News18 India
+     URL: https://n18syndication.akamaized.net/bpk-tv/News18_India_NW18_MOB/output01/master.m3u8
+
+[OK] Republic Bharat
+     URL: https://raw.githubusercontent.com/amazeyourself/adaptive-streams/refs/heads/main/streams/in/YuppTV/RepublicBharat.m3u8
+
+[OK] TV9 Bharatvarsh
+     URL: https://dyjmyiv3bp2ez.cloudfront.net/pub-iotv9hinjzgtpe/liveabr/playlist.m3u8
+
+[OK] Times Now Navbharat
+     URL: https://raw.githubusercontent.com/amazeyourself/adaptive-streams/refs/heads/main/streams/in/YuppTV/TimesNowNavbharat.m3u8
+
+[OK] Zee News
+     URL: https://dknttpxmr0dwf.cloudfront.net/index_57.m3u8
+
+--- BUSINESS ---
+[OK] CNBC Awaaz
+     URL: https://n18syndication.akamaized.net/bpk-tv/CNBC_Awaaz_NW18_MOB/output01/master.m3u8
+
+[OK] ET Now Swadesh
+     URL: https://d32gxr3r1ksq2p.cloudfront.net/master.m3u8
+
+[OK] Zee Business
+     URL: https://dwby15d04agvq.cloudfront.net/index_5.m3u8
+
+--- SPORTS ---
+[OK] DD Sports
+     URL: https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/b17adfe543354fdd8d189b110617cddd/index.m3u8
+
+[OK] Star Sports 1 Hindi
+     URL: http://103.253.18.58:8000/play/a03o
+
+[OK] Star Sports 1 Hindi HD
+     URL: http://103.253.18.58:8000/play/a00t
+
+--- MUSIC ---
+[OK] 9X Jalwa
+     URL: https://b.jsrdn.com/strm/channels/9xjalwa/master.m3u8
+
+[OK] 9XM
+     URL: https://9xjio.wiseplayout.com/9XM/master.m3u8
+
+[OK] Zoom
+     URL: https://dai.google.com/linear/hls/event/JCAm25qkRXiKcK1AJMlvKQ/master.m3u8
+
+--- KIDS ---
+[OK] Sony YAY!
+     URL: https://sl.vodep39240327.workers.dev/channel/SONY+YAY.m3u8
+
+
+============================================================
+                  NOT WORKING CHANNELS (14)
+============================================================
+
+--- ENTERTAINMENT ---
+[FAIL] &TV HD
+       URL: https://trs1.aynaott.com/andtvhd/index.m3u8
+
+[FAIL] Zee TV
+       URL: https://feeds.intoday.in/zee24taas/zee24taas.m3u8
+
+[FAIL] Dangal TV
+       URL: https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Dangal/default/Dangal.m3u8
+
+[FAIL] Shemaroo TV
+       URL: https://d1g8wgjurz8via.cloudfront.net/bpk-tv/ShemarooTV/default/ShemarooTV.m3u8
+
+--- MOVIES ---
+[FAIL] &Pictures
+       URL: https://trs1.aynaott.com/andpictureshd/index.m3u8
+
+[FAIL] B4U Movies
+       URL: https://cdnb4u.wiseplayout.com/B4U_Movies/master.m3u8
+
+[FAIL] Colors Cineplex
+       URL: https://d1g8wgjurz8via.cloudfront.net/bpk-tv/ColorsCineplexHD/default/ColorsCineplexHD.m3u8
+
+[FAIL] Goldmines
+       URL: https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Goldmines/default/Goldmines.m3u8
+
+[FAIL] Sony Max
+       URL: http://103.253.18.58:8000/play/a00s
+
+[FAIL] Sony Wah
+       URL: http://103.253.18.58:8000/play/a00w
+
+--- MUSIC ---
+[FAIL] 9X Tashan
+       URL: https://9xjio.wiseplayout.com/9X_Tashan/master.m3u8
+
+[FAIL] Mastiii
+       URL: https://mumt02.tangotv.in/MASTIII/index.m3u8
+
+--- NEWS ---
+[FAIL] News24
+       URL: https://d1g8wgjurz8via.cloudfront.net/bpk-tv/News24/default/News24.m3u8
+
+--- DD ---
+[FAIL] DD News
+       URL: https://mumt04.tangotv.in/DDNEWS/index.m3u8
+
+
+============================================================
+              UNSTABLE / SLOW CHANNELS (27)
+============================================================
+
+--- ENTERTAINMENT ---
+[WARN] Star Plus
+       URL: https://tvsen7.aynaott.com/starplus/index.m3u8
+
+[WARN] Star Maa
+       URL: https://tvsen7.aynaott.com/starmaa/index.m3u8
+
+[WARN] Star Vijay
+       URL: https://tvsen7.aynaott.com/starvijay/index.m3u8
+
+[WARN] Star Jalsha
+       URL: https://tvsen7.aynaott.com/starjalsha/index.m3u8
+
+[WARN] Star Pravah
+       URL: https://tvsen7.aynaott.com/starpravah/index.m3u8
+
+[WARN] Zee Bangla
+       URL: https://tvsen7.aynaott.com/zeebangla/index.m3u8
+
+[WARN] Zee Marathi
+       URL: https://tvsen7.aynaott.com/zeemarathi/index.m3u8
+
+--- MOVIES ---
+[WARN] &Flix
+       URL: http://103.72.101.252:8080/live/1322.m3u8
+
+[WARN] Star Gold
+       URL: https://tvsen7.aynaott.com/stargold/index.m3u8
+
+[WARN] Zee Cinema
+       URL: http://103.72.101.252:8080/live/1320.m3u8
+
+--- REGIONAL - TAMIL ---
+[WARN] Sun TV
+       URL: http://103.72.101.252:8080/live/658.m3u8
+
+[WARN] Zee Tamil
+       URL: https://tvsen7.aynaott.com/zeetamil/index.m3u8
+
+--- REGIONAL - TELUGU ---
+[WARN] Zee Telugu
+       URL: https://tvsen7.aynaott.com/zeetelugu/index.m3u8
+
+[WARN] ETV Telugu
+       URL: http://103.72.101.252:8080/live/408.m3u8
+
+[WARN] Gemini TV
+       URL: http://103.72.101.252:8080/live/412.m3u8
+
+--- REGIONAL - MALAYALAM ---
+[WARN] Asianet
+       URL: http://103.72.101.252:8080/live/401.m3u8
+
+[WARN] Mazhavil Manorama
+       URL: http://103.72.101.252:8080/live/416.m3u8
+
+--- REGIONAL - KANNADA ---
+[WARN] Colors Kannada
+       URL: http://103.72.101.252:8080/live/406.m3u8
+
+[WARN] Zee Kannada
+       URL: https://tvsen7.aynaott.com/zeekannada/index.m3u8
+
+--- NEWS ---
+[WARN] Aaj Tak
+       URL: http://103.213.31.109:90/AajtakHD/playlist.m3u8
+
+--- MUSIC ---
+[WARN] MTV
+       URL: http://103.72.101.252:8080/live/586.m3u8
+
+--- DOCUMENTARY ---
+[WARN] History TV18
+       URL: http://103.72.101.252:8080/live/1471.m3u8
+
+[WARN] National Geographic
+       URL: http://149.71.34.166:8002/play/a013/index.m3u8
+
+--- DD ---
+[WARN] DD National
+       URL: http://103.213.31.109:90/DDNational/playlist.m3u8
+
+[WARN] DD Bharati
+       URL: http://103.213.31.109:90/DDBharati/playlist.m3u8
+
+[WARN] DD Kisan
+       URL: http://103.213.31.109:90/DDKisan/playlist.m3u8
+
+--- ENGLISH ---
+[WARN] Zee Cafe
+       URL: http://103.72.101.252:8080/live/1319.m3u8

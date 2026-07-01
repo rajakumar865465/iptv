@@ -1,0 +1,479 @@
+Anmol Cinema (576p)
+http://103.175.73.12:8080/live/271/271_0.m3u8
+
+Anmol Cinema 2 (576p)
+http://103.175.73.12:8080/live/257/257_0.m3u8
+
+Anmol TV (576p)
+http://103.175.73.12:8080/live/256/256_0.m3u8
+
+4TV News (576p)
+https://cdn-4.pishow.tv/live/1007/master.m3u8
+
+6 TV Telugu (576p)
+https://cdn-1.pishow.tv/live/232/master.m3u8
+
+99TV (720p)
+https://cdn-1.pishow.tv/live/1211/master.m3u8
+
+10 TV (720p)
+https://mumbai-edge.smartplaytv.in/10TV/index.m3u8
+
+24 News (576p)
+https://mumt07.tangotv.in/zHjX9OFlTWENTYFOURNEWS/index.m3u8
+
+Aamar Bangla (720p)
+https://app.ncare.live/c3VydmVyX8RpbEU9Mi8xNy8yMDE0GIDU6RgzQ6NTAgdEoaeFzbF92YWxIZTO0U0ezN1IzMyfvcGVMZEJCTEFWeVN3PTOmdFsaWRtaW51aiPhnPTI/amarbanglatv.stream/playlist.m3u8
+
+Aaj Tak HD (1080p)
+https://feeds.intoday.in/aajtak/api/aajtakhd/master.m3u8
+
+ABP Asmita (1080p)
+https://d2l4ar6y3mrs4k.cloudfront.net/live-streaming/asmita-livetv/master.m3u8
+
+ABP Ganga (1080p)
+https://d2l4ar6y3mrs4k.cloudfront.net/live-streaming/ganga-livetv/master.m3u8
+
+ABP Ananda (1080p)
+https://d2l4ar6y3mrs4k.cloudfront.net/live-streaming/ananda-livetv/master.m3u8
+
+7S Music (576p)
+https://mumt03.tangotv.in/Dsly5z3H7SMUSIC/index.m3u8
+
+Aastha Telugu (480p)
+https://aasthaott.akamaized.net/110923/smil:aasthatelugu.smil/playlist.m3u8
+
+Aastha Kannada (480p)
+https://aasthaott.akamaized.net/110923/smil:aasthakannada.smil/playlist.m3u8
+
+Alankar TV (720p)
+https://livetv.tarangplus.in/alankar-origin/live/playlist.m3u8
+
+Aaseervatham TV (576p)
+https://mumt04.tangotv.in/m18aqlK4AASEERVATHAMTV/index.m3u8
+
+Amrita TV (720p)
+https://ddash74r36xqp.cloudfront.net/master.m3u8
+
+Adhyatm TV (720p)
+https://mumbai-edge.smartplaytv.in/AdhyatmTV/index.m3u8
+
+ABP News (1080p)
+https://d1rc86nwwc9fag.cloudfront.net/vglive-sk-472500/abpnews/master.m3u8
+
+9XM (1080p)
+https://9xjio.wiseplayout.com/9XM/master.m3u8
+
+AmarUjala (1080p)
+https://amarujala.ottlive.co.in/amarujala/index.m3u8
+
+Aastha Prime 1 (720p)
+https://aasthaott.akamaized.net/110923/smil:aasthaprime1.smil/master.m3u8
+
+Aastha Tamil (480p)
+https://aasthaott.akamaized.net/110923/smil:aasthatamil.smil/playlist.m3u8
+
+Ananda Barta (720p)
+https://account19.livebox.co.in/Anandabarta2hls/live.m3u8
+
+ANB News (720p)
+https://server.livelegitpro.in:9899/anbnews/anbnews/index.m3u8
+
+Animax Asia India (1080p) [Geo-blocked]
+https://amg02159-kcglobal-amg02159c1-samsung-in-521.playouts.now.amagi.tv/playlist/amg02159-kcglobal-animax-samsungin/playlist.m3u8
+
+Andy Haryana (576p)
+https://mumt03.tangotv.in/Dsly5z3HANDYHARYANA/index.m3u8
+
+Aryan TV National (576p)
+https://mumt04.tangotv.in/m18aqlK4ARYANTVNATIONAL/index.m3u8
+
+Asianet News (1080p)
+https://amg13737-amg13737c1-amgplt0016.playout.now3.amagi.tv/playlist/amg13737-amg13737c1-amgplt0016/playlist.m3u8
+
+ABN TV India (540p)
+https://mediaserver.abnvideos.com/streams/abntvindia.m3u8
+
+ATN Bangla UK (576p)
+https://app.ncare.live/c3VydmVyX8RpbEU9Mi8xNy8yMDE0GIDU6RgzQ6NTAgdEoaeFzbF92YWxIZTO0U0ezN1IzMyfvcGVMZEJCTEFWeVN3PTOmdFsaWRtaW51aiPhnPTI2/atnbanglauk-off.stream/playlist.m3u8
+
+Aradana TV (576p)
+https://cdn-1.pishow.tv/live/961/master.m3u8
+
+Apna Punjab TV (720p)
+https://plus.gigabitcdn.net/live-stream/apna-punjab-H3sE/playlist.m3u8
+
+Angel TV (720p)
+https://janya-digimix.akamaized.net/vglive-sk-394914/india/ngrp:angelindia_all/playlist.m3u8
+
+Asianet Suvarna News (1080p) [Not 24/7]
+https://asianetnews.vgcdn.net/vglive-sk-335835/playlist.m3u8
+
+Argus News (1080p)
+https://d35j504z0x2vu2.cloudfront.net/v1/master/0bc8e8376bd8417a1b6761138aa41c26c7309312/argus-news/index.m3u8?ads.vf=IvskZqDOz5G
+
+Awaaz India TV (720p) [Not 24/7]
+https://awaazindia.livebox.co.in/AwaazIndaTVhls/Live.m3u8
+
+Bhakthi TV (720p)
+https://cdn-1.pishow.tv/live/397/master.m3u8
+
+B4U Music (576p)
+https://cdn-2.pishow.tv/live/415/master.m3u8
+
+Big TV 24x7 (576i)
+https://d2gvyg6lvauoko.cloudfront.net/230226/bigtvmalyalam/chunks.m3u8
+
+B4U Bhojpuri (1080p)
+https://cdnb4u.wiseplayout.com/B4U_Bhojpuri/master.m3u8
+
+B4U Movies (1080p) [Geo-blocked]
+https://amg00877-b4unew-amg00877c2-lg-in-5260.playouts.now.amagi.tv/playlist.m3u8
+
+Bollywood HD Russia (576p)
+https://xykt-fix.github.io/cinerama_edge01/hls/BOLLYWOOD_RU/Movie009.m3u8
+
+Brio TV (576p)
+https://mumt02.tangotv.in/BRIOTV/index.m3u8
+
+Balle Balle (1080p)
+https://d35j504z0x2vu2.cloudfront.net/v1/master/0bc8e8376bd8417a1b6761138aa41c26c7309312/balle-balle/index.m3u8?ads.vf=b8WZfP1_RIy
+
+Ayush TV (360p) [Not 24/7]
+https://95eryw39dwn4-hls-live.wmncdn.net/Ayushu/271ddf829afeece44d8732757fba1a66.sdp/index.m3u8
+
+Bharat Express (1080p)
+https://d35j504z0x2vu2.cloudfront.net/v1/master/0bc8e8376bd8417a1b6761138aa41c26c7309312/bharat-express/index.m3u8?ads.vf=rc4w_mtwL4W
+
+Colors Infinity (576p)
+http://103.175.73.12:8080/live/29/29_0.m3u8
+
+BRK News (576p)
+https://cdn-1.pishow.tv/live/1037/master.m3u8
+
+Channel WIN (720p)
+https://cdn-4.pishow.tv/live/229/master.m3u8
+
+Dish Buzz (720p)
+http://217.20.112.199:8080/animalplanet/index.m3u8
+
+BT TV (720p)
+https://feeds.intoday.in/bttv/itgd.m3u8
+
+Channel S (576p)
+https://app.ncare.live/c3VydmVyX8RpbEU9Mi8xNy8yMDE0GIDU6RgzQ6NTAgdEoaeFzbF92YWxIZTO0U0ezN1IzMyfvcGVMZEJCTEFWeVN3PTOmdFsaWRtaW51aiPhnPTI/chsukoff.stream/playlist.m3u8
+
+Channel Divya (1080p)
+https://vg-pitaaratvlive.akamaized.net/v1/vglive-sk-906482/playlist.m3u8
+
+Chardikla Gurbaani TV (1080p)
+https://chardikalatimestv.gigabitcdn.net/in-chardikala/chardikala-gurbani-tv/playlist.m3u8
+
+CNBC Awaaz (1080p)
+https://n18syndication.akamaized.net/bpk-tv/CNBC_Awaaz_NW18_MOB/output01/master.m3u8
+
+CNBC TV18 (1080p)
+https://n18syndication.akamaized.net/bpk-tv/CNBC_TV18_NW18_MOB/output01/index.m3u8
+
+CNBC TV18 Prime HD (1080p)
+https://n18syndication.akamaized.net/bpk-tv/CNBC_Tv18_Prime_HD_NW18_MOB/output01/index.m3u8
+
+Chardikla Time TV North America (1080p)
+https://chardikalanorthamerica.gigabitcdn.net/in-chardikala/chardikala-north-usa/playlist.m3u8
+
+Channel Y (720p) [Not 24/7]
+http://cdn19.live247stream.com/channely/tv/playlist.m3u8
+
+Chithiram (576p)
+https://cdn-6.pishow.tv/live/1243/master.m3u8
+
+CVR Health (576p)
+https://cdn-6.pishow.tv/live/395/master.m3u8
+
+CVR English (720p)
+https://cdn-2.pishow.tv/live/425/master.m3u8
+
+DD Bihar (720p)
+https://cdn-4.pishow.tv/live/35/master.m3u8
+
+DD Arun Prabha (360p)
+https://d2lk5u59tns74c.cloudfront.net/out/v1/308556d9fd1246adb479ef012a39bbfe/index.m3u8
+
+DD Chhattisgarh (720p)
+https://cdn-1.pishow.tv/live/15/master.m3u8
+
+DD Chandana (504p)
+https://d2lk5u59tns74c.cloudfront.net/out/v1/0c980455d2fb4b69bcc6235745ee6039/index.m3u8
+
+DD Jharkhand (504p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/e8c3741f8c154d3185831f4e31777fb2/index.m3u8
+
+DD Himachal Pradesh (504p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/afd2e335b0ba40eb9bdf1096118c6ede/index.m3u8
+
+DD Punjabi (504p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/da821c24a59d4e57960497aeaca8fb33/index.m3u8
+
+DD News HD (1080p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/0811cd8c37ca4c409d5385a6cd2fa18b/index.m3u8
+
+DD Meghalaya (504p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/4f81bc8d13dd49b484da35988abb8729/index.m3u8
+
+DD India (1080p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/ceda14583477426aa162a65392d8ea07/index.m3u8
+
+DD National HD (1080p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/40492a64c1db4a1385ba1a397d357d3a/index.m3u8
+
+DD Manipur (504p)
+https://d2lk5u59tns74c.cloudfront.net/out/v1/8b75afc6576f450e8f554b6c877681d2/index.m3u8
+
+DD Urdu (720p)
+https://cdn-4.pishow.tv/live/8/master.m3u8
+
+DD Goa (504p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/e5b9db1cc184406bb97159da2f120f91/index.m3u8
+
+DD Mizoram (504p)
+https://d2lk5u59tns74c.cloudfront.net/out/v1/eea48c6b61074052a2fa8532ff795ff1/index.m3u8
+
+DD Sports SD (1080p)
+https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/b17adfe543354fdd8d189b110617cddd/index.m3u8
+
+DD Kisan (720p)
+https://cdn-6.pishow.tv/live/9/master.m3u8
+
+DD Tamil (1080p)
+https://d2lk5u59tns74c.cloudfront.net/out/v1/abf46b14847e45499f4a47f3a9afe93d/index.m3u8
+
+DD Haryana (504p)
+https://d2lk5u59tns74c.cloudfront.net/out/v1/950fc69666474351bde0a32b9600c804/index.m3u8
+
+DD Yadagiri (576p)
+https://cdn-1.pishow.tv/live/21/master.m3u8
+
+DD Uttar Pradesh (720p)
+https://cdn-1.pishow.tv/live/36/master.m3u8
+
+DD National SD (576p)
+https://cdn-1.pishow.tv/live/11/master.m3u8
+
+DD Rajasthan (720p)
+https://cdn-1.pishow.tv/live/34/master.m3u8
+
+DD Madhya Pradesh (720p)
+https://cdn-1.pishow.tv/live/31/master.m3u8
+
+DD Uttarakhand (720p)
+https://cdn-1.pishow.tv/live/17/master.m3u8
+
+CCV (480p)
+https://5a1178b42cc03.streamlock.net/8212/8212/playlist.m3u8
+
+Cnews Bharat (720p)
+https://legitpro.co.in/cnews/cnews/index.fmp4.m3u8
+
+Dheeran TV (576p)
+https://live.we2live.in/dheerantv/dheerantv/playlist.m3u8
+
+Desi Channel (720p)
+https://livestream.unlimitedcdn.com/agm-dc/desi-channel/index.m3u8
+
+Deshi TV (720p)
+https://deshitv.deshitv24.net/live/myStream/playlist.m3u8
+
+Desh TV (1080p)
+https://bozztv.com/rongo/rongo-DeshTV/index.m3u8
+
+Chardikla Time TV (1080p)
+https://chardikalagurbanitv.gigabitcdn.net/in-chardikala/chardikala-timetv/playlist.m3u8
+
+D2h Kids (720p)
+https://live-evg7.tv360.bitel.com.pe/bitel/pequestv/playlist.m3u8
+
+Goldmines Bollywood (576p)
+http://103.175.73.12:8080/live/52/52_0.m3u8
+
+E 24 (576p)
+https://live-cf-e24.dailyhunt.in/master.m3u8
+
+Enterr 10 Bangla (720p) [Not 24/7]
+https://live-bangla.akamaized.net/liveabr/playlist.m3u8
+
+Divyavani TV (576p)
+https://mumbai-edge.smartplaytv.in/Divyavani/index.m3u8
+
+ETV Andhra Pradesh (1080p)
+https://d1g35elx8qnif3.cloudfront.net/v1/master/9d43eacaed199f8d5883927e7aef514a8a08e108/ETV_AP_H264_cloud_in/index.m3u8
+
+ETV Life (480p)
+https://d2cj1h11htct8o.cloudfront.net/v1/master/9d43eacaed199f8d5883927e7aef514a8a08e108/ETV_LIFE_H264_cloud_in/index.m3u8
+
+ET Now Swadesh (720p)
+https://d32gxr3r1ksq2p.cloudfront.net/master.m3u8
+
+Epic TV Digital (1080p)
+https://cc-czbq30x55knit.akamaized.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-czbq30x55knit/DIYC/PMSL/IN10/Epic_TV_IN_B/Epic_TV_IN_B.m3u8
+
+Fakt Marathi (720p) [Not 24/7]
+https://cdn-6.pishow.tv/live/10002/master.m3u8
+
+ETV Comedy (1080p)
+https://cc-wie8j8y69d2uy.akamaized.net/WWBI/Amagi/ETV_Comedy_IN/playlist.m3u8
+
+ETV Telangana (1080p)
+https://d37d7pfp7vjqhh.cloudfront.net/v1/master/9d43eacaed199f8d5883927e7aef514a8a08e108/ETV_TS_H264_cloud_in/index.m3u8
+
+ETV Josh (1080p)
+https://cc-uyh1ow5zouoio.akamaized.net/WWBI/Amagi/ETV_Josh_IN/playlist.m3u8
+
+ETV News (1080p)
+https://cc-3448kp65yhc5w.akamaized.net/WWBI/Amagi/ETV_News_IN/playlist.m3u8
+
+ETV Music (1080p)
+https://cc-szivnms4rlah6.akamaized.net/WWBI/Amagi/ETV_Music_IN/playlist.m3u8
+
+Gangaur TV (1080p)
+https://pbgangaur.wiseplayout.com/Gangaur/master.m3u8
+
+Gaunda Punjab TV (720p)
+http://cdn6.live247stream.com/gaundapunjab/tv/playlist.m3u8
+
+Green TV (1080p)
+https://app.ncare.live/c3VydmVyX8RpbEU9Mi8xNy8yMDE0GIDU6RgzQ6NTAgdEoaeFzbF92YWxIZTO0U0ezN1IzMyfvcGVMZEJCTEFWeVN3PTOmdFsaWRtaW51aiPhnPTI2/greentv.stream/live-orgin/greentv.stream/playlist.m3u8
+
+GTC Punjabi (1080p)
+https://gtc-yupp.vgcdn.net/vglive-sk-254807/index.m3u8
+
+Good News Today (720p)
+https://aajtaklive.vgcdn.net/v1/master/611d79b11b77e2f571934fd80ca1413453772ac7/3196cced-ce29-4219-9809-f07ccdaa02b9/vglive-sk-848805/master.m3u8
+
+ETV Cinema HD (1080p)
+https://d27zlkxhgwrfgo.cloudfront.net/v1/master/9d43eacaed199f8d5883927e7aef514a8a08e108/ETV_CINEMA_H264_cloud_in/index.m3u8
+
+ETV Telugu HD (1080p)
+https://d27zlkxhgwrfgo.cloudfront.net/v1/master/9d43eacaed199f8d5883927e7aef514a8a08e108/ETV_HD_H264_cloud_in/index.m3u8
+
+Guarantee News (1080p)
+https://guaranteenews.in:8443/live/gnews/index.m3u8
+
+GTC News (1080p)
+https://vglivessai.akamaized.net/sg/v1/master/611d79b11b77e2f571934fd80ca1413453772ac7/921cca59-daee-4f89-8c38-7ffe8de44f4c/index.m3u8
+
+God Stands TV Hindi
+https://online.godstands.tv:5443/WebRTCApp/streams/HindiStreaming.m3u8
+
+Gyandarshan (720p)
+https://cdn-6.pishow.tv/live/14/master.m3u8
+
+Hi Dost! (720p)
+https://cdn-1.pishow.tv/live/224/master.m3u8
+
+Gulistan News (720p) [Not 24/7]
+https://live.gulistannews.in/hls/gul.m3u8
+
+Hebron TV (1080p)
+https://account20.livebox.co.in/charleshls/live.m3u8
+
+GoodNews TV (720p)
+https://bpgdlwwar3ze-hls-live.wmncdn.net/goodnews/live.stream/playlist.m3u8
+
+GurSikh Sabha TV (720p) [Not 24/7]
+http://cdn12.henico.net:8080/live/gsctv/index.m3u8
+
+IBC 24 (720p)
+https://cdn-3.pishow.tv/live/220/master.m3u8
+
+India Today (720p)
+https://d1rc86nwwc9fag.cloudfront.net/vglive-sk-293160/master.m3u8
+
+Hornbill TV (576p)
+https://cdn-2.pishow.tv/live/1463/master.m3u8
+
+HMTV (720p)
+https://cdn-1.pishow.tv/live/280/master.m3u8
+
+Hindu Dharmam (576p)
+https://cdn-1.pishow.tv/live/959/master.m3u8
+
+India TV (720p)
+https://pl-indiatvnews.akamaized.net/out/v1/db79179b608641ceaa5a4d0dd0dca8da/index.m3u8
+
+INews (720p)
+https://cdn-1.pishow.tv/live/411/master.m3u8
+
+Harvest TV Keralam (720p)
+https://7mbd4ogkr3gx-hls-live.wmncdn.net/harvestenglish/d1796a22d24e8696c7d5d0b5c349fdd2.sdp/index.m3u8
+
+Harvest USA (576p)
+https://7mbd4ogkr3gx-hls-live.wmncdn.net/harvestusa/d57ffba6564caea2fee3f4085f19a098.sdp/playlist.m3u8
+
+India TV Speed News (1080p)
+https://cc-lyf4c0hwzg5dd.akamaized.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-lyf4c0hwzg5dd/v1/vglive-sk-479089/main.m3u8
+
+High News (480p)
+https://highmedia.livebox.co.in/HIGHNEWShls/LIVE.m3u8
+
+India Daily Live (1080p)
+https://indiadaily.ottlive.co.in/indiadailylive/index.m3u8
+
+Harvest TV (720p)
+https://7mbd4ogkr3gx-hls-live.wmncdn.net/harvesttvlive1/bbb19eae240ec100af921d511efc86a0.sdp/index.m3u8
+
+InWonder (1080p)
+https://amg00861-terninternation-inwonder-samsungau-1k63k.amagi.tv/playlist/amg00861-terninternation-inwonder-samsungau/playlist.m3u8
+
+Probashi TV News (1080p)
+http://158.69.24.53:8080/probashi_tv/index.m3u8
+
+Nazara (1080p)
+https://cc-p1izg43bk7sj5.akamaized.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-p1izg43bk7sj5/DIYC/PMSL/IN10/Nazara_IN_B/Nazara_IN_B.m3u8
+
+News9Live (1080p)
+https://amg01106-amg01106c3-amgplt0844.playout.now3.amagi.tv/ts-ap-s1-n1/playlist/amg01106-amg01106c3-amgplt0844/playlist.m3u8
+
+Polimer News (720p)
+https://live-cf-polimernews.dailyhunt.in/master.m3u8
+
+Public TV (720p)
+https://cdn-3.pishow.tv/live/439/master.m3u8
+
+R Plus (768p)
+https://thelegitpro.in/pntv/rplusnews24x7/index.m3u8
+
+Republic Bharat (1080p)
+https://raw.githubusercontent.com/amazeyourself/adaptive-streams/refs/heads/main/streams/in/YuppTV/RepublicBharat.m3u8
+
+Rang (576p)
+https://cdn-7.pishow.tv/live/10017/master.m3u8
+
+Steelbird Music (720p) [Not 24/7]
+https://cdn2.in/SteelbirdMusicTVhls/live.m3u8
+
+YRF Music (1080p)
+https://cdn-uw2-prod.tsv2.amagi.tv/linear/amg01412-xiaomiasia-yrfmusic-xiaomi/playlist.m3u8
+
+CNBC TV18 (1080p)
+https://n18syndication.akamaized.net/bpk-tv/CNBC_TV18_NW18_MOB/output01/index.m3u8
+
+Knowledge Network (720p) [Geo-blocked]
+https://d1wal6k3d7ssin.cloudfront.net/out/v1/ea91db0906c847a4931b46a9ec36e77b/index.m3u8
+
+RT Documentary Russian (1080p)
+https://rt-doc.rttv.com/dvr/rtdru/playlist.m3u8
+
+BBC News North America (1080p)
+http://23.237.104.106:8080/USA_BBC_NEWS/index.m3u8
+
+Euronews English HD
+https://dash4.antik.sk/live/test_euronews/playlist.m3u8
+
+Olelo Community Media Channel 49 (720p)
+https://cdn3.wowza.com/5/V2Y2VmhqMEFDTUkx/olelo/G0125_009/playlist.m3u8
+
+PBS KET KY (480p)
+https://2-fss-2.streamhoster.com/pl_132/amlst:200914-1315486/playlist.m3u8
+
+PBS Antiques Road Trip (1080p)
+https://amg02333-pbs-amg02333c1-samsung-au-1253.playouts.now.amagi.tv/PBSD-AntiquesRoadTripSF-samsung/playlist.m3u8

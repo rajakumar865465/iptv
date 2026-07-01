@@ -1,0 +1,31 @@
+const { execSync } = require('child_process');
+
+try {
+    console.log("Truncating remote database channels...");
+    const truncateCmd = `ssh -i C:\\Users\\deba_pc.com\\.ssh\\iptv_rsa -o StrictHostKeyChecking=no ubuntu@35.154.128.217 "sudo -u postgres psql -d iptv_db -c 'TRUNCATE TABLE channels CASCADE; ALTER SEQUENCE channels_id_seq RESTART WITH 1;'"`;
+    const truncateOutput = execSync(truncateCmd, { encoding: 'utf-8', stdio: 'pipe' });
+    console.log(truncateOutput);
+    console.log("Database truncated.");
+
+    console.log("Uploading insert_channels.sql...");
+    const scpCmd = `scp -i C:\\Users\\deba_pc.com\\.ssh\\iptv_rsa -o StrictHostKeyChecking=no insert_channels.sql ubuntu@35.154.128.217:~/insert_channels.sql`;
+    const scpOutput = execSync(scpCmd, { encoding: 'utf-8', stdio: 'pipe' });
+    console.log("Upload complete.");
+
+    console.log("Executing insert_channels.sql...");
+    const psqlCmd = `ssh -i C:\\Users\\deba_pc.com\\.ssh\\iptv_rsa -o StrictHostKeyChecking=no ubuntu@35.154.128.217 "sudo -u postgres psql -d iptv_db -f ~/insert_channels.sql"`;
+    const psqlOutput = execSync(psqlCmd, { encoding: 'utf-8', stdio: 'pipe' });
+    // console.log(psqlOutput); // Can be large, omitting for brevity
+    console.log("Insert complete.");
+
+    console.log("Verifying channel count...");
+    const countCmd = `ssh -i C:\\Users\\deba_pc.com\\.ssh\\iptv_rsa -o StrictHostKeyChecking=no ubuntu@35.154.128.217 "sudo -u postgres psql -d iptv_db -t -c 'SELECT COUNT(*) FROM channels;'"`;
+    const countOutput = execSync(countCmd, { encoding: 'utf-8', stdio: 'pipe' });
+    console.log("Final channel count: " + countOutput.trim());
+
+} catch (err) {
+    console.error("Error executing SSH commands:");
+    console.error(err.message);
+    if (err.stdout) console.error("STDOUT:", err.stdout);
+    if (err.stderr) console.error("STDERR:", err.stderr);
+}
