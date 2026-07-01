@@ -7,7 +7,7 @@ const { runImportJob } = require('../jobs/m3u_import_engine');
 exports.hideChannel = async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason, prevent_reimport } = req.body;
+    const { reason, admin_note, prevent_reimport } = req.body;
     const adminId = req.user.id;
 
     // Fetch existing
@@ -18,18 +18,18 @@ exports.hideChannel = async (req, res) => {
     // Update
     await db.query(
       `UPDATE channels 
-       SET is_hidden = true, hidden_reason = $1, hidden_at = NOW(), hidden_by_admin_id = $2, updated_at = NOW() 
-       WHERE id = $3`,
-      [reason, adminId, id]
+       SET is_hidden = true, hidden_reason = $1, admin_note = $2, hidden_at = NOW(), hidden_by_admin_id = $3, updated_at = NOW() 
+       WHERE id = $4`,
+      [reason, admin_note, adminId, id]
     );
 
     // Blocklist
     if (prevent_reimport) {
       await db.query(
-        `INSERT INTO channel_blocklist (source, source_channel_id, tvg_id, canonical_name, reason, admin_id)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO channel_blocklist (source, source_channel_id, tvg_id, canonical_name, reason, admin_note, admin_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT DO NOTHING`, // Assuming constraint exists, or just insert
-        [channel.source || 'iptv-org', channel.source_channel_id, channel.tvg_id, channel.canonical_name, reason, adminId]
+        [channel.source || 'iptv-org', channel.source_channel_id, channel.tvg_id, channel.canonical_name, reason, admin_note, adminId]
       );
     }
 
@@ -50,7 +50,7 @@ exports.hideChannel = async (req, res) => {
 exports.removeChannel = async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason, prevent_reimport } = req.body;
+    const { reason, admin_note, prevent_reimport } = req.body;
     const adminId = req.user.id;
 
     const chRes = await db.query('SELECT * FROM channels WHERE id = $1', [id]);
@@ -60,16 +60,16 @@ exports.removeChannel = async (req, res) => {
     await db.query(
       `UPDATE channels 
        SET is_removed = true, is_active = false, is_visible_app = false, is_visible_website = false, 
-           removed_reason = $1, removed_at = NOW(), removed_by_admin_id = $2, updated_at = NOW() 
-       WHERE id = $3`,
-      [reason, adminId, id]
+           removed_reason = $1, admin_note = $2, removed_at = NOW(), removed_by_admin_id = $3, updated_at = NOW() 
+       WHERE id = $4`,
+      [reason, admin_note, adminId, id]
     );
 
     if (prevent_reimport) {
       await db.query(
-        `INSERT INTO channel_blocklist (source, source_channel_id, tvg_id, canonical_name, reason, admin_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [channel.source || 'iptv-org', channel.source_channel_id, channel.tvg_id, channel.canonical_name, reason, adminId]
+        `INSERT INTO channel_blocklist (source, source_channel_id, tvg_id, canonical_name, reason, admin_note, admin_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [channel.source || 'iptv-org', channel.source_channel_id, channel.tvg_id, channel.canonical_name, reason, admin_note, adminId]
       );
     }
 

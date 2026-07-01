@@ -138,6 +138,12 @@ export const getBrokenChannels = (params?: Record<string, unknown>) =>
 export const fixBrokenChannel = (id: string) =>
   api.post(`/channels/broken/${id}/fix`).then((r) => r.data.data);
 
+export const verifyBrokenChannel = (id: string, data: Record<string, unknown>) =>
+  api.post(`/channels/broken/${id}/verify`, data).then((r) => r.data.data);
+
+export const bulkActionBrokenChannels = (data: Record<string, unknown>) =>
+  api.post('/channels/broken/bulk-action', data).then((r) => r.data.data);
+
 export const getDuplicateChannels = () =>
   api.get('/channels/duplicates').then((r) => r.data.data);
 

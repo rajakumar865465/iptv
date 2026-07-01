@@ -99,7 +99,9 @@ router.post('/channel-streams/:id/diagnose', channelStreamController.diagnoseCha
 
 // ─── Broken Channels ──────────────────────────────
 router.get('/channels/broken', brokenChannelController.getBrokenChannels);
+router.post('/channels/broken/bulk-action', brokenChannelController.bulkAction);
 router.post('/channels/broken/:id/fix', brokenChannelController.fixChannel);
+router.post('/channels/broken/:id/verify', brokenChannelController.verifyChannel);
 
 // ─── Duplicate Channels ───────────────────────────
 router.get('/channels/duplicates', duplicateController.getDuplicates);

@@ -1,8 +1,8 @@
 'use strict';
 /**
  * scannerController.js
- * Probes stream URLs and updates health_status.
- * Falls back to scanning channels.stream_url if channel_streams table doesn't exist.
+ * Deep HLS Stream Checker and Scanner.
+ * Validates manifests, segments, latency, and logs health issues.
  */
 
 const https = require('https');
@@ -11,7 +11,12 @@ const { URL } = require('url');
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
 
-// ── Ensure the scan jobs table exists ─────────────────────────────────────────
+const TIMEOUT = 10000;
+const SEG_TIMEOUT = 12000;
+const UA = 'ExoPlayer/2.18.1 (Linux; Android 11)';
+const MAX_M3U_BYTES = 300000;
+const MAX_SEG_BYTES = 8192;
+
 async function ensureScanJobsTable() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS stream_scan_jobs (
@@ -28,171 +33,218 @@ async function ensureScanJobsTable() {
   `);
 }
 
-// ── Probe a single URL with 10-second timeout ─────────────────────────────────
-function probeUrl(url, timeoutMs = 10000) {
-  return new Promise((resolve) => {
+function httpGet(url, headers = {}, segmentMode = false, timeout = TIMEOUT) {
+  return new Promise(resolve => {
     let parsed;
-    try { parsed = new URL(url); } catch (_) {
-      return resolve({ ok: false, status: null, reason: 'invalid_url' });
-    }
+    try { parsed = new URL(url); } catch { return resolve({ ok: false, reason: 'invalid_url' }); }
+
     const client = parsed.protocol === 'https:' ? https : http;
-    const req = client.request(url, { method: 'HEAD', timeout: timeoutMs }, (res) => {
-      res.resume();
-      const ok = res.statusCode >= 200 && res.statusCode < 400;
-      resolve({ ok, status: res.statusCode, reason: ok ? null : `http_${res.statusCode}` });
+    const reqHeaders = {
+      'User-Agent': headers['User-Agent'] || UA,
+      ...(headers['Referer'] ? { 'Referer': headers['Referer'] } : {}),
+      ...(segmentMode ? { 'Range': 'bytes=0-8191' } : {}),
+    };
+
+    const req = client.request(url, { method: 'GET', timeout, headers: reqHeaders }, res => {
+      const status = res.statusCode;
+      const ct = (res.headers['content-type'] || '').toLowerCase();
+      let body = '';
+      const enc = segmentMode ? 'binary' : 'utf8';
+      res.setEncoding(enc);
+      res.on('data', chunk => {
+        body += chunk;
+        if (body.length > (segmentMode ? MAX_SEG_BYTES : MAX_M3U_BYTES)) { res.destroy(); }
+      });
+      res.on('end', () => resolve({ ok: status >= 200 && status < 400 || status === 206, status, ct, body }));
+      res.on('error', e => resolve({ ok: false, reason: 'res_error', msg: e.message }));
     });
-    req.on('error', (e) => resolve({ ok: false, status: null, reason: e.code || e.message }));
-    req.on('timeout', () => { req.destroy(); resolve({ ok: false, status: null, reason: 'timeout' }); });
+    req.on('error', e => resolve({ ok: false, reason: 'req_error', msg: e.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ ok: false, reason: 'timeout' }); });
     req.end();
   });
 }
 
-// ── Check if a table/column exists ───────────────────────────────────────────
-async function tableExists(tableName) {
-  const r = await db.query(
-    `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1`,
-    [tableName]
-  );
-  return r.rows.length > 0;
+function resolveUrl(base, rel) {
+  if (!rel) return null;
+  if (rel.startsWith('http')) return rel;
+  try { return new URL(rel, base).href; } catch { return null; }
 }
 
-async function columnExists(tableName, colName) {
-  const r = await db.query(
-    `SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name=$2`,
-    [tableName, colName]
-  );
-  return r.rows.length > 0;
+async function checkDeep(streamUrl, customHeaders = {}) {
+  if (!streamUrl || !streamUrl.startsWith('http')) return { status: 'offline', score: 0, reason: 'invalid_url' };
+  const t0 = Date.now();
+  const m3u = await httpGet(streamUrl, customHeaders, false, TIMEOUT);
+  if (!m3u.ok) {
+    if (m3u.status === 403 || m3u.status === 401) return { status: 'offline', score: 0, reason: 'forbidden_403' };
+    if (m3u.status === 404) return { status: 'offline', score: 0, reason: 'not_found_404' };
+    if (m3u.status === 451) return { status: 'offline', score: 0, reason: 'geo_blocked' };
+    if (m3u.reason === 'timeout') return { status: 'offline', score: 0, reason: 'timeout' };
+    return { status: 'offline', score: 0, reason: \`http_\${m3u.status || m3u.reason || 'error'}\` };
+  }
+  const body = (m3u.body || '').trim();
+  if (body.startsWith('<') || body.includes('<html')) return { status: 'offline', score: 0, reason: 'geo_blocked_html' };
+  if (!body.startsWith('#EXTM3U')) return { status: 'offline', score: 0, reason: 'not_hls' };
+
+  let mediaUrl = streamUrl, mediaBody = body, variants = [];
+  if (body.includes('#EXT-X-STREAM-INF')) {
+    const lines = body.split('\\n');
+    let bestBw = -1, bestVariantUrl = null;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith('#EXT-X-STREAM-INF')) {
+        const bw = (lines[i].match(/BANDWIDTH=(\\d+)/) || [])[1];
+        const next = lines[i + 1]?.trim();
+        if (next && !next.startsWith('#')) {
+          const vUrl = resolveUrl(streamUrl, next);
+          if (vUrl && parseInt(bw||0) >= bestBw) { bestBw = parseInt(bw||0); bestVariantUrl = vUrl; }
+        }
+      }
+    }
+    if (bestVariantUrl) {
+      const vRes = await httpGet(bestVariantUrl, customHeaders, false, TIMEOUT);
+      if (!vRes.ok) return { status: 'offline', score: 20, reason: 'variant_failed' };
+      mediaUrl = bestVariantUrl; mediaBody = vRes.body || '';
+    }
+  }
+
+  if (!mediaBody.includes('#EXTINF') && !mediaBody.includes('#EXT-X-TARGETDURATION')) {
+    return { status: 'offline', score: 0, reason: 'missing_segments' };
+  }
+
+  let segRelUrl = null;
+  const lines = mediaBody.split('\\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim().startsWith('#EXTINF') && lines[i + 1]) {
+      const next = lines[i + 1].trim();
+      if (next && !next.startsWith('#')) { segRelUrl = next; break; }
+    }
+  }
+  if (!segRelUrl) {
+    for (const l of lines) {
+      const t = l.trim();
+      if (t && !t.startsWith('#') && (t.endsWith('.ts') || t.endsWith('.aac') || t.startsWith('http') || t.includes('segment'))) {
+        segRelUrl = t; break;
+      }
+    }
+  }
+  if (!segRelUrl) return { status: 'offline', score: 20, reason: 'no_segment_found' };
+
+  const segUrl = resolveUrl(mediaUrl, segRelUrl);
+  if (!segUrl) return { status: 'offline', score: 0, reason: 'invalid_segment_url' };
+  const segRes = await httpGet(segUrl, customHeaders, true, SEG_TIMEOUT);
+  const latency = Date.now() - t0;
+
+  if (!segRes.ok) {
+    if (segRes.status === 403) return { status: 'offline', score: 0, reason: 'segment_forbidden' };
+    if (segRes.reason === 'timeout') return { status: 'offline', score: 30, reason: 'segment_timeout' };
+    return { status: 'offline', score: 30, reason: \`segment_\${segRes.status || segRes.reason || 'failed'}\` };
+  }
+
+  let score = latency > 8000 ? 40 : latency > 4000 ? 65 : 80;
+  return { status: score >= 65 ? 'online' : 'unstable', score, reason: 'stable', latency };
 }
 
-// ── Background scan job ───────────────────────────────────────────────────────
-async function runScanJob(jobId, scope, categoryId) {
+async function runScanJob(jobId, options = {}) {
   try {
-    const hasStreamsTable = await tableExists('channel_streams');
-    const hasHealthReason = hasStreamsTable && await columnExists('channel_streams', 'health_reason');
+    const { scope, category_id, language, channel_id } = options;
 
-    let streams = [];
-
-    if (hasStreamsTable) {
-      // Use channel_streams table
-      let q = `SELECT cs.id, cs.channel_id, cs.stream_url, 'stream' as src
-               FROM channel_streams cs
-               JOIN channels c ON c.id = cs.channel_id
-               WHERE c.status = 'active'`;
-      const params = [];
-      if (scope === 'offline') q += ` AND cs.health_status = 'offline'`;
-      else if (scope === 'unknown') q += ` AND (cs.health_status IS NULL OR cs.health_status = 'unknown')`;
-      if (categoryId) { params.push(categoryId); q += ` AND c.category_id = $${params.length}`; }
-      q += ' ORDER BY cs.channel_id, cs.priority ASC';
-      const r = await db.query(q, params);
-      streams = r.rows;
+    let q = \`SELECT cs.id, cs.channel_id, cs.stream_url, cs.user_agent, cs.referer, cs.health_status, c.fail_count
+             FROM channel_streams cs
+             JOIN channels c ON c.id = cs.channel_id
+             WHERE c.is_removed = false\`;
+    const params = [];
+    
+    if (channel_id) { params.push(channel_id); q += \` AND c.id = $\${params.length}\`; }
+    else {
+      if (scope === 'visible') q += \` AND c.is_hidden = false AND c.is_visible_app = true\`;
+      else if (scope === 'online') q += \` AND cs.health_status = 'online'\`;
+      else if (scope === 'offline') q += \` AND cs.health_status = 'offline'\`;
+      else if (scope === 'unstable') q += \` AND cs.health_status = 'unstable'\`;
+      else if (scope === 'unknown') q += \` AND (cs.health_status IS NULL OR cs.health_status = 'unknown' OR cs.health_status = 'pending_check')\`;
+      
+      if (category_id) { params.push(category_id); q += \` AND c.category_id = $\${params.length}\`; }
+      if (language) { params.push(language); q += \` AND c.language ILIKE $\${params.length}\`; }
     }
-
-    // Fallback: scan channels.stream_url directly if no streams table or no rows
-    if (streams.length === 0) {
-      let q = `SELECT id as channel_id, stream_url, id, 'channel' as src
-               FROM channels WHERE status = 'active' AND stream_url IS NOT NULL AND stream_url != ''`;
-      const params = [];
-      if (categoryId) { params.push(categoryId); q += ` AND category_id = $${params.length}`; }
-      const r = await db.query(q, params);
-      streams = r.rows;
-    }
-
+    
+    const r = await db.query(q, params);
+    const streams = r.rows;
     const total = streams.length;
-    await db.query(
-      'UPDATE stream_scan_jobs SET total_channels=$1, started_at=NOW(), status=$2 WHERE id=$3',
-      [total, 'running', jobId]
-    );
+    
+    await db.query('UPDATE stream_scan_jobs SET total_channels=$1, started_at=NOW(), status=$2 WHERE id=$3', [total, 'running', jobId]);
 
-    let completed = 0;
-    let failed = 0;
+    let completed = 0, failed = 0;
     const CONCURRENCY = 8;
-
+    
     for (let i = 0; i < streams.length; i += CONCURRENCY) {
       const chunk = streams.slice(i, i + CONCURRENCY);
-      await Promise.all(chunk.map(async (stream) => {
-        const probe = await probeUrl(stream.stream_url);
-        const newStatus = probe.ok ? 'online' : (probe.reason === 'timeout' ? 'unstable' : 'offline');
+      await Promise.all(chunk.map(async (st) => {
+        const hdrs = {};
+        if (st.user_agent) hdrs['User-Agent'] = st.user_agent;
+        if (st.referer) hdrs['Referer'] = st.referer;
+        
+        const result = await checkDeep(st.stream_url, hdrs);
+        
+        // Smart logic: if previously online and now fails, maybe just unstable
+        let finalStatus = result.status;
+        if (finalStatus === 'offline' && st.health_status === 'online') finalStatus = 'unstable';
 
-        const scoreDelta = probe.ok ? 10 : (probe.reason === 'timeout' ? -10 : -20);
+        await db.query(
+          \`UPDATE channel_streams SET
+            health_status=$1, health_score=$2, health_reason=$3, last_checked_at=NOW(),
+            success_count = CASE WHEN $2 >= 65 THEN success_count+1 ELSE success_count END,
+            fail_count    = CASE WHEN $2 <  65 THEN fail_count+1    ELSE fail_count    END,
+            last_success_at = CASE WHEN $2 >= 65 THEN NOW() ELSE last_success_at END,
+            last_failed_at  = CASE WHEN $2 <  65 THEN NOW() ELSE last_failed_at  END
+           WHERE id=$4\`,
+          [finalStatus, result.score, result.reason, st.id]
+        );
 
-        if (stream.src === 'stream' && hasStreamsTable) {
-          // Update channel_streams row
-          if (hasHealthReason) {
-            await db.query(
-              `UPDATE channel_streams
-               SET health_status=$1, last_checked_at=NOW(), health_reason=$2,
-                   health_score = GREATEST(0, LEAST(100, health_score + $4::int))
-               WHERE id=$3`,
-              [newStatus, probe.reason, stream.id, scoreDelta]
-            );
-          } else {
-            await db.query(
-              `UPDATE channel_streams
-               SET health_status=$1, last_checked_at=NOW(),
-                   health_score = GREATEST(0, LEAST(100, health_score + $3::int))
-               WHERE id=$2`,
-              [newStatus, stream.id, scoreDelta]
-            );
-          }
-          // Mirror to channels table
-          await db.query(
-            `UPDATE channels SET health_status=$1, last_checked_at=NOW()
-             WHERE id=$2 AND (active_stream_id=$3 OR active_stream_id IS NULL)`,
-            [newStatus, stream.channel_id, stream.id]
-          );
-        } else {
-          // Fallback: update channels.health_status directly
-          await db.query(
-            `UPDATE channels SET health_status=$1, last_checked_at=NOW() WHERE id=$2`,
-            [newStatus, stream.channel_id]
-          );
-        }
+        // Update channel status based on best stream
+        await db.query(
+          \`UPDATE channels SET
+             health_status = sub.best_status, health_score = sub.best_score, health_reason = sub.best_reason, last_checked_at = NOW(),
+             stream_url = CASE WHEN sub.best_status='online' THEN sub.best_url ELSE stream_url END,
+             active_stream_id = CASE WHEN sub.best_status='online' THEN sub.best_id ELSE active_stream_id END,
+             fail_count = CASE WHEN sub.best_status='offline' THEN COALESCE(fail_count,0)+1 ELSE 0 END,
+             last_success_at = CASE WHEN sub.best_status='online' THEN NOW() ELSE last_success_at END,
+             last_failure_at = CASE WHEN sub.best_status='offline' THEN NOW() ELSE last_failure_at END,
+             status = CASE WHEN sub.best_status='online' THEN 'active' ELSE CASE WHEN status='pending_check' THEN 'offline' ELSE status END END
+           FROM (
+             SELECT
+               CASE WHEN MAX(health_score) >= 65 THEN 'online' WHEN MAX(health_score) > 0 THEN 'unstable' ELSE 'offline' END AS best_status,
+               MAX(health_score) AS best_score,
+               (SELECT health_reason FROM channel_streams WHERE channel_id=$1 ORDER BY health_score DESC LIMIT 1) AS best_reason,
+               (SELECT stream_url FROM channel_streams WHERE channel_id=$1 ORDER BY health_score DESC LIMIT 1) AS best_url,
+               (SELECT id FROM channel_streams WHERE channel_id=$1 ORDER BY health_score DESC LIMIT 1) AS best_id
+             FROM channel_streams WHERE channel_id=$1
+           ) sub
+           WHERE channels.id=$1\`,
+          [st.channel_id]
+        );
 
-        if (probe.ok) { completed++; } else { failed++; }
+        if (result.status === 'online') completed++; else failed++;
       }));
 
-      await db.query(
-        'UPDATE stream_scan_jobs SET completed_channels=$1, failed_channels=$2 WHERE id=$3',
-        [completed, failed, jobId]
-      );
+      await db.query('UPDATE stream_scan_jobs SET completed_channels=$1, failed_channels=$2 WHERE id=$3', [completed, failed, jobId]);
     }
-
-    await db.query(
-      `UPDATE stream_scan_jobs SET status='completed', completed_at=NOW(), results=$1::jsonb WHERE id=$2`,
-      [JSON.stringify({ total, completed, failed }), jobId]
-    );
+    
+    await db.query(\`UPDATE stream_scan_jobs SET status='completed', completed_at=NOW(), results=$1::jsonb WHERE id=$2\`, [JSON.stringify({ total, completed, failed }), jobId]);
   } catch (err) {
-    console.error('[Scanner] Job failed:', err.message);
-    try {
-      await db.query(
-        `UPDATE stream_scan_jobs SET status='failed', completed_at=NOW(), results=$1::jsonb WHERE id=$2`,
-        [JSON.stringify({ error: err.message }), jobId]
-      );
-    } catch (_) {}
+    console.error('Job fail:', err);
+    try { await db.query(\`UPDATE stream_scan_jobs SET status='failed', completed_at=NOW(), results=$1::jsonb WHERE id=$2\`, [JSON.stringify({ error: err.message }), jobId]); } catch (_) {}
   }
 }
-
-// ── HTTP handlers ─────────────────────────────────────────────────────────────
 
 exports.triggerScan = async (req, res) => {
   try {
     await ensureScanJobsTable();
-    const { scope = 'all', category_id } = req.body || {};
-
+    const { scope = 'all', category_id, language, channel_id } = req.body || {};
     const result = await db.query(
-      `INSERT INTO stream_scan_jobs (status, total_channels, completed_channels, failed_channels)
-       VALUES ('pending', 0, 0, 0) RETURNING *`
+      \`INSERT INTO stream_scan_jobs (status, total_channels, completed_channels, failed_channels) VALUES ('pending', 0, 0, 0) RETURNING *\`
     );
     const job = result.rows[0];
-
-    success(res, {
-      jobId: job.id,
-      message: `Scan started (scope=${scope}). Poll GET /scanner/${job.id} for progress.`,
-    });
-
-    setImmediate(() => runScanJob(job.id, scope, category_id || null));
+    success(res, { jobId: job.id, message: 'Scan started' });
+    setImmediate(() => runScanJob(job.id, { scope, category_id, language, channel_id }));
   } catch (err) {
-    console.error('triggerScan error:', err);
     error(res, 'Failed to trigger scan: ' + err.message, 500);
   }
 };
@@ -204,9 +256,7 @@ exports.getScanStatus = async (req, res) => {
     const result = await db.query('SELECT * FROM stream_scan_jobs WHERE id=$1', [id]);
     if (result.rows.length === 0) return error(res, 'Job not found', 404);
     success(res, result.rows[0]);
-  } catch (err) {
-    error(res, 'Failed to fetch scan status', 500);
-  }
+  } catch (err) { error(res, 'Failed to fetch scan status', 500); }
 };
 
 exports.getScanHistory = async (req, res) => {
@@ -214,7 +264,5 @@ exports.getScanHistory = async (req, res) => {
     await ensureScanJobsTable();
     const result = await db.query('SELECT * FROM stream_scan_jobs ORDER BY created_at DESC LIMIT 50');
     success(res, result.rows);
-  } catch (err) {
-    error(res, 'Failed to fetch scan history', 500);
-  }
+  } catch (err) { error(res, 'Failed to fetch scan history', 500); }
 };
