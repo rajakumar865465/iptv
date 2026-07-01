@@ -678,6 +678,8 @@ exports.getRelatedChannels = async (req, res) => {
        LEFT JOIN categories cat ON c.category_id = cat.id
        WHERE c.id != $1
        AND c.status = 'active'
+       AND c.is_hidden IS NOT TRUE
+       AND c.is_removed IS NOT TRUE
        AND c.stream_url IS NOT NULL AND c.stream_url != ''`;
 
     const [categoryRes, langRes] = await Promise.all([

@@ -68,6 +68,8 @@ function buildHealthFilter(paramIndex) {
 async function buildBaseConditions() {
   const conditions = [
     `c.status = 'active'`,
+    `c.is_hidden IS NOT TRUE`,
+    `c.is_removed IS NOT TRUE`,
     `c.stream_url IS NOT NULL`,
     `c.stream_url != ''`,
   ];

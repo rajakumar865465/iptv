@@ -59,7 +59,7 @@ exports.getPopularChannels = async (req, res) => {
               cat.name AS category
        FROM channels c
        LEFT JOIN categories cat ON c.category_id = cat.id
-       WHERE c.status = 'active' AND (c.is_popular = true OR c.is_featured = true)
+       WHERE c.status = 'active' AND c.is_hidden IS NOT TRUE AND c.is_removed IS NOT TRUE AND (c.is_popular = true OR c.is_featured = true)
        ORDER BY c.is_featured DESC, c.is_popular DESC, c.sort_order ASC
        LIMIT $1`,
       [limit]
@@ -71,7 +71,7 @@ exports.getPopularChannels = async (req, res) => {
                 cat.name AS category
          FROM channels c
          LEFT JOIN categories cat ON c.category_id = cat.id
-         WHERE c.status = 'active'
+         WHERE c.status = 'active' AND c.is_hidden IS NOT TRUE AND c.is_removed IS NOT TRUE
          ORDER BY c.sort_order ASC, c.id ASC
          LIMIT $1`,
         [limit]
@@ -94,6 +94,8 @@ exports.getChannelPreview = async (req, res) => {
        FROM channels c
        LEFT JOIN categories cat ON c.category_id = cat.id
        WHERE c.status = 'active'
+         AND c.is_hidden IS NOT TRUE
+         AND c.is_removed IS NOT TRUE
          AND c.stream_url IS NOT NULL
          AND c.stream_url != ''`;
     const params = [];
