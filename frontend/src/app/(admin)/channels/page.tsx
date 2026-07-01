@@ -51,7 +51,9 @@ function StreamHealthIndicator({ status }: { status: string }) {
 export default function ChannelsPage() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
-  const [total, setTotal] = useState(0); const [page, setPage] = useState(1); const PAGE = 50;
+  const [total, setTotal] = useState(0);
+  const [activeTotal, setActiveTotal] = useState(0);
+  const [page, setPage] = useState(1); const PAGE = 50;
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(''); const [catFilter, setCatFilter] = useState('');
   const [modal, setModal] = useState<'create' | 'edit' | 'streams' | null>(null);
@@ -86,7 +88,11 @@ export default function ChannelsPage() {
     if (cat) params.category_id = cat;
     getChannels(params)
       .then((res: any) => {
-        if (res?.data) { setChannels(res.data); setTotal(res.pagination?.total || 0); }
+        if (res?.data) { 
+          setChannels(res.data); 
+          setTotal(res.pagination?.total || 0); 
+          setActiveTotal(res.pagination?.active || 0);
+        }
         else { setChannels(Array.isArray(res) ? res : []); }
       })
       .finally(() => setLoading(false));
@@ -469,7 +475,9 @@ export default function ChannelsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">Channels</h1>
-          <p className="text-slate-400 mt-1">{total} channels — manage streams, health &amp; metadata.</p>
+          <p className="text-slate-400 mt-1">
+            <span className="font-semibold text-emerald-400">{activeTotal} live in app</span> out of {total} total — manage streams, health & metadata.
+          </p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-slate-300 text-sm focus:outline-none">

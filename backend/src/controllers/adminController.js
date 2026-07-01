@@ -265,12 +265,14 @@ exports.getChannelsAdmin = async (req, res) => {
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
     const offset = (page - 1) * limit;
 
-    const [countResult, dataResult] = await Promise.all([
+    const [countResult, activeCountResult, dataResult] = await Promise.all([
       db.query('SELECT COUNT(*) FROM channels'),
+      db.query("SELECT COUNT(*) FROM channels WHERE status = 'active' AND is_hidden = false AND is_removed = false"),
       db.query('SELECT * FROM channels ORDER BY sort_order ASC LIMIT $1 OFFSET $2', [limit, offset]),
     ]);
 
     const total = parseInt(countResult.rows[0].count, 10);
+    const active = parseInt(activeCountResult.rows[0].count, 10);
 
     success(res, {
       data: dataResult.rows,
@@ -278,6 +280,7 @@ exports.getChannelsAdmin = async (req, res) => {
         page,
         limit,
         total,
+        active,
         hasMore: offset + dataResult.rows.length < total,
       },
     }, 'Success', 200);
