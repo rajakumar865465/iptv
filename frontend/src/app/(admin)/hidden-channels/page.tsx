@@ -48,8 +48,9 @@ export default function HiddenChannelsPage() {
     try {
       await restoreAllHiddenChannels();
       setChannels([]);
-    } catch {
-      alert('Failed to restore all channels');
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed to restore all channels: ' + (err.message || String(err)));
     } finally {
       setRestoringAll(false);
     }
