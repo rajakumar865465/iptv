@@ -171,9 +171,12 @@ exports.getChannels = async (req, res) => {
       categoryId, category, language, workingOnly, showOffline, search, premium, page: pageNum
     });
 
-    // Always exclude merged/duplicate/inactive channels
+    // Always exclude merged/duplicate/inactive/hidden channels
     const conditions = [
       `c.status = 'active'`,
+      `c.is_hidden IS NOT TRUE`,
+      `c.is_removed IS NOT TRUE`,
+      `c.is_visible_app IS NOT FALSE`,
       `c.stream_url IS NOT NULL`,
       `c.stream_url != ''`,
     ];
@@ -370,7 +373,10 @@ exports.getChannel = async (req, res) => {
     const result = await db.query(
       `SELECT c.*, cat.name as category_name FROM channels c
        LEFT JOIN categories cat ON c.category_id = cat.id
-       WHERE c.id = $1 AND c.status = 'active'`,
+       WHERE c.id = $1 
+         AND c.status = 'active'
+         AND c.is_hidden IS NOT TRUE 
+         AND c.is_removed IS NOT TRUE`,
       [id]
     );
     if (result.rows.length === 0) {
@@ -394,6 +400,9 @@ exports.searchChannels = async (req, res) => {
        LEFT JOIN categories cat ON c.category_id = cat.id
        WHERE c.status = 'active'
          AND c.status NOT IN ('merged','duplicate','inactive')
+         AND c.is_hidden IS NOT TRUE 
+         AND c.is_removed IS NOT TRUE 
+         AND c.is_visible_app IS NOT FALSE
          AND (c.name ILIKE $1 OR c.display_name ILIKE $1 OR cat.name ILIKE $1 OR c.language ILIKE $1)
        ORDER BY c.name ASC`,
       [`%${q}%`]
@@ -415,6 +424,9 @@ exports.getChannelsByCategory = async (req, res) => {
        WHERE c.category_id = $1
          AND c.status = 'active'
          AND c.status NOT IN ('merged','duplicate','inactive')
+         AND c.is_hidden IS NOT TRUE 
+         AND c.is_removed IS NOT TRUE 
+         AND c.is_visible_app IS NOT FALSE
        ORDER BY c.sort_order ASC, c.name ASC`,
       [categoryId]
     );
@@ -431,7 +443,7 @@ exports.getCategories = async (req, res) => {
     const { workingOnly } = req.query;
     const hasHealthStatus = await checkHealthStatusColumn();
 
-    let channelFilter = `ch.status = 'active' AND ch.stream_url IS NOT NULL AND ch.stream_url != ''`;
+    let channelFilter = `ch.status = 'active' AND ch.stream_url IS NOT NULL AND ch.stream_url != '' AND ch.is_hidden IS NOT TRUE AND ch.is_removed IS NOT TRUE AND ch.is_visible_app IS NOT FALSE`;
 
     const params = [];
     let paramIndex = 1;

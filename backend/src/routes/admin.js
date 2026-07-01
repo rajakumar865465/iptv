@@ -14,6 +14,7 @@ const duplicateController = require('../controllers/duplicateController');
 const languageController = require('../controllers/languageController');
 const notificationController = require('../controllers/notificationController');
 const adminUserController = require('../controllers/adminUserController');
+const adminChannelManagementController = require('../controllers/adminChannelManagementController');
 const publicController = require('../controllers/publicController');
 const adminAuthMiddleware = require('../middleware/adminAuth');
 const { authLimiter } = require('../middleware/rateLimit');
@@ -76,6 +77,17 @@ router.post('/channels', adminController.createChannel);
 router.get('/channels', adminController.getChannelsAdmin);
 router.put('/channels/:id', adminController.updateChannel);
 router.delete('/channels/:id', adminController.deleteChannel);
+
+// ─── Channel Management (Hide/Remove/Restore) ─────────
+router.post('/channels/:id/hide', adminChannelManagementController.hideChannel);
+router.post('/channels/:id/remove', adminChannelManagementController.removeChannel);
+router.post('/channels/:id/restore', adminChannelManagementController.restoreChannel);
+router.get('/channels-hidden', adminChannelManagementController.getHiddenChannels);
+router.get('/channels-removed', adminChannelManagementController.getRemovedChannels);
+
+// ─── Channel Import ───────────────────────────────────
+router.post('/import/iptv-org', adminChannelManagementController.startImportJob);
+router.get('/import/jobs', adminChannelManagementController.getImportJobs);
 
 // ─── Channel Streams ──────────────────────────────
 router.get('/channel-streams/:id', channelStreamController.getChannelStreams);

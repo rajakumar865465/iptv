@@ -100,7 +100,28 @@ export const updatePaymentStatus = (id: string, status: string) =>
   api.put(`/payments/${id}/status`, { status }).then((r) => r.data.data);
 
 export const getChannels = (params?: Record<string, unknown>) =>
-  api.get('/channels', { params }).then((r) => r.data.data);
+  api.get('/channels', { params }).then((r) => r.data.data || r.data);
+
+export const hideChannel = (id: string, reason: string, prevent_reimport: boolean) =>
+  api.post(`/channels/${id}/hide`, { reason, prevent_reimport }).then((r) => r.data.data);
+
+export const removeChannel = (id: string, reason: string, prevent_reimport: boolean) =>
+  api.post(`/channels/${id}/remove`, { reason, prevent_reimport }).then((r) => r.data.data);
+
+export const restoreChannel = (id: string, restore_in_app: boolean = true) =>
+  api.post(`/channels/${id}/restore`, { restore_in_app }).then((r) => r.data.data);
+
+export const getHiddenChannels = () =>
+  api.get('/channels-hidden').then((r) => r.data.data);
+
+export const getRemovedChannels = () =>
+  api.get('/channels-removed').then((r) => r.data.data);
+
+export const startImportJob = (source_url?: string, options?: any) =>
+  api.post('/import/iptv-org', { source_url, options }).then((r) => r.data.data);
+
+export const getImportJobs = () =>
+  api.get('/import/jobs').then((r) => r.data.data);
 
 export const createChannel = (data: Record<string, unknown>) =>
   api.post('/channels', data).then((r) => r.data.data);
