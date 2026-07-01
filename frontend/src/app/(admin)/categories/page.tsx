@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Pencil, Check, X, FolderOpen, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Check, X, FolderOpen, Trash2, AlertCircle } from 'lucide-react';
 
 interface Category {
   id: string;
