@@ -10,15 +10,18 @@ async function runHealthScan() {
   try {
     // Get all active streams for channels that are NOT removed and NOT hidden
     // We prioritize streams that haven't been checked recently or are currently unstable/offline
+    // Bug fix: is_active column does not exist in channel_streams; use is_hidden instead.
+    // Also guard against NULL booleans with IS NOT TRUE / IS NOT FALSE pattern.
     const { rows: streams } = await db.query(`
       SELECT cs.id, cs.stream_url, cs.headers_json, cs.channel_id
       FROM channel_streams cs
       JOIN channels c ON cs.channel_id = c.id
-      WHERE cs.is_active = true
-        AND c.is_hidden = false
-        AND c.is_removed = false
-      ORDER BY 
-        CASE 
+      WHERE cs.is_hidden IS NOT TRUE
+        AND c.is_hidden IS NOT TRUE
+        AND c.is_removed IS NOT TRUE
+        AND c.is_visible_app IS NOT FALSE
+      ORDER BY
+        CASE
           WHEN cs.health_status = 'unknown' THEN 1
           WHEN cs.health_status = 'unstable' THEN 2
           WHEN cs.health_status = 'offline' THEN 3
@@ -102,27 +105,33 @@ async function updateParentChannelHealth() {
   console.log('[StreamScanner] Updating parent channels aggregate health...');
   
   const { rows: channels } = await db.query(`
-    SELECT id FROM channels WHERE is_removed = false AND is_hidden = false
+    SELECT id FROM channels WHERE is_removed IS NOT TRUE AND is_hidden IS NOT TRUE
   `);
-  
+
   for (const c of channels) {
+    // Bug fix: was setting channels.status = health_status (e.g. 'online', 'offline'),
+    // but channels.status must remain 'active'/'inactive' for getChannels WHERE c.status='active'.
+    // Now correctly updates health_status and health_score only, never touches status.
     await db.query(`
       WITH best_stream AS (
-        SELECT health_status
+        SELECT health_status, health_score
         FROM channel_streams
-        WHERE channel_id = $1 AND is_active = true
-        ORDER BY 
+        WHERE channel_id = $1
+          AND is_hidden IS NOT TRUE
+        ORDER BY
           CASE health_status
-            WHEN 'online' THEN 1
+            WHEN 'online'   THEN 1
             WHEN 'unstable' THEN 2
-            WHEN 'offline' THEN 3
+            WHEN 'offline'  THEN 3
             ELSE 4
           END,
           priority ASC
         LIMIT 1
       )
       UPDATE channels
-      SET status = COALESCE((SELECT health_status FROM best_stream), 'unknown')
+      SET health_status  = COALESCE((SELECT health_status  FROM best_stream), 'unknown'),
+          health_score   = COALESCE((SELECT health_score   FROM best_stream), 0),
+          last_checked_at = NOW()
       WHERE id = $1
     `, [c.id]);
   }

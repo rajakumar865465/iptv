@@ -925,6 +925,19 @@ exports.getChannelPlayback = async (req, res) => {
       if (result.rows.length === 0) {
         return error(res, 'No streams available for this channel', 404);
       }
+      // All known streams are marked offline — check if this is health data or just never scanned.
+      // If every stream was explicitly scanned and marked offline, return 503 so the app can
+      // show "Channel temporarily offline" rather than letting the proxy hit a dead URL and
+      // returning the cryptic "Upstream error" message.
+      const allOffline = result.rows.every(r => r.health_status === 'offline');
+      const anyScanned = result.rows.some(r => r.last_checked_at !== null);
+      if (allOffline && anyScanned) {
+        return res.status(503).json({
+          success: false,
+          message: 'Channel is temporarily offline. Please try again later.',
+          error_code: 'CHANNEL_OFFLINE'
+        });
+      }
     }
 
     let primary = result.rows.find(r => r.parent_stream_id == null);

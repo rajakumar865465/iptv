@@ -95,8 +95,9 @@ exports.proxyManifest = async (req, res) => {
     let stream;
     let streamRes = await db.query('SELECT * FROM channel_streams WHERE id = $1', [streamId]);
     if (streamRes.rows.length === 0) {
-      // Fix #19: Use 'referer' consistently (not 'referrer') to match channel_streams column naming
-      const chRes = await db.query('SELECT stream_url, user_agent, referer FROM channels WHERE id = $1', [streamId]);
+      // channels table has 'referrer' (double-r); alias to 'referer' so the headers
+      // compilation block below works uniformly for both channel_streams and channels rows.
+      const chRes = await db.query('SELECT stream_url, user_agent, referrer AS referer FROM channels WHERE id = $1', [streamId]);
       if (chRes.rows.length === 0) return res.status(404).send('Stream not found');
       stream = chRes.rows[0];
       stream.origin = null;
@@ -229,8 +230,8 @@ exports.proxySegment = async (req, res) => {
     let stream;
     let streamRes = await db.query('SELECT * FROM channel_streams WHERE id = $1', [streamId]);
     if (streamRes.rows.length === 0) {
-      // Fix #19: Use 'referer' consistently (not 'referrer')
-      const chRes = await db.query('SELECT stream_url, user_agent, referer FROM channels WHERE id = $1', [streamId]);
+      // channels table has 'referrer' (double-r); alias to 'referer' for uniform access below.
+      const chRes = await db.query('SELECT stream_url, user_agent, referrer AS referer FROM channels WHERE id = $1', [streamId]);
       stream = chRes.rows[0] || {};
     } else {
       stream = streamRes.rows[0] || {};
