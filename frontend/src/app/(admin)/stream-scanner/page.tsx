@@ -176,7 +176,7 @@ export default function StreamScannerPage() {
 
   const handleBulkAction = async (action: string) => {
     if (selectedIds.size === 0) return;
-    const reason = prompt(\`Enter reason for bulk \${action} (optional):\`);
+    const reason = prompt(`Enter reason for bulk ${action} (optional):`);
     try {
       await bulkActionBrokenChannels({ ids: Array.from(selectedIds), action, reason });
       setSelectedIds(new Set());
