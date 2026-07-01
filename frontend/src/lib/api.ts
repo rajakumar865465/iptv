@@ -120,6 +120,12 @@ export const getHiddenChannels = () =>
 export const getRemovedChannels = () =>
   api.get('/channels-removed').then((r) => r.data.data);
 
+export const getReportedChannels = (status?: string) =>
+  api.get('/channels/reports', { params: { status } }).then((r) => r.data.data);
+
+export const updateReportStatus = (id: string, status: string) =>
+  api.put(`/channels/reports/${id}/status`, { status }).then((r) => r.data.data);
+
 export const startImportJob = (source_url?: string, options?: any) =>
   api.post('/import/iptv-org', { source_url, options }).then((r) => r.data.data);
 

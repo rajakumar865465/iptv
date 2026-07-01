@@ -826,6 +826,12 @@ exports.reportFailure = async (req, res) => {
       }
     }
 
+    // Record it in channel_reports so admin can review
+    await db.query(`
+      INSERT INTO channel_reports (channel_id, device_id, issue_type, description, status)
+      VALUES ($1, $2, $3, $4, 'pending')
+    `, [id, device || null, failReason, message || 'Failed to load stream']);
+
     success(res, { success: true, message: 'Failure reported' });
   } catch (err) {
     console.error('reportFailure error:', err);

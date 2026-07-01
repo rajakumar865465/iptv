@@ -108,6 +108,10 @@ router.post('/channels/broken/:id/verify', brokenChannelController.verifyChannel
 router.get('/channels/duplicates', duplicateController.getDuplicates);
 router.post('/channels/duplicates/merge', duplicateController.mergeDuplicates);
 
+// ─── Reported Channels ────────────────────────────
+router.get('/channels/reports', adminChannelManagementController.getReportedChannels);
+router.put('/channels/reports/:id/status', adminChannelManagementController.updateReportStatus);
+
 // ─── Categories ───────────────────────────────────────
 router.post('/categories', adminController.createCategory);
 router.get('/categories', adminController.getCategoriesAdmin);

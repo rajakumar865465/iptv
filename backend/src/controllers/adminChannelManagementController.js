@@ -209,3 +209,39 @@ exports.getRemovedChannels = async (req, res) => {
     error(res, 'Failed to fetch removed channels', 500);
   }
 };
+
+// --- GET REPORTED CHANNELS ---
+exports.getReportedChannels = async (req, res) => {
+  try {
+    const { status = 'pending' } = req.query;
+    const result = await db.query(`
+      SELECT 
+        cr.id as report_id, cr.issue_type, cr.description, cr.status as report_status, cr.created_at as reported_at,
+        c.id as channel_id, c.name, c.logo_url, c.stream_url, c.backup_stream_url, c.health_status,
+        (SELECT JSON_AGG(JSON_BUILD_OBJECT('id', cs.id, 'stream_url', cs.stream_url, 'health_status', cs.health_status)) 
+         FROM channel_streams cs WHERE cs.channel_id = c.id) as extra_streams
+      FROM channel_reports cr
+      JOIN channels c ON cr.channel_id = c.id
+      WHERE cr.status = $1
+      ORDER BY cr.created_at DESC
+    `, [status]);
+    success(res, result.rows);
+  } catch (err) {
+    console.error('getReportedChannels error:', err);
+    error(res, 'Failed to fetch reported channels', 500);
+  }
+};
+
+// --- UPDATE REPORT STATUS ---
+exports.updateReportStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    await db.query('UPDATE channel_reports SET status = $1, updated_at = NOW() WHERE id = $2', [status, id]);
+    success(res, { message: 'Report status updated' });
+  } catch (err) {
+    console.error('updateReportStatus error:', err);
+    error(res, 'Failed to update report status', 500);
+  }
+};

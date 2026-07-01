@@ -19,6 +19,7 @@ const navItems = [
   { href: '/payments', label: 'Payments', icon: CreditCard },
   { href: '/channels', label: 'Channels', icon: Globe },
   { href: '/stream-scanner', label: 'Scanner & Broken', icon: AlertTriangle },
+  { href: '/reported-channels', label: 'User Reported', icon: AlertTriangle },
   { href: '/hidden-channels', label: 'Hidden Channels', icon: Zap },
   { href: '/duplicate-channels', label: 'Duplicates', icon: FileStack },
   { href: '/categories', label: 'Categories', icon: FileStack },
