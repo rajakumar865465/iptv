@@ -41,9 +41,8 @@ class BoundedCache {
 }
 
 const CACHE_MANIFEST_MS = 3000;  // 3 seconds
-const CACHE_SEGMENT_MS = 60000;  // 60 seconds
 
-const segmentCache = new BoundedCache(500, CACHE_SEGMENT_MS);
+// Note: Segment caching has been removed to prevent massive memory leaks and GC pauses
 const manifestCache = new BoundedCache(200, CACHE_MANIFEST_MS);
 
 // Fix #8: Add depth counter to prevent infinite redirect loops
@@ -86,10 +85,21 @@ exports.proxyManifest = async (req, res) => {
       return res.send(cachedManifest.data);
     }
 
-    const streamRes = await db.query('SELECT * FROM channel_streams WHERE id = $1', [streamId]);
-    if (streamRes.rows.length === 0) return res.status(404).send('Stream not found');
-    const stream = streamRes.rows[0];
-    const stream_url = stream.stream_url;
+    let stream_url;
+    let stream;
+    let streamRes = await db.query('SELECT * FROM channel_streams WHERE id = $1', [streamId]);
+    if (streamRes.rows.length === 0) {
+      // Fallback to channels table if streamId is actually a channel.id (for direct playback fallback)
+      const chRes = await db.query('SELECT stream_url, user_agent, referrer FROM channels WHERE id = $1', [streamId]);
+      if (chRes.rows.length === 0) return res.status(404).send('Stream not found');
+      stream = chRes.rows[0];
+      stream.origin = null;
+      stream.headers_json = null;
+      stream_url = stream.stream_url;
+    } else {
+      stream = streamRes.rows[0];
+      stream_url = stream.stream_url;
+    }
 
     // Sanitize headers_json — only allow safe header names (prevent header injection)
     const ALLOWED_HEADER_NAMES = new Set([
@@ -148,14 +158,7 @@ exports.proxyManifest = async (req, res) => {
 exports.proxySegment = async (req, res) => {
   try {
     const { streamId, b64url } = req.params;
-    const cacheKey = `${streamId}_${b64url}`;
-
-    // Check segment cache
-    const cachedSegment = segmentCache.get(cacheKey);
-    if (cachedSegment) {
-      res.setHeader('Content-Type', 'video/mp2t');
-      return res.send(cachedSegment.data);
-    }
+    // Cache check removed for segments to stream efficiently
 
     // Decode the target URL and validate it against allowed hosts (SSRF prevention)
     let targetUrl;
@@ -188,8 +191,14 @@ exports.proxySegment = async (req, res) => {
       return res.status(400).send('Invalid segment URL');
     }
 
-    const streamRes = await db.query('SELECT * FROM channel_streams WHERE id = $1', [streamId]);
-    const stream = streamRes.rows[0] || {};
+    let stream;
+    let streamRes = await db.query('SELECT * FROM channel_streams WHERE id = $1', [streamId]);
+    if (streamRes.rows.length === 0) {
+      const chRes = await db.query('SELECT stream_url, user_agent, referrer FROM channels WHERE id = $1', [streamId]);
+      stream = chRes.rows[0] || {};
+    } else {
+      stream = streamRes.rows[0] || {};
+    }
 
     // Sanitize headers_json — only allow a safe set of header names to prevent header injection
     const ALLOWED_HEADER_NAMES = new Set([
@@ -228,18 +237,20 @@ exports.proxySegment = async (req, res) => {
       return res.status(proxyRes.statusCode).send('Upstream error');
     }
 
-    const chunks = [];
+    // Stream the data directly to the client
     res.setHeader('Content-Type', 'video/mp2t');
-    for await (const chunk of proxyRes) {
-      chunks.push(chunk);
-      res.write(chunk);
-    }
-    res.end();
-
-    const fullBuffer = Buffer.concat(chunks);
-    segmentCache.set(cacheKey, fullBuffer);
-
+    
+    // Pipe the proxy response directly to the client response
+    proxyRes.pipe(res);
+    
+    // Handle errors during streaming
+    proxyRes.on('error', (err) => {
+      console.error('Stream error:', err.message);
+      if (!res.headersSent) res.status(500).end();
+    });
+    
   } catch (err) {
-    res.status(500).end();
+    console.error('proxySegment outer err:', err.message);
+    if (!res.headersSent) res.status(500).end();
   }
 };

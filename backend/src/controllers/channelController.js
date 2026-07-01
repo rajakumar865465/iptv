@@ -862,11 +862,10 @@ exports.getChannelPlayback = async (req, res) => {
       };
     };
 
-    const getPlayUrl = (stream) => {
-      if (stream.playback_mode === 'proxy') {
-        return `${baseUrl}/api/proxy/${stream.id}/master.m3u8`;
-      }
-      return stream.final_url || stream.stream_url;
+    const getPlayUrl = (stream, forceId) => {
+      // Force proxy mode for all streams to resolve Android ExoPlayer User-Agent/CORS blocking
+      const idToUse = forceId || stream.id;
+      return `${baseUrl}/api/proxy/${idToUse}/master.m3u8`;
     };
 
     if (!hasStreamsTable) {
@@ -884,12 +883,12 @@ exports.getChannelPlayback = async (req, res) => {
         channel: { id: parseInt(id), name: row.name || 'Unknown Channel' },
         qualities: [{
           label: "Auto",
-          url: row.stream_url,
+          url: getPlayUrl(row, id),
           type: "auto",
           headers: defaultHeaders
         }],
-        primary_stream: { url: row.stream_url, quality: 'auto', headers: defaultHeaders, playback_mode: 'direct' },
-        backup_streams: row.backup_stream_url ? [{ url: row.backup_stream_url, quality: 'auto', headers: defaultHeaders }] : []
+        primary_stream: { url: getPlayUrl(row, id), quality: 'auto', headers: defaultHeaders, playback_mode: 'proxy' },
+        backup_streams: row.backup_stream_url ? [{ url: getPlayUrl({ id, stream_url: row.backup_stream_url }, id), quality: 'auto', headers: defaultHeaders }] : []
       });
     }
 
