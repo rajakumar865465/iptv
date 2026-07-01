@@ -162,16 +162,18 @@ const runImportJob = async (jobId) => {
           updated++;
         } else {
           // Insert new channel
+          // Insert new channel with first stream as default stream_url
+          const defaultStream = channelData.streams.length > 0 ? channelData.streams[0].stream_url : '';
           const insertRes = await db.query(`
             INSERT INTO channels 
-              (name, display_name, canonical_name, tvg_id, logo_url, category_id, language, country, source, status)
+              (name, display_name, canonical_name, tvg_id, logo_url, category_id, language, country, source, status, stream_url)
             VALUES 
-              ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')
+              ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', $10)
             RETURNING id
           `, [
             channelData.name, channelData.name, canonical, channelData.tvg_id,
             channelData.logo_url, channelData.category_id, channelData.language, 
-            channelData.country, channelData.source
+            channelData.country, channelData.source, defaultStream
           ]);
 
           const newChannelId = insertRes.rows[0].id;
