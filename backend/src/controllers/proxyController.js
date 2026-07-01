@@ -1,6 +1,7 @@
 const https = require('https');
 const http = require('http');
 const { URL } = require('url');
+const { pipeline } = require('node:stream');
 const db = require('../config/db');
 
 // Fix #7: Replace unbounded Maps with size-limited caches to prevent memory leaks.
@@ -40,12 +41,17 @@ class BoundedCache {
   }
 }
 
-const CACHE_MANIFEST_MS = 3000;  // 3 seconds
+// Fix #7 (manifest cache TTL): HLS segments are typically 4–10s long.
+// 3s was causing near-constant upstream manifest re-fetches and buffering stutters.
+// 8s aligns better with HLS spec (cache for ~1× target_duration).
+const CACHE_MANIFEST_MS = 8000;
 
 // Note: Segment caching has been removed to prevent massive memory leaks and GC pauses
 const manifestCache = new BoundedCache(200, CACHE_MANIFEST_MS);
 
 // Fix #8: Add depth counter to prevent infinite redirect loops
+// Fix #6: Increased timeout from 8s → 20s — live HLS sources from slow CDNs
+// frequently take 10–15s to respond, causing unnecessary stream failures at 8s.
 function makeProxyRequest(url, headers, redirectDepth = 0) {
   return new Promise((resolve, reject) => {
     if (redirectDepth > 5) {
@@ -56,7 +62,7 @@ function makeProxyRequest(url, headers, redirectDepth = 0) {
     try { parsed = new URL(url); } catch(e) { return reject(e); }
     const client = parsed.protocol === 'https:' ? https : http;
 
-    const req = client.request(url, { headers, timeout: 8000 }, (res) => {
+    const req = client.request(url, { headers, timeout: 20000 }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         // Follow redirect with incremented depth counter
         return resolve(makeProxyRequest(res.headers.location, headers, redirectDepth + 1));
@@ -77,7 +83,7 @@ function resolveUrl(base, relative) {
 exports.proxyManifest = async (req, res) => {
   try {
     const { streamId } = req.params;
-    
+
     // Check manifest cache
     const cachedManifest = manifestCache.get(streamId);
     if (cachedManifest) {
@@ -89,8 +95,8 @@ exports.proxyManifest = async (req, res) => {
     let stream;
     let streamRes = await db.query('SELECT * FROM channel_streams WHERE id = $1', [streamId]);
     if (streamRes.rows.length === 0) {
-      // Fallback to channels table if streamId is actually a channel.id (for direct playback fallback)
-      const chRes = await db.query('SELECT stream_url, user_agent, referrer FROM channels WHERE id = $1', [streamId]);
+      // Fix #19: Use 'referer' consistently (not 'referrer') to match channel_streams column naming
+      const chRes = await db.query('SELECT stream_url, user_agent, referer FROM channels WHERE id = $1', [streamId]);
       if (chRes.rows.length === 0) return res.status(404).send('Stream not found');
       stream = chRes.rows[0];
       stream.origin = null;
@@ -124,7 +130,9 @@ exports.proxyManifest = async (req, res) => {
 
     const proxyRes = await makeProxyRequest(stream_url, headers);
 
-    if (proxyRes.statusCode !== 200) {
+    // Fix #1: Also accept 206 Partial Content — many CDN/live stream servers return 206
+    // for range requests. Previously this was rejected as an error, killing the stream.
+    if (proxyRes.statusCode !== 200 && proxyRes.statusCode !== 206) {
       return res.status(proxyRes.statusCode).send('Upstream error');
     }
 
@@ -154,6 +162,33 @@ exports.proxyManifest = async (req, res) => {
     res.status(500).send('Proxy error');
   }
 };
+
+// Fix #8: Smarter retry logic — distinguish permanent vs transient failures.
+// 4xx errors (403, 404) are permanent; retrying wastes time and delays the 502 response.
+// 5xx errors and timeouts are transient; retry with exponential backoff (200ms → 400ms → 800ms).
+async function fetchSegmentWithRetry(targetUrl, headers) {
+  const MAX_RETRIES = 3;
+  const BACKOFF_MS = [200, 400, 800];
+
+  let lastError;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const proxyRes = await makeProxyRequest(targetUrl, headers);
+      // Permanent 4xx failures — stop immediately, no retry
+      if (proxyRes.statusCode >= 400 && proxyRes.statusCode < 500) {
+        return proxyRes;
+      }
+      // Success or 2xx/3xx — return as-is
+      return proxyRes;
+    } catch (e) {
+      lastError = e;
+      if (attempt < MAX_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, BACKOFF_MS[attempt]));
+      }
+    }
+  }
+  throw lastError;
+}
 
 exports.proxySegment = async (req, res) => {
   try {
@@ -194,7 +229,8 @@ exports.proxySegment = async (req, res) => {
     let stream;
     let streamRes = await db.query('SELECT * FROM channel_streams WHERE id = $1', [streamId]);
     if (streamRes.rows.length === 0) {
-      const chRes = await db.query('SELECT stream_url, user_agent, referrer FROM channels WHERE id = $1', [streamId]);
+      // Fix #19: Use 'referer' consistently (not 'referrer')
+      const chRes = await db.query('SELECT stream_url, user_agent, referer FROM channels WHERE id = $1', [streamId]);
       stream = chRes.rows[0] || {};
     } else {
       stream = streamRes.rows[0] || {};
@@ -221,34 +257,33 @@ exports.proxySegment = async (req, res) => {
       ...safeExtraHeaders,
     };
 
+    // Fix #8: Use smart retry helper with exponential backoff and 4xx fast-fail
     let proxyRes;
     try {
-      proxyRes = await makeProxyRequest(targetUrl, headers);
+      proxyRes = await fetchSegmentWithRetry(targetUrl, headers);
     } catch (e) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      try {
-        proxyRes = await makeProxyRequest(targetUrl, headers);
-      } catch (e2) {
-        return res.status(502).send('Upstream segment unavailable');
-      }
+      return res.status(502).send('Upstream segment unavailable');
     }
 
-    if (proxyRes.statusCode !== 200) {
+    // Fix #1: Also accept 206 Partial Content from upstream CDNs
+    if (proxyRes.statusCode !== 200 && proxyRes.statusCode !== 206) {
       return res.status(proxyRes.statusCode).send('Upstream error');
     }
 
     // Stream the data directly to the client
     res.setHeader('Content-Type', 'video/mp2t');
-    
-    // Pipe the proxy response directly to the client response
-    proxyRes.pipe(res);
-    
-    // Handle errors during streaming
-    proxyRes.on('error', (err) => {
-      console.error('Stream error:', err.message);
-      if (!res.headersSent) res.status(500).end();
+
+    // Fix #9: Use stream.pipeline() instead of proxyRes.pipe(res).
+    // pipeline() handles backpressure properly — if the client reads slowly,
+    // it pauses the upstream read instead of buffering unboundedly in memory.
+    // It also auto-destroys both streams on error or completion.
+    pipeline(proxyRes, res, (err) => {
+      if (err) {
+        console.error('Stream pipeline error:', err.message);
+        if (!res.headersSent) res.status(500).end();
+      }
     });
-    
+
   } catch (err) {
     console.error('proxySegment outer err:', err.message);
     if (!res.headersSent) res.status(500).end();

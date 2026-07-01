@@ -202,10 +202,13 @@ exports.getChannels = async (req, res) => {
         paramIndex = nextIndex;
       }
     } else if (showOffline !== 'true') {
-      // Default mode: hide clearly dead channels, show unknown/unstable
+      // Default mode: hide clearly dead channels, show unknown/unstable.
+      // Fix #15: Removed `OR c.is_premium = true` exemption — a premium channel marked
+      // offline/geo_blocked/drm still appeared in listings and failed to play, frustrating users.
+      // Health filter now applies equally to all channels regardless of premium status.
       if (hasHealthStatus) {
         const deadList = DEAD_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
-        conditions.push(`((c.health_status IS NULL OR c.health_status NOT IN (${deadList})) OR c.is_premium = true)`);
+        conditions.push(`(c.health_status IS NULL OR c.health_status NOT IN (${deadList}))`);
         params.push(...DEAD_STATUSES);
         paramIndex += DEAD_STATUSES.length;
       }
@@ -395,13 +398,14 @@ exports.searchChannels = async (req, res) => {
     if (!q || q.trim().length === 0) {
       return success(res, []);
     }
+    // Fix #12: Removed dead code `AND c.status NOT IN ('merged','duplicate','inactive')`.
+    // It was redundant — `status = 'active'` already excludes those values.
     const result = await db.query(
       `SELECT c.*, cat.name as category_name FROM channels c
        LEFT JOIN categories cat ON c.category_id = cat.id
        WHERE c.status = 'active'
-         AND c.status NOT IN ('merged','duplicate','inactive')
-         AND c.is_hidden IS NOT TRUE 
-         AND c.is_removed IS NOT TRUE 
+         AND c.is_hidden IS NOT TRUE
+         AND c.is_removed IS NOT TRUE
          AND c.is_visible_app IS NOT FALSE
          AND (c.name ILIKE $1 OR c.display_name ILIKE $1 OR cat.name ILIKE $1 OR c.language ILIKE $1)
        ORDER BY c.name ASC`,
@@ -418,17 +422,25 @@ exports.searchChannels = async (req, res) => {
 exports.getChannelsByCategory = async (req, res) => {
   try {
     const { categoryId } = req.params;
+    const hasHealthStatus = await checkHealthStatusColumn();
+    // Fix #13: Add health filter to category endpoint — previously it returned all channels
+    // including offline/dead/geo-blocked ones, causing broken streams in category view.
+    // Mirrors the default-mode filter in getChannels (excludes clearly dead, shows unknown).
+    const healthClause = hasHealthStatus
+      ? `AND (c.health_status IS NULL OR c.health_status NOT IN (${DEAD_STATUSES.map((_, i) => `$${i + 2}`).join(', ')}))`
+      : '';
+    const params = hasHealthStatus ? [categoryId, ...DEAD_STATUSES] : [categoryId];
     const result = await db.query(
       `SELECT c.*, cat.name as category_name FROM channels c
        LEFT JOIN categories cat ON c.category_id = cat.id
        WHERE c.category_id = $1
          AND c.status = 'active'
-         AND c.status NOT IN ('merged','duplicate','inactive')
-         AND c.is_hidden IS NOT TRUE 
-         AND c.is_removed IS NOT TRUE 
+         AND c.is_hidden IS NOT TRUE
+         AND c.is_removed IS NOT TRUE
          AND c.is_visible_app IS NOT FALSE
+         ${healthClause}
        ORDER BY c.sort_order ASC, c.name ASC`,
-      [categoryId]
+      params
     );
     const formatted = result.rows.map(row => formatChannelRow(req, row));
     success(res, formatted);
@@ -892,16 +904,18 @@ exports.getChannelPlayback = async (req, res) => {
       });
     }
 
+    // Fix #2: NULL != 'offline' evaluates to NULL (false) in PostgreSQL, silently
+    // excluding unscanned streams (health_status = NULL). Explicit IS NULL check required.
     let result = await db.query(`
-      SELECT * FROM channel_streams 
-      WHERE channel_id = $1 AND health_status != 'offline'
-      ORDER BY 
-        priority ASC, 
-        CASE health_status 
-          WHEN 'online' THEN 3 
-          WHEN 'unstable' THEN 2 
-          WHEN 'unknown' THEN 1 
-          ELSE 0 
+      SELECT * FROM channel_streams
+      WHERE channel_id = $1 AND (health_status IS NULL OR health_status != 'offline')
+      ORDER BY
+        priority ASC,
+        CASE health_status
+          WHEN 'online' THEN 3
+          WHEN 'unstable' THEN 2
+          WHEN 'unknown' THEN 1
+          ELSE 0
         END DESC,
         health_score DESC
     `, [id]);

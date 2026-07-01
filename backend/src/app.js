@@ -170,11 +170,13 @@ const errorLoggerMiddleware = async (req, res, next) => {
         ? JSON.stringify(sanitizeBody(req.body)).slice(0, 2000)
         : null;
 
+      // Fix #20: Log to stderr as fallback if DB insert fails (e.g. during outages).
+      // Previously .catch(() => {}) silently swallowed the failure, making debugging impossible.
       db.query(
         `INSERT INTO api_error_logs (method, path, status_code, error_message, request_body, user_id)
          VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
         [req.method, req.path.slice(0, 255), res.statusCode, errorMessage, requestBody, userId]
-      ).catch(() => {});
+      ).catch((err) => console.error('[errorLogger] Failed to log error to DB:', err.message));
     }
     return originalJson(body);
   };

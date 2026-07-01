@@ -16,8 +16,8 @@ exports.transcodeStream = async (req, res) => {
   const { channelId } = req.params;
   const { quality } = req.query;
 
-  // Accept token from Authorization header (preferred) or query param (legacy fallback)
-  // Avoid query-param tokens in new clients — they appear in server logs and browser history
+  // Accept token from Authorization header (preferred) or query param (legacy fallback).
+  // Avoid query-param tokens in new clients — they appear in server logs and browser history.
   const authHeader = req.headers['authorization'];
   const token = (authHeader && authHeader.startsWith('Bearer '))
     ? authHeader.slice(7)
@@ -29,11 +29,11 @@ exports.transcodeStream = async (req, res) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+
     // BUG-10 FIX: JWT payload uses `userId`, not `id`. Using decoded.id was always undefined,
     // causing every premium user to get a 403. Use decoded.userId instead.
     const licenseResult = await db.query(
-      `SELECT * FROM licenses 
+      `SELECT * FROM licenses
        WHERE user_id = $1 AND status = 'active' AND expires_at > NOW()`,
       [decoded.userId]
     );
@@ -43,26 +43,45 @@ exports.transcodeStream = async (req, res) => {
     }
 
     const license = licenseResult.rows[0];
-    if (license.duration_days <= 1) {
+    // Fix #16: Changed <= 1 to < 1 so 1-day plan users can access transcoding.
+    // Only 0-day/fractional-day records (effectively no duration) are blocked.
+    if (license.duration_days < 1) {
       return res.status(403).send('Forbidden: This feature requires a Premium License');
     }
 
-    // 2. Fetch the channel stream URL
     // PLAYBACK-04: Reject if too many active transcode sessions
     if (activeTranscodes.size >= MAX_TRANSCODE_SESSIONS) {
       return res.status(503).send('Server busy: too many active streams. Please try again shortly.');
     }
 
-    const channelResult = await db.query(
-      'SELECT stream_url FROM channels WHERE id = $1',
+    // Fix #5: Query channel_streams first for the healthiest available stream.
+    // Previously only channels.stream_url was used, ignoring healthier backup streams.
+    // Falls back to channels table if no channel_streams row is found.
+    let streamUrl;
+    const streamsResult = await db.query(
+      `SELECT stream_url FROM channel_streams
+       WHERE channel_id = $1 AND (health_status IS NULL OR health_status != 'offline')
+       ORDER BY priority ASC, health_score DESC
+       LIMIT 1`,
       [channelId]
     );
 
-    if (channelResult.rows.length === 0) {
-      return res.status(404).send('Channel not found');
+    if (streamsResult.rows.length > 0) {
+      streamUrl = streamsResult.rows[0].stream_url;
+    } else {
+      const channelResult = await db.query(
+        'SELECT stream_url FROM channels WHERE id = $1',
+        [channelId]
+      );
+      if (channelResult.rows.length === 0) {
+        return res.status(404).send('Channel not found');
+      }
+      streamUrl = channelResult.rows[0].stream_url;
     }
 
-    const streamUrl = channelResult.rows[0].stream_url;
+    if (!streamUrl) {
+      return res.status(404).send('No stream URL available for this channel');
+    }
 
     // 3. Set resolution based on quality param
     let scale = '-2:360'; // Default 360p
@@ -82,11 +101,15 @@ exports.transcodeStream = async (req, res) => {
 
     // 5. Spawn FFmpeg Process
     console.log(`[Stream] Starting transcode for User ${decoded.userId} on Channel ${channelId} at ${quality}`);
-    
+
     const command = ffmpeg(streamUrl)
       // Input options
       .inputOptions([
-        '-re', // Read input at native frame rate (important for live)
+        '-re',              // Read input at native frame rate (important for live)
+        // Fix #21: Add FFmpeg network timeout (15s in microseconds) so a hanging upstream
+        // connection doesn't occupy a session slot forever. Without this, a single slow
+        // URL can hold one of the 4 MAX_TRANSCODE_SESSIONS slots indefinitely.
+        '-timeout', '15000000',
       ])
       // Output options
       .outputOptions([

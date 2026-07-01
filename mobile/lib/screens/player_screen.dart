@@ -123,6 +123,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   StreamSubscription? _playerSubscription;
   bool _hadFailureBeforePlaying = false;
 
+  // Fix #4: Prevent multiple error callbacks from firing simultaneously.
+  // media_kit can fire multiple error events rapidly during HLS init; without this guard
+  // each spawns its own 3s delayed failure call, exhausting backup streams prematurely.
+  bool _playerErrorPending = false;
+  Timer? _errorGraceTimer;
+
+  // Fix #18: Track when video actually starts playing to compute accurate watch_duration
+  DateTime? _playStartTime;
+
   // Video Quality state
   List<dynamic> _qualities = [];
   Map<String, dynamic>? _selectedQuality;
@@ -432,13 +441,23 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _currentStreamMeta = data['primary_stream'];
         _backupStreams = data['backup_streams'] ?? [];
         _qualities = data['qualities'] ?? [];
-        
+
         _selectedQuality = _determineInitialQuality();
-        
-        String urlToPlay = _selectedQuality != null ? _selectedQuality!['url'] : _currentStreamMeta!['url'];
-        final headersToUse = (_selectedQuality != null && _selectedQuality!['headers'] != null)
-            ? _selectedQuality!['headers']
-            : _currentStreamMeta!['headers'];
+
+        // Fix #3: Guard against null _currentStreamMeta before accessing with !.
+        // If the API returned an unexpected structure, fall through to the catch block
+        // which uses the raw channel URL as a last-resort fallback.
+        final String urlToPlay;
+        final Map<String, dynamic>? headersToUse;
+        if (_selectedQuality != null && _selectedQuality!['url'] != null) {
+          urlToPlay = _selectedQuality!['url'];
+          headersToUse = _selectedQuality!['headers'];
+        } else if (_currentStreamMeta != null && _currentStreamMeta!['url'] != null) {
+          urlToPlay = _currentStreamMeta!['url'];
+          headersToUse = _currentStreamMeta!['headers'];
+        } else {
+          throw Exception('No stream URL in playback response');
+        }
         await _initializePlayer(urlToPlay, headersToUse);
       } else {
         throw Exception('Playback fetch failed');
@@ -460,6 +479,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playerSubscription = null;
     _bufferTimer?.cancel();
     _bufferTimer = null;
+    // Fix #4: Cancel any pending error grace timer when reinitializing — prevents a delayed
+    // error from a previous stream from triggering failure on the newly loaded stream.
+    _errorGraceTimer?.cancel();
+    _errorGraceTimer = null;
+    _playerErrorPending = false;
+    _playStartTime = null;
     if (mounted) setState(() { _isLoading = true; _hasError = false; if (_streamOverlayMessage.isEmpty) _streamOverlayMessage = 'Loading channel...'; });
 
     try {
@@ -494,11 +519,17 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // media_kit fires error events during normal HLS playlist resolution
       // (e.g. "Failed to open" before retrying internally). We add a small
       // grace delay so transient init errors don't trigger failure immediately.
+      //
+      // Fix #4: Guard with _playerErrorPending flag — media_kit can fire many error
+      // events rapidly. Without this, each spawns a separate delayed failure call that
+      // can race with each other and exhaust backup streams in one burst.
       _player.stream.error.listen((errorMsg) {
         if (errorMsg.isEmpty || !mounted) return;
-        // Ignore errors that arrive within the first 3 seconds — these are
-        // almost always transient HLS init events, not real stream failures.
-        Future.delayed(const Duration(seconds: 3), () {
+        if (_playerErrorPending) return; // already have a pending error call — skip duplicate
+        _playerErrorPending = true;
+        _errorGraceTimer = Timer(const Duration(seconds: 3), () {
+          _playerErrorPending = false;
+          _errorGraceTimer = null;
           if (!mounted || !_isLoading) return; // already playing — ignore
           _handleStreamFailure('player_error');
         });
@@ -533,6 +564,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             _isRetryingStream = false;
             _streamOverlayMessage = '';
           });
+          // Fix #18: Record when the video actually starts so we can compute accurate watch_duration
+          _playStartTime = DateTime.now();
           // Detect aspect ratio and re-resolve fit mode from stream dimensions
           _detectAspectRatio(paramsWidth: params.w, paramsHeight: params.h);
           _retryAttempt = 0; // reset retry counter on success
@@ -591,7 +624,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           }
         });
 
-        _bufferTimer ??= Timer(const Duration(seconds: 12), () {
+        // Fix #11: Increased buffer-stall timeout from 12s → 22s.
+        // Mobile data in weak-signal areas can stall 15–20s and self-recover.
+        // 12s was triggering unnecessary backup-stream switches in those cases.
+        _bufferTimer ??= Timer(const Duration(seconds: 22), () {
           if (mounted) _handleStreamFailure('buffer_timeout');
         });
       }
@@ -678,9 +714,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     try {
       final token = await StorageService().getToken() ?? '';
       if (token.isEmpty) throw Exception('No token');
-      final fallbackUrl = '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token';
-      _currentStreamMeta = {'url': fallbackUrl, 'headers': {}};
-      await _initializePlayer(fallbackUrl, {});
+      // Fix #14: Send token in Authorization header instead of URL query param.
+      // Query param tokens appear in server logs, browser history, and analytics tools.
+      // The backend already prefers Authorization header (streamController.js line 22).
+      final fallbackUrl = '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360';
+      final transcodeHeaders = {'Authorization': 'Bearer $token'};
+      _currentStreamMeta = {'url': fallbackUrl, 'headers': transcodeHeaders};
+      await _initializePlayer(fallbackUrl, transcodeHeaders);
     } catch (e) {
       if (mounted) {
         setState(() { _isLoading = false; _hasError = false; _streamOverlayMessage = ''; });
@@ -785,9 +825,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         try {
           final token = await StorageService().getToken() ?? '';
           if (token.isEmpty) throw Exception('No token');
-          final fallbackUrl = '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token';
-          _currentStreamMeta = {'url': fallbackUrl, 'headers': {}};
-          await _initializePlayer(fallbackUrl, {});
+          // Fix #14: Token in Authorization header, not URL query param
+          final fallbackUrl = '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360';
+          final transcodeHeaders = {'Authorization': 'Bearer $token'};
+          _currentStreamMeta = {'url': fallbackUrl, 'headers': transcodeHeaders};
+          await _initializePlayer(fallbackUrl, transcodeHeaders);
           return;
         } catch (e) {
           // Transcode unavailable — continue to backup stream fallback below
@@ -813,10 +855,16 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Future<void> _reportPlaybackSuccess() async {
     try {
       final result = _hadFailureBeforePlaying ? 'played_after_retry' : 'played';
+      // Fix #18: Compute elapsed seconds since play start and send as buffer_seconds.
+      // Previously this was never sent, causing watch_history.watch_duration to always be 0.
+      final int bufferSeconds = _playStartTime != null
+          ? DateTime.now().difference(_playStartTime!).inSeconds
+          : 0;
       await _api.post('${ApiEndpoints.channels}/${_currentChannel.id}/playback-result', {
         'result': result,
         'status': _hadFailureBeforePlaying ? 'unstable' : 'online',
         'stream_url': _currentUrl,
+        'buffer_seconds': bufferSeconds,
       });
     } catch (_) {}
   }
@@ -963,6 +1011,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   void _onChannelChanged({bool fetchNewContext = false}) {
     _hadFailureBeforePlaying = false;
+    // Fix #10: Reset retry counter on channel change. Without this, if the previous
+    // channel consumed 1 retry attempt, the new channel only gets 1 silent retry
+    // instead of the expected 2 before giving up and showing an error.
+    _retryAttempt = 0;
     // Reset auto-detected display state for new channel
     _autoDetectedFitMode = null;
     _detectedAspectRatioType = 'unknown';
@@ -1222,6 +1274,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _slowOverlayTimer?.cancel();
     _playerToastTimer?.cancel();
     _playerSubscription?.cancel();
+    // Fix #4: Cancel error grace timer on dispose to prevent post-dispose callbacks
+    _errorGraceTimer?.cancel();
     _player.dispose();
     _controlsAnimController.dispose();
     _scrollController.dispose();
@@ -1976,8 +2030,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                             _showPremiumPaywall();
                           } else {
                             Navigator.pop(context);
+                            // Fix #14: Token in Authorization header, not URL query param
                             final token = await StorageService().getToken() ?? '';
-                            _changeQuality({'label': '480p Data Saver', 'url': '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=480&token=$token'});
+                            _changeQuality({
+                              'label': '480p Data Saver',
+                              'url': '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=480',
+                              'headers': {'Authorization': 'Bearer $token'},
+                            });
                           }
                         }),
                         _buildQualityTile('360p Data Saver', 'Maximum data savings', _selectedQuality?['label'] == '360p Data Saver', !isPremium, () async {
@@ -1985,8 +2044,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                             _showPremiumPaywall();
                           } else {
                             Navigator.pop(context);
+                            // Fix #14: Token in Authorization header, not URL query param
                             final token = await StorageService().getToken() ?? '';
-                            _changeQuality({'label': '360p Data Saver', 'url': '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360&token=$token'});
+                            _changeQuality({
+                              'label': '360p Data Saver',
+                              'url': '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360',
+                              'headers': {'Authorization': 'Bearer $token'},
+                            });
                           }
                         }),
                       ],
