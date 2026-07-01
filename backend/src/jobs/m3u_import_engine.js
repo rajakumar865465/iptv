@@ -151,6 +151,7 @@ const runImportJob = async (jobId) => {
           // Update existing channel
           await db.query(
             `UPDATE channels SET 
+              status = 'active',
               tvg_id = COALESCE(NULLIF(tvg_id, ''), $1),
               logo_url = COALESCE(NULLIF(logo_url, ''), $2),
               canonical_name = COALESCE(NULLIF(canonical_name, ''), $3),
