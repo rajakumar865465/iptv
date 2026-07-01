@@ -129,8 +129,8 @@ exports.bulkAction = async (req, res) => {
           await db.query("UPDATE channels SET is_hidden = true, hidden_reason = $1, hidden_at = NOW(), hidden_by_admin_id = $2 WHERE id = $3", [reason || 'Bulk hide', adminId, id]);
           // Blocklist
           await db.query(
-            \`INSERT INTO channel_blocklist (source, source_channel_id, tvg_id, canonical_name, reason, admin_id)
-             VALUES ($1, $2, $3, $4, $5, $6)\`,
+            `INSERT INTO channel_blocklist (source, source_channel_id, tvg_id, canonical_name, reason, admin_id)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
             [ch.source || 'iptv-org', ch.source_channel_id, ch.tvg_id, ch.canonical_name, reason || 'Bulk hide', adminId]
           );
           updated++;
@@ -144,7 +144,7 @@ exports.bulkAction = async (req, res) => {
       ip_address: req.ip, user_agent: req.get('User-Agent')
     });
     
-    success(res, { count: updated }, \`Bulk action \${action} completed on \${updated} channels\`);
+    success(res, { count: updated }, `Bulk action \${action} completed on \${updated} channels`);
   } catch (err) {
     console.error('bulkAction error:', err);
     error(res, 'Bulk action failed', 500);

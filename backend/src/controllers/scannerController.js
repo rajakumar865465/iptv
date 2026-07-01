@@ -79,7 +79,7 @@ async function checkDeep(streamUrl, customHeaders = {}) {
     if (m3u.status === 404) return { status: 'offline', score: 0, reason: 'not_found_404' };
     if (m3u.status === 451) return { status: 'offline', score: 0, reason: 'geo_blocked' };
     if (m3u.reason === 'timeout') return { status: 'offline', score: 0, reason: 'timeout' };
-    return { status: 'offline', score: 0, reason: \`http_\${m3u.status || m3u.reason || 'error'}\` };
+    return { status: 'offline', score: 0, reason: `http_\${m3u.status || m3u.reason || 'error'}` };
   }
   const body = (m3u.body || '').trim();
   if (body.startsWith('<') || body.includes('<html')) return { status: 'offline', score: 0, reason: 'geo_blocked_html' };
@@ -136,7 +136,7 @@ async function checkDeep(streamUrl, customHeaders = {}) {
   if (!segRes.ok) {
     if (segRes.status === 403) return { status: 'offline', score: 0, reason: 'segment_forbidden' };
     if (segRes.reason === 'timeout') return { status: 'offline', score: 30, reason: 'segment_timeout' };
-    return { status: 'offline', score: 30, reason: \`segment_\${segRes.status || segRes.reason || 'failed'}\` };
+    return { status: 'offline', score: 30, reason: `segment_\${segRes.status || segRes.reason || 'failed'}` };
   }
 
   let score = latency > 8000 ? 40 : latency > 4000 ? 65 : 80;
@@ -147,22 +147,22 @@ async function runScanJob(jobId, options = {}) {
   try {
     const { scope, category_id, language, channel_id } = options;
 
-    let q = \`SELECT cs.id, cs.channel_id, cs.stream_url, cs.user_agent, cs.referer, cs.health_status, c.fail_count
+    let q = `SELECT cs.id, cs.channel_id, cs.stream_url, cs.user_agent, cs.referer, cs.health_status, c.fail_count
              FROM channel_streams cs
              JOIN channels c ON c.id = cs.channel_id
-             WHERE c.is_removed = false\`;
+             WHERE c.is_removed = false`;
     const params = [];
     
-    if (channel_id) { params.push(channel_id); q += \` AND c.id = $\${params.length}\`; }
+    if (channel_id) { params.push(channel_id); q += ` AND c.id = $\${params.length}`; }
     else {
-      if (scope === 'visible') q += \` AND c.is_hidden = false AND c.is_visible_app = true\`;
-      else if (scope === 'online') q += \` AND cs.health_status = 'online'\`;
-      else if (scope === 'offline') q += \` AND cs.health_status = 'offline'\`;
-      else if (scope === 'unstable') q += \` AND cs.health_status = 'unstable'\`;
-      else if (scope === 'unknown') q += \` AND (cs.health_status IS NULL OR cs.health_status = 'unknown' OR cs.health_status = 'pending_check')\`;
+      if (scope === 'visible') q += ` AND c.is_hidden = false AND c.is_visible_app = true`;
+      else if (scope === 'online') q += ` AND cs.health_status = 'online'`;
+      else if (scope === 'offline') q += ` AND cs.health_status = 'offline'`;
+      else if (scope === 'unstable') q += ` AND cs.health_status = 'unstable'`;
+      else if (scope === 'unknown') q += ` AND (cs.health_status IS NULL OR cs.health_status = 'unknown' OR cs.health_status = 'pending_check')`;
       
-      if (category_id) { params.push(category_id); q += \` AND c.category_id = $\${params.length}\`; }
-      if (language) { params.push(language); q += \` AND c.language ILIKE $\${params.length}\`; }
+      if (category_id) { params.push(category_id); q += ` AND c.category_id = $\${params.length}`; }
+      if (language) { params.push(language); q += ` AND c.language ILIKE $\${params.length}`; }
     }
     
     const r = await db.query(q, params);
@@ -188,19 +188,19 @@ async function runScanJob(jobId, options = {}) {
         if (finalStatus === 'offline' && st.health_status === 'online') finalStatus = 'unstable';
 
         await db.query(
-          \`UPDATE channel_streams SET
+          `UPDATE channel_streams SET
             health_status=$1, health_score=$2, health_reason=$3, last_checked_at=NOW(),
             success_count = CASE WHEN $2 >= 65 THEN success_count+1 ELSE success_count END,
             fail_count    = CASE WHEN $2 <  65 THEN fail_count+1    ELSE fail_count    END,
             last_success_at = CASE WHEN $2 >= 65 THEN NOW() ELSE last_success_at END,
             last_failed_at  = CASE WHEN $2 <  65 THEN NOW() ELSE last_failed_at  END
-           WHERE id=$4\`,
+           WHERE id=$4`,
           [finalStatus, result.score, result.reason, st.id]
         );
 
         // Update channel status based on best stream
         await db.query(
-          \`UPDATE channels SET
+          `UPDATE channels SET
              health_status = sub.best_status, health_score = sub.best_score, health_reason = sub.best_reason, last_checked_at = NOW(),
              stream_url = CASE WHEN sub.best_status='online' THEN sub.best_url ELSE stream_url END,
              active_stream_id = CASE WHEN sub.best_status='online' THEN sub.best_id ELSE active_stream_id END,
@@ -217,7 +217,7 @@ async function runScanJob(jobId, options = {}) {
                (SELECT id FROM channel_streams WHERE channel_id=$1 ORDER BY health_score DESC LIMIT 1) AS best_id
              FROM channel_streams WHERE channel_id=$1
            ) sub
-           WHERE channels.id=$1\`,
+           WHERE channels.id=$1`,
           [st.channel_id]
         );
 
@@ -227,10 +227,10 @@ async function runScanJob(jobId, options = {}) {
       await db.query('UPDATE stream_scan_jobs SET completed_channels=$1, failed_channels=$2 WHERE id=$3', [completed, failed, jobId]);
     }
     
-    await db.query(\`UPDATE stream_scan_jobs SET status='completed', completed_at=NOW(), results=$1::jsonb WHERE id=$2\`, [JSON.stringify({ total, completed, failed }), jobId]);
+    await db.query(`UPDATE stream_scan_jobs SET status='completed', completed_at=NOW(), results=$1::jsonb WHERE id=$2`, [JSON.stringify({ total, completed, failed }), jobId]);
   } catch (err) {
     console.error('Job fail:', err);
-    try { await db.query(\`UPDATE stream_scan_jobs SET status='failed', completed_at=NOW(), results=$1::jsonb WHERE id=$2\`, [JSON.stringify({ error: err.message }), jobId]); } catch (_) {}
+    try { await db.query(`UPDATE stream_scan_jobs SET status='failed', completed_at=NOW(), results=$1::jsonb WHERE id=$2`, [JSON.stringify({ error: err.message }), jobId]); } catch (_) {}
   }
 }
 
@@ -239,7 +239,7 @@ exports.triggerScan = async (req, res) => {
     await ensureScanJobsTable();
     const { scope = 'all', category_id, language, channel_id } = req.body || {};
     const result = await db.query(
-      \`INSERT INTO stream_scan_jobs (status, total_channels, completed_channels, failed_channels) VALUES ('pending', 0, 0, 0) RETURNING *\`
+      `INSERT INTO stream_scan_jobs (status, total_channels, completed_channels, failed_channels) VALUES ('pending', 0, 0, 0) RETURNING *`
     );
     const job = result.rows[0];
     success(res, { jobId: job.id, message: 'Scan started' });
