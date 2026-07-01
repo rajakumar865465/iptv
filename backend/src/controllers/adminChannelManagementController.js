@@ -98,7 +98,7 @@ exports.restoreChannel = async (req, res) => {
     
     await db.query(
       `UPDATE channels 
-       SET is_hidden = false, is_removed = false, is_active = true, 
+       SET is_hidden = false, is_removed = false, status = 'active', 
            is_visible_app = $1, is_visible_website = $1, updated_at = NOW(),
            hidden_reason = NULL, removed_reason = NULL
        WHERE id = $2`,
@@ -125,7 +125,7 @@ exports.restoreAllHiddenChannels = async (req, res) => {
     
     const result = await db.query(
       `UPDATE channels 
-       SET is_hidden = false, is_removed = false, is_active = true, 
+       SET is_hidden = false, is_removed = false, status = 'active', 
            is_visible_app = true, is_visible_website = true, updated_at = NOW(),
            hidden_reason = NULL, removed_reason = NULL
        WHERE is_hidden = true`
