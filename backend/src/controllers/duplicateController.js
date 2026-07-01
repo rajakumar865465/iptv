@@ -26,11 +26,19 @@ exports.mergeDuplicates = async (req, res) => {
       const dupRes = await db.query('SELECT stream_url, logo_url FROM channels WHERE id = $1', [dupId]);
       if (dupRes.rows.length > 0) {
         const dup = dupRes.rows[0];
-        // Copy stream_url/logo_url to master if master doesn't have them
+        // Copy stream_url to master if missing, otherwise save as backup_stream_url
         await db.query(`
           UPDATE channels 
-          SET stream_url = COALESCE(NULLIF(stream_url, ''), $1),
-              logo_url = COALESCE(NULLIF(logo_url, ''), $2),
+          SET logo_url = COALESCE(NULLIF(logo_url, ''), $2),
+              backup_stream_url = CASE 
+                WHEN NULLIF(stream_url, '') IS NOT NULL 
+                     AND NULLIF(backup_stream_url, '') IS NULL 
+                     AND NULLIF($1, '') IS NOT NULL 
+                     AND stream_url != $1 
+                THEN $1
+                ELSE backup_stream_url 
+              END,
+              stream_url = COALESCE(NULLIF(stream_url, ''), $1),
               updated_at = NOW()
           WHERE id = $3
         `, [dup.stream_url, dup.logo_url, masterId]);
