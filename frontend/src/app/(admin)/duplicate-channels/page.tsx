@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { getDuplicateChannels, mergeDuplicates } from '@/lib/api';
+import { getDuplicateChannels, mergeDuplicates, hideChannel } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileStack, RefreshCw, GitMerge, ChevronDown, ChevronUp, Tv, AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react';
 
@@ -85,6 +85,7 @@ export default function DuplicateChannelsPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [masterIds, setMasterIds] = useState<Record<string, string>>({});
   const [merging, setMerging] = useState<string | null>(null);
+  const [hiding, setHiding] = useState<string | null>(null);
   const [confirmGroup, setConfirmGroup] = useState<Group | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(0);
@@ -134,6 +135,23 @@ export default function DuplicateChannelsPage() {
     } catch (err: any) {
       showToast(err?.response?.data?.message || 'Merge failed', 'error');
     } finally { setMerging(null); }
+  };
+
+  const executeHideGroup = async (e: React.MouseEvent, g: Group) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to completely hide this entire group of channels from the app?')) return;
+    
+    setHiding(g.canonical_name);
+    try {
+      await Promise.all(g.channels.map(c => hideChannel(c.id, 'Duplicate group completely broken/unusable', true)));
+      setGroups(prev => prev.filter(gr => gr.canonical_name !== g.canonical_name));
+      setTotal(prev => prev - 1);
+      showToast(`Entire group "${g.canonical_name}" hidden successfully`, 'success');
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || 'Failed to hide group', 'error');
+    } finally { 
+      setHiding(null); 
+    }
   };
 
   const toggleExpand = (name: string) =>
@@ -212,10 +230,15 @@ export default function DuplicateChannelsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3 shrink-0 ml-3">
-                      <button onClick={(e) => { e.stopPropagation(); requestMerge(g); }} disabled={isMerging}
+                      <button onClick={(e) => { e.stopPropagation(); requestMerge(g); }} disabled={isMerging || hiding === g.canonical_name}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 transition-all shadow-sm">
                         <GitMerge className={`w-3.5 h-3.5 ${isMerging ? 'animate-spin' : ''}`} />
                         {isMerging ? 'Merging…' : 'Merge'}
+                      </button>
+                      <button onClick={(e) => executeHideGroup(e, g)} disabled={hiding === g.canonical_name || isMerging}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 border border-slate-700 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/20 hover:text-rose-300 disabled:opacity-50 transition-all shadow-sm">
+                        <AlertTriangle className={`w-3.5 h-3.5 ${hiding === g.canonical_name ? 'animate-pulse' : ''}`} />
+                        {hiding === g.canonical_name ? 'Hiding…' : 'Hide All'}
                       </button>
                       {isOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
                     </div>
