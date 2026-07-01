@@ -137,6 +137,27 @@ export default function DuplicateChannelsPage() {
     } finally { setMerging(null); }
   };
 
+  const executeHideSingle = async (e: React.MouseEvent, g: Group, channelId: string) => {
+    e.stopPropagation();
+    if (!confirm('Hide this individual channel?')) return;
+    
+    try {
+      await hideChannel(channelId, 'Hidden from duplicates page', true);
+      
+      setGroups(prev => prev.map(gr => {
+        if (gr.canonical_name === g.canonical_name) {
+          const newChannels = gr.channels.filter(c => c.id !== channelId);
+          return { ...gr, channels: newChannels, count: newChannels.length };
+        }
+        return gr;
+      }).filter(gr => gr.channels.length > 1));
+      
+      showToast('Channel hidden successfully', 'success');
+    } catch (err: any) {
+      showToast('Failed to hide channel', 'error');
+    }
+  };
+
   const executeHideGroup = async (e: React.MouseEvent, g: Group) => {
     e.stopPropagation();
     if (!confirm('Are you sure you want to completely hide this entire group of channels from the app?')) return;
@@ -274,8 +295,14 @@ export default function DuplicateChannelsPage() {
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${HEALTH_CLS[c.health_status] || 'bg-slate-800 text-slate-400 border-slate-700'}`}>
                                   {c.health_status || 'unknown'}
                                 </span>
-                                {masterId === c.id && (
-                                  <span className="text-[10px] font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">MASTER</span>
+                                <button onClick={(e) => executeHideSingle(e, g, c.id)}
+                                  className="px-2 py-1 rounded bg-slate-800 border border-slate-700 text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 text-[10px] font-bold uppercase transition-all">
+                                  Hide
+                                </button>
+                                {masterId === c.id ? (
+                                  <span className="text-[10px] font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">MASTER</span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">SUB</span>
                                 )}
                               </div>
                             </label>
