@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getHiddenChannels, restoreChannel } from '@/lib/api';
+import { getHiddenChannels, restoreChannel, restoreAllHiddenChannels } from '@/lib/api';
 import { Tv, RefreshCw, EyeOff, AlertTriangle } from 'lucide-react';
 
 interface HiddenChannel {
@@ -18,6 +18,7 @@ export default function HiddenChannelsPage() {
   const [channels, setChannels] = useState<HiddenChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<string | null>(null);
+  const [restoringAll, setRestoringAll] = useState(false);
 
   const fetchHidden = () => {
     setLoading(true);
@@ -41,6 +42,19 @@ export default function HiddenChannelsPage() {
     }
   };
 
+  const handleRestoreAll = async () => {
+    if (!confirm('Are you sure you want to restore ALL hidden channels?')) return;
+    setRestoringAll(true);
+    try {
+      await restoreAllHiddenChannels();
+      setChannels([]);
+    } catch {
+      alert('Failed to restore all channels');
+    } finally {
+      setRestoringAll(false);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -52,9 +66,20 @@ export default function HiddenChannelsPage() {
             Channels hidden from the API and Website but retained in the database.
           </p>
         </div>
-        <button onClick={fetchHidden} className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors">
-          <RefreshCw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-3">
+          {channels.length > 0 && (
+            <button 
+              onClick={handleRestoreAll} 
+              disabled={restoringAll}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-white font-medium transition-colors disabled:opacity-50"
+            >
+              {restoringAll ? 'Restoring All...' : 'Restore All'}
+            </button>
+          )}
+          <button onClick={fetchHidden} className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors">
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl">

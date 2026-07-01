@@ -118,6 +118,32 @@ exports.restoreChannel = async (req, res) => {
   }
 };
 
+// --- RESTORE ALL HIDDEN CHANNELS ---
+exports.restoreAllHiddenChannels = async (req, res) => {
+  try {
+    const adminId = req.user.id;
+    
+    const result = await db.query(
+      `UPDATE channels 
+       SET is_hidden = false, is_removed = false, is_active = true, 
+           is_visible_app = true, is_visible_website = true, updated_at = NOW(),
+           hidden_reason = NULL, removed_reason = NULL
+       WHERE is_hidden = true`
+    );
+
+    await logAudit({
+      admin_id: adminId, action: 'all_hidden_channels_restored', target_type: 'channel', target_id: 'all',
+      new_value: { is_hidden: false, is_removed: false, restored_count: result.rowCount },
+      ip_address: req.ip, user_agent: req.get('User-Agent')
+    });
+
+    success(res, { message: `${result.rowCount} hidden channels restored successfully` });
+  } catch (err) {
+    console.error('Restore all hidden error:', err);
+    error(res, 'Failed to restore all hidden channels', 500);
+  }
+};
+
 // --- IMPORT IPTV ---
 exports.startImportJob = async (req, res) => {
   try {

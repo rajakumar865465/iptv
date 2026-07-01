@@ -82,6 +82,7 @@ router.delete('/channels/:id', adminController.deleteChannel);
 router.post('/channels/:id/hide', adminChannelManagementController.hideChannel);
 router.post('/channels/:id/remove', adminChannelManagementController.removeChannel);
 router.post('/channels/:id/restore', adminChannelManagementController.restoreChannel);
+router.post('/channels/restore-all-hidden', adminChannelManagementController.restoreAllHiddenChannels);
 router.get('/channels-hidden', adminChannelManagementController.getHiddenChannels);
 router.get('/channels-removed', adminChannelManagementController.getRemovedChannels);
 

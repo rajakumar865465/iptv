@@ -111,6 +111,9 @@ export const removeChannel = (id: string, reason: string, prevent_reimport: bool
 export const restoreChannel = (id: string, restore_in_app: boolean = true) =>
   api.post(`/channels/${id}/restore`, { restore_in_app }).then((r) => r.data.data);
 
+export const restoreAllHiddenChannels = () =>
+  api.post('/channels/restore-all-hidden').then((r) => r.data.data);
+
 export const getHiddenChannels = () =>
   api.get('/channels-hidden').then((r) => r.data.data);
 
