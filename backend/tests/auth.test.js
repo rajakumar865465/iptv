@@ -1,5 +1,6 @@
 const request = require('supertest');
 const express = require('express');
+const authRoutes = require('../src/routes/auth');
 
 // Test authController refresh token functionality
 describe('Auth Controller', () => {
@@ -8,7 +9,7 @@ describe('Auth Controller', () => {
   beforeAll(() => {
     app = express();
     app.use(express.json());
-    // Mount routes...
+    app.use('/api/auth', authRoutes);
   });
 
   describe('POST /api/auth/refresh-token', () => {
