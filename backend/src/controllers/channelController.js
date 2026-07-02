@@ -771,80 +771,130 @@ exports.getRelatedChannels = async (req, res) => {
 exports.reportFailure = async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason, stream_url, stream_id, buffer_seconds, device, player, message } = req.body;
-    
+    const {
+      reason, stream_url, stream_id, buffer_seconds,
+      device, player, message, network_type, android_version,
+      quality, has_played_once,
+    } = req.body;
+
     const failReason = reason || message || 'buffer_timeout';
 
-    // Fix #26: Use cached table/column existence checks instead of per-request schema introspection
+    // ── Step 1: Update per-stream health (most granular) ────────────────────
     const hasStreamsTable = await checkChannelStreamsTable();
-    
+    let resolvedStreamId = stream_id || null;
+
     if (hasStreamsTable) {
-      let targetStreamId = stream_id;
-      if (!targetStreamId && stream_url) {
-        const streamRes = await db.query(
-          'SELECT id FROM channel_streams WHERE channel_id = $1 AND stream_url = $2',
+      if (!resolvedStreamId && stream_url) {
+        const sr = await db.query(
+          'SELECT id FROM channel_streams WHERE channel_id = $1 AND stream_url = $2 LIMIT 1',
           [id, stream_url]
         );
-        if (streamRes.rows.length > 0) targetStreamId = streamRes.rows[0].id;
+        if (sr.rows.length > 0) resolvedStreamId = sr.rows[0].id;
       }
-      
-      if (targetStreamId) {
-        const updateRes = await db.query(`
-          UPDATE channel_streams 
-          SET fail_count = fail_count + 1, 
-              health_score = GREATEST(0, health_score - 20),
+
+      if (resolvedStreamId) {
+        const upd = await db.query(`
+          UPDATE channel_streams
+          SET fail_count    = COALESCE(fail_count, 0) + 1,
+              health_score  = GREATEST(0, COALESCE(health_score, 100) - 15),
               last_failed_at = NOW(),
-              health_reason = $1
-          WHERE id = $2 RETURNING fail_count, health_score
-        `, [failReason, targetStreamId]);
-        
-        if (updateRes.rows.length > 0) {
-          const { fail_count, health_score } = updateRes.rows[0];
-          if (fail_count >= 2 || health_score <= 40) {
-            await db.query(`UPDATE channel_streams SET health_status = 'unstable' WHERE id = $1`, [targetStreamId]);
-          }
-          if (fail_count >= 4 || health_score <= 0) {
-            await db.query(`UPDATE channel_streams SET health_status = 'offline' WHERE id = $1`, [targetStreamId]);
+              health_reason  = $1
+          WHERE id = $2
+          RETURNING fail_count, health_score, health_status
+        `, [failReason, resolvedStreamId]);
+
+        if (upd.rows.length > 0) {
+          const { fail_count: fc, health_score: hs } = upd.rows[0];
+          if (fc >= 4 || hs <= 0) {
+            await db.query(
+              `UPDATE channel_streams SET health_status = 'offline' WHERE id = $1`,
+              [resolvedStreamId]
+            );
+          } else if (fc >= 2 || hs <= 40) {
+            await db.query(
+              `UPDATE channel_streams SET health_status = 'unstable' WHERE id = $1`,
+              [resolvedStreamId]
+            );
           }
         }
       }
     }
 
-    // Fix #5: Remove DDL (ALTER TABLE) from request handler — the fail_count columns are now
-    // added via migration 010_add_channel_fail_columns.sql. If the column doesn't exist yet
-    // (migration not run), we skip this update gracefully rather than trying to ALTER TABLE.
-    // Fix #26: Use cached column check
+    // ── Step 2: Update channel-level fail count ──────────────────────────────
     const hasFailColumns = await checkChannelFailColumns();
     if (hasFailColumns) {
-      const updateRes = await db.query(`
-        UPDATE channels 
-        SET fail_count = COALESCE(fail_count, 0) + 1, 
-            last_failure_at = NOW(), 
-            failure_reason = $1 
-        WHERE id = $2 
-        RETURNING fail_count, health_status
+      const chanUpd = await db.query(`
+        UPDATE channels
+        SET fail_count      = COALESCE(fail_count, 0) + 1,
+            last_failure_at = NOW(),
+            failure_reason  = $1
+        WHERE id = $2
+        RETURNING fail_count, health_status, is_featured, is_popular, is_premium
       `, [failReason, id]);
 
-      if (updateRes.rows.length > 0) {
-        const { fail_count: failCount, health_status: currentHealth } = updateRes.rows[0];
-        const hasHealthStatus = await checkHealthStatusColumn();
-        if (hasHealthStatus) {
-          if (failCount >= 3 && failCount < 7 && currentHealth !== 'offline') {
-            // 3–6 failures → unstable (still shows in workingOnly mode)
-            await db.query(`UPDATE channels SET health_status = 'unstable' WHERE id = $1 AND health_status NOT IN ('online')`, [id]);
-          } else if (failCount >= 7) {
-            // 7+ consecutive failures → mark offline
-            await db.query(`UPDATE channels SET health_status = 'offline' WHERE id = $1`, [id]);
+      if (chanUpd.rows.length > 0) {
+        const { fail_count: fc, health_status: cur, is_featured, is_popular, is_premium } = chanUpd.rows[0];
+        const isImportant = is_featured || is_popular || is_premium;
+        const hasHS = await checkHealthStatusColumn();
+
+        if (hasHS) {
+          // Smart threshold — escalate status gradually, never instantly hide
+          let newStatus = null;
+          if (fc >= 7 && !isImportant) {
+            newStatus = 'likely_broken';         // heavy repeated failures — admin candidate
+          } else if (fc >= 3 && cur === 'online') {
+            newStatus = 'unstable';
+          } else if (fc >= 1 && cur === 'online') {
+            newStatus = 'needs_review';          // soft flag, still shows to users
+          }
+
+          if (newStatus) {
+            await db.query(
+              `UPDATE channels SET health_status = $1 WHERE id = $2`,
+              [newStatus, id]
+            );
+          }
+
+          // Important channels: set needs_manual_verification, do NOT escalate to broken/offline
+          if (isImportant && fc >= 3) {
+            await db.query(
+              `UPDATE channels SET needs_manual_verification = true WHERE id = $1`,
+              [id]
+            );
           }
         }
       }
     }
 
-    // Record it in channel_reports so admin can review
-    await db.query(`
-      INSERT INTO channel_reports (channel_id, device_id, issue_type, description, status)
-      VALUES ($1, $2, $3, $4, 'pending')
-    `, [id, device || null, failReason, message || 'Failed to load stream']);
+    // ── Step 3: Log to channel_reports for admin review ─────────────────────
+    try {
+      await db.query(`
+        INSERT INTO channel_reports
+          (channel_id, stream_id, device_id, issue_type, description, status,
+           quality, network_type, android_version, player_error,
+           has_played_once, buffer_seconds)
+        VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9, $10, $11)
+      `, [
+        id,
+        resolvedStreamId,
+        device || null,
+        failReason,
+        message || 'Failed to load stream',
+        quality || null,
+        network_type || null,
+        android_version || null,
+        player || null,
+        has_played_once === true || has_played_once === 'true',
+        parseInt(buffer_seconds) || 0,
+      ]);
+    } catch (_) {
+      // channel_reports might not have stream_id column yet (migration 031 not run)
+      // Fall back to basic insert
+      await db.query(`
+        INSERT INTO channel_reports (channel_id, device_id, issue_type, description, status)
+        VALUES ($1, $2, $3, $4, 'pending')
+      `, [id, device || null, failReason, message || 'Failed to load stream']).catch(() => {});
+    }
 
     success(res, { success: true, message: 'Failure reported' });
   } catch (err) {
@@ -853,27 +903,57 @@ exports.reportFailure = async (req, res) => {
   }
 };
 
+// Health statuses that make a channel ineligible for proxy (DRM, geo-block, unlicensed)
+const PROXY_BLOCKED_STATUSES = new Set([
+  'requires_licensed_source', 'drm_or_unsupported', 'geo_blocked',
+  'forbidden_403', 'offline', 'dead',
+]);
+
 exports.getChannelPlayback = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Get protocol and host to build absolute proxy URLs if needed
-    const protocol = req.protocol;
+
+    // Build base URL for proxy links
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.get('host');
     const baseUrl = `${protocol}://${host}`;
 
     // Fix #26: Use cached table check
     const hasStreamsTable = await checkChannelStreamsTable();
 
-    const compileHeaders = (stream) => {
-      return {
-        'User-Agent': stream.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        ...(stream.referer ? { 'Referer': stream.referer } : {}),
-        ...(stream.origin ? { 'Origin': stream.origin } : {}),
-        ...(stream.headers_json ? stream.headers_json : {})
-      };
-    };
+    // ── Guard: channel must be visible ──────────────────────────────────────
+    // Hidden / removed channels must not be playable from the public API
+    const channelRes = await db.query(
+      `SELECT c.*, cat.name AS category_name
+       FROM channels c
+       LEFT JOIN categories cat ON cat.id = c.category_id
+       WHERE c.id = $1`,
+      [id]
+    );
+    if (channelRes.rows.length === 0) {
+      return error(res, 'Channel not found', 404);
+    }
+    const channel = channelRes.rows[0];
+    if (channel.is_hidden || channel.is_removed || channel.is_visible_app === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Channel is not available.',
+        error_code: 'CHANNEL_NOT_AVAILABLE',
+      });
+    }
 
+    // ── Helper: compile safe headers for a stream row ───────────────────────
+    const compileHeaders = (stream) => ({
+      'User-Agent': stream.user_agent || stream.referer
+        ? stream.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      ...(stream.referer ? { 'Referer': stream.referer } : {}),
+      ...(stream.origin ? { 'Origin': stream.origin } : {}),
+      ...(stream.headers_json && typeof stream.headers_json === 'object' ? stream.headers_json : {}),
+    });
+
+    // ── Helper: resolve the play URL for a stream ────────────────────────────
+    // Never expose source URL when proxy mode is set — route via our proxy API
     const getPlayUrl = (stream, forceId) => {
       if (stream.playback_mode === 'proxy') {
         const idToUse = forceId || stream.id;
@@ -882,118 +962,147 @@ exports.getChannelPlayback = async (req, res) => {
       return stream.final_url || stream.stream_url;
     };
 
-    if (!hasStreamsTable) {
-      const result = await db.query('SELECT name, stream_url, backup_stream_url, user_agent, referrer FROM channels WHERE id = $1', [id]);
-      if (result.rows.length === 0) return error(res, 'Channel not found', 404);
-      const row = result.rows[0];
-      
-      const defaultHeaders = {
-        'User-Agent': row.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        ...(row.referrer ? { 'Referer': row.referrer } : {})
-      };
+    // ── Determine proxy eligibility ──────────────────────────────────────────
+    // proxy_url is returned ONLY when the channel is legal/public/licensed
+    // and not DRM/geo-blocked/unauthorized
+    const isProxyEligible = (streamRow) => {
+      if (!streamRow?.id) return false;
+      if (PROXY_BLOCKED_STATUSES.has(channel.health_status)) return false;
+      if (PROXY_BLOCKED_STATUSES.has(streamRow.health_status)) return false;
+      const licType = streamRow.license_type || 'free';
+      // Allow free, public, or licensed; block paid-only, drm, etc.
+      return licType === 'free' || licType === 'licensed' || licType === 'public';
+    };
 
+    // ── Fallback: no channel_streams table ──────────────────────────────────
+    if (!hasStreamsTable) {
+      const defaultHeaders = {
+        'User-Agent': channel.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        ...(channel.referrer ? { 'Referer': channel.referrer } : {}),
+      };
       return success(res, {
         channel_id: parseInt(id),
-        channel: { id: parseInt(id), name: row.name || 'Unknown Channel' },
-        qualities: [{
-          label: "Auto",
-          url: getPlayUrl({ ...row, playback_mode: 'direct' }, id),
-          type: "auto",
-          headers: defaultHeaders
-        }],
-        primary_stream: { url: getPlayUrl({ ...row, playback_mode: 'direct' }, id), quality: 'auto', headers: defaultHeaders, playback_mode: 'direct' },
-        backup_streams: row.backup_stream_url ? [{ url: getPlayUrl({ id, stream_url: row.backup_stream_url, playback_mode: 'direct' }, id), quality: 'auto', headers: defaultHeaders }] : []
+        channel: { id: parseInt(id), name: channel.name || 'Unknown Channel' },
+        qualities: [{ label: 'Auto', url: channel.stream_url, type: 'auto', headers: defaultHeaders }],
+        primary_stream: { url: channel.stream_url, quality: 'auto', headers: defaultHeaders, playback_mode: 'direct' },
+        backup_streams: channel.backup_stream_url
+          ? [{ url: channel.backup_stream_url, quality: 'auto', headers: defaultHeaders }]
+          : [],
+        recommended_buffer_profile: 'stable',
+        proxy_url: null,
+        health_status: channel.health_status || 'unknown',
+        health_score: channel.health_score || 50,
       });
     }
 
-    // Fix #2: NULL != 'offline' evaluates to NULL (false) in PostgreSQL, silently
-    // excluding unscanned streams (health_status = NULL). Explicit IS NULL check required.
+    // ── Fetch streams: prefer healthy non-offline streams ───────────────────
+    // Fix #2: NULL != 'offline' is NULL in PG — use explicit IS NULL check
     let result = await db.query(`
-      SELECT * FROM channel_streams
-      WHERE channel_id = $1 AND (health_status IS NULL OR health_status != 'offline')
+      SELECT cs.*
+      FROM channel_streams cs
+      WHERE cs.channel_id = $1
+        AND cs.is_hidden IS NOT TRUE
+        AND (cs.health_status IS NULL OR cs.health_status != 'offline')
       ORDER BY
-        priority ASC,
-        CASE health_status
-          WHEN 'online' THEN 3
+        cs.priority ASC,
+        CASE cs.health_status
+          WHEN 'online'   THEN 3
           WHEN 'unstable' THEN 2
-          WHEN 'unknown' THEN 1
+          WHEN 'unknown'  THEN 1
           ELSE 0
         END DESC,
-        health_score DESC
+        COALESCE(cs.health_score, 50) DESC
     `, [id]);
 
     if (result.rows.length === 0) {
-      result = await db.query('SELECT * FROM channel_streams WHERE channel_id = $1 ORDER BY priority ASC', [id]);
+      // All streams offline — try including them so we can return 503 with explanation
+      result = await db.query(
+        'SELECT cs.* FROM channel_streams cs WHERE cs.channel_id = $1 ORDER BY cs.priority ASC',
+        [id]
+      );
       if (result.rows.length === 0) {
         return error(res, 'No streams available for this channel', 404);
       }
-      // All known streams are marked offline — check if this is health data or just never scanned.
-      // If every stream was explicitly scanned and marked offline, return 503 so the app can
-      // show "Channel temporarily offline" rather than letting the proxy hit a dead URL and
-      // returning the cryptic "Upstream error" message.
       const allOffline = result.rows.every(r => r.health_status === 'offline');
       const anyScanned = result.rows.some(r => r.last_checked_at !== null);
       if (allOffline && anyScanned) {
         return res.status(503).json({
           success: false,
           message: 'Channel is temporarily offline. Please try again later.',
-          error_code: 'CHANNEL_OFFLINE'
+          error_code: 'CHANNEL_OFFLINE',
         });
       }
     }
 
-    let primary = result.rows.find(r => r.parent_stream_id == null);
+    // ── Identify primary stream (no parent = standalone / master playlist) ──
+    let primary = result.rows.find(r => r.is_primary === true);
+    if (!primary) primary = result.rows.find(r => r.parent_stream_id == null);
     if (!primary) primary = result.rows[0];
 
-    const variantRows = result.rows.filter(r => r.parent_stream_id === primary.id);
-    
-    let qualities = [{
-      label: "Auto",
-      url: getPlayUrl(primary),
-      type: "auto",
-      headers: compileHeaders(primary)
-    }];
+    // ── Build quality variants list ──────────────────────────────────────────
+    // REAL variants only: child rows (parent_stream_id = primary.id) with known height.
+    // Do NOT add fake 360p/480p rows. Auto is always included.
+    const variantRows = result.rows.filter(
+      r => r.parent_stream_id === primary.id && (r.resolution_height ?? 0) > 0
+    );
 
-    for (const v of variantRows) {
-      qualities.push({
-        label: v.quality_label || 'Original',
-        url: getPlayUrl(v),
-        height: v.resolution_height,
-        bitrate: v.bitrate,
-        headers: compileHeaders(v)
-      });
-    }
+    const qualities = [
+      { label: 'Auto', url: getPlayUrl(primary), type: 'auto', headers: compileHeaders(primary) },
+      ...variantRows
+        .sort((a, b) => (b.resolution_height || 0) - (a.resolution_height || 0))
+        .map(v => ({
+          type: 'fixed',
+          label: v.quality_label || `${v.resolution_height}p`,
+          url: getPlayUrl(v),
+          height: v.resolution_height,
+          bitrate: v.bitrate || null,
+          headers: compileHeaders(v),
+          health_status: v.health_status || 'unknown',
+        })),
+    ];
 
-    // Sort qualities: Auto first, then descending by height
-    qualities.sort((a, b) => {
-      if (a.type === 'auto') return -1;
-      if (b.type === 'auto') return 1;
-      return (b.height || 0) - (a.height || 0);
-    });
+    // ── Backup streams (other top-level streams, not variants of primary) ───
+    const backups = result.rows
+      .filter(r => r.id !== primary.id && r.parent_stream_id == null)
+      .map(r => ({
+        id: r.id,
+        url: getPlayUrl(r),
+        quality: r.quality || 'auto',
+        headers: compileHeaders(r),
+        health_status: r.health_status || 'unknown',
+        health_score: r.health_score ?? 50,
+      }));
 
-    const backups = result.rows.filter(r => r.id !== primary.id && r.parent_stream_id == null).map(r => ({
-      id: r.id,
-      url: getPlayUrl(r),
-      quality: r.quality,
-      headers: compileHeaders(r)
-    }));
+    // ── Recommended buffer profile based on health score ────────────────────
+    const primaryScore = primary.health_score ?? 50;
+    const recommendedProfile = primaryScore >= 85 ? 'fast' : 'stable';
 
-    const channelRes = await db.query('SELECT name FROM channels WHERE id = $1', [id]);
-    const channelName = channelRes.rows[0]?.name || 'Unknown Channel';
+    // ── Proxy URL — only for eligible legal/public streams ──────────────────
+    const proxyEligible = isProxyEligible(primary);
+    const proxyUrl = proxyEligible
+      ? `${baseUrl}/api/proxy/${primary.id}/master.m3u8`
+      : null;
 
     success(res, {
       channel_id: parseInt(id),
-      channel: { id: parseInt(id), name: channelName },
-      qualities: qualities,
+      channel: { id: parseInt(id), name: channel.name || 'Unknown Channel' },
+      qualities,
       primary_stream: {
         id: primary.id,
         url: getPlayUrl(primary),
-        final_url: primary.final_url || primary.stream_url,
-        quality: primary.quality,
+        final_url: primary.final_url || primary.stream_url || null,
+        quality: primary.quality || 'auto',
         headers: compileHeaders(primary),
-        playback_mode: primary.playback_mode || 'direct'
+        playback_mode: primary.playback_mode || 'direct',
+        health_status: primary.health_status || 'unknown',
+        health_score: primaryScore,
       },
-      backup_streams: backups
+      backup_streams: backups,
+      // ── New fields for Flutter playback profile system ──
+      recommended_buffer_profile: recommendedProfile,
+      proxy_url: proxyUrl,           // null when DRM/geo/hidden/unlicensed
+      health_status: channel.health_status || 'unknown',
+      health_score: channel.health_score ?? 50,
     });
   } catch (err) {
     console.error('getChannelPlayback error:', err);
@@ -1001,12 +1110,13 @@ exports.getChannelPlayback = async (req, res) => {
   }
 };
 
-// reportPlaybackResult — called by Flutter player when a stream plays (possibly after retry)
-// POST /api/channels/:id/playback-result  { result, status, stream_url, buffer_seconds, user_id }
+// reportPlaybackResult — called by Flutter player when stream plays (possibly after retry)
+// POST /api/channels/:id/playback-result
+// Body: { result, status, stream_url, stream_id, buffer_seconds, user_id }
 exports.reportPlaybackResult = async (req, res) => {
   try {
     const { id } = req.params;
-    const { result, status, stream_url, buffer_seconds, user_id } = req.body;
+    const { result, status, stream_url, stream_id, buffer_seconds, user_id } = req.body;
 
     // Accepted results: 'played', 'played_after_retry', 'failed'
     const validResults = ['played', 'played_after_retry', 'failed'];
@@ -1019,77 +1129,131 @@ exports.reportPlaybackResult = async (req, res) => {
       return success(res, { message: 'health_status column not available' });
     }
 
-    let newHealthStatus = null;
+    let newChannelStatus = null;
+    let newStreamStatus = null;
 
     if (result === 'played') {
-      newHealthStatus = 'online';
+      newChannelStatus = 'online';
+      newStreamStatus = 'online';
     } else if (result === 'played_after_retry') {
-      // Buffers but eventually plays — mark unstable, not offline
-      newHealthStatus = 'unstable';
+      // Played but had to retry — channel is unstable/playable, NOT offline
+      newChannelStatus = 'unstable';
+      newStreamStatus = 'unstable';
     } else if (result === 'failed') {
-      // Only mark offline via this route if status explicitly says so
-      if (status === 'offline' || status === 'dead') {
-        newHealthStatus = 'offline';
-      }
+      // Caller explicitly marks it failed — do not auto-change channel status here;
+      // the reportFailure endpoint handles that with smart thresholds
+      newChannelStatus = null;
     }
 
-    if (newHealthStatus) {
-      await db.query(
-        `UPDATE channels SET health_status = $1, last_checked_at = NOW() WHERE id = $2`,
-        [newHealthStatus, id]
-      );
+    // ── Step 1: Update per-stream health (success improves health_score) ────
+    const hasStreamsTable = await checkChannelStreamsTable();
+    let resolvedStreamId = stream_id || null;
 
-      // Also update channel_streams if url provided
-      const hasStreamsTable = await checkChannelStreamsTable();
-      if (hasStreamsTable && stream_url) {
+    if (hasStreamsTable && newStreamStatus) {
+      // Resolve stream_id from stream_url if not provided
+      if (!resolvedStreamId && stream_url) {
+        const sr = await db.query(
+          'SELECT id FROM channel_streams WHERE channel_id = $1 AND stream_url = $2 LIMIT 1',
+          [id, stream_url]
+        );
+        if (sr.rows.length > 0) resolvedStreamId = sr.rows[0].id;
+      }
+
+      if (resolvedStreamId) {
         if (result === 'played') {
-          // DB-06 FIX: Increment health_score on success so streams can recover from
-          // a previously unstable state instead of staying deprioritized forever.
-          await db.query(
-            `UPDATE channel_streams
-             SET health_status = $1,
-                 health_score = LEAST(100, health_score + 10),
-                 success_count = success_count + 1,
-                 last_success_at = NOW(),
-                 last_checked_at = NOW()
-             WHERE channel_id = $2 AND stream_url = $3`,
-            [newHealthStatus, id, stream_url]
-          );
-        } else {
-          await db.query(
-            `UPDATE channel_streams SET health_status = $1, last_checked_at = NOW()
-             WHERE channel_id = $2 AND stream_url = $3`,
-            [newHealthStatus, id, stream_url]
-          );
+          // Success: recover health_score, mark online, increment success_count
+          await db.query(`
+            UPDATE channel_streams
+            SET health_status  = 'online',
+                health_score   = LEAST(100, COALESCE(health_score, 50) + 10),
+                success_count  = COALESCE(success_count, 0) + 1,
+                last_success_at = NOW(),
+                last_checked_at = NOW()
+            WHERE id = $1
+          `, [resolvedStreamId]);
+        } else if (result === 'played_after_retry') {
+          // Unstable: partial score recovery so it stays visible but deprioritized
+          await db.query(`
+            UPDATE channel_streams
+            SET health_status  = 'unstable',
+                health_score   = LEAST(80, COALESCE(health_score, 50) + 5),
+                success_count  = COALESCE(success_count, 0) + 1,
+                last_success_at = NOW(),
+                last_checked_at = NOW()
+            WHERE id = $1
+          `, [resolvedStreamId]);
         }
+      } else if (stream_url) {
+        // No stream_id — fall back to matching by URL
+        await db.query(`
+          UPDATE channel_streams
+          SET health_status  = $1,
+              health_score   = LEAST(100, COALESCE(health_score, 50) + 10),
+              success_count  = COALESCE(success_count, 0) + 1,
+              last_success_at = NOW(),
+              last_checked_at = NOW()
+          WHERE channel_id = $2 AND stream_url = $3
+        `, [newStreamStatus, id, stream_url]);
       }
-
-      console.log(`[reportPlaybackResult] channel=${id} result=${result} → health_status=${newHealthStatus}`);
     }
 
-    // If play was successful, update watch_count and record watch history
-    if (result === 'played' || result === 'played_after_retry') {
-      // Increment watch_count and update popularity_score (fire-and-forget)
-      db.query(
-        `UPDATE channels SET
-           watch_count = COALESCE(watch_count, 0) + 1,
-           popularity_score = COALESCE(popularity_score, 0) + 3
-         WHERE id = $1`,
-        [id]
-      ).catch(() => {});
+    // ── Step 2: Update channel-level health ──────────────────────────────────
+    if (newChannelStatus) {
+      if (result === 'played') {
+        // Full success: recover channel to online, reset fail_count
+        await db.query(`
+          UPDATE channels
+          SET health_status   = 'online',
+              health_score    = LEAST(100, COALESCE(health_score, 50) + 5),
+              last_success_at = NOW(),
+              last_checked_at = NOW(),
+              fail_count      = 0
+          WHERE id = $1
+        `, [id]);
+      } else if (result === 'played_after_retry') {
+        // Unstable — do not reset fail_count, but don't escalate further
+        await db.query(`
+          UPDATE channels
+          SET health_status   = CASE
+                WHEN health_status IN ('online', 'unstable', 'needs_review', 'unknown')
+                THEN 'unstable'
+                ELSE health_status          -- don't downgrade from likely_broken
+              END,
+              health_score    = LEAST(80, COALESCE(health_score, 50) + 3),
+              last_success_at = NOW(),
+              last_checked_at = NOW()
+          WHERE id = $1
+        `, [id]);
+      }
+      console.log(`[reportPlaybackResult] channel=${id} result=${result} → ${newChannelStatus}`);
+    }
 
-      // Record in watch_history if user is identified (user_id from request body)
+    // ── Step 3: Update watch stats + history (fire-and-forget) ──────────────
+    if (result === 'played' || result === 'played_after_retry') {
+      db.query(`
+        UPDATE channels
+        SET watch_count      = COALESCE(watch_count, 0) + 1,
+            popularity_score = COALESCE(popularity_score, 0) + 3
+        WHERE id = $1
+      `, [id]).catch(() => {});
+
       const uid = user_id || req.user?.id || null;
       if (uid) {
-        db.query(
-          `INSERT INTO watch_history (user_id, channel_id, watched_at, watch_duration)
-           VALUES ($1, $2, NOW(), $3)`,
-          [uid, id, buffer_seconds || 0]
-        ).catch(() => {});
+        // Include stream_id in watch_history if migration 031 added the column
+        db.query(`
+          INSERT INTO watch_history (user_id, channel_id, watched_at, watch_duration, stream_id)
+          VALUES ($1, $2, NOW(), $3, $4)
+        `, [uid, id, parseInt(buffer_seconds) || 0, resolvedStreamId]).catch(() => {
+          // Fallback: insert without stream_id (migration 031 not run yet)
+          db.query(
+            `INSERT INTO watch_history (user_id, channel_id, watched_at, watch_duration) VALUES ($1, $2, NOW(), $3)`,
+            [uid, id, parseInt(buffer_seconds) || 0]
+          ).catch(() => {});
+        });
       }
     }
 
-    success(res, { success: true, health_status: newHealthStatus });
+    success(res, { success: true, health_status: newChannelStatus });
   } catch (err) {
     console.error('reportPlaybackResult error:', err);
     error(res, 'Failed to report playback result', 500);

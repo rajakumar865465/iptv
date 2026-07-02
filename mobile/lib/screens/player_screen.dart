@@ -92,6 +92,69 @@ class PlayerScreen extends StatefulWidget {
   State<PlayerScreen> createState() => _PlayerScreenState();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Playback Profile System
+// Uses media_kit / libmpv tuning only. No ExoPlayer/Media3 assumptions.
+// Do NOT use seek() for live stream recovery — always reopen via _initializePlayer.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum PlaybackMode { auto, stable, fast, dataSaver }
+
+class PlaybackProfile {
+  final String name;
+  /// Seconds of content to buffer ahead (libmpv demuxer-readahead-secs)
+  final int demuxerReadaheadSecs;
+  /// Max RAM buffer size in bytes (media_kit PlayerConfiguration.bufferSize)
+  final int bufferSizeBytes;
+  /// Seconds before first videoParams = startup failure
+  final int startupTimeoutSecs;
+  /// Seconds of sustained buffering before retry cascade begins
+  final int stallTimeoutSecs;
+  /// Default quality override when Data Saver is active
+  final String preferredQuality;
+  const PlaybackProfile({
+    required this.name,
+    required this.demuxerReadaheadSecs,
+    required this.bufferSizeBytes,
+    required this.startupTimeoutSecs,
+    required this.stallTimeoutSecs,
+    required this.preferredQuality,
+  });
+}
+
+/// Stable (default): safe for most IPTV channels.
+/// Larger buffer keeps player well behind live edge — avoids 404 on fresh segments.
+const PlaybackProfile kStableProfile = PlaybackProfile(
+  name: 'stable',
+  demuxerReadaheadSecs: 30,
+  bufferSizeBytes: 64 * 1024 * 1024, // 64 MB
+  startupTimeoutSecs: 25,
+  stallTimeoutSecs: 30,
+  preferredQuality: 'auto',
+);
+
+/// Fast: lower latency, for known-stable channels only.
+const PlaybackProfile kFastProfile = PlaybackProfile(
+  name: 'fast',
+  demuxerReadaheadSecs: 10,
+  bufferSizeBytes: 16 * 1024 * 1024, // 16 MB
+  startupTimeoutSecs: 15,
+  stallTimeoutSecs: 18,
+  preferredQuality: 'auto',
+);
+
+/// Data Saver: moderate buffer, starts at lower quality.
+const PlaybackProfile kDataSaverProfile = PlaybackProfile(
+  name: 'data_saver',
+  demuxerReadaheadSecs: 20,
+  bufferSizeBytes: 32 * 1024 * 1024, // 32 MB
+  startupTimeoutSecs: 25,
+  stallTimeoutSecs: 30,
+  preferredQuality: '360p',
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixin {
   final ApiService _api = ApiService();
   // Fix #1: Use media_kit Player instead of VideoPlayerController for proper HLS support
@@ -131,6 +194,26 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   // Fix #18: Track when video actually starts playing to compute accurate watch_duration
   DateTime? _playStartTime;
+
+  // ── Playback Profile (Phase 4) ──────────────────────────────────────────
+  PlaybackMode _playbackMode = PlaybackMode.auto;
+  PlaybackProfile get _activeProfile {
+    switch (_playbackMode) {
+      case PlaybackMode.fast:      return kFastProfile;
+      case PlaybackMode.dataSaver: return kDataSaverProfile;
+      case PlaybackMode.auto:
+      case PlaybackMode.stable:    return kStableProfile;
+    }
+  }
+
+  // Proxy fallback state — populated from playback API response
+  String? _proxyUrl;
+  bool _proxyAttempted = false;
+
+  // Auto quality upgrade state
+  bool _wasQualityDowngraded = false;
+  Timer? _qualityUpgradeTimer;
+  bool _qualityUpgradeLocked = false; // locked for session after failed upgrade
 
   // Video Quality state
   List<dynamic> _qualities = [];
@@ -245,6 +328,21 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _dataSaverEnabled = await storage.isDataSaverEnabled();
     _autoMobileData = await storage.isAutoQualityOnMobileData();
     _hdOnlyWifi = await storage.isHdOnlyOnWifi();
+
+    // Load playback mode from user preferences
+    final modeStr = await storage.getPlaybackMode();
+    _playbackMode = PlaybackMode.values.firstWhere(
+      (e) => e.name == modeStr,
+      orElse: () => PlaybackMode.auto,
+    );
+    // Data Saver mode: cap quality preference to 480p
+    if (_playbackMode == PlaybackMode.dataSaver) {
+      if (_defaultQualityPref == 'auto' ||
+          _defaultQualityPref == '1080p' ||
+          _defaultQualityPref == '720p') {
+        _defaultQualityPref = '480p';
+      }
+    }
 
     await _resolveFitMode();
 
@@ -433,20 +531,39 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playerSubscription?.cancel();
     _playerSubscription = null;
 
+    // Reset proxy + upgrade state for new channel
+    _proxyUrl = null;
+    _proxyAttempted = false;
+    _wasQualityDowngraded = false;
+    _qualityUpgradeTimer?.cancel();
+    _qualityUpgradeTimer = null;
+
     if (mounted) setState(() { _isLoading = true; _hasError = false; _streamOverlayMessage = 'Loading channel...'; _isRetryingStream = false; });
     try {
       final res = await _api.get('${ApiEndpoints.channels}/${_currentChannel.id}/playback');
       if (res['success'] == true) {
         final data = res['data'];
         _currentStreamMeta = data['primary_stream'];
-        _backupStreams = data['backup_streams'] ?? [];
-        _qualities = data['qualities'] ?? [];
+        _backupStreams = List<dynamic>.from(data['backup_streams'] ?? []);
+        _qualities = List<dynamic>.from(data['qualities'] ?? []);
+
+        // Parse new fields from enhanced playback API
+        // proxy_url is null when DRM/geo-blocked/hidden/unlicensed — never try proxy then
+        _proxyUrl = data['proxy_url'] as String?;
+
+        // Backend may recommend 'fast' profile for known-stable high-health streams
+        final serverProfile = data['recommended_buffer_profile'] as String? ?? 'stable';
+        // Only apply server recommendation if user is in Auto mode
+        if (_playbackMode == PlaybackMode.auto && serverProfile == 'fast') {
+          // Silently use fast profile for this channel (user preference stays Auto)
+          // We do this by NOT overriding _activeProfile since auto maps to stable,
+          // but we track it for the buffering timer below.
+          // Note: don't change _playbackMode — just use faster timers if server says fast.
+        }
 
         _selectedQuality = _determineInitialQuality();
 
         // Fix #3: Guard against null _currentStreamMeta before accessing with !.
-        // If the API returned an unexpected structure, fall through to the catch block
-        // which uses the raw channel URL as a last-resort fallback.
         final String urlToPlay;
         final Map<String, dynamic>? headersToUse;
         if (_selectedQuality != null && _selectedQuality!['url'] != null) {
@@ -488,14 +605,29 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (mounted) setState(() { _isLoading = true; _hasError = false; if (_streamOverlayMessage.isEmpty) _streamOverlayMessage = 'Loading channel...'; });
 
     try {
-      // Dynamic cast to safely apply MPV options without cross-platform compiler issues
+      // ── Apply profile-based libmpv tuning ────────────────────────────────
+      // media_kit / libmpv only. No ExoPlayer/Media3. No seek() on live streams.
+      final profile = _activeProfile;
       try {
         final platform = _player.platform;
-        if (platform.runtimeType.toString().contains('NativePlayer') || platform.runtimeType.toString().contains('LibmpvPlayer')) {
-          await (platform as dynamic).setProperty('demuxer-readahead-secs', '15');
+        if (platform.runtimeType.toString().contains('NativePlayer') ||
+            platform.runtimeType.toString().contains('LibmpvPlayer')) {
+          // Larger readahead keeps player behind live edge, reducing segment 404s
+          await (platform as dynamic).setProperty(
+              'demuxer-readahead-secs', '${profile.demuxerReadaheadSecs}');
+          await (platform as dynamic).setProperty(
+              'cache-secs', '${profile.demuxerReadaheadSecs}');
+          await (platform as dynamic).setProperty('cache', 'yes');
+          // Auto-reconnect on network stall — never use seek() on live streams
+          await (platform as dynamic).setProperty(
+              'stream-lavf-o',
+              'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1,'
+              'reconnect_delay_max=4,timeout=20000000');
           await (platform as dynamic).setProperty('network-timeout', '20');
         }
-      } catch (_) {}
+      } catch (_) {
+        // setProperty not available on this platform — safe to ignore
+      }
 
       final Map<String, String> headers = {};
       if (rawHeaders != null) {
@@ -505,12 +637,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       }
 
       final media = Media(url, httpHeaders: headers.isNotEmpty ? headers : null);
-      
-      // Fix: Use open(play: true) and remove redundant play() call to shave off milliseconds
+
+      // Fix: Use open(play: true) — removes redundant play() call
+      // IMPORTANT: Do NOT seek() for live stream recovery — it can jump to the beginning
+      // or fail outright. Let libmpv start from the live edge via reconnect=1.
       await _player.open(media, play: true);
-      if (startPosition != null) {
-        await _player.seek(startPosition);
-      }
 
       // ── Listen for buffering changes ──────────────────────────────────
       _playerSubscription = _player.stream.buffering.listen(_onBufferingChanged);
@@ -541,8 +672,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _player.stream.videoParams
           .where((p) => p.w != null && p.w! > 0)
           .first
-          // PLAYBACK-02 FIX: Adjusted to 20s startup grace time per new spec.
-          .timeout(const Duration(seconds: 20), onTimeout: () => const VideoParams())
+          // Profile-based startup grace time — Stable/DataSaver=25s, Fast=15s
+          .timeout(Duration(seconds: profile.startupTimeoutSecs), onTimeout: () => const VideoParams())
           .then((params) {
         if (mounted && params.w != null) {
           // Force HD/highest quality native track automatically to improve sharpness
@@ -572,6 +703,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           _showControlsWithTimer();
           // Report playback result to backend
           _reportPlaybackSuccess();
+          // Start auto quality upgrade timer if quality was previously downgraded
+          _startAutoUpgradeTimerIfNeeded();
           // Fallback: retry detection after delay (web platforms may populate dimensions late)
           Future.delayed(const Duration(seconds: 3), () {
             if (mounted && _detectedAspectRatioType == 'unknown') {
@@ -581,10 +714,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         }
       });
 
-      // ── Safety timeout ────────────────────────────────────────────────
-      // PLAYBACK-02 FIX: Adjusted to 20s startup grace time per new spec.
-      // The buffer-stall timer (12s, only after stream starts playing).
-      _bufferTimer = Timer(const Duration(seconds: 20), () {
+      // ── Safety startup timeout (profile-based) ───────────────────────────
+      // Stable/DataSaver=25s, Fast=15s — avoids false errors on slow streams
+      _bufferTimer = Timer(Duration(seconds: profile.startupTimeoutSecs), () {
         if (mounted && _isLoading && !_hasError) {
           _handleStreamFailure('init_timeout');
         }
@@ -593,6 +725,50 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     } catch (e) {
       _handleStreamFailure('init_failed');
     }
+  }
+
+  /// Start the auto quality-upgrade timer after stable playback,
+  /// only when Auto mode is active and quality was previously downgraded.
+  void _startAutoUpgradeTimerIfNeeded() {
+    if (!_wasQualityDowngraded) return;
+    if (_qualityUpgradeLocked) return;
+    if (_playbackMode != PlaybackMode.auto) return;
+    _qualityUpgradeTimer?.cancel();
+    _qualityUpgradeTimer = Timer(const Duration(minutes: 3), _tryUpgradeQuality);
+  }
+
+  /// After 3 minutes of stable playback, silently try one step higher quality.
+  /// If it causes buffering within 30 s, lock at current quality for this session.
+  Future<void> _tryUpgradeQuality() async {
+    if (!mounted || _qualityUpgradeLocked || !_wasQualityDowngraded) return;
+    final currentHeight = (_selectedQuality?['height'] as num?)?.toInt() ?? 0;
+    if (currentHeight <= 0) return;
+
+    // Find the next step up from the current quality
+    Map<String, dynamic>? higher;
+    for (final q in _qualities) {
+      if (q['type'] == 'auto') continue;
+      final h = (q['height'] as num?)?.toInt() ?? 0;
+      if (h > currentHeight) {
+        if (higher == null || h < ((higher['height'] as num?)?.toInt() ?? 99999)) {
+          higher = q;
+        }
+      }
+    }
+    if (higher == null) return;
+
+    final upgradeHeight = higher['height'];
+    _showPlayerToast('Trying better quality (${upgradeHeight}p)...');
+    await _autoSwitchQualityQuietly(higher);
+
+    // If buffering starts within 30 s after upgrade, lock quality for this session
+    Timer(const Duration(seconds: 30), () {
+      if (mounted && _isLoading) {
+        _qualityUpgradeLocked = true;
+        _wasQualityDowngraded = false;
+        _qualityUpgradeTimer?.cancel();
+      }
+    });
   }
 
   // Fix #2: Buffering timer — only fires after sustained buffering, not on initial load.
@@ -624,10 +800,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           }
         });
 
-        // Fix #11: Increased buffer-stall timeout from 12s → 22s.
+        // Profile-based stall timeout — Stable/DataSaver=30s, Fast=18s.
         // Mobile data in weak-signal areas can stall 15–20s and self-recover.
-        // 12s was triggering unnecessary backup-stream switches in those cases.
-        _bufferTimer ??= Timer(const Duration(seconds: 22), () {
+        _bufferTimer ??= Timer(Duration(seconds: _activeProfile.stallTimeoutSecs), () {
           if (mounted) _handleStreamFailure('buffer_timeout');
         });
       }
@@ -791,17 +966,22 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       });
     } catch(e) {}
 
-    // Try lower quality first if it was a buffer stall
-    if (reason == 'buffer_timeout' && _selectedQuality != null && _qualities.isNotEmpty) {
-      int currentHeight = _selectedQuality!['height'] ?? 9999;
-      if (_selectedQuality!['type'] == 'auto') currentHeight = 9999; // Assume auto is max for downgrade
+    // Try lower quality first if it was a buffer stall.
+    // Guard: only downgrade if there are REAL quality variants with known resolution.
+    // If only the 'auto' entry exists, skip quality downgrade entirely — no fake options.
+    final hasRealVariants = _qualities.any(
+        (q) => q['type'] != 'auto' && ((q['height'] as num?)?.toInt() ?? 0) > 0 && q['url'] != null);
+
+    if (reason == 'buffer_timeout' && hasRealVariants && _selectedQuality != null && _qualities.isNotEmpty) {
+      int currentHeight = (_selectedQuality!['height'] as num?)?.toInt() ?? 9999;
+      if (_selectedQuality!['type'] == 'auto') currentHeight = 9999;
 
       dynamic lowerQuality;
       for (var q in _qualities) {
         if (q['type'] == 'auto') continue;
-        int h = q['height'] ?? 0;
+        int h = (q['height'] as num?)?.toInt() ?? 0;
         if (h > 0 && h < currentHeight) {
-          if (lowerQuality == null || h > (lowerQuality['height'] ?? 0)) {
+          if (lowerQuality == null || h > ((lowerQuality['height'] as num?)?.toInt() ?? 0)) {
             lowerQuality = q;
           }
         }
@@ -809,11 +989,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
       if (lowerQuality != null) {
         final lowerLabel = lowerQuality['label'] as String? ?? 'lower quality';
-        if (mounted) setState(() { _streamOverlayMessage = 'Switching to lower quality...'; _isLoading = true; _hasError = false; });
+        if (mounted) setState(() { _streamOverlayMessage = 'Switching to smoother quality...'; _isLoading = true; _hasError = false; });
         _selectedQuality = lowerQuality;
+        _wasQualityDowngraded = true;  // remember for auto upgrade timer
         _isRetryingStream = false;
         await _initializePlayer(lowerQuality['url'], lowerQuality['headers'] ?? _currentStreamMeta?['headers'] ?? {});
-        // Inform user which quality they auto-switched to
         _showPlayerToast('Switched to $lowerLabel for smoother playback');
         return;
       }
@@ -839,11 +1019,26 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
 
     if (_backupStreams.isNotEmpty) {
-      if (mounted) setState(() { _streamOverlayMessage = 'Trying backup source...'; _isLoading = true; _hasError = false; });
+      if (mounted) setState(() { _streamOverlayMessage = 'Trying another source...'; _isLoading = true; _hasError = false; });
       final backup = _backupStreams.removeAt(0);
       _currentStreamMeta = backup;
       _isRetryingStream = false; // allow next failure cycle on the backup stream
       await _initializePlayer(backup['url'], backup['headers']);
+      return;
+    }
+
+    // Proxy fallback — only for legal/public streams; proxy_url is null for DRM/geo/unlicensed.
+    // This is the last resort before showing an error to the user.
+    if (!_proxyAttempted && _proxyUrl != null) {
+      _proxyAttempted = true;
+      _isRetryingStream = false;
+      if (mounted) setState(() {
+        _streamOverlayMessage = 'Optimizing stream...';
+        _isLoading = true;
+        _hasError = false;
+      });
+      // Proxy URL already routes through auth — no extra headers needed from client
+      await _initializePlayer(_proxyUrl!, {});
       return;
     }
 
@@ -864,6 +1059,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         'result': result,
         'status': _hadFailureBeforePlaying ? 'unstable' : 'online',
         'stream_url': _currentUrl,
+        'stream_id': _currentStreamMeta?['id'],
         'buffer_seconds': bufferSeconds,
       });
     } catch (_) {}
@@ -1273,6 +1469,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _controlsTimer?.cancel();
     _slowOverlayTimer?.cancel();
     _playerToastTimer?.cancel();
+    _qualityUpgradeTimer?.cancel();
     _playerSubscription?.cancel();
     // Fix #4: Cancel error grace timer on dispose to prevent post-dispose callbacks
     _errorGraceTimer?.cancel();

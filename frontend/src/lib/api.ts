@@ -262,3 +262,13 @@ export const getWebsiteSettings = () =>
 
 export const updateWebsiteSettings = (data: Record<string, unknown>) =>
   api.put('/website-settings', data).then((r) => r.data.data);
+
+// Stream Health
+export const getStreamHealth = (params?: Record<string, string>) =>
+  api.get('/stream-health', { params });
+
+export const markStreamStatus = (channelId: number, action: string, note?: string) =>
+  api.post(`/stream-health/${channelId}/mark`, { action, note });
+
+export const recheckStream = (channelId: number) =>
+  api.post(`/stream-health/${channelId}/recheck`);

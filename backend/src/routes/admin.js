@@ -256,4 +256,26 @@ router.put('/app-releases/:id', adminAuthMiddleware, publicController.updateAppR
 router.get('/website-settings', adminAuthMiddleware, publicController.getWebsiteSettings);
 router.put('/website-settings', adminAuthMiddleware, publicController.updateWebsiteSettings);
 
+// ─── Stream Health Dashboard ───────────────────────────────────────────────
+// All routes require admin auth (applied globally above via router.use)
+const streamHealthController = require('../controllers/streamHealthController');
+
+// GET  /api/admin/stream-health
+//   ?status=unstable|likely_broken|offline|requires_licensed_source|...
+//   ?needs_check=true  (channels with needs_manual_verification=true)
+//   ?search=channelName
+//   ?page=1&limit=50
+router.get('/stream-health', streamHealthController.getStreamHealth);
+
+// POST /api/admin/stream-health/:channelId/mark
+//   Body: { action, note }
+//   Actions: mark_working | mark_unstable | requires_licensed_source |
+//            hide_app | hide_website | hide_everywhere | restore |
+//            clear_verification | set_note
+router.post('/stream-health/:channelId/mark', streamHealthController.markStreamStatus);
+
+// POST /api/admin/stream-health/:channelId/recheck
+//   Runs deep stream diagnosis and updates health fields
+router.post('/stream-health/:channelId/recheck', streamHealthController.recheckStream);
+
 module.exports = router;

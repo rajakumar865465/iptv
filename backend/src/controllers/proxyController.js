@@ -3,6 +3,124 @@ const http = require('http');
 const { URL } = require('url');
 const { pipeline } = require('node:stream');
 const db = require('../config/db');
+const { encryptSegmentUrl, decryptSegmentToken } = require('../utils/proxyToken');
+
+// Health statuses that must never be served via proxy
+// (DRM, geo-blocked, unauthorized, unlicensed paid content)
+const PROXY_BLOCKED_STATUSES = new Set([
+  'requires_licensed_source', 'drm_or_unsupported', 'geo_blocked',
+  'forbidden_403', 'offline', 'dead',
+]);
+
+// License types eligible for proxy. 'paid_drm' and similar are not eligible.
+const PROXY_ALLOWED_LICENSE_TYPES = new Set(['free', 'licensed', 'public', null, undefined]);
+
+/**
+ * Verify that the requesting user has an active license and is allowed
+ * to proxy this specific stream. Called at the top of proxyManifest and
+ * proxySegment so auth is checked before any upstream request.
+ *
+ * Returns { stream, channel } on success; throws an Error with a .statusCode
+ * property on failure so callers can send the right HTTP response.
+ */
+async function verifyProxyAccess(req, streamId) {
+  // req.user is already set by authMiddleware (JWT verified, user active)
+  const userId = req.user?.id;
+  if (!userId) {
+    const e = new Error('Authentication required'); e.statusCode = 401; throw e;
+  }
+
+  // ── License check ────────────────────────────────────────────────────────
+  const licRes = await db.query(`
+    SELECT l.id, l.status, l.expires_at
+    FROM licenses l
+    WHERE l.user_id = $1
+      AND l.status = 'active'
+      AND l.expires_at > NOW()
+    ORDER BY l.expires_at DESC
+    LIMIT 1
+  `, [userId]);
+  if (licRes.rows.length === 0) {
+    const e = new Error('Active license required'); e.statusCode = 403; throw e;
+  }
+
+  // ── Device check ─────────────────────────────────────────────────────────
+  // Allow if at least one active device record exists for this user
+  // (device limit enforcement is done at login/activation; if user has a device
+  //  record it means they are within the allowed device count)
+  const devRes = await db.query(`
+    SELECT 1 FROM devices
+    WHERE user_id = $1 AND status = 'active'
+    LIMIT 1
+  `, [userId]);
+  if (devRes.rows.length === 0) {
+    const e = new Error('No active device found'); e.statusCode = 403; throw e;
+  }
+
+  // ── Stream + channel lookup ───────────────────────────────────────────────
+  // Try channel_streams first (streamId is a channel_streams.id)
+  let stream = null;
+  let channel = null;
+
+  const csRes = await db.query(`
+    SELECT cs.*, c.is_hidden, c.is_removed, c.is_visible_app,
+           c.health_status AS channel_health, c.name AS channel_name,
+           c.is_featured, c.is_popular, c.is_premium
+    FROM channel_streams cs
+    JOIN channels c ON c.id = cs.channel_id
+    WHERE cs.id = $1
+  `, [streamId]);
+
+  if (csRes.rows.length > 0) {
+    const row = csRes.rows[0];
+    stream = row;
+    channel = {
+      is_hidden: row.is_hidden,
+      is_removed: row.is_removed,
+      is_visible_app: row.is_visible_app,
+      health_status: row.channel_health,
+      name: row.channel_name,
+    };
+  } else {
+    // Fallback: streamId might be a channels.id (legacy)
+    const chRes = await db.query(`
+      SELECT id, stream_url, user_agent, referrer AS referer,
+             is_hidden, is_removed, is_visible_app, health_status, name
+      FROM channels WHERE id = $1
+    `, [streamId]);
+    if (chRes.rows.length === 0) {
+      const e = new Error('Stream not found'); e.statusCode = 404; throw e;
+    }
+    const row = chRes.rows[0];
+    stream = { ...row, playback_mode: 'direct', license_type: 'free', is_hidden: false, is_hidden_stream: false };
+    channel = row;
+  }
+
+  // ── Channel visibility checks ─────────────────────────────────────────────
+  if (channel.is_hidden || channel.is_removed || channel.is_visible_app === false) {
+    const e = new Error('Channel is not available'); e.statusCode = 404; throw e;
+  }
+
+  // ── Stream active check ───────────────────────────────────────────────────
+  if (stream.is_hidden) {
+    const e = new Error('Stream is not available'); e.statusCode = 404; throw e;
+  }
+
+  // ── DRM / geo-blocked / unlicensed check ─────────────────────────────────
+  if (PROXY_BLOCKED_STATUSES.has(channel.health_status)) {
+    const e = new Error('This stream requires a licensed source and cannot be proxied');
+    e.statusCode = 403; throw e;
+  }
+  if (PROXY_BLOCKED_STATUSES.has(stream.health_status)) {
+    const e = new Error('This stream is not eligible for proxy'); e.statusCode = 403; throw e;
+  }
+  if (!PROXY_ALLOWED_LICENSE_TYPES.has(stream.license_type)) {
+    const e = new Error('This stream requires a direct licensed connection');
+    e.statusCode = 403; throw e;
+  }
+
+  return { stream, channel };
+}
 
 // Fix #7: Replace unbounded Maps with size-limited caches to prevent memory leaks.
 // Simple LRU-style cache with max entries and TTL.
@@ -84,28 +202,22 @@ exports.proxyManifest = async (req, res) => {
   try {
     const { streamId } = req.params;
 
-    // Check manifest cache
+    // ── Auth + visibility + DRM guard ────────────────────────────────────────
+    let stream;
+    try {
+      ({ stream } = await verifyProxyAccess(req, streamId));
+    } catch (authErr) {
+      return res.status(authErr.statusCode || 403).json({ error: authErr.message });
+    }
+
+    const stream_url = stream.stream_url || stream.final_url;
+    if (!stream_url) return res.status(404).send('Stream URL not configured');
+
+    // Check manifest cache (after auth so we don't cache responses for unauthorized requests)
     const cachedManifest = manifestCache.get(streamId);
     if (cachedManifest) {
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
       return res.send(cachedManifest.data);
-    }
-
-    let stream_url;
-    let stream;
-    let streamRes = await db.query('SELECT * FROM channel_streams WHERE id = $1', [streamId]);
-    if (streamRes.rows.length === 0) {
-      // channels table has 'referrer' (double-r); alias to 'referer' so the headers
-      // compilation block below works uniformly for both channel_streams and channels rows.
-      const chRes = await db.query('SELECT stream_url, user_agent, referrer AS referer FROM channels WHERE id = $1', [streamId]);
-      if (chRes.rows.length === 0) return res.status(404).send('Stream not found');
-      stream = chRes.rows[0];
-      stream.origin = null;
-      stream.headers_json = null;
-      stream_url = stream.stream_url;
-    } else {
-      stream = streamRes.rows[0];
-      stream_url = stream.stream_url;
     }
 
     // Sanitize headers_json — only allow safe header names (prevent header injection)
@@ -141,7 +253,9 @@ exports.proxyManifest = async (req, res) => {
     proxyRes.setEncoding('utf8');
     for await (const chunk of proxyRes) body += chunk;
 
-    // Rewrite URLs
+    // Rewrite URLs — encrypt each segment URL so the original source is never exposed.
+    // The client only sees an opaque AES-GCM ciphertext token, not the real URL.
+    const userId = req.user?.id || 'anon';
     const baseUrl = stream_url;
     const lines = body.split('\n');
     const rewritten = lines.map(line => {
@@ -149,12 +263,14 @@ exports.proxyManifest = async (req, res) => {
       if (!t || t.startsWith('#')) return line;
       const fullUrl = resolveUrl(baseUrl, t);
       if (!fullUrl) return line;
-      // encode fullUrl and pass it to our segment proxy
-      const encoded = Buffer.from(fullUrl).toString('base64');
+      // AES-256-GCM encrypted token — original URL is never visible to the client
+      const token = encryptSegmentUrl(fullUrl, streamId, userId);
       const ext = fullUrl.includes('.m3u8') ? '.m3u8' : '.ts';
-      return `/api/proxy/segment/${streamId}/${encoded}${ext}`;
+      return `/api/proxy/segment/${streamId}/${token}${ext}`;
     }).join('\n');
 
+    // Note: cache key is still streamId but cache holds DIFFERENT tokens each fetch
+    // (IVs differ per encryption). This is correct — we don't cache plaintext URLs.
     manifestCache.set(streamId, rewritten);
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
@@ -194,21 +310,28 @@ async function fetchSegmentWithRetry(targetUrl, headers) {
 
 exports.proxySegment = async (req, res) => {
   try {
-    const { streamId, b64url } = req.params;
-    // Cache check removed for segments to stream efficiently
+    const { streamId, segToken } = req.params;
 
-    // Decode the target URL and validate it against allowed hosts (SSRF prevention)
+    // ── Decrypt + validate the segment token ─────────────────────────────────
+    // The token was generated by proxyManifest for this specific streamId + userId.
+    // It embeds the original URL, an expiry, and a stream binding — no Bearer needed.
+    // Base64url chars [A-Za-z0-9_-] — strip any file extension suffix (.ts/.m3u8).
     let targetUrl;
     try {
-      const cleanB64 = b64url.replace('.ts', '').replace('.m3u8', '');
-      targetUrl = Buffer.from(cleanB64, 'base64').toString('utf8');
-      // Validate it's a proper URL
+      const cleanToken = segToken.replace(/\.(ts|m3u8)$/, '');
+      const decrypted = decryptSegmentToken(cleanToken, streamId);
+      targetUrl = decrypted.url;
+    } catch (tokenErr) {
+      console.warn('[proxy] segment token invalid:', tokenErr.message);
+      return res.status(403).send('Invalid or expired segment token');
+    }
+
+    // SSRF prevention — validate decrypted URL before making request
+    try {
       const parsed = new URL(targetUrl);
-      // Only allow http/https — block file://, ftp://, data:, etc.
       if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
         return res.status(400).send('Invalid segment URL');
       }
-      // Block access to private/internal IP ranges and metadata services
       const host = parsed.hostname.toLowerCase();
       const BLOCKED_PATTERNS = [
         /^localhost$/,
@@ -216,10 +339,10 @@ exports.proxySegment = async (req, res) => {
         /^10\./,
         /^172\.(1[6-9]|2\d|3[01])\./,
         /^192\.168\./,
-        /^169\.254\./,      // AWS metadata service
-        /^::1$/,            // IPv6 loopback
-        /^fc00:/,           // IPv6 private
-        /^fe80:/,           // IPv6 link-local
+        /^169\.254\./,
+        /^::1$/,
+        /^fc00:/,
+        /^fe80:/,
         /^0\./,
       ];
       if (BLOCKED_PATTERNS.some(p => p.test(host))) {
@@ -229,23 +352,32 @@ exports.proxySegment = async (req, res) => {
       return res.status(400).send('Invalid segment URL');
     }
 
-    let stream;
-    let streamRes = await db.query('SELECT * FROM channel_streams WHERE id = $1', [streamId]);
-    if (streamRes.rows.length === 0) {
-      // channels table has 'referrer' (double-r); alias to 'referer' for uniform access below.
-      const chRes = await db.query('SELECT stream_url, user_agent, referrer AS referer FROM channels WHERE id = $1', [streamId]);
-      stream = chRes.rows[0] || {};
-    } else {
-      stream = streamRes.rows[0] || {};
+    // Fetch the stream record for headers (needed to add UA/Referer on upstream request).
+    // This is a lightweight lookup — only headers fields needed, not full auth re-check.
+    // Full auth (license, device, visibility) was already verified at manifest time.
+    let stream = null;
+    try {
+      const csRes = await db.query(
+        'SELECT user_agent, referer, origin, headers_json, health_status, is_hidden FROM channel_streams WHERE id = $1',
+        [streamId]
+      );
+      if (csRes.rows.length > 0) {
+        stream = csRes.rows[0];
+        // Reject if stream was hidden/blocked after the token was issued
+        if (stream.is_hidden) return res.status(404).send('Stream not available');
+        if (PROXY_BLOCKED_STATUSES.has(stream.health_status)) return res.status(403).send('Stream not eligible for proxy');
+      }
+    } catch (_) {
+      // DB lookup failure — continue without custom headers, upstream request will still work
     }
 
-    // Sanitize headers_json — only allow a safe set of header names to prevent header injection
+    // Build upstream headers from stream record (null-safe — stream may be null on DB failure)
     const ALLOWED_HEADER_NAMES = new Set([
       'user-agent', 'referer', 'origin', 'accept', 'accept-language',
       'x-forwarded-for', 'x-requested-with', 'cookie',
     ]);
     const safeExtraHeaders = {};
-    if (stream.headers_json && typeof stream.headers_json === 'object') {
+    if (stream?.headers_json && typeof stream.headers_json === 'object') {
       for (const [k, v] of Object.entries(stream.headers_json)) {
         if (ALLOWED_HEADER_NAMES.has(k.toLowerCase())) {
           safeExtraHeaders[k] = v;
@@ -254,9 +386,9 @@ exports.proxySegment = async (req, res) => {
     }
 
     const headers = {
-      'User-Agent': stream.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      ...(stream.referer ? { 'Referer': stream.referer } : {}),
-      ...(stream.origin ? { 'Origin': stream.origin } : {}),
+      'User-Agent': stream?.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      ...(stream?.referer ? { 'Referer': stream.referer } : {}),
+      ...(stream?.origin ? { 'Origin': stream.origin } : {}),
       ...safeExtraHeaders,
     };
 

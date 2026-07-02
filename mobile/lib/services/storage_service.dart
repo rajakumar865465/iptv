@@ -155,6 +155,17 @@ class StorageService {
     return prefs.getBool('hd_only_wifi') ?? true;
   }
 
+  /// Playback mode: 'auto' | 'stable' | 'fast' | 'dataSaver'
+  Future<String> getPlaybackMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('playback_mode') ?? 'auto';
+  }
+
+  Future<void> setPlaybackMode(String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('playback_mode', mode);
+  }
+
   /// Clears only auth credentials (token + user data + cached content).
   /// Does NOT touch onboarding flags, device ID, or app settings so the user
   /// doesn't have to redo onboarding or re-pair their device on next login.

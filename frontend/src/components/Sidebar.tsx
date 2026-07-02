@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, MonitorSmartphone, KeyRound, CreditCard, Globe, Zap,
   AlertTriangle, FileStack, Settings, Bell, BarChart3, ScrollText, Activity, Shield,
-  Package, Globe2,
+  Package, Globe2, HeartPulse,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -18,6 +18,7 @@ const navItems = [
   { href: '/plans', label: 'Plans', icon: CreditCard },
   { href: '/payments', label: 'Payments', icon: CreditCard },
   { href: '/channels', label: 'Channels', icon: Globe },
+  { href: '/stream-health', label: 'Stream Health', icon: HeartPulse },
   { href: '/stream-scanner', label: 'Scanner & Broken', icon: AlertTriangle },
   { href: '/reported-channels', label: 'User Reported', icon: AlertTriangle },
   { href: '/hidden-channels', label: 'Hidden Channels', icon: Zap },
