@@ -92,11 +92,11 @@ class PlayerScreen extends StatefulWidget {
   State<PlayerScreen> createState() => _PlayerScreenState();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ----
 // Playback Profile System
 // Uses media_kit / libmpv tuning only. No ExoPlayer/Media3 assumptions.
-// Do NOT use seek() for live stream recovery — always reopen via _initializePlayer.
-// ─────────────────────────────────────────────────────────────────────────────
+// Do NOT use seek() for live stream recovery - always reopen via _initializePlayer.
+// ----
 
 enum PlaybackMode { auto, stable, fast, dataSaver }
 
@@ -123,7 +123,7 @@ class PlaybackProfile {
 }
 
 /// Stable (default): safe for most IPTV channels.
-/// Larger buffer keeps player well behind live edge — avoids 404 on fresh segments.
+/// Larger buffer keeps player well behind live edge - avoids 404 on fresh segments.
 const PlaybackProfile kStableProfile = PlaybackProfile(
   name: 'stable',
   demuxerReadaheadSecs: 30,
@@ -153,7 +153,7 @@ const PlaybackProfile kDataSaverProfile = PlaybackProfile(
   preferredQuality: '360p',
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ----
 
 class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixin {
   final ApiService _api = ApiService();
@@ -181,9 +181,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _isRetryingStream = false;
   String _streamOverlayMessage = '';
   Timer? _bufferTimer;
+  Timer? _startupTimer;
   Timer? _reconnectTimer;
   int _retryAttempt = 0;
   StreamSubscription? _playerSubscription;
+  StreamSubscription? _playerErrorSubscription;
+  StreamSubscription? _videoParamsSubscription;
   bool _hadFailureBeforePlaying = false;
 
   // Fix #4: Prevent multiple error callbacks from firing simultaneously.
@@ -195,7 +198,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // Fix #18: Track when video actually starts playing to compute accurate watch_duration
   DateTime? _playStartTime;
 
-  // ── Playback Profile (Phase 4) ──────────────────────────────────────────
+  // ---- Playback Profile (Phase 4) ----
   PlaybackMode _playbackMode = PlaybackMode.auto;
   PlaybackProfile get _activeProfile {
     switch (_playbackMode) {
@@ -206,7 +209,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
   }
 
-  // Proxy fallback state — populated from playback API response
+  // Proxy fallback state - populated from playback API response
   String? _proxyUrl;
   bool _proxyAttempted = false;
 
@@ -294,9 +297,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
     // Fix #1: Initialize media_kit player with optimized Netflix-style fast-start configuration
     _player = Player(
-      configuration: const PlayerConfiguration(
-        // Increase buffer size to 32MB (from 2MB) to prevent buffering micro-stutters
-        bufferSize: 1024 * 1024 * 32,
+      configuration: PlayerConfiguration(
+        // Match the stable profile at startup. libmpv readahead is tuned per stream below.
+        bufferSize: kStableProfile.bufferSizeBytes,
         // Disable pitch shifting to save CPU during startup
         pitch: false,
       ),
@@ -320,7 +323,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _updateMoreChannelsFromContext();
   }
 
-  // ──────────────────────── Player ────────────────────────
+  // ------------------------ Player ------------------------
 
   Future<void> _loadQualitySettingsAndFetch() async {
     final storage = StorageService();
@@ -528,13 +531,20 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     // the old channel's timeout from firing and setting _isRetryingStream on the new one.
     _bufferTimer?.cancel();
     _bufferTimer = null;
+    _startupTimer?.cancel();
+    _startupTimer = null;
     _playerSubscription?.cancel();
     _playerSubscription = null;
+    _playerErrorSubscription?.cancel();
+    _playerErrorSubscription = null;
+    _videoParamsSubscription?.cancel();
+    _videoParamsSubscription = null;
 
     // Reset proxy + upgrade state for new channel
     _proxyUrl = null;
     _proxyAttempted = false;
     _wasQualityDowngraded = false;
+    _hadFailureBeforePlaying = false;
     _qualityUpgradeTimer?.cancel();
     _qualityUpgradeTimer = null;
 
@@ -594,8 +604,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _currentUrl = url;
     _playerSubscription?.cancel();
     _playerSubscription = null;
+    _playerErrorSubscription?.cancel();
+    _playerErrorSubscription = null;
+    _videoParamsSubscription?.cancel();
+    _videoParamsSubscription = null;
     _bufferTimer?.cancel();
     _bufferTimer = null;
+    _startupTimer?.cancel();
+    _startupTimer = null;
     // Fix #4: Cancel any pending error grace timer when reinitializing — prevents a delayed
     // error from a previous stream from triggering failure on the newly loaded stream.
     _errorGraceTimer?.cancel();
@@ -605,7 +621,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (mounted) setState(() { _isLoading = true; _hasError = false; if (_streamOverlayMessage.isEmpty) _streamOverlayMessage = 'Loading channel...'; });
 
     try {
-      // ── Apply profile-based libmpv tuning ────────────────────────────────
+      // -- Apply profile-based libmpv tuning --------------------------------
       // media_kit / libmpv only. No ExoPlayer/Media3. No seek() on live streams.
       final profile = _activeProfile;
       try {
@@ -643,10 +659,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // or fail outright. Let libmpv start from the live edge via reconnect=1.
       await _player.open(media, play: true);
 
-      // ── Listen for buffering changes ──────────────────────────────────
+      // -- Listen for buffering changes ----------------------------------
       _playerSubscription = _player.stream.buffering.listen(_onBufferingChanged);
 
-      // ── Listen for errors ─────────────────────────────────────────────
+      // -- Listen for errors ---------------------------------------------
       // media_kit fires error events during normal HLS playlist resolution
       // (e.g. "Failed to open" before retrying internally). We add a small
       // grace delay so transient init errors don't trigger failure immediately.
@@ -654,7 +670,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // Fix #4: Guard with _playerErrorPending flag — media_kit can fire many error
       // events rapidly. Without this, each spawns a separate delayed failure call that
       // can race with each other and exhaust backup streams in one burst.
-      _player.stream.error.listen((errorMsg) {
+      _playerErrorSubscription = _player.stream.error.listen((errorMsg) {
         if (errorMsg.isEmpty || !mounted) return;
         if (_playerErrorPending) return; // already have a pending error call — skip duplicate
         _playerErrorPending = true;
@@ -666,16 +682,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         });
       });
 
-      // ── Wait for actual video to be ready ─────────────────────────────
+      // -- Wait for actual video to be ready -----------------------------
       // 'playing' becomes true instantly, but 'videoParams' only updates
       // when the video stream is actually parsed and ready to render.
-      _player.stream.videoParams
+      _videoParamsSubscription = _player.stream.videoParams
           .where((p) => p.w != null && p.w! > 0)
-          .first
-          // Profile-based startup grace time — Stable/DataSaver=25s, Fast=15s
-          .timeout(Duration(seconds: profile.startupTimeoutSecs), onTimeout: () => const VideoParams())
-          .then((params) {
-        if (mounted && params.w != null) {
+          .listen((params) {
+        if (!mounted || params.w == null) return;
+        _videoParamsSubscription?.cancel();
+        _videoParamsSubscription = null;
+        _startupTimer?.cancel();
+        _startupTimer = null;
+
           // Force HD/highest quality native track automatically to improve sharpness
           // like a paid Live TV app, unless restricted by data saver settings.
           final nativeTracks = _player.state.tracks.video;
@@ -711,12 +729,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               _detectAspectRatio();
             }
           });
-        }
       });
 
-      // ── Safety startup timeout (profile-based) ───────────────────────────
+      // -- Safety startup timeout (profile-based) ---------------------------
       // Stable/DataSaver=25s, Fast=15s — avoids false errors on slow streams
-      _bufferTimer = Timer(Duration(seconds: profile.startupTimeoutSecs), () {
+      _startupTimer = Timer(Duration(seconds: profile.startupTimeoutSecs), () {
         if (mounted && _isLoading && !_hasError) {
           _handleStreamFailure('init_timeout');
         }
@@ -771,7 +788,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     });
   }
 
-  // Fix #2: Buffering timer — only fires after sustained buffering, not on initial load.
+  // Fix #2: Buffering timer - only fires after sustained buffering, not on initial load.
   // When the player first opens an HLS stream it is always buffering. We only
   // treat it as a failure if buffering lasts beyond the grace period.
   void _onBufferingChanged(bool isBuffering) {
@@ -800,14 +817,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           }
         });
 
-        // Profile-based stall timeout — Stable/DataSaver=30s, Fast=18s.
-        // Mobile data in weak-signal areas can stall 15–20s and self-recover.
+        // Profile-based stall timeout - Stable/DataSaver=30s, Fast=18s.
+        // Mobile data in weak-signal areas can stall 15-20s and self-recover.
         _bufferTimer ??= Timer(Duration(seconds: _activeProfile.stallTimeoutSecs), () {
           if (mounted) _handleStreamFailure('buffer_timeout');
         });
       }
     } else {
-      // Buffering cleared — cancel stall/reconnect timers and clear loading spinner
+      // Buffering cleared - cancel stall/reconnect timers and clear loading spinner
       _bufferTimer?.cancel();
       _bufferTimer = null;
       _reconnectTimer?.cancel();
@@ -861,7 +878,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   Future<void> _autoSwitchQualityQuietly(Map<String, dynamic> lowerQuality) async {
     final label = lowerQuality['label'] as String? ?? 'lower quality';
-    _showPlayerToast('Optimizing playback → $label');
+    _showPlayerToast('Optimizing playback -> $label');
     setState(() {
       _selectedQuality = lowerQuality;
       _streamOverlayMessage = 'Optimizing playback...';
@@ -884,7 +901,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Future<void> _switchToTranscode() async {
-    setState(() { _streamOverlayMessage = 'Switching to proxy stream…'; _isLoading = true; _hasError = false; });
+    setState(() { _streamOverlayMessage = 'Switching to proxy stream...'; _isLoading = true; _hasError = false; });
     _isRetryingStream = false;
     try {
       final token = await StorageService().getToken() ?? '';
@@ -932,6 +949,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (_isRetryingStream) return;
     _bufferTimer?.cancel();
     _bufferTimer = null;
+    _startupTimer?.cancel();
+    _startupTimer = null;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
 
@@ -968,7 +987,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
     // Try lower quality first if it was a buffer stall.
     // Guard: only downgrade if there are REAL quality variants with known resolution.
-    // If only the 'auto' entry exists, skip quality downgrade entirely — no fake options.
+    // If only the 'auto' entry exists, skip quality downgrade entirely - no fake options.
     final hasRealVariants = _qualities.any(
         (q) => q['type'] != 'auto' && ((q['height'] as num?)?.toInt() ?? 0) > 0 && q['url'] != null);
 
@@ -1012,7 +1031,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           await _initializePlayer(fallbackUrl, transcodeHeaders);
           return;
         } catch (e) {
-          // Transcode unavailable — continue to backup stream fallback below
+          // Transcode unavailable - continue to backup stream fallback below
           if (mounted) setState(() { _isLoading = false; _streamOverlayMessage = ''; });
         }
       }
@@ -1027,7 +1046,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       return;
     }
 
-    // Proxy fallback — only for legal/public streams; proxy_url is null for DRM/geo/unlicensed.
+    // Proxy fallback - only for legal/public streams; proxy_url is null for DRM/geo/unlicensed.
     // This is the last resort before showing an error to the user.
     if (!_proxyAttempted && _proxyUrl != null) {
       _proxyAttempted = true;
@@ -1037,7 +1056,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _isLoading = true;
         _hasError = false;
       });
-      // Proxy URL already routes through auth — no extra headers needed from client
+      // Proxy URL already routes through auth - no extra headers needed from client
       await _initializePlayer(_proxyUrl!, {});
       return;
     }
@@ -1065,7 +1084,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     } catch (_) {}
   }
 
-  // ──────────────────────── Data Loading ────────────────────────
+  // ---- Data Loading ----
 
   Future<void> _loadChannelData() async {
     final channelId = _currentChannel.id;
@@ -1201,7 +1220,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _moreLiveChannels = distinct;
   }
 
-  // ──────────────────────── Channel Navigation ────────────────────────
+  // ---- Channel Navigation ----
 
   ChannelModel get _currentChannel => _contextChannels[_currentIndex];
 
@@ -1317,21 +1336,23 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _onChannelChanged();
   }
 
-  // ──────────────────────── Controls Logic ────────────────────────
+  // ---- Controls Logic ----
 
   BoxFit _getBoxFit() {
     String mode = _fitMode;
     // Migrate old 'auto' preference to 'original'
     if (mode == 'auto') mode = 'original';
 
-    if (mode == 'original') {
-      return BoxFit.contain;
-    }
+    if (mode == 'original') return BoxFit.contain;
 
     switch (mode) {
+      case 'safefill':
       case 'fill':
-        return BoxFit.cover;
+        // Both use contain + smart Transform.scale - avoids aggressive vertical crop.
+        // The scale factor is computed in _getTransformScale() per video/screen dimensions.
+        return BoxFit.contain;
       case 'zoom':
+        // Intentional aggressive fill (e.g. remove internal black bars) - full cover + extra scale.
         return BoxFit.cover;
       case 'stretch':
         return BoxFit.fill;
@@ -1341,25 +1362,75 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
   }
 
-  double _getTransformScale() {
-    if (_fitMode == 'zoom') return 1.10;
-    return 1.0;
+  /// Transform.scale applied on top of BoxFit (called from _buildVideoSurface).
+  double _getTransformScale(BuildContext context) {
+    switch (_fitMode) {
+      case 'safefill':
+        // Cap vertical/horizontal crop at 8% per side - leaves small bars for extreme ratios.
+        return _safeFillScale(context, maxCropPerSide: 0.08);
+      case 'fill':
+        // Cap crop at 11% per side - nearly fills even 4:3 content, much safer than cover.
+        return _safeFillScale(context, maxCropPerSide: 0.11);
+      case 'zoom':
+        // Intentional extra zoom on top of BoxFit.cover (removes internal black bars).
+        return 1.10;
+      default:
+        return 1.0;
+    }
+  }
+
+  /// Computes the Transform.scale to apply on top of BoxFit.contain for safe fill modes.
+  ///
+  /// Scales up toward full-cover but caps the crop fraction per side at [maxCropPerSide].
+  /// Formula: crop_per_side = (s-1)/(2s)  ->  s_max = 1/(1 - 2xmaxCropPerSide)
+  double _safeFillScale(BuildContext context, {required double maxCropPerSide}) {
+    final videoW = _detectedVideoWidth ?? 0;
+    final videoH = _detectedVideoHeight ?? 0;
+
+    // No video info yet - return a mild default so the mode still feels different from Fit.
+    if (videoW <= 0 || videoH <= 0) return 1.0 + maxCropPerSide;
+
+    final size = MediaQuery.of(context).size;
+    // Player is always landscape; normalise so screenW > screenH.
+    final screenW = size.width > size.height ? size.width : size.height;
+    final screenH = size.width < size.height ? size.width : size.height;
+
+    // Compute what BoxFit.contain does: scale to fit both dims inside screen.
+    final containScale = (screenW / videoW) < (screenH / videoH)
+        ? (screenW / videoW)
+        : (screenH / videoH);
+    final containedW = videoW * containScale;
+    final containedH = videoH * containScale;
+
+    // Relative scale still needed on top of contain to reach full cover.
+    final coverRelW = screenW / containedW;
+    final coverRelH = screenH / containedH;
+    final coverRelScale = coverRelW > coverRelH ? coverRelW : coverRelH;
+
+    // Video already fills the screen (e.g. 16:9 content on 16:9 screen) - no extra zoom.
+    if (coverRelScale <= 1.0) return 1.0;
+
+    // Maximum safe scale given our crop limit.
+    final maxSafeScale = 1.0 / (1.0 - 2.0 * maxCropPerSide);
+
+    return coverRelScale < maxSafeScale ? coverRelScale : maxSafeScale;
   }
 
   String _getFitLabel() {
     switch (_fitMode) {
-      case 'original': return 'Original';
-      case 'auto': return 'Original'; // migration
-      case 'fit': return 'Fit';
-      case 'fill': return 'Fill';
-      case 'zoom': return 'Zoom';
-      case 'stretch': return 'Stretch';
-      default: return 'Original';
+      case 'original':  return 'Original';
+      case 'auto':      return 'Original'; // migration
+      case 'fit':       return 'Fit';
+      case 'safefill':  return 'Safe Fill';
+      case 'fill':      return 'Fill';
+      case 'zoom':      return 'Zoom';
+      case 'stretch':   return 'Stretch';
+      default:          return 'Original';
     }
   }
 
   /// Get the recommended fit mode for the current channel based on category
-  /// and detected aspect ratio — used to show the "Recommended" badge
+  /// and detected aspect ratio - used to show the "Recommended" badge
   String _getRecommendedFitMode() {
     if (_isNewsChannel) return 'original';
     if (_currentChannel.defaultFitMode != 'original' &&
@@ -1369,11 +1440,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
     if (_currentChannel.hasInternalBlackBars) return 'zoom';
     if (_detectedAspectRatioType == '4:3') return 'original';
-    return 'original'; // safe default for most TV
+    // For most channels, Safe Fill gives a bigger feel without aggressive cropping.
+    return 'original';
   }
 
   void _onDoubleTapFitToggle() {
-    const cycle = ['original', 'fill', 'zoom'];
+    const cycle = ['original', 'safefill', 'fill', 'zoom'];
     var current = _fitMode;
     if (!cycle.contains(current)) current = 'original'; // Normalize to cycle
     final idx = cycle.indexOf(current);
@@ -1392,12 +1464,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   void _showFitToast(String mode) {
     const labels = {
-      'original': 'Original TV size',
-      'auto': 'Original TV size', // migration
-      'fit': 'Fit to screen',
-      'fill': 'Filled screen',
-      'zoom': 'Zoom mode',
-      'stretch': 'Stretched',
+      'original':  'Original TV size',
+      'auto':      'Original TV size', // migration
+      'fit':       'Fit to screen',
+      'safefill':  'Safe Fill - bigger screen, less crop',
+      'fill':      'Fill screen',
+      'zoom':      'Zoom mode',
+      'stretch':   'Stretched',
     };
     String label = labels[mode] ?? 'Original TV size';
     if (_isNewsChannel && (mode == 'fill' || mode == 'zoom' || mode == 'stretch')) {
@@ -1444,13 +1517,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     setState(() { _isLoading = true; _hasError = false; _isRetryingStream = false; });
     _bufferTimer?.cancel();
     _bufferTimer = null;
+    _startupTimer?.cancel();
+    _startupTimer = null;
     _fetchPlaybackAndInitialize();
   }
 
   String _formatTimeRange(DateTime? start, DateTime? end) {
     if (start == null || end == null) return '';
     final fmt = DateFormat('h:mm a');
-    return '${fmt.format(start.toLocal())} – ${fmt.format(end.toLocal())}';
+    return '${fmt.format(start.toLocal())} - ${fmt.format(end.toLocal())}';
   }
 
   String _getCategoryLabel(String? name) {
@@ -1465,12 +1540,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     // Fix #14: Dispose video player FIRST before animation controller to prevent
     // animation callbacks firing after widget is unmounted
     _bufferTimer?.cancel();
+    _startupTimer?.cancel();
     _reconnectTimer?.cancel();
     _controlsTimer?.cancel();
     _slowOverlayTimer?.cancel();
     _playerToastTimer?.cancel();
     _qualityUpgradeTimer?.cancel();
     _playerSubscription?.cancel();
+    _playerErrorSubscription?.cancel();
+    _videoParamsSubscription?.cancel();
     // Fix #4: Cancel error grace timer on dispose to prevent post-dispose callbacks
     _errorGraceTimer?.cancel();
     _player.dispose();
@@ -1508,7 +1586,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
-  // ──────────────────────── Fullscreen ────────────────────────
+  // ---- Fullscreen ----
 
   Widget _buildFullscreen() {
     return GestureDetector(
@@ -1518,11 +1596,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Video fills the entire screen — no SafeArea, no constraints
+          // Video fills the entire screen - no SafeArea, no constraints
           Positioned.fill(child: _buildVideoSurface()),
           if (_isLoading) Positioned.fill(child: _buildLoadingOverlay()),
           if (_hasError) Positioned.fill(child: _buildErrorOverlay()),
-          // Controls overlay — safe padding on controls only, not video
+          // Controls overlay - safe padding on controls only, not video
           Positioned.fill(
             child: FadeTransition(
               opacity: _controlsOpacity,
@@ -1539,7 +1617,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
-  // ──────────────────────── Portrait ────────────────────────
+  // ---- Portrait ----
 
   Widget _buildPortrait() {
     return Column(
@@ -1579,7 +1657,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           ),
         ),
 
-        // ── Scrollable info area ──
+        // ---- Scrollable info area ----
         Expanded(
           child: Container(
             color: const Color(AppColors.background),
@@ -1617,14 +1695,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
-  // ──────────────────────── Video Surface ────────────────────────
+  // ---- Video Surface ----
 
   Widget _buildVideoSurface() {
     return SizedBox.expand(
       child: ClipRect(
         child: Transform.scale(
           key: _videoKey,
-          scale: _getTransformScale(),
+          scale: _getTransformScale(context),
           child: Video(
             controller: _videoController,
             fit: _getBoxFit(),
@@ -1694,7 +1772,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
-  // ──────────────────────── Slow Connection Overlay ────────────────────────
+  // ---- Slow Connection Overlay ----
 
   Widget _buildSlowConnectionOverlay() {
     final safe = MediaQuery.of(context).padding;
@@ -1766,7 +1844,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                                   final label = lowerQuality['label'] as String? ?? 'lower quality';
                                   setState(() {
                                     _selectedQuality = lowerQuality;
-                                    _streamOverlayMessage = 'Switching to $label…';
+                                    _streamOverlayMessage = 'Switching to $label...';
                                     _isLoading = true;
                                     _hasError = false;
                                   });
@@ -1851,7 +1929,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           );
   }
 
-  // ──────────────────────── Pro Player Controls Overlay ────────────────────────
+  // ---- Pro Player Controls Overlay ----
 
   Widget _buildControlsOverlay({bool fullscreen = false}) {
     final safe = MediaQuery.of(context).padding;
@@ -2005,7 +2083,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               onTap: _playPreviousChannel,
             ),
             const SizedBox(width: 28),
-            // Play / Pause — large circle button
+            // Play / Pause - large circle button
             GestureDetector(
               onTap: () {
                 _player.playOrPause();
@@ -2112,7 +2190,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                   const Icon(Icons.aspect_ratio_rounded, size: 14, color: Colors.white),
                   const SizedBox(width: 4),
                   Text(
-                    _getFitLabel() + (_detectedAspectRatioType != 'unknown' ? ' · $_detectedAspectRatioType' : ''),
+                    _getFitLabel() + (_detectedAspectRatioType != 'unknown' ? ' Â· $_detectedAspectRatioType' : ''),
                     style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
                   ),
                 ],
@@ -2263,7 +2341,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     ).then((_) => _showControlsWithTimer());
   }
 
-  // ──────────────────────── Fit Mode Selector ────────────────────────
+  // ---- Fit Mode Selector ----
 
   void _showFitSelector() {
     _controlsTimer?.cancel();
@@ -2271,25 +2349,29 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     // Build context-aware descriptions
     String origDesc = 'Preserve full broadcast frame';
     String fitDesc = 'Show full video, black bars allowed';
-    String fillDesc = 'Fill screen, edges may crop';
-    String zoomDesc = 'Reduce black bars with slight zoom';
+    String safeFillDesc = 'Bigger screen, minimal crop - safe for logos and tickers';
+    String fillDesc = 'Fill more screen, slight crop possible';
+    String zoomDesc = 'Reduce black bars with strong zoom';
     String stretchDesc = 'Fill screen, may distort';
 
     if (_isNewsChannel) {
-      origDesc += ' — Recommended for news';
+      origDesc += ' - Recommended for news';
+      safeFillDesc = 'Bigger screen with safe margins - use instead of Fill for news';
     } else if (_detectedAspectRatioType == '4:3') {
-      origDesc += ' — Safe for 4:3 channels';
+      origDesc += ' - Safe for 4:3 channels';
+      safeFillDesc = 'Expand 4:3 content safely, small side bars remain';
       zoomDesc = 'Zoom into 4:3 frame (may crop)';
     } else if (_currentChannel.hasInternalBlackBars) {
       zoomDesc = 'Remove black bars with controlled zoom';
     }
 
     final options = [
-      ('original', 'Original', origDesc),
-      ('fit',      'Fit',      fitDesc),
-      ('fill',     'Fill',     fillDesc),
-      ('zoom',     'Zoom',     zoomDesc),
-      ('stretch',  'Stretch',  stretchDesc),
+      ('original',  'Original',  origDesc),
+      ('fit',       'Fit',       fitDesc),
+      ('safefill',  'Safe Fill', safeFillDesc),
+      ('fill',      'Fill',      fillDesc),
+      ('zoom',      'Zoom',      zoomDesc),
+      ('stretch',   'Stretch',   stretchDesc),
     ];
 
     showModalBottomSheet(
@@ -2328,7 +2410,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          _getFitModeSource() + (_detectedAspectRatioType != 'unknown' ? ' · $_detectedAspectRatioType' : ''),
+                          _getFitModeSource() + (_detectedAspectRatioType != 'unknown' ? ' Â· $_detectedAspectRatioType' : ''),
                           style: const TextStyle(color: Colors.white38, fontSize: 12),
                         ),
                       ),
@@ -2350,7 +2432,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                         Navigator.pop(ctx);
                       });
                     }),
-                    if (_fitMode == 'fill' || _fitMode == 'zoom')
+                    if (_fitMode == 'safefill' || _fitMode == 'fill' || _fitMode == 'zoom')
                       Container(
                         margin: const EdgeInsets.fromLTRB(24, 16, 24, 0),
                         padding: const EdgeInsets.all(12),
@@ -2365,9 +2447,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                _isNewsChannel
-                                  ? 'News channels: This mode may crop tickers, headlines, logos, or subtitles. Original/Fit is recommended.'
-                                  : 'This mode may crop channel logos, tickers, or subtitles.',
+                                _fitMode == 'safefill'
+                                  ? (_isNewsChannel
+                                    ? 'Safe Fill limits crop to protect tickers, logos, and subtitles.'
+                                    : 'Safe Fill expands the image with minimal crop. Channel logos and ticker areas are protected.')
+                                  : (_isNewsChannel
+                                    ? 'News channels: This mode may crop tickers, headlines, logos, or subtitles. Original/Fit is recommended.'
+                                    : 'This mode may crop channel logos, tickers, or subtitles.'),
                                 style: const TextStyle(color: Colors.amber, fontSize: 12),
                               ),
                             ),
@@ -2599,7 +2685,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _showPlayerToast('Playing at $qualityLabel');
   }
 
-  // ──────────────────────── Channel Info ────────────────────────
+  // ---- Channel Info ----
 
   Widget _buildChannelInfo() {
     final categoryLabel = _getCategoryLabel(_currentChannel.categoryName);
@@ -2751,7 +2837,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
-  // ──────────────────────── Now Playing Card ────────────────────────
+  // ---- Now Playing Card ----
 
   Widget _buildNowPlayingCard() {
     if (_loadingEPG) return _buildCardShimmer(height: 120);
@@ -2760,7 +2846,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     final title = hasEPG ? _nowPlaying!.title : 'Live: ${_currentChannel.name}';
     final timeStr = hasEPG
         ? _formatTimeRange(_nowPlaying!.startTime, _nowPlaying!.endTime)
-        : '${_getCategoryLabel(_currentChannel.categoryName)} • Live Broadcast';
+        : '${_getCategoryLabel(_currentChannel.categoryName)} â€¢ Live Broadcast';
     final desc = hasEPG ? _nowPlaying!.description : _fallbackDesc();
     final progress = hasEPG ? _nowPlaying!.progress : 0.0;
 
@@ -2824,7 +2910,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     return 'Watch live stream, general entertainment, and special programming.';
   }
 
-  // ──────────────────────── Upcoming Card ────────────────────────
+  // ---- Upcoming Card ----
 
   Widget _buildUpcomingCard() {
     if (_loadingEPG) return const SizedBox.shrink();
@@ -2902,7 +2988,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
-  // ──────────────────────── Related Channels ────────────────────────
+  // ---- Related Channels ----
 
   String get _relatedTitle {
     if (_relatedSourceType == 'same_category') {
@@ -2920,7 +3006,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Widget _buildRelatedSection() {
     if (_loadingRelated) return _buildRelatedShimmer();
 
-    // Only show related section if the API returned real data — don't fall back to channelList
+    // Only show related section if the API returned real data - don't fall back to channelList
     // (the paginated "More Live Channels" grid below already covers that)
     if (_relatedChannels.isEmpty) return const SizedBox.shrink();
 
@@ -2946,7 +3032,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     final sub = [ch.categoryName, ch.language]
         .whereType<String>()
         .where((e) => e.trim().isNotEmpty && e.toLowerCase() != 'unknown')
-        .join(' • ');
+        .join(' â€¢ ');
 
     return GestureDetector(
       onTap: () => _playChannel(ch),
@@ -2992,7 +3078,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
-  // ──────────────────────── More Live Channels (paginated) ────────────────────────
+  // ---- More Live Channels (paginated) ----
 
   String get _moreSectionTitle {
     switch (_sourceType) {
@@ -3102,7 +3188,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     final sub = [ch.categoryName, ch.language]
         .whereType<String>()
         .where((e) => e.trim().isNotEmpty && e.toLowerCase() != 'unknown')
-        .join(' • ');
+        .join(' â€¢ ');
 
     return GestureDetector(
       onTap: () => _playChannel(ch),
@@ -3180,7 +3266,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
-  // ──────────────────────── Helpers & Shimmers ────────────────────────
+  // ---- Helpers & Shimmers ----
 
   Widget _sectionHeader(String title) {
     return Row(
