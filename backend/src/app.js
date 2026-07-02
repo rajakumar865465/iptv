@@ -141,7 +141,11 @@ async function initDatabase() {
 
     // Run automatic data recovery checks
     const recovery = require('./utils/recovery');
-    await recovery.runRecovery();
+    try {
+      await recovery.runRecovery();
+    } catch (e) {
+      console.error('[RECOVERY] Failed to run recovery checks, ignoring:', e.message);
+    }
   } catch (err) {
     console.error('Database initialization error:', err.message);
   }
