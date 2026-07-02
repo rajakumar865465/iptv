@@ -49,7 +49,7 @@ export default function AppSettingsPage() {
       .catch(() => showToast('Failed to load settings', 'error'))
       .finally(() => setLoading(false));
   };
-  useEffect(() => { fetchSettings(); }, []);
+  useEffect(() => { void Promise.resolve().then(() => fetchSettings()); }, []);
 
   const handleSave = async () => {
     setSaving(true);

@@ -42,6 +42,14 @@ api.interceptors.response.use(
 
 export default api;
 
+export function getErrorMessage(err: unknown, fallback: string) {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as { message?: string } | undefined;
+    return data?.message || err.message || fallback;
+  }
+  if (err instanceof Error) return err.message || fallback;
+  return fallback;
+}
 export const loginAdmin = (email: string, password: string) =>
   api.post('/login', { email, password });
 
@@ -126,7 +134,7 @@ export const getReportedChannels = (status?: string) =>
 export const updateReportStatus = (id: string, status: string) =>
   api.put(`/channels/reports/${id}/status`, { status }).then((r) => r.data.data);
 
-export const startImportJob = (source_url?: string, options?: any) =>
+export const startImportJob = (source_url?: string, options?: unknown) =>
   api.post('/import/iptv-org', { source_url, options }).then((r) => r.data.data);
 
 export const getImportJobs = () =>
@@ -270,3 +278,16 @@ export const markStreamStatus = (channelId: number, action: string, note?: strin
 
 export const recheckStream = (channelId: number) =>
   api.post(`/stream-health/${channelId}/recheck`);
+
+// Smooth Playback / Delayed Live Buffer
+export const getSmoothPlaybackHealth = () =>
+  api.get('/smooth-playback/health').then((r) => r.data.data);
+
+export const getSmoothPlaybackChannels = (params?: Record<string, string>) =>
+  api.get('/smooth-playback/channels', { params }).then((r) => r.data.data);
+
+export const updateSmoothPlaybackChannel = (id: number, data: Record<string, unknown>) =>
+  api.put(`/smooth-playback/channels/${id}`, data).then((r) => r.data.data);
+
+export const restartSmoothPlaybackRecorder = (id: number) =>
+  api.post(`/smooth-playback/channels/${id}/restart`).then((r) => r.data.data);

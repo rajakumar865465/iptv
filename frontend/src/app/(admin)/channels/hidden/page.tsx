@@ -5,15 +5,24 @@ import { getHiddenChannels, restoreChannel } from '@/lib/api';
 import { EyeOff, RefreshCw, Undo2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
+type HiddenChannel = {
+  id: string;
+  name: string;
+  logo_url?: string;
+  category_name?: string;
+  language?: string;
+  hidden_reason?: string;
+  hidden_at?: string;
+};
 export default function HiddenChannelsPage() {
-  const [channels, setChannels] = useState<any[]>([]);
+  const [channels, setChannels] = useState<HiddenChannel[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchHidden = async () => {
     setLoading(true);
     try {
       const data = await getHiddenChannels();
-      setChannels(data || []);
+      setChannels((data || []) as HiddenChannel[]);
     } catch (err) {
       console.error(err);
     }
@@ -21,7 +30,7 @@ export default function HiddenChannelsPage() {
   };
 
   useEffect(() => {
-    fetchHidden();
+    void Promise.resolve().then(() => fetchHidden());
   }, []);
 
   const handleRestore = async (id: string) => {
@@ -98,3 +107,4 @@ export default function HiddenChannelsPage() {
     </div>
   );
 }
+

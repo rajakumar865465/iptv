@@ -36,7 +36,7 @@ export default function PrivacyPage() {
           },
           {
             title: '7. Your Rights',
-            content: `You have the right to access, correct, or delete the personal information we hold about you. Contact our support team to make any such requests.`,
+            content: `You have the right to access, correct, or delete the personal information we hold about you. Contact our support team to make unknown such requests.`,
           },
           {
             title: '8. Contact',

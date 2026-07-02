@@ -32,7 +32,7 @@ export default function TermsPage() {
           },
           {
             title: '6. Prohibited Use',
-            content: `You may not use this service for any commercial redistribution, public screening, or in violation of copyright laws. The service is for private personal viewing only.`,
+            content: `You may not use this service for unknown commercial redistribution, public screening, or in violation of copyright laws. The service is for private personal viewing only.`,
           },
           {
             title: '7. Account Suspension',
@@ -40,7 +40,7 @@ export default function TermsPage() {
           },
           {
             title: '8. Changes to Terms',
-            content: `We may update these terms at any time. Continued use of the service after changes constitutes acceptance of the new terms.`,
+            content: `We may update these terms at unknown time. Continued use of the service after changes constitutes acceptance of the new terms.`,
           },
           {
             title: '9. Governing Law',

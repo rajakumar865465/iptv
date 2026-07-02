@@ -37,12 +37,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    const stored = localStorage.getItem('adminToken');
-    if (stored) {
-      setToken(stored);
-      setTokenCookie(stored); // sync cookie with stored token on page load
-    }
-    setIsReady(true);
+    void Promise.resolve().then(() => {
+      const stored = localStorage.getItem('adminToken');
+      if (stored) {
+        setToken(stored);
+        setTokenCookie(stored); // sync cookie with stored token on page load
+      }
+      setIsReady(true);
+    });
   }, []);
 
   const login = (t: string) => {

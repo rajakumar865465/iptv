@@ -54,7 +54,7 @@ export default function SystemPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchHealth(); }, []);
+  useEffect(() => { void Promise.resolve().then(() => fetchHealth()); }, []);
 
   const mb = (bytes: number) => `${Math.round(bytes / 1024 / 1024)} MB`;
   const uptime = health?.server?.uptime;

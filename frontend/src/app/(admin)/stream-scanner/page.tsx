@@ -67,11 +67,11 @@ function ProgressBar({ total, completed, failed }: { total: number; completed: n
 export default function StreamScannerPage() {
   const [running, setRunning] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const [activeJob, setActiveJob] = useState<any | null>(null);
+  const [activeJob, setActiveJob] = useState<unknown | null>(null);
   const [scope, setScope] = useState('all');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [channels, setChannels] = useState<any[]>([]);
+  const [channels, setChannels] = useState<unknown[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [healthFilter, setHealthFilter] = useState('');
@@ -103,7 +103,7 @@ export default function StreamScannerPage() {
   };
 
   useEffect(() => {
-    fetchChannels();
+    void Promise.resolve().then(() => fetchChannels());
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
 
@@ -444,7 +444,7 @@ export default function StreamScannerPage() {
                   <input type="checkbox" checked={preventReimport} onChange={(e) => setPreventReimport(e.target.checked)} className="rounded bg-slate-900 border-slate-600 w-4 h-4 text-rose-500 focus:ring-rose-500/30" />
                   <div>
                     <div className="text-sm font-semibold text-slate-200">Prevent Re-import</div>
-                    <div className="text-xs text-slate-500">Add to blocklist so M3U updates don't restore it</div>
+                    <div className="text-xs text-slate-500">{"Add to blocklist so M3U updates don't restore it"}</div>
                   </div>
                 </label>
               </div>
@@ -459,3 +459,4 @@ export default function StreamScannerPage() {
     </div>
   );
 }
+

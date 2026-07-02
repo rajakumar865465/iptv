@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getAdminUsers, createAdminUser, updateAdminUser } from '@/lib/api';
+import { getAdminUsers, createAdminUser, updateAdminUser, getErrorMessage } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, Plus, Pencil, X, UserCog } from 'lucide-react';
 
@@ -42,8 +42,8 @@ export default function AdminUsersPage() {
       setShowCreateModal(false);
       setCreateForm(emptyForm);
       fetchUsers();
-    } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to create admin user');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, 'Failed to create admin user'));
     } finally {
       setSaving(false);
     }

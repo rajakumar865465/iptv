@@ -39,7 +39,7 @@ export default function ReportedChannelsPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchReports(); }, []);
+  useEffect(() => { void Promise.resolve().then(() => fetchReports()); }, []);
 
   const handleResolve = async (report: Report) => {
     setProcessing(true);
@@ -234,3 +234,4 @@ export default function ReportedChannelsPage() {
     </div>
   );
 }
+

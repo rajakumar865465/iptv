@@ -17,6 +17,8 @@ interface Device {
   status: string;
 }
 
+interface DeviceListResponse { data?: Device[]; pagination?: { total?: number }; }
+
 function PlatformIcon({ platform }: { platform: string }) {
   const p = platform?.toLowerCase() || '';
   if (p.includes('android')) return <Smartphone className="w-4 h-4 text-emerald-400" />;
@@ -36,7 +38,7 @@ export default function DevicesPage() {
     const params: Record<string, string> = {};
     if (q) params.search = q;
     getDevices(params)
-      .then((res: any) => {
+      .then((res: Device[] | DeviceListResponse) => {
         // API may return {data, pagination} or just array
         if (Array.isArray(res)) {
           setDevices(res);
@@ -49,7 +51,7 @@ export default function DevicesPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchDevices(); }, []);
+  useEffect(() => { void Promise.resolve().then(() => fetchDevices()); }, []);
 
   const handleSearchChange = (v: string) => {
     setSearch(v);
@@ -191,3 +193,5 @@ export default function DevicesPage() {
     </div>
   );
 }
+
+

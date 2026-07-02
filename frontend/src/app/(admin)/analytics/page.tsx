@@ -7,9 +7,14 @@ import {
   Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { motion } from 'framer-motion';
-import { TrendingUp, Users, CreditCard, Tv, Calendar } from 'lucide-react';
+import { TrendingUp, Users, CreditCard, Tv } from 'lucide-react';
 
 const DAYS_OPTIONS = [7, 14, 30, 60, 90];
+
+type CountRow = { date: string; count: string | number };
+type RevenueRow = CountRow & { revenue: string | number };
+type PlaybackRow = { name?: string; play_count?: string | number };
+type UserAnalytics = { signups?: CountRow[]; active?: CountRow[] };
 
 function SectionCard({ title, children, icon: Icon, color }: {
   title: string; children: React.ReactNode; icon: React.ElementType; color: string;
@@ -33,34 +38,34 @@ function SectionCard({ title, children, icon: Icon, color }: {
 
 export default function AnalyticsPage() {
   const [days, setDays] = useState(30);
-  const [userData, setUserData] = useState<any>(null);
-  const [revenueData, setRevenueData] = useState<any[]>([]);
-  const [playbackData, setPlaybackData] = useState<any[]>([]);
+  const [userData, setUserData] = useState<UserAnalytics | null>(null);
+  const [revenueData, setRevenueData] = useState<RevenueRow[]>([]);
+  const [playbackData, setPlaybackData] = useState<PlaybackRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = (d: number) => {
     setLoading(true);
     Promise.all([getUserAnalytics(d), getRevenueAnalytics(d), getPlaybackAnalytics()])
       .then(([u, r, p]) => {
-        setUserData(u);
-        setRevenueData(r || []);
-        setPlaybackData(p || []);
+        setUserData((u || {}) as UserAnalytics);
+        setRevenueData((r || []) as RevenueRow[]);
+        setPlaybackData((p || []) as PlaybackRow[]);
       })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchData(days); }, [days]);
+  useEffect(() => { void Promise.resolve().then(() => fetchData(days)); }, [days]);
 
   // Merge signups + active into one series keyed by date
   const userChartData = (() => {
     if (!userData) return [];
     const map: Record<string, { date: string; signups: number; active: number }> = {};
-    (userData.signups || []).forEach((r: any) => {
+    (userData.signups || []).forEach((r) => {
       const d = r.date?.substring(0, 10);
       if (!map[d]) map[d] = { date: d, signups: 0, active: 0 };
       map[d].signups = Number(r.count);
     });
-    (userData.active || []).forEach((r: any) => {
+    (userData.active || []).forEach((r) => {
       const d = r.date?.substring(0, 10);
       if (!map[d]) map[d] = { date: d, signups: 0, active: 0 };
       map[d].active = Number(r.count);
@@ -71,15 +76,15 @@ export default function AnalyticsPage() {
     }));
   })();
 
-  const revenueChartData = revenueData.map((r: any) => ({
+  const revenueChartData = revenueData.map((r) => ({
     date: new Date(r.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }),
-    revenue: parseFloat(r.revenue) || 0,
-    txns: parseInt(r.count) || 0,
+    revenue: Number(r.revenue) || 0,
+    txns: Number(r.count) || 0,
   }));
 
-  const totalRevenue = revenueData.reduce((s: number, r: any) => s + (parseFloat(r.revenue) || 0), 0);
-  const totalSignups = (userData?.signups || []).reduce((s: number, r: any) => s + (parseInt(r.count) || 0), 0);
-  const totalActiveUsers = (userData?.active || []).reduce((s: number, r: any) => s + (parseInt(r.count) || 0), 0);
+  const totalRevenue = revenueData.reduce((s, r) => s + (Number(r.revenue) || 0), 0);
+  const totalSignups = (userData?.signups || []).reduce((s, r) => s + (Number(r.count) || 0), 0);
+  const totalActiveUsers = (userData?.active || []).reduce((s, r) => s + (Number(r.count) || 0), 0);
 
   const tooltipStyle = { backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '0.5rem', color: '#f8fafc' };
 
@@ -171,7 +176,7 @@ export default function AnalyticsPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                     <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
                     <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} tickFormatter={v => `₹${v}`} />
-                    <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: '#f8fafc' }} formatter={(v: any) => [`₹${v}`, 'Revenue']} />
+                    <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: '#f8fafc' }} formatter={(v) => [`₹${v ?? 0}`, 'Revenue']} />
                     <Bar dataKey="revenue" name="Revenue (₹)" fill="#10b981" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -187,7 +192,7 @@ export default function AnalyticsPage() {
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={playbackData.slice(0, 20).map((r: any) => ({ name: r.name?.length > 18 ? r.name.slice(0, 18) + '…' : r.name, plays: parseInt(r.play_count) || 0 }))}
+                    data={playbackData.slice(0, 20).map((r) => ({ name: r.name && r.name.length > 18 ? r.name.slice(0, 18) + '...' : r.name || 'Unknown', plays: Number(r.play_count) || 0 }))}
                     layout="vertical"
                     margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
                   >

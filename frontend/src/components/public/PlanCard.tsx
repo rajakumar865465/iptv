@@ -102,10 +102,10 @@ export default function PlanCard({ plan, ctaText, variant = 'starter' }: Props) 
   const features = isFree ? TRIAL_FEATURES : FEATURES;
   const buttonText = ctaText || getCtaText(plan, variant);
 
-  let wrapperClass = 'relative rounded-2xl border flex flex-col transition-all duration-300 hover:-translate-y-1 overflow-hidden ' +
+  const wrapperClass = 'relative rounded-2xl border flex flex-col transition-all duration-300 hover:-translate-y-1 overflow-hidden ' +
     cardClasses[variant];
-  let priceCls = priceColor[variant];
-  let iconCls = iconColor[variant];
+  const priceCls = priceColor[variant];
+  const iconCls = iconColor[variant];
 
   let badgeText = '';
   let badgeClass = '';

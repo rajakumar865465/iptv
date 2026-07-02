@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Script from 'next/script';
 import { ShieldCheck, Loader2, AlertCircle, Tag } from 'lucide-react';
-import { getPublicPlans, getSevenDayOffer, createOrder, verifyPayment } from '@/lib/publicApi';
+import { getPublicPlans, getSevenDayOffer, createOrder, verifyPayment, getPublicErrorMessage } from '@/lib/publicApi';
 import type { Plan } from '@/lib/publicApi';
 
 declare global {
@@ -94,8 +94,8 @@ function PaymentForm() {
               razorpay_signature: response.razorpay_signature,
             });
             router.push(`/payment/success?order_id=${response.razorpay_order_id}`);
-          } catch (err: any) {
-            const msg = err?.response?.data?.message || err?.message || 'Payment verification failed. Please contact support.';
+          } catch (err: unknown) {
+            const msg = getPublicErrorMessage(err, 'Payment verification failed. Please contact support.');
             alert(msg);
             router.push(`/payment/failed?order_id=${response.razorpay_order_id}`);
           }
@@ -105,8 +105,8 @@ function PaymentForm() {
         },
       });
       rzp.open();
-    } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || 'Failed to initiate payment. Please try again.';
+    } catch (err: unknown) {
+      const msg = getPublicErrorMessage(err, 'Failed to initiate payment. Please try again.');
       setError(msg);
       setLoading(false);
     }

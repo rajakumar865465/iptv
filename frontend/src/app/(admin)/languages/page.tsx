@@ -31,7 +31,7 @@ export default function LanguagesPage() {
     getLanguages().then((d) => setLanguages(d || [])).finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchLanguages(); }, []);
+  useEffect(() => { void Promise.resolve().then(() => fetchLanguages()); }, []);
 
   const totalChannels = languages.reduce((s, l) => s + (l.channel_count || 0), 0);
   const maxCount = Math.max(...languages.map(l => l.channel_count || 0), 1);
@@ -187,3 +187,4 @@ export default function LanguagesPage() {
     </div>
   );
 }
+

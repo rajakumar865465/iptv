@@ -151,7 +151,7 @@ export default function StreamHealthPage() {
     }
   }, [filter, search, page]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { void Promise.resolve().then(() => fetchData()); }, [fetchData]);
 
   const handleSearch = () => {
     setSearch(searchInput);
@@ -640,3 +640,4 @@ function CopyBtn({ label, value }: { label: string; value: string | null | undef
     </button>
   );
 }
+

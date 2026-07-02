@@ -17,7 +17,7 @@ const BILLING_FAQ = [
   { q: 'How is payment processed?', a: 'Payments are processed securely through Razorpay, India\'s most trusted payment gateway. We accept UPI, debit/credit cards, and netbanking.' },
   { q: 'Will my subscription auto-renew?', a: 'No. All plans are one-time purchases. You will need to manually renew when your plan expires.' },
   { q: 'What happens after my plan expires?', a: 'The app will stop streaming. You can purchase a new plan and a fresh license key to continue watching.' },
-  { q: 'Can I get a refund?', a: 'Due to the digital nature of the product, refunds are not available once the license key has been delivered. Contact support if you face any technical issues.' },
+  { q: 'Can I get a refund?', a: 'Due to the digital nature of the product, refunds are not available once the license key has been delivered. Contact support if you face unknown technical issues.' },
 ];
 
 const TRUST = [

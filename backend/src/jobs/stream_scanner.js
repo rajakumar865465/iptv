@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const { diagnoseStream } = require('../utils/streamDiagnoser');
+const StreamScanner = require('../utils/StreamScanner');
 
 const BATCH_SIZE = 10; // Number of streams to diagnose concurrently
 const SCAN_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
@@ -48,31 +48,57 @@ async function runHealthScan() {
             }
           }
 
-          const result = await diagnoseStream(stream.stream_url, headers);
+          const result = await StreamScanner.deepScan(stream.stream_url, headers);
 
-          // Update channel_streams table
+          // Update channel_streams table with deep scan results
           await db.query(`
-            UPDATE channel_streams 
-            SET 
+            UPDATE channel_streams
+            SET
               health_status = $1,
               health_reason = $2,
-              codec_video = $3,
-              codec_audio = $4,
-              container_type = $5,
-              segment_type = $6,
-              android_playable = $7,
-              vlc_playable = $8,
+              master_m3u8_load_success = $3,
+              media_playlist_load_success = $4,
+              playlist_refresh_success = $5,
+              segment_load_success_1 = $6,
+              segment_load_success_2 = $7,
+              segment_load_success_3 = $8,
+              segment_response_time = $9,
+              segment_content_type = $10,
+              segment_size = $11,
+              redirects_followed = $12,
+              final_url = $13,
+              required_headers = $14,
+              http_error_code = $15,
+              token_expiry_detected = $16,
+              html_error_page_detected = $17,
+              geo_blocked = $18,
+              drm_protected = $19,
+              codec_issue_detected = $20,
+              scanner_status = $21,
               updated_at = NOW()
-            WHERE id = $9
+            WHERE id = $22
           `, [
-            result.health_status,
-            result.health_reason || null,
-            result.video_codec || null,
-            result.audio_codec || null,
-            result.container_type || null,
-            result.segment_type || null,
-            result.android_playable,
-            result.vlc_playable,
+            result.scanner_status,
+            result.scanner_status === 'working' ? 'stable' : `failed_${result.scanner_status}`,
+            result.master_m3u8_load_success,
+            result.media_playlist_load_success,
+            result.playlist_refresh_success,
+            result.segment_load_success_1,
+            result.segment_load_success_2,
+            result.segment_load_success_3,
+            result.segment_response_time,
+            result.segment_content_type,
+            result.segment_size,
+            result.redirects_followed,
+            result.final_url,
+            JSON.stringify(result.required_headers),
+            result.http_error_code,
+            result.token_expiry_detected,
+            result.html_error_page_detected,
+            result.geo_blocked,
+            result.drm_protected,
+            result.codec_issue_detected,
+            result.scanner_status,
             stream.id
           ]);
           

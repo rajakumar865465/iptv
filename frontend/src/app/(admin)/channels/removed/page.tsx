@@ -5,15 +5,24 @@ import { getRemovedChannels, restoreChannel } from '@/lib/api';
 import { Trash, RefreshCw, Undo2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
+type RemovedChannel = {
+  id: string;
+  name: string;
+  logo_url?: string;
+  category_name?: string;
+  language?: string;
+  removed_reason?: string;
+  removed_at?: string;
+};
 export default function RemovedChannelsPage() {
-  const [channels, setChannels] = useState<any[]>([]);
+  const [channels, setChannels] = useState<RemovedChannel[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchRemoved = async () => {
     setLoading(true);
     try {
       const data = await getRemovedChannels();
-      setChannels(data || []);
+      setChannels((data || []) as RemovedChannel[]);
     } catch (err) {
       console.error(err);
     }
@@ -21,7 +30,7 @@ export default function RemovedChannelsPage() {
   };
 
   useEffect(() => {
-    fetchRemoved();
+    void Promise.resolve().then(() => fetchRemoved());
   }, []);
 
   const handleRestore = async (id: string) => {
@@ -98,3 +107,4 @@ export default function RemovedChannelsPage() {
     </div>
   );
 }
+

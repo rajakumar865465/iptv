@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { getDuplicateChannels, mergeDuplicates, hideChannel } from '@/lib/api';
+import { getDuplicateChannels, mergeDuplicates, hideChannel, getErrorMessage } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileStack, RefreshCw, GitMerge, ChevronDown, ChevronUp, Tv, AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react';
 
@@ -99,10 +99,10 @@ export default function DuplicateChannelsPage() {
   const fetchDuplicates = () => {
     setLoading(true);
     getDuplicateChannels()
-      .then((data: any) => {
-        const g: Group[] = data?.groups || data || [];
+      .then((data: Group[] | { groups?: Group[]; total_groups?: number }) => {
+        const g = Array.isArray(data) ? data : data.groups || [];
         setGroups(g);
-        setTotal(data?.total_groups ?? g.length);
+        setTotal(Array.isArray(data) ? g.length : data.total_groups ?? g.length);
         const defaults: Record<string, string> = {};
         g.forEach((gr) => { if (gr.channels?.[0]) defaults[gr.canonical_name] = gr.channels[0].id; });
         setMasterIds(defaults);
@@ -111,7 +111,7 @@ export default function DuplicateChannelsPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchDuplicates(); }, []);
+  useEffect(() => { void Promise.resolve().then(() => fetchDuplicates()); }, []);
 
   const requestMerge = (g: Group) => {
     const masterId = masterIds[g.canonical_name];
@@ -132,8 +132,8 @@ export default function DuplicateChannelsPage() {
       setGroups(prev => prev.filter(gr => gr.canonical_name !== g.canonical_name));
       setTotal(prev => prev - 1);
       showToast(`"${g.canonical_name}" merged successfully`, 'success');
-    } catch (err: any) {
-      showToast(err?.response?.data?.message || 'Merge failed', 'error');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err, 'Merge failed'), 'error');
     } finally { setMerging(null); }
   };
 
@@ -153,7 +153,7 @@ export default function DuplicateChannelsPage() {
       }).filter(gr => gr.channels.length > 1));
       
       showToast('Channel hidden successfully', 'success');
-    } catch (err: any) {
+    } catch (err: unknown) {
       showToast('Failed to hide channel', 'error');
     }
   };
@@ -168,8 +168,8 @@ export default function DuplicateChannelsPage() {
       setGroups(prev => prev.filter(gr => gr.canonical_name !== g.canonical_name));
       setTotal(prev => prev - 1);
       showToast(`Entire group "${g.canonical_name}" hidden successfully`, 'success');
-    } catch (err: any) {
-      showToast(err?.response?.data?.message || 'Failed to hide group', 'error');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err, 'Failed to hide group'), 'error');
     } finally { 
       setHiding(null); 
     }
@@ -328,3 +328,4 @@ export default function DuplicateChannelsPage() {
     </div>
   );
 }
+

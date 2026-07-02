@@ -34,7 +34,7 @@ const FEATURES = [
   },
   {
     icon: Heart, title: 'Favourites',
-    desc: 'Mark any channel as a favourite and access it instantly from your Favourites section. Your list is saved and synced to your account.',
+    desc: 'Mark unknown channel as a favourite and access it instantly from your Favourites section. Your list is saved and synced to your account.',
   },
   {
     icon: Key, title: 'License Activation',

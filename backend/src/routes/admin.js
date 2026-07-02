@@ -260,6 +260,13 @@ router.put('/website-settings', adminAuthMiddleware, publicController.updateWebs
 // All routes require admin auth (applied globally above via router.use)
 const streamHealthController = require('../controllers/streamHealthController');
 
+// ─── Smooth Playback / Delayed Live Buffer ────────────────────────────────────
+const smoothPlaybackController = require('../controllers/smoothPlaybackController');
+router.get('/smooth-playback/health', smoothPlaybackController.adminBufferHealth);
+router.get('/smooth-playback/channels', smoothPlaybackController.adminListChannels);
+router.put('/smooth-playback/channels/:id', smoothPlaybackController.adminUpdateChannel);
+router.post('/smooth-playback/channels/:id/restart', smoothPlaybackController.adminRestartRecorder);
+
 // GET  /api/admin/stream-health
 //   ?status=unstable|likely_broken|offline|requires_licensed_source|...
 //   ?needs_check=true  (channels with needs_manual_verification=true)

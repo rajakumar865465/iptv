@@ -279,7 +279,7 @@ export default async function HomePage() {
                 { icon: Zap, title: 'Instant License', desc: 'Get your license key immediately after payment.' },
                 { icon: RefreshCw, title: 'No Auto-Renewal', desc: 'Pay only when you want. No hidden subscriptions.' },
                 { icon: Globe, title: 'Indian & Regional', desc: 'Hindi, Bengali, Tamil, Telugu and more.' },
-                { icon: Smartphone, title: 'Easy APK', desc: 'Simple download and installation on any Android device.' },
+                { icon: Smartphone, title: 'Easy APK', desc: 'Simple download and installation on unknown Android device.' },
                 { icon: ShieldCheck, title: 'Secure Payments', desc: 'UPI, cards, wallets - all encrypted and safe.' },
                 { icon: CircleHelp, title: 'Support', desc: 'Help via WhatsApp, Telegram or email.' },
               ].map((item, i) => (

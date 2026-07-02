@@ -93,7 +93,7 @@ class StorageService {
 
   Future<String> getVideoFitMode() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('video_fit_mode') ?? 'original';
+    return prefs.getString('video_fit_mode') ?? 'auto';
   }
 
   Future<void> setChannelFitMode(int channelId, String mode) async {

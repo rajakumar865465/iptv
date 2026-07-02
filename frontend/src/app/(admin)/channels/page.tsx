@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getChannels, getCategories, createChannel, updateChannel, deleteChannel, getChannelStreams, createChannelStream, updateChannelStream, deleteChannelStream, diagnoseChannelStream } from '@/lib/api';
+import { getChannels, getCategories, createChannel, updateChannel, deleteChannel, getChannelStreams, createChannelStream, updateChannelStream, deleteChannelStream, diagnoseChannelStream, getErrorMessage } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, Trash2, Tv, Globe2, Languages, Signal, X, Pencil, List, ChevronLeft, ChevronRight, Link2, Check, XCircle, Play, Edit3, RefreshCw } from 'lucide-react';
 import ChannelLogoImage from '@/components/ChannelLogoImage';
@@ -12,6 +12,9 @@ interface Channel {
   status: string; health_status: string; is_premium: boolean; is_featured: boolean;
   sort_order: number; backup_stream_url: string;
 }
+interface Category { id: string; name: string; }
+interface ChannelListResponse { data?: Channel[]; pagination?: { total?: number; active?: number }; }
+
 interface Stream { 
   id: string; 
   stream_url: string; 
@@ -23,7 +26,7 @@ interface Stream {
   user_agent?: string;
   referer?: string;
   origin?: string;
-  headers_json?: any;
+  headers_json?: unknown;
   playback_mode?: string;
   codec_video?: string;
   codec_audio?: string;
@@ -50,7 +53,7 @@ function StreamHealthIndicator({ status }: { status: string }) {
 
 export default function ChannelsPage() {
   const [channels, setChannels] = useState<Channel[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [total, setTotal] = useState(0);
   const [activeTotal, setActiveTotal] = useState(0);
   const [page, setPage] = useState(1); const PAGE = 50;
@@ -87,19 +90,23 @@ export default function ChannelsPage() {
     if (s) params.search = s;
     if (cat) params.category_id = cat;
     getChannels(params)
-      .then((res: any) => {
-        if (res?.data) { 
-          setChannels(res.data); 
-          setTotal(res.pagination?.total || 0); 
-          setActiveTotal(res.pagination?.active || 0);
+      .then((res: Channel[] | ChannelListResponse) => {
+        if (Array.isArray(res)) {
+          setChannels(res);
+          setTotal(res.length);
+          setActiveTotal(res.filter((channel) => channel.status === 'active').length);
+          return;
         }
-        else { setChannels(Array.isArray(res) ? res : []); }
+
+        setChannels(res.data || []);
+        setTotal(res.pagination?.total || 0);
+        setActiveTotal(res.pagination?.active || 0);
       })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { getCategories().then((d) => setCategories(d || [])); }, []);
-  useEffect(() => { fetchChannels(1, search, catFilter); setPage(1); }, [search, catFilter]);
+  useEffect(() => { getCategories().then((d: Category[]) => setCategories(d || [])); }, []);
+  useEffect(() => { void Promise.resolve().then(() => { fetchChannels(1, search, catFilter); setPage(1); }); }, [search, catFilter]);
 
   const openCreate = () => { setForm(emptyForm); setModal('create'); };
   const openEdit = (c: Channel) => {
@@ -119,14 +126,14 @@ export default function ChannelsPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
     try { await createChannel(form as unknown as Record<string, unknown>); setModal(null); fetchChannels(); }
-    catch (err: any) { alert(err?.response?.data?.message || 'Failed to create channel'); }
+    catch (err: unknown) { alert(getErrorMessage(err, 'Failed to create channel')); }
     finally { setSaving(false); }
   };
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editChannel) return; setSaving(true);
     try { await updateChannel(editChannel.id, form as unknown as Record<string, unknown>); setModal(null); fetchChannels(); }
-    catch (err: any) { alert(err?.response?.data?.message || 'Failed to update channel'); }
+    catch (err: unknown) { alert(getErrorMessage(err, 'Failed to update channel')); }
     finally { setSaving(false); }
   };
 
@@ -166,8 +173,8 @@ export default function ChannelsPage() {
         const d = await getChannelStreams(streamChannelId);
         setStreams(d || []);
       }
-    } catch (err: any) {
-      alert(err?.response?.data?.message || err?.message || 'Failed to run diagnosis');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, 'Failed to run diagnosis'));
     } finally {
       setDiagnosingId(null);
     }
@@ -233,7 +240,7 @@ export default function ChannelsPage() {
   const goPage = (p: number) => { setPage(p); fetchChannels(p, search, catFilter); };
   const ic = 'w-full px-4 py-2.5 rounded-xl bg-slate-950/50 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500/50';
 
-  const ChannelModal = ({ mode }: { mode: 'create' | 'edit' }) => (
+  const renderChannelModal = (mode: 'create' | 'edit') => (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-2xl shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-blue-500" />
@@ -271,8 +278,8 @@ export default function ChannelsPage() {
           <div className="flex gap-6">
             {([['is_premium','Premium Channel'],['is_featured','Featured']] as const).map(([k,l]) => (
               <label key={k} className="flex items-center gap-2 cursor-pointer">
-                <div onClick={() => setForm({ ...form, [k]: !(form as any)[k] })} className={`w-9 h-5 rounded-full transition-colors relative ${(form as any)[k] ? 'bg-emerald-500' : 'bg-slate-700'}`}>
-                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${(form as any)[k] ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                <div onClick={() => setForm({ ...form, [k]: !form[k] })} className={`w-9 h-5 rounded-full transition-colors relative ${form[k] ? 'bg-emerald-500' : 'bg-slate-700'}`}>
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${form[k] ? 'translate-x-4' : 'translate-x-0.5'}`} />
                 </div>
                 <span className="text-sm text-slate-300">{l}</span>
               </label>
@@ -287,7 +294,7 @@ export default function ChannelsPage() {
     </motion.div>
   );
 
-  const StreamsModal = () => (
+  const renderStreamsModal = () => (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-4xl shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500" />
@@ -495,9 +502,9 @@ export default function ChannelsPage() {
       </div>
 
       <AnimatePresence>
-        {modal === 'create' && <ChannelModal mode="create" />}
-        {modal === 'edit' && <ChannelModal mode="edit" />}
-        {modal === 'streams' && <StreamsModal />}
+        {modal === 'create' && renderChannelModal('create')}
+        {modal === 'edit' && renderChannelModal('edit')}
+        {modal === 'streams' && renderStreamsModal()}
       </AnimatePresence>
 
       {loading ? (
@@ -571,3 +578,5 @@ export default function ChannelsPage() {
     </div>
   );
 }
+
+

@@ -71,9 +71,9 @@ export default function UsersPage() {
     Promise.all([getUsers(), getLicenses(), getPayments()])
       .then(([u, l, p]) => {
         // Support both paginated { data: [] } shape and plain array
-        setUsers(Array.isArray(u) ? u : ((u as any)?.data || []));
-        setLicenses(Array.isArray(l) ? l : ((l as any)?.data || []));
-        setAllPayments(Array.isArray(p) ? p : ((p as any)?.data || []));
+        setUsers(Array.isArray(u) ? u : ((u as unknown)?.data || []));
+        setLicenses(Array.isArray(l) ? l : ((l as unknown)?.data || []));
+        setAllPayments(Array.isArray(p) ? p : ((p as unknown)?.data || []));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -83,10 +83,10 @@ export default function UsersPage() {
     setLoadingDetail(true);
     setActiveTab('devices');
     try {
-      const [userData, devicesData]: any = await Promise.all([getUser(u.id), getDevices({ user_id: u.id })]);
+      const [userData, devicesData]: unknown = await Promise.all([getUser(u.id), getDevices({ user_id: u.id })]);
       setUserDevices(devicesData?.data || devicesData || []);
       setUserLicenses(licenses.filter(l => l.user_email?.toLowerCase() === u.email?.toLowerCase()));
-      setUserPayments(allPayments.filter(p => p.id && (p as any).email?.toLowerCase() === u.email?.toLowerCase()));
+      setUserPayments(allPayments.filter(p => p.id && (p as unknown).email?.toLowerCase() === u.email?.toLowerCase()));
     } catch {
       setUserDevices([]);
       setUserLicenses(licenses.filter(l => l.user_email?.toLowerCase() === u.email?.toLowerCase()));
@@ -169,7 +169,7 @@ export default function UsersPage() {
                   { id: 'licenses', label: 'Licenses', icon: KeyRound, count: userLicenses.length },
                   { id: 'payments', label: 'Payments', icon: CreditCard, count: userPayments.length },
                 ].map(tab => (
-                  <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} 
+                  <button key={tab.id} onClick={() => setActiveTab(tab.id as unknown)} 
                     className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
                       activeTab === tab.id ? 'text-cyan-400 border-cyan-500' : 'text-slate-400 border-transparent hover:text-slate-200'
                     }`}>

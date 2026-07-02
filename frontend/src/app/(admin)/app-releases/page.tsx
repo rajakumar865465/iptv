@@ -44,7 +44,7 @@ export default function AppReleasesPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void Promise.resolve().then(() => load()); }, []);
 
   const openCreate = () => {
     setEditing(null);
@@ -244,3 +244,4 @@ export default function AppReleasesPage() {
     </div>
   );
 }
+

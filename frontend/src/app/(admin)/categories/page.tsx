@@ -33,7 +33,7 @@ export default function CategoriesPage() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { fetchCategories(); }, []);
+  useEffect(() => { void Promise.resolve().then(() => fetchCategories()); }, []);
 
   const openCreate = () => { setForm(emptyForm); setEditId(null); setShowModal(true); };
 
@@ -112,14 +112,14 @@ export default function CategoriesPage() {
                 </button>
               </div>
               <form onSubmit={handleSubmit} className="space-y-4">
-                {[
+                {([
                   { label: 'Category Name', key: 'name', placeholder: 'e.g., Sports', required: true },
-                  { label: 'Icon URL (optional)', key: 'icon_url', placeholder: 'https://...' },
-                ].map(({ label, key, placeholder, required }) => (
+                  { label: 'Icon URL (optional)', key: 'icon_url', placeholder: 'https://...', required: false },
+                ] as const).map(({ label, key, placeholder, required }) => (
                   <div key={key} className="space-y-1">
                     <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</label>
                     <input
-                      value={(form as any)[key]}
+                      value={form[key]}
                       onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                       placeholder={placeholder}
                       required={required}
@@ -264,3 +264,4 @@ export default function CategoriesPage() {
     </div>
   );
 }
+

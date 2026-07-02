@@ -362,5 +362,8 @@ async function diagnoseStream(streamUrl, inputHeaders = {}) {
 }
 
 module.exports = {
-  diagnoseStream
+  diagnoseStream,
+  httpGet,
+  resolveUrl,
+  probeCodecs
 };

@@ -21,11 +21,20 @@ export default function BrowsePage() {
   const [catLoading, setCatLoading] = useState(false);
   const [error, setError] = useState('');
 
+  function fetchCategoryChannels(category: string) {
+    setCatLoading(true);
+    const apiCategory = category === 'All' ? 'all' : category;
+    getChannelPreview(apiCategory)
+      .then(ch => setChannels(ch))
+      .catch(() => setError('Failed to load channels'))
+      .finally(() => setCatLoading(false));
+  }
   useEffect(() => { trackPageVisit('browse'); }, []);
 
   // Initial load: categories + preview
   useEffect(() => {
-    setLoading(true);
+    void Promise.resolve().then(() => {
+      setLoading(true);
     Promise.all([getChannelPreview(), getCategories()])
       .then(([ch, cat]) => {
         setChannels(ch);
@@ -48,16 +57,9 @@ export default function BrowsePage() {
       })
       .catch(() => setError('Failed to load channels'))
       .finally(() => setLoading(false));
+    });
   }, []);
 
-  const fetchCategoryChannels = (category: string) => {
-    setCatLoading(true);
-    const apiCategory = category === 'All' ? 'all' : category;
-    getChannelPreview(apiCategory)
-      .then(ch => setChannels(ch))
-      .catch(() => setError('Failed to load channels'))
-      .finally(() => setCatLoading(false));
-  };
 
   const handleCategoryClick = (cat: string) => {
     setActiveCategory(cat);

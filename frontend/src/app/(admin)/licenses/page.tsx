@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getLicenses, getPlans, createLicense, extendLicense, suspendLicense, revokeLicense } from '@/lib/api';
+import { getLicenses, getPlans, createLicense, extendLicense, suspendLicense, revokeLicense, getErrorMessage } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, KeyRound, X, Copy, Check, Search, RefreshCw, ChevronLeft, ChevronRight, Download, AlertTriangle } from 'lucide-react';
 
@@ -61,7 +61,7 @@ function ConfirmModal({
 
 export default function LicensesPage() {
   const [licenses, setLicenses] = useState<License[]>([]);
-  const [plans, setPlans] = useState<any[]>([]);
+  const [plans, setPlans] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -78,12 +78,12 @@ export default function LicensesPage() {
     title: '', message: '', confirmText: '', confirmVariant: 'rose', action: () => {}
   });
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { void Promise.resolve().then(() => fetchAll()); }, []);
 
-  const fetchAll = () => {
+  function fetchAll() {
     setLoading(true);
     Promise.all([getLicenses(), getPlans()])
-      .then(([licRes, plnRes]: any) => {
+      .then(([licRes, plnRes]: unknown) => {
         // Debug: log full API response
         console.log('[DEBUG] getLicenses raw response:', licRes);
         console.log('[DEBUG] getPlans raw response:', plnRes);
@@ -99,10 +99,10 @@ export default function LicensesPage() {
       })
       .catch(err => {
         console.error('Failed to fetch licenses:', err);
-        alert('Error: ' + (err.response?.data?.message || err.message || 'Failed to load licenses'));
+        alert('Error: ' + getErrorMessage(err, 'Failed to load licenses'));
       })
       .finally(() => setLoading(false));
-  };
+  }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
@@ -132,7 +132,7 @@ export default function LicensesPage() {
     setConfirmOpen(true);
   };
 
-  const act = async (fn: Promise<any>, id: string) => {
+  const act = async (fn: Promise<unknown>, id: string) => {
     setActionId(id); try { await fn; fetchAll(); } catch { alert('Action failed'); } finally { setActionId(null); }
   };
 

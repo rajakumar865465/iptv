@@ -213,6 +213,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   String? _proxyUrl;
   bool _proxyAttempted = false;
 
+  // Smooth Playback / Delayed Live state
+  bool _smoothPlaybackEnabled = false;
+  bool _bufferReady = false;
+  int _delaySeconds = 0;
+  String _bufferStatus = '';
+  String? _fallbackDirectUrl;
+  bool _showPreparingOverlay = false;
+
   // Auto quality upgrade state
   bool _wasQualityDowngraded = false;
   Timer? _qualityUpgradeTimer;
@@ -226,7 +234,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _autoMobileData = true;
   bool _hdOnlyWifi = true;
   bool _isOnMobileData = false;
-  String _fitMode = 'original';
+  String _fitMode = 'auto';
   bool _rememberFitModeForChannel = false;
   // Per-channel smart display: auto-detected aspect ratio from stream
   String? _autoDetectedFitMode;
@@ -357,58 +365,63 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _fetchPlaybackAndInitialize();
   }
 
+  static const Set<String> _validFitModes = {'auto', 'fit', 'fill', 'zoom', 'stretch'};
+
+  String _normalizeFitMode(String? mode) {
+    final value = (mode ?? '').trim().toLowerCase();
+    if (value == 'original' || value == 'contain') return 'fit';
+    if (value == 'safefill' || value == 'cover') return 'fill';
+    if (_validFitModes.contains(value)) return value;
+    return 'auto';
+  }
+
+  bool _isCropMode(String mode) => mode == 'fill' || mode == 'zoom';
+
+  String _effectiveFitMode() {
+    final normalized = _normalizeFitMode(_fitMode);
+    return normalized == 'auto' ? _getRecommendedFitMode() : normalized;
+  }
+
+  Future<void> _saveFitModePreference() async {
+    final storage = StorageService();
+    final mode = _normalizeFitMode(_fitMode);
+    if (_rememberFitModeForChannel) {
+      await storage.setChannelFitMode(_currentChannel.id, mode);
+    } else {
+      await storage.setVideoFitMode(mode);
+    }
+  }
+
   /// Resolve the best fit mode for the current channel using the 5-level priority chain:
   /// 1. User saved mode for this channel
   /// 2. Admin/backend recommended mode for this channel
-  /// 3. App auto-detected mode from stream dimensions
-  /// 4. Global default mode
-  /// 5. Safe fallback = Original
+  /// 3. Global default mode
+  /// 4. Auto recommendation from stream dimensions
+  /// 5. Safe fallback = Auto
   Future<void> _resolveFitMode() async {
     final storage = StorageService();
 
-    // Priority 1: User saved mode for this channel
-    final channelFitMode = await storage.getChannelFitMode(_currentChannel.id);
-    if (channelFitMode != null) {
-      _fitMode = channelFitMode;
+    if (await storage.hasChannelFitMode(_currentChannel.id)) {
+      _fitMode = _normalizeFitMode(await storage.getChannelFitMode(_currentChannel.id));
       _rememberFitModeForChannel = true;
       return;
     }
 
     _rememberFitModeForChannel = false;
 
-    // Priority 2: Admin/backend recommended mode
     if (_currentChannel.defaultFitMode != 'original' &&
         _currentChannel.defaultFitMode != 'unknown' &&
         _currentChannel.defaultFitMode.isNotEmpty) {
-      _fitMode = _currentChannel.defaultFitMode;
-      // News channels: never default to crop modes unless user explicitly saved
-      if (_isNewsChannel && !['original', 'fit'].contains(_fitMode)) {
-        _fitMode = 'original';
+      _fitMode = _normalizeFitMode(_currentChannel.defaultFitMode);
+      if (_isNewsChannel && _isCropMode(_effectiveFitMode())) {
+        _fitMode = 'fit';
       }
       return;
     }
 
-    // Priority 3: Auto-detected mode from stream dimensions
-    if (_autoDetectedFitMode != null) {
-      _fitMode = _autoDetectedFitMode!;
-      if (_isNewsChannel && !['original', 'fit'].contains(_fitMode)) {
-        _fitMode = 'original';
-      }
-      return;
-    }
-
-    // Priority 4: Global default mode
-    _fitMode = await storage.getVideoFitMode();
-    if (_fitMode == 'auto') _fitMode = 'original';
-
-    // Priority 5: Safe fallback (original)
-    if (!['original', 'fit', 'fill', 'zoom', 'stretch'].contains(_fitMode)) {
-      _fitMode = 'original';
-    }
-
-    // News channels: never default to crop modes unless user explicitly saved
-    if (_isNewsChannel && !['original', 'fit'].contains(_fitMode)) {
-      _fitMode = 'original';
+    _fitMode = _normalizeFitMode(await storage.getVideoFitMode());
+    if (_isNewsChannel && _isCropMode(_effectiveFitMode())) {
+      _fitMode = 'auto';
     }
   }
 
@@ -449,23 +462,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _currentChannel.defaultFitMode != 'unknown' &&
         _currentChannel.defaultFitMode.isNotEmpty) return;
 
-    if (_detectedAspectRatioType == '4:3') {
-      _autoDetectedFitMode = 'stretch'; // safe for 4:3 — don't crop, but fill screen
-    } else if (_detectedAspectRatioType == '16:9') {
-      _autoDetectedFitMode = 'fill'; // 16:9 is standard, fill to cover wide screens
-    } else if (_detectedAspectRatioType == 'wide' || _detectedAspectRatioType == 'unusual') {
-      _autoDetectedFitMode = 'fill'; // unusual ratio — fill is safest to avoid black bars
+    if (_isNewsChannel || _detectedAspectRatioType == '4:3' || _detectedAspectRatioType == 'vertical') {
+      _autoDetectedFitMode = 'fit';
+    } else if (_currentChannel.hasInternalBlackBars) {
+      _autoDetectedFitMode = 'zoom';
     } else {
-      _autoDetectedFitMode = null;
+      _autoDetectedFitMode = 'fill';
     }
 
-    // News channels: never auto-detect to a crop mode
-    if (_isNewsChannel && _autoDetectedFitMode != null &&
-        !['original', 'fit'].contains(_autoDetectedFitMode)) {
-      _autoDetectedFitMode = 'original';
+    if (_normalizeFitMode(_fitMode) == 'auto') {
+      _fitMode = 'auto';
     }
 
-    _fitMode = _autoDetectedFitMode ?? _fitMode;
 
     // Report detected aspect ratio to backend for admin visibility
     _reportDisplayInfo();
@@ -526,6 +534,41 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
   }
 
+  Future<void> _fetchSmoothPlayback() async {
+    try {
+      final res = await _api.get('${ApiEndpoints.channels}/${_currentChannel.id}/smooth-playback');
+      if (res['success'] == true) {
+        final d = res['data'];
+        final mode = d['playback_mode'] as String? ?? 'direct';
+        if (mode == 'delayed') {
+          _smoothPlaybackEnabled = true;
+          _delaySeconds = (d['delay_seconds'] as num?)?.toInt() ?? 300;
+          _bufferReady = d['buffer_ready'] == true;
+          _bufferStatus = d['buffer_status'] as String? ?? 'warming_up';
+          _fallbackDirectUrl = d['fallback_direct_url'] as String?;
+
+          if (_bufferReady) {
+            // Override stream URL with delayed buffer URL
+            final delayedUrl = d['delayed_stream_url'] as String?;
+            if (delayedUrl != null && delayedUrl.isNotEmpty) {
+              _currentStreamMeta = {'url': delayedUrl, 'headers': {}};
+              if (mounted) setState(() { _showPreparingOverlay = false; });
+            }
+          } else {
+            // Buffer warming up — show preparing overlay, play direct as fallback
+            if (mounted) setState(() { _showPreparingOverlay = true; });
+          }
+        } else {
+          _smoothPlaybackEnabled = false;
+          _showPreparingOverlay = false;
+        }
+      }
+    } catch (_) {
+      // Smooth playback info unavailable — continue with direct stream
+      _smoothPlaybackEnabled = false;
+    }
+  }
+
   Future<void> _fetchPlaybackAndInitialize() async {
     // Fix #3: Cancel any pending buffer timer before starting a new stream to prevent
     // the old channel's timeout from firing and setting _isRetryingStream on the new one.
@@ -560,6 +603,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         // Parse new fields from enhanced playback API
         // proxy_url is null when DRM/geo-blocked/hidden/unlicensed — never try proxy then
         _proxyUrl = data['proxy_url'] as String?;
+
+        // Fetch smooth playback info and override URL if delayed buffer is ready
+        await _fetchSmoothPlayback();
 
         // Backend may recommend 'fast' profile for known-stable high-health streams
         final serverProfile = data['recommended_buffer_profile'] as String? ?? 'stable';
@@ -1226,10 +1272,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   void _onChannelChanged({bool fetchNewContext = false}) {
     _hadFailureBeforePlaying = false;
-    // Fix #10: Reset retry counter on channel change. Without this, if the previous
-    // channel consumed 1 retry attempt, the new channel only gets 1 silent retry
-    // instead of the expected 2 before giving up and showing an error.
     _retryAttempt = 0;
+    // Reset smooth playback state for new channel
+    _smoothPlaybackEnabled = false;
+    _bufferReady = false;
+    _delaySeconds = 0;
+    _bufferStatus = '';
+    _fallbackDirectUrl = null;
+    _showPreparingOverlay = false;
     // Reset auto-detected display state for new channel
     _autoDetectedFitMode = null;
     _detectedAspectRatioType = 'unknown';
@@ -1339,141 +1389,113 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // ---- Controls Logic ----
 
   BoxFit _getBoxFit() {
-    String mode = _fitMode;
-    // Migrate old 'auto' preference to 'original'
-    if (mode == 'auto') mode = 'original';
-
-    if (mode == 'original') return BoxFit.contain;
-
-    switch (mode) {
-      case 'safefill':
+    switch (_effectiveFitMode()) {
       case 'fill':
-        // Both use contain + smart Transform.scale - avoids aggressive vertical crop.
-        // The scale factor is computed in _getTransformScale() per video/screen dimensions.
         return BoxFit.contain;
       case 'zoom':
-        // Intentional aggressive fill (e.g. remove internal black bars) - full cover + extra scale.
         return BoxFit.cover;
       case 'stretch':
         return BoxFit.fill;
+      case 'auto':
       case 'fit':
       default:
         return BoxFit.contain;
     }
   }
 
-  /// Transform.scale applied on top of BoxFit (called from _buildVideoSurface).
   double _getTransformScale(BuildContext context) {
-    switch (_fitMode) {
-      case 'safefill':
-        // Cap vertical/horizontal crop at 8% per side - leaves small bars for extreme ratios.
-        return _safeFillScale(context, maxCropPerSide: 0.08);
+    switch (_effectiveFitMode()) {
       case 'fill':
-        // Cap crop at 11% per side - nearly fills even 4:3 content, much safer than cover.
-        return _safeFillScale(context, maxCropPerSide: 0.11);
+        return _safeFillScale(context, maxCropPerSide: _isNewsChannel ? 0.04 : 0.08);
       case 'zoom':
-        // Intentional extra zoom on top of BoxFit.cover (removes internal black bars).
         return 1.10;
       default:
         return 1.0;
     }
   }
 
-  /// Computes the Transform.scale to apply on top of BoxFit.contain for safe fill modes.
-  ///
-  /// Scales up toward full-cover but caps the crop fraction per side at [maxCropPerSide].
-  /// Formula: crop_per_side = (s-1)/(2s)  ->  s_max = 1/(1 - 2xmaxCropPerSide)
   double _safeFillScale(BuildContext context, {required double maxCropPerSide}) {
     final videoW = _detectedVideoWidth ?? 0;
     final videoH = _detectedVideoHeight ?? 0;
-
-    // No video info yet - return a mild default so the mode still feels different from Fit.
     if (videoW <= 0 || videoH <= 0) return 1.0 + maxCropPerSide;
 
-    final size = MediaQuery.of(context).size;
-    // Player is always landscape; normalise so screenW > screenH.
-    final screenW = size.width > size.height ? size.width : size.height;
-    final screenH = size.width < size.height ? size.width : size.height;
+    final renderBox = _videoKey.currentContext?.findRenderObject() as RenderBox?;
+    final surfaceSize = renderBox?.size ?? MediaQuery.of(context).size;
+    final screenW = surfaceSize.width;
+    final screenH = surfaceSize.height;
+    if (screenW <= 0 || screenH <= 0) return 1.0;
 
-    // Compute what BoxFit.contain does: scale to fit both dims inside screen.
     final containScale = (screenW / videoW) < (screenH / videoH)
         ? (screenW / videoW)
         : (screenH / videoH);
     final containedW = videoW * containScale;
     final containedH = videoH * containScale;
+    if (containedW <= 0 || containedH <= 0) return 1.0;
 
-    // Relative scale still needed on top of contain to reach full cover.
-    final coverRelW = screenW / containedW;
-    final coverRelH = screenH / containedH;
-    final coverRelScale = coverRelW > coverRelH ? coverRelW : coverRelH;
-
-    // Video already fills the screen (e.g. 16:9 content on 16:9 screen) - no extra zoom.
+    final coverRelScale = (screenW / containedW) > (screenH / containedH)
+        ? (screenW / containedW)
+        : (screenH / containedH);
     if (coverRelScale <= 1.0) return 1.0;
 
-    // Maximum safe scale given our crop limit.
     final maxSafeScale = 1.0 / (1.0 - 2.0 * maxCropPerSide);
-
     return coverRelScale < maxSafeScale ? coverRelScale : maxSafeScale;
   }
 
-  String _getFitLabel() {
-    switch (_fitMode) {
-      case 'original':  return 'Original';
-      case 'auto':      return 'Original'; // migration
-      case 'fit':       return 'Fit';
-      case 'safefill':  return 'Safe Fill';
-      case 'fill':      return 'Fill';
-      case 'zoom':      return 'Zoom';
-      case 'stretch':   return 'Stretch';
-      default:          return 'Original';
+  String _getFitSubtitle() {
+    final effective = _effectiveFitMode();
+    final ratio = _detectedAspectRatioType != 'unknown' ? _detectedAspectRatioType : 'detecting';
+    if (_normalizeFitMode(_fitMode) == 'auto') {
+      return 'Auto -> ${_getFitLabelForMode(effective)} / $ratio';
+    }
+    return '$ratio / ${_getFitModeSource()}';
+  }
+
+  String _getFitLabelForMode(String mode) {
+    switch (_normalizeFitMode(mode)) {
+      case 'fit':     return 'Fit';
+      case 'fill':    return 'Fill';
+      case 'zoom':    return 'Zoom';
+      case 'stretch': return 'Stretch';
+      case 'auto':
+      default:        return 'Auto';
     }
   }
 
-  /// Get the recommended fit mode for the current channel based on category
-  /// and detected aspect ratio - used to show the "Recommended" badge
   String _getRecommendedFitMode() {
-    if (_isNewsChannel) return 'original';
+    if (_isNewsChannel) return 'fit';
     if (_currentChannel.defaultFitMode != 'original' &&
         _currentChannel.defaultFitMode != 'unknown' &&
         _currentChannel.defaultFitMode.isNotEmpty) {
-      return _currentChannel.defaultFitMode;
+      final serverMode = _normalizeFitMode(_currentChannel.defaultFitMode);
+      return serverMode == 'auto' ? 'fill' : serverMode;
     }
     if (_currentChannel.hasInternalBlackBars) return 'zoom';
-    if (_detectedAspectRatioType == '4:3') return 'original';
-    // For most channels, Safe Fill gives a bigger feel without aggressive cropping.
-    return 'original';
+    if (_detectedAspectRatioType == '4:3' || _detectedAspectRatioType == 'vertical') return 'fit';
+    return 'fill';
   }
 
   void _onDoubleTapFitToggle() {
-    const cycle = ['original', 'safefill', 'fill', 'zoom'];
-    var current = _fitMode;
-    if (!cycle.contains(current)) current = 'original'; // Normalize to cycle
+    const cycle = ['auto', 'fit', 'fill', 'zoom'];
+    var current = _normalizeFitMode(_fitMode);
+    if (!cycle.contains(current)) current = 'auto';
     final idx = cycle.indexOf(current);
     final next = cycle[(idx + 1) % cycle.length];
     setState(() { _fitMode = next; });
+    _saveFitModePreference();
     _showFitToast(next);
-    
-    if (_rememberFitModeForChannel) {
-      StorageService().setChannelFitMode(_currentChannel.id, _fitMode);
-    } else {
-      StorageService().setVideoFitMode(_fitMode);
-    }
-    
     _showControlsWithTimer();
   }
 
   void _showFitToast(String mode) {
-    const labels = {
-      'original':  'Original TV size',
-      'auto':      'Original TV size', // migration
-      'fit':       'Fit to screen',
-      'safefill':  'Safe Fill - bigger screen, less crop',
-      'fill':      'Fill screen',
-      'zoom':      'Zoom mode',
-      'stretch':   'Stretched',
+    final labels = {
+      'auto': 'Auto size: ${_getFitLabelForMode(_effectiveFitMode())}',
+      'fit': 'Fit: full frame',
+      'fill': 'Fill: bigger picture',
+      'zoom': 'Zoom: strongest crop',
+      'stretch': 'Stretch: fills screen',
     };
-    String label = labels[mode] ?? 'Original TV size';
-    if (_isNewsChannel && (mode == 'fill' || mode == 'zoom' || mode == 'stretch')) {
+    var label = labels[_normalizeFitMode(mode)] ?? 'Auto size';
+    if (_isNewsChannel && _isCropMode(_effectiveFitMode())) {
       label += ' (may crop tickers)';
     }
     _showPlayerToast(label);
@@ -1715,21 +1737,29 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Widget _buildLoadingOverlay() {
-    return Container(
-      color: Colors.black87,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(color: Color(AppColors.primary), strokeWidth: 3),
-            if (_streamOverlayMessage.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text(_streamOverlayMessage, style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+    if (_isLoading) {
+      return Container(
+        color: Colors.black87,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: Color(AppColors.primary), strokeWidth: 3),
+              if (_showPreparingOverlay) ...[
+                const SizedBox(height: 16),
+                const Text('Preparing smooth playback...', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                Text('Building ${(_delaySeconds ~/ 60)}-min buffer for smoother viewing', style: const TextStyle(color: Colors.white38, fontSize: 11)),
+              ] else if (_streamOverlayMessage.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text(_streamOverlayMessage, style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+              ],
             ],
-          ],
+          ),
         ),
-      ),
-    );
+      );
+    }
+    return const SizedBox.shrink();
   }
 
   Widget _buildErrorOverlay() {
@@ -2034,27 +2064,88 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             ),
           ),
           const Spacer(),
-          // LIVE indicator
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.red,
-              borderRadius: BorderRadius.circular(4),
+          // LIVE / Smooth Live indicator
+          if (_smoothPlaybackEnabled && _bufferReady)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1565C0),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('SMOOTH LIVE', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+                  Text(
+                    '${(_delaySeconds ~/ 60)} min delay',
+                    style: const TextStyle(color: Colors.white70, fontSize: 7),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 5,
+                    height: 5,
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 4),
+                  const Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.8)),
+                ],
+              ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 5,
-                  height: 5,
-                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+          // Go Live button (only when delayed playback is active and direct fallback exists)
+          if (_smoothPlaybackEnabled && _bufferReady && _fallbackDirectUrl != null && _fallbackDirectUrl!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: TextButton(
+                onPressed: () async {
+                  try {
+                    await _player.stop();
+                    await _initializePlayer(_fallbackDirectUrl!, {});
+                    if (mounted) {
+                      setState(() {
+                        _smoothPlaybackEnabled = false;
+                        _bufferReady = false;
+                        _showPreparingOverlay = false;
+                      });
+                    }
+                    _showPlayerToast('Switched to Live');
+                  } catch (e) {
+                    _showPlayerToast('Failed to go live');
+                  }
+                },
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.red.withOpacity(0.9),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: const Size(0, 28),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                 ),
-                const SizedBox(width: 4),
-                const Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.8)),
-              ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 5,
+                      height: 5,
+                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 4),
+                    const Text('GO LIVE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+                  ],
+                ),
+              ),
             ),
-          ),
           IconButton(
             icon: Icon(
               _isFullScreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
@@ -2189,9 +2280,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                 children: [
                   const Icon(Icons.aspect_ratio_rounded, size: 14, color: Colors.white),
                   const SizedBox(width: 4),
-                  Text(
-                    _getFitLabel() + (_detectedAspectRatioType != 'unknown' ? ' Â· $_detectedAspectRatioType' : ''),
-                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 132),
+                    child: Text(
+                      _getFitSubtitle(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ],
               ),
@@ -2346,32 +2442,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   void _showFitSelector() {
     _controlsTimer?.cancel();
 
-    // Build context-aware descriptions
-    String origDesc = 'Preserve full broadcast frame';
-    String fitDesc = 'Show full video, black bars allowed';
-    String safeFillDesc = 'Bigger screen, minimal crop - safe for logos and tickers';
-    String fillDesc = 'Fill more screen, slight crop possible';
-    String zoomDesc = 'Reduce black bars with strong zoom';
-    String stretchDesc = 'Fill screen, may distort';
-
-    if (_isNewsChannel) {
-      origDesc += ' - Recommended for news';
-      safeFillDesc = 'Bigger screen with safe margins - use instead of Fill for news';
-    } else if (_detectedAspectRatioType == '4:3') {
-      origDesc += ' - Safe for 4:3 channels';
-      safeFillDesc = 'Expand 4:3 content safely, small side bars remain';
-      zoomDesc = 'Zoom into 4:3 frame (may crop)';
-    } else if (_currentChannel.hasInternalBlackBars) {
-      zoomDesc = 'Remove black bars with controlled zoom';
-    }
-
     final options = [
-      ('original',  'Original',  origDesc),
-      ('fit',       'Fit',       fitDesc),
-      ('safefill',  'Safe Fill', safeFillDesc),
-      ('fill',      'Fill',      fillDesc),
-      ('zoom',      'Zoom',      zoomDesc),
-      ('stretch',   'Stretch',   stretchDesc),
+      ('auto', 'Auto', 'Best size for this channel', Icons.auto_awesome_rounded),
+      ('fit', 'Fit', 'Show the full broadcast frame', Icons.fit_screen_rounded),
+      ('fill', 'Fill', 'Bigger picture with safe crop', Icons.crop_free_rounded),
+      ('zoom', 'Zoom', 'Remove black bars with stronger crop', Icons.zoom_out_map_rounded),
+      ('stretch', 'Stretch', 'Fill the screen, may distort', Icons.open_in_full_rounded),
     ];
 
     showModalBottomSheet(
@@ -2379,205 +2455,286 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
+        final screen = MediaQuery.of(ctx).size;
+        final maxHeight = screen.height * (screen.height < 520 ? 0.92 : 0.72);
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
-            return Container(
-              decoration: BoxDecoration(
-                color: const Color(AppColors.surface).withOpacity(0.98),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1), width: 1)),
-              ),
-              child: SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(height: 12),
-                    Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
-                    ),
-                    const SizedBox(height: 24),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 24),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text('Video Size', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          _getFitModeSource() + (_detectedAspectRatioType != 'unknown' ? ' Â· $_detectedAspectRatioType' : ''),
-                          style: const TextStyle(color: Colors.white38, fontSize: 12),
+            final selectedMode = _normalizeFitMode(_fitMode);
+            final effectiveMode = _effectiveFitMode();
+            final cropWarning = _isCropMode(effectiveMode);
+
+            void selectMode(String mode) {
+              setState(() { _fitMode = _normalizeFitMode(mode); });
+              setModalState(() {});
+              _saveFitModePreference();
+              _showFitToast(mode);
+            }
+
+            return Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxHeight, maxWidth: 560),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(AppColors.surface).withOpacity(0.98),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    border: Border(top: BorderSide(color: Colors.white.withOpacity(0.12), width: 1)),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.45), blurRadius: 24, offset: const Offset(0, -8)),
+                    ],
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(height: 10),
+                        Container(
+                          width: 42,
+                          height: 4,
+                          decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(4)),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ...options.map((opt) {
-                      final isSelected = _fitMode == opt.$1;
-                      return _buildFitTile(opt.$1, opt.$2, opt.$3, isSelected, () {
-                        setState(() { _fitMode = opt.$1; });
-                        setModalState(() {});
-                        
-                        if (_rememberFitModeForChannel) {
-                          StorageService().setChannelFitMode(_currentChannel.id, _fitMode);
-                        } else {
-                          StorageService().setVideoFitMode(_fitMode);
-                        }
-                        
-                        _showFitToast(opt.$1);
-                        Navigator.pop(ctx);
-                      });
-                    }),
-                    if (_fitMode == 'safefill' || _fitMode == 'fill' || _fitMode == 'zoom')
-                      Container(
-                        margin: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.amber.withOpacity(0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.info_outline, color: Colors.amber, size: 20),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                _fitMode == 'safefill'
-                                  ? (_isNewsChannel
-                                    ? 'Safe Fill limits crop to protect tickers, logos, and subtitles.'
-                                    : 'Safe Fill expands the image with minimal crop. Channel logos and ticker areas are protected.')
-                                  : (_isNewsChannel
-                                    ? 'News channels: This mode may crop tickers, headlines, logos, or subtitles. Original/Fit is recommended.'
-                                    : 'This mode may crop channel logos, tickers, or subtitles.'),
-                                style: const TextStyle(color: Colors.amber, fontSize: 12),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 14, 16, 10),
+                          child: Row(
+                            children: [
+                              const Expanded(
+                                child: Text('Video Size', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Remember for this channel',
-                                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Always use ${_getFitLabel()} for ${_currentChannel.name}',
-                                  style: const TextStyle(color: Colors.white54, fontSize: 12),
-                                ),
-                              ],
-                            ),
+                              IconButton(
+                                tooltip: 'Close',
+                                onPressed: () => Navigator.pop(ctx),
+                                icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                              ),
+                            ],
                           ),
-                          Switch(
-                            value: _rememberFitModeForChannel,
-                            activeColor: const Color(AppColors.primary),
-                            onChanged: (val) {
-                              setModalState(() {
-                                _rememberFitModeForChannel = val;
-                              });
-                              if (val) {
-                                StorageService().setChannelFitMode(_currentChannel.id, _fitMode);
-                              } else {
-                                StorageService().removeChannelFitMode(_currentChannel.id);
-                                StorageService().setVideoFitMode(_fitMode); // update global default to current just in case
-                              }
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                          child: Row(
+                            children: [
+                              _buildFitInfoChip(Icons.aspect_ratio_rounded, _detectedAspectRatioType == 'unknown' ? 'Detecting ratio' : _detectedAspectRatioType),
+                              const SizedBox(width: 8),
+                              _buildFitInfoChip(Icons.tune_rounded, selectedMode == 'auto' ? 'Auto uses ${_getFitLabelForMode(effectiveMode)}' : _getFitModeSource()),
+                            ],
+                          ),
+                        ),
+                        Flexible(
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                            itemCount: options.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 6),
+                            itemBuilder: (_, index) {
+                              final opt = options[index];
+                              return _buildFitTile(
+                                mode: opt.$1,
+                                label: opt.$2,
+                                sub: opt.$3,
+                                icon: opt.$4,
+                                isSelected: selectedMode == opt.$1,
+                                isRecommended: opt.$1 == 'auto' || opt.$1 == _getRecommendedFitMode(),
+                                onTap: () => selectMode(opt.$1),
+                              );
                             },
                           ),
-                        ],
-                      ),
+                        ),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          child: cropWarning
+                              ? Container(
+                                  key: ValueKey(effectiveMode),
+                                  margin: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.withOpacity(0.10),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: Colors.amber.withOpacity(0.35)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 18),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          _isNewsChannel
+                                              ? 'This can crop tickers, logos, or subtitles. Use Fit for news channels.'
+                                              : 'Fill and Zoom may crop edges. Use Fit when you need the full frame.',
+                                          style: const TextStyle(color: Colors.amber, fontSize: 12, height: 1.25),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+                          decoration: BoxDecoration(
+                            border: Border(top: BorderSide(color: Colors.white.withOpacity(0.08))),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Remember for this channel', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _rememberFitModeForChannel ? _currentChannel.name : 'Use as global default',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(color: Colors.white54, fontSize: 11),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch(
+                                value: _rememberFitModeForChannel,
+                                activeColor: const Color(AppColors.primary),
+                                onChanged: (val) async {
+                                  setModalState(() { _rememberFitModeForChannel = val; });
+                                  if (val) {
+                                    await StorageService().setChannelFitMode(_currentChannel.id, _normalizeFitMode(_fitMode));
+                                  } else {
+                                    await StorageService().removeChannelFitMode(_currentChannel.id);
+                                    await StorageService().setVideoFitMode(_normalizeFitMode(_fitMode));
+                                  }
+                                },
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(AppColors.primary),
+                                  foregroundColor: Colors.white,
+                                  minimumSize: const Size(72, 42),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                child: const Text('Done'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 24),
-                  ],
+                  ),
                 ),
               ),
             );
-          }
+          },
         );
       },
     ).then((_) => _showControlsWithTimer());
   }
 
-  Widget _buildFitTile(String mode, String label, String sub, bool isSelected, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
+  Widget _buildFitInfoChip(IconData icon, String label) {
+    return Flexible(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(AppColors.primary).withOpacity(0.1) : Colors.transparent,
-          border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05), width: 1)),
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white.withOpacity(0.10)),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected ? const Color(AppColors.primary) : Colors.white38,
-                  width: 2,
-                ),
-              ),
-              child: isSelected
-                  ? Center(child: Container(width: 10, height: 10, decoration: const BoxDecoration(color: Color(AppColors.primary), shape: BoxShape.circle)))
-                  : null,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        label,
-                        style: TextStyle(
-                          color: isSelected ? const Color(AppColors.primary) : Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (mode == _getRecommendedFitMode()) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(AppColors.primary).withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'Recommended',
-                            style: TextStyle(color: Color(AppColors.primary), fontSize: 9, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    sub,
-                    style: TextStyle(
-                      color: isSelected ? const Color(AppColors.primary).withOpacity(0.8) : Colors.white54,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+            Icon(icon, size: 13, color: Colors.white60),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFitTile({
+    required String mode,
+    required String label,
+    required String sub,
+    required IconData icon,
+    required bool isSelected,
+    required bool isRecommended,
+    required VoidCallback onTap,
+  }) {
+    final selectedColor = const Color(AppColors.primary);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            color: isSelected ? selectedColor.withOpacity(0.16) : Colors.white.withOpacity(0.045),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: isSelected ? selectedColor.withOpacity(0.75) : Colors.white.withOpacity(0.08), width: 1),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: isSelected ? selectedColor.withOpacity(0.22) : Colors.white.withOpacity(0.07),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: isSelected ? Colors.white : Colors.white70, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        if (isRecommended) ...[
+                          const SizedBox(width: 7),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: selectedColor.withOpacity(0.22), borderRadius: BorderRadius.circular(999)),
+                            child: const Text('Best', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      sub,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white60, fontSize: 12, height: 1.2),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Icon(
+                isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                color: isSelected ? selectedColor : Colors.white30,
+                size: 22,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -2846,7 +3003,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     final title = hasEPG ? _nowPlaying!.title : 'Live: ${_currentChannel.name}';
     final timeStr = hasEPG
         ? _formatTimeRange(_nowPlaying!.startTime, _nowPlaying!.endTime)
-        : '${_getCategoryLabel(_currentChannel.categoryName)} â€¢ Live Broadcast';
+        : '${_getCategoryLabel(_currentChannel.categoryName)} - Live Broadcast';
     final desc = hasEPG ? _nowPlaying!.description : _fallbackDesc();
     final progress = hasEPG ? _nowPlaying!.progress : 0.0;
 
@@ -3032,7 +3189,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     final sub = [ch.categoryName, ch.language]
         .whereType<String>()
         .where((e) => e.trim().isNotEmpty && e.toLowerCase() != 'unknown')
-        .join(' â€¢ ');
+        .join(' - ');
 
     return GestureDetector(
       onTap: () => _playChannel(ch),
@@ -3188,7 +3345,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     final sub = [ch.categoryName, ch.language]
         .whereType<String>()
         .where((e) => e.trim().isNotEmpty && e.toLowerCase() != 'unknown')
-        .join(' â€¢ ');
+        .join(' - ');
 
     return GestureDetector(
       onTap: () => _playChannel(ch),

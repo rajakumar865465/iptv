@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { startImportJob, getImportJobs } from '@/lib/api';
+import { startImportJob, getImportJobs, getErrorMessage } from '@/lib/api';
 import { CloudDownload, RefreshCw, AlertTriangle, CheckCircle, Database, Server } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -10,7 +10,7 @@ export default function ImportPage() {
   const [country, setCountry] = useState('IN');
   const [skipAdult, setSkipAdult] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [jobs, setJobs] = useState<any[]>([]);
+  const [jobs, setJobs] = useState<unknown[]>([]);
   const [message, setMessage] = useState({ type: '', text: '' });
 
   const fetchJobs = async () => {
@@ -23,12 +23,12 @@ export default function ImportPage() {
   };
 
   useEffect(() => {
-    fetchJobs();
+    void Promise.resolve().then(() => fetchJobs());
     const interval = setInterval(fetchJobs, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleStartImport = async (e: any) => {
+  const handleStartImport = async (e: unknown) => {
     e.preventDefault();
     setLoading(true);
     setMessage({ type: '', text: '' });
@@ -36,8 +36,8 @@ export default function ImportPage() {
       await startImportJob(sourceUrl, { country, skipAdult });
       setMessage({ type: 'success', text: 'Import job started in the background.' });
       fetchJobs();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to start import' });
+    } catch (err: unknown) {
+      setMessage({ type: 'error', text: getErrorMessage(err, 'Failed to start import') });
     }
     setLoading(false);
   };
@@ -169,3 +169,4 @@ export default function ImportPage() {
     </div>
   );
 }
+

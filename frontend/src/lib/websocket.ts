@@ -15,6 +15,7 @@ export function useWebSocket(url: string, onMessage?: MessageHandler) {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const handlersRef = useRef<Map<string, Set<MessageHandler>>>(new Map());
+  const reconnectRef = useRef<(() => void) | null>(null);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -53,13 +54,17 @@ export function useWebSocket(url: string, onMessage?: MessageHandler) {
       wsRef.current = null;
       
       // Reconnect after 3 seconds
-      setTimeout(connect, 3000);
+      setTimeout(() => reconnectRef.current?.(), 3000);
     };
 
     ws.onerror = (err) => {
       console.error('WebSocket error:', err);
     };
   }, [url, onMessage]);
+
+  useEffect(() => {
+    reconnectRef.current = connect;
+  }, [connect]);
 
   const disconnect = useCallback(() => {
     if (wsRef.current) {
@@ -101,7 +106,6 @@ export function useWebSocket(url: string, onMessage?: MessageHandler) {
 // Hook specifically for dashboard stats
 export function useDashboardStats() {
   const [stats, setStats] = useState<unknown>(null);
-  const [isConnected, setIsConnected] = useState(false);
   
   // Use API URL for WebSocket connection (same host as backend, not Next.js dev server)
   const wsUrl = typeof window !== 'undefined'
@@ -112,9 +116,5 @@ export function useDashboardStats() {
     setStats(data as unknown);
   });
 
-  useEffect(() => {
-    setIsConnected(connected);
-  }, [connected]);
-
-  return { stats, isConnected };
+  return { stats, isConnected: connected };
 }

@@ -24,7 +24,7 @@ function SuccessContent() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!orderId) { setError('No order ID found.'); setLoading(false); return; }
+    if (!orderId) { void Promise.resolve().then(() => { setError('No order ID found.'); setLoading(false); }); return; }
     getOrderStatus(orderId)
       .then(data => {
         setOrder(data);

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { loginAdmin } from '@/lib/api';
+import { loginAdmin, getErrorMessage } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginPage() {
@@ -24,7 +24,7 @@ export default function LoginPage() {
         login(res.data.data.token);
         router.push('/dashboard');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (!err.response) {
         setError('Cannot connect to server. Please check your internet.');
       } else {

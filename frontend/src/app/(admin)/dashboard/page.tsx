@@ -6,16 +6,21 @@ import { getDashboardStats } from '@/lib/api';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { motion } from 'framer-motion';
 
+interface RevenuePoint { name: string; revenue: string | number; users: string | number; }
+interface DevicePoint { name: string; value: string | number; }
+interface RecentUser { id: string; full_name?: string; email?: string; status?: string; }
+interface RecentPayment { id: string; full_name?: string; created_at: string; amount: string | number; status?: string; }
+
 interface Stats {
   users: { total: number; active: number; blocked: number; new_last_30d: number };
   devices: { total: number };
   channels: { total: number; active: number; online: number; offline: number; unstable: number };
   licenses: { total: number; active: number; unused: number; expired: number; suspended: number };
   payments: { total: number; total_revenue: number; completed: number; pending: number };
-  recentUsers: any[];
-  recentPayments: any[];
-  revenueSeries: any[];
-  deviceBreakdown: any[];
+  recentUsers: RecentUser[];
+  recentPayments: RecentPayment[];
+  revenueSeries: RevenuePoint[];
+  deviceBreakdown: DevicePoint[];
 }
 
 const COLORS = ['#10b981', '#06b6d4', '#6366f1', '#8b5cf6', '#ec4899'];
@@ -36,7 +41,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchStats();
+    void Promise.resolve().then(() => fetchStats());
     timerRef.current = setInterval(() => fetchStats(), REFRESH_INTERVAL);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [fetchStats]);
@@ -55,13 +60,13 @@ export default function DashboardPage() {
   // Format revenue series data to ensure numbers
   const chartData = stats.revenueSeries?.map(d => ({
     name: d.name,
-    revenue: parseFloat(d.revenue) || 0,
-    users: parseInt(d.users) || 0,
+    revenue: Number(d.revenue) || 0,
+    users: Number(d.users) || 0,
   })) || [];
 
   const deviceData = stats.deviceBreakdown?.map(d => ({
     name: d.name,
-    value: parseInt(d.value) || 0,
+    value: Number(d.value) || 0,
   })) || [];
 
   const statCards = [
@@ -98,7 +103,7 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">
             Overview
           </h1>
-          <p className="text-slate-400 mt-1">Here's what's happening with your NivaTV service today.</p>
+          <p className="text-slate-400 mt-1">{"Here's what's happening with your NivaTV service today."}</p>
         </div>
         <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700/50 rounded-full px-4 py-2 backdrop-blur-sm">
           <Activity className="w-4 h-4 text-emerald-400" />
@@ -264,3 +269,5 @@ export default function DashboardPage() {
     </motion.div>
   );
 }
+
+

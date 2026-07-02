@@ -1,5 +1,14 @@
 import axios from 'axios';
 
+export function getPublicErrorMessage(err: unknown, fallback: string) {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as { message?: string } | undefined;
+    return data?.message || err.message || fallback;
+  }
+  if (err instanceof Error) return err.message || fallback;
+  return fallback;
+}
+
 const publicAxios = axios.create({
   baseURL: typeof window !== 'undefined' ? '' : (process.env.BACKEND_URL || 'http://127.0.0.1:5000'),
   headers: { 'Content-Type': 'application/json' },
@@ -38,7 +47,7 @@ export interface Category {
   channel_count: number;
 }
 
-function normalizeCategory(cat: any): Category {
+function normalizeCategory(cat: unknown): Category {
   return {
     ...cat,
     channel_count: typeof cat.channel_count === 'string' ? parseInt(cat.channel_count, 10) : cat.channel_count,
@@ -116,7 +125,7 @@ export interface LicenseCheckResult {
 
 const unwrap = (res: { data: { data: unknown } }) => res.data.data;
 
-function normalizePlan(plan: any): Plan {
+function normalizePlan(plan: unknown): Plan {
   return {
     ...plan,
     price: typeof plan.price === 'string' ? parseFloat(plan.price) : plan.price,
@@ -126,7 +135,7 @@ function normalizePlan(plan: any): Plan {
 
 export const getPublicPlans = (): Promise<Plan[]> =>
   publicAxios.get('/api/public/plans').then(res => {
-    const data = res.data.data as any[];
+    const data = res.data.data as unknown[];
     return data.map(normalizePlan);
   });
 
@@ -140,7 +149,7 @@ export const getChannelPreview = (category?: string): Promise<Channel[]> => {
 
 export const getCategories = (): Promise<Category[]> =>
   publicAxios.get('/api/public/categories').then(res => {
-    const data = res.data.data as any[];
+    const data = res.data.data as unknown[];
     return data.map(normalizeCategory);
   });
 
