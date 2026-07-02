@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getSystemHealth, getMaintenanceStatus, runMaintenance } from '@/lib/api';
+import { getSystemHealth } from '@/lib/api';
 import { motion } from 'framer-motion';
 import {
-  Database, Server, Cpu, RefreshCw, Play,
-  CheckCircle, XCircle, Activity, HardDrive,
+  Database, Server, Cpu, RefreshCw,
+  XCircle, Activity, HardDrive, Lock,
 } from 'lucide-react';
 
 function MetricCard({ title, value, sub, icon: Icon, color, border }: {
@@ -30,16 +30,22 @@ function MetricCard({ title, value, sub, icon: Icon, color, border }: {
 
 const MAINTENANCE_JOBS = [
   { key: 'dedupe-channels', label: 'Deduplicate Channels', desc: 'Merge channels with identical names' },
-  { key: 'activate-channels', label: 'Activate Channels', desc: 'Promote best streams, update health' },
+  { key: 'activate-channels', label: 'Activate Channels', desc: 'Promote best streams and update health' },
   { key: 'run-migrations', label: 'Run Migrations', desc: 'Apply pending database migrations' },
-  { key: 'run-all', label: 'Run All Jobs', desc: 'Dedupe + activate + report in sequence' },
+  { key: 'generate-report', label: 'Generate Report', desc: 'Produce current database health summary' },
+  { key: 'run-all', label: 'Run All Jobs', desc: 'Run maintenance sequence on the server' },
 ];
 
+type SystemHealth = {
+  db?: { status?: string; timestamp?: string };
+  server?: { uptime?: number; memory?: { heapUsed?: number; heapTotal?: number; rss?: number } };
+  os?: { platform?: string; arch?: string; freeMemory?: number; totalMemory?: number };
+  timestamp?: string;
+};
+
 export default function SystemPage() {
-  const [health, setHealth] = useState<any>(null);
+  const [health, setHealth] = useState<SystemHealth | null>(null);
   const [loading, setLoading] = useState(true);
-  const [runningJob, setRunningJob] = useState<string | null>(null);
-  const [jobResult, setJobResult] = useState<{ key: string; ok: boolean; msg: string } | null>(null);
 
   const fetchHealth = () => {
     setLoading(true);
@@ -50,32 +56,18 @@ export default function SystemPage() {
 
   useEffect(() => { fetchHealth(); }, []);
 
-  const handleJob = async (key: string) => {
-    if (!confirm(`Run "${key}"? This may take a while.`)) return;
-    setRunningJob(key);
-    setJobResult(null);
-    try {
-      const res = await runMaintenance(key);
-      setJobResult({ key, ok: true, msg: res?.message || 'Job completed successfully' });
-    } catch (e: any) {
-      setJobResult({ key, ok: false, msg: e?.response?.data?.message || 'Job failed' });
-    } finally {
-      setRunningJob(null);
-    }
-  };
-
   const mb = (bytes: number) => `${Math.round(bytes / 1024 / 1024)} MB`;
   const uptime = health?.server?.uptime;
   const uptimeStr = uptime
     ? `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`
-    : '—';
+    : '-';
 
   const heapPct = health?.server?.memory
-    ? Math.round((health.server.memory.heapUsed / health.server.memory.heapTotal) * 100)
+    ? Math.round(((health.server.memory.heapUsed || 0) / (health.server.memory.heapTotal || 1)) * 100)
     : 0;
 
   const osFreePct = health?.os
-    ? Math.round((health.os.freeMemory / health.os.totalMemory) * 100)
+    ? Math.round(((health.os.freeMemory || 0) / (health.os.totalMemory || 1)) * 100)
     : 0;
 
   return (
@@ -85,7 +77,7 @@ export default function SystemPage() {
           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">
             System Health
           </h1>
-          <p className="text-slate-400 mt-1">Live metrics, memory usage, and maintenance jobs.</p>
+          <p className="text-slate-400 mt-1">Live metrics and server-side maintenance visibility.</p>
         </div>
         <button
           onClick={fetchHealth}
@@ -103,7 +95,6 @@ export default function SystemPage() {
         </div>
       ) : health ? (
         <>
-          {/* Top row metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <MetricCard
               title="Database"
@@ -139,7 +130,6 @@ export default function SystemPage() {
             />
           </div>
 
-          {/* Server info */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -151,10 +141,10 @@ export default function SystemPage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
               {[
-                { label: 'Platform', value: health.os?.platform || '—' },
-                { label: 'Architecture', value: health.os?.arch || '—' },
+                { label: 'Platform', value: health.os?.platform || '-' },
+                { label: 'Architecture', value: health.os?.arch || '-' },
                 { label: 'RSS Memory', value: mb(health.server?.memory?.rss || 0) },
-                { label: 'Timestamp', value: health.timestamp ? new Date(health.timestamp).toLocaleString() : '—' },
+                { label: 'Timestamp', value: health.timestamp ? new Date(health.timestamp).toLocaleString() : '-' },
               ].map(({ label, value }) => (
                 <div key={label}>
                   <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">{label}</p>
@@ -164,43 +154,35 @@ export default function SystemPage() {
             </div>
           </motion.div>
 
-          {/* Maintenance jobs */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className="rounded-2xl border border-slate-700/50 bg-slate-900/40 backdrop-blur-xl overflow-hidden"
           >
             <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-700/50">
-              <Play className="w-4 h-4 text-amber-400" />
-              <h3 className="font-bold text-slate-200">Maintenance Jobs</h3>
+              <Lock className="w-4 h-4 text-amber-400" />
+              <div>
+                <h3 className="font-bold text-slate-200">Maintenance Jobs</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Run these from the server or internal endpoint with MAINTENANCE_SECRET.</p>
+              </div>
             </div>
             <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
               {MAINTENANCE_JOBS.map((job) => (
                 <div
                   key={job.key}
-                  className="flex items-center justify-between p-4 rounded-xl border border-slate-700/50 bg-slate-800/40 hover:bg-slate-800/70 transition-colors"
+                  className="p-4 rounded-xl border border-slate-700/50 bg-slate-800/40"
                 >
-                  <div>
+                  <div className="flex items-center justify-between gap-3">
                     <p className="font-semibold text-slate-200 text-sm">{job.label}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{job.desc}</p>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-1">
+                      Server only
+                    </span>
                   </div>
-                  <button
-                    onClick={() => handleJob(job.key)}
-                    disabled={runningJob !== null}
-                    className="ml-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 transition-all disabled:opacity-50 shrink-0"
-                  >
-                    {runningJob === job.key ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                    {runningJob === job.key ? 'Running…' : 'Run'}
-                  </button>
+                  <p className="text-xs text-slate-500 mt-1">{job.desc}</p>
+                  <p className="text-[11px] text-slate-600 font-mono mt-2">{job.key}</p>
                 </div>
               ))}
             </div>
-            {jobResult && (
-              <div className={`mx-4 mb-4 flex items-center gap-2 p-3 rounded-xl border text-sm ${jobResult.ok ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-400'}`}>
-                {jobResult.ok ? <CheckCircle className="w-4 h-4 shrink-0" /> : <XCircle className="w-4 h-4 shrink-0" />}
-                <span><strong>{jobResult.key}:</strong> {jobResult.msg}</span>
-              </div>
-            )}
           </motion.div>
         </>
       ) : (

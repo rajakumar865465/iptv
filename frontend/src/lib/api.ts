@@ -240,8 +240,6 @@ export const createAdminUser = (data: Record<string, unknown>) =>
 export const updateAdminUser = (id: string, data: Record<string, unknown>) =>
   api.put(`/admin-users/${id}`, data).then((r) => r.data.data);
 
-export const runMaintenance = (job: string) =>
-  api.post(`/maintenance/${job}`).then((r) => r.data.data);
 
 export const getMaintenanceStatus = () =>
   api.get('/maintenance/status').then((r) => r.data.data);
