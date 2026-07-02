@@ -1,77 +1,105 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
-// Admin routes that require authentication
-const PROTECTED_PREFIXES = [
-  '/dashboard',
-  '/users',
-  '/licenses',
-  '/devices',
-  '/channels',
-  '/categories',
-  '/plans',
-  '/payments',
-  '/analytics',
-  '/logs',
-  '/app-settings',
-  '/app-releases',
-  '/website-settings',
-  '/stream-scanner',
-  '/broken-channels',
-  '/duplicates',
-  '/languages',
-  '/notifications',
+// Public paths that must never require an admin token.
+const PUBLIC_PREFIXES = [
+  '/',
+  '/login',
+  '/browse',
+  '/download',
+  '/features',
+  '/license',
+  '/payment',
+  '/pricing',
+  '/privacy',
+  '/support',
+  '/terms',
 ];
+
+// Admin routes that require authentication. Keep this explicit because route
+// groups like `(admin)` do not appear in the browser URL.
+const PROTECTED_PREFIXES = [
+  '/admin-users',
+  '/analytics',
+  '/app-releases',
+  '/app-settings',
+  '/categories',
+  '/channels',
+  '/dashboard',
+  '/devices',
+  '/duplicate-channels',
+  '/hidden-channels',
+  '/import/iptv',
+  '/languages',
+  '/licenses',
+  '/logs',
+  '/notifications',
+  '/payments',
+  '/plans',
+  '/reported-channels',
+  '/stream-health',
+  '/stream-scanner',
+  '/system',
+  '/users',
+  '/website-settings',
+];
+
+function matchesPrefix(pathname: string, prefixes: string[]) {
+  return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(prefix + '/'));
+}
+
+function redirectToLogin(req: NextRequest) {
+  const loginUrl = new URL('/login', req.url);
+  loginUrl.searchParams.set('redirect', req.nextUrl.pathname);
+  return NextResponse.redirect(loginUrl);
+}
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Check if this path needs protection
-  const isProtected = PROTECTED_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'));
-  if (!isProtected) {
+  const isPublic = PUBLIC_PREFIXES.some((prefix) => (
+    prefix === '/' ? pathname === '/' : pathname === prefix || pathname.startsWith(prefix + '/')
+  ));
+  const isProtected = matchesPrefix(pathname, PROTECTED_PREFIXES);
+
+  // Route groups like `(admin)` do not exist in URLs, so public pages are
+  // allowlisted and every known admin route above is protected explicitly.
+  if (isPublic || !isProtected) {
     return NextResponse.next();
   }
 
-  // Read token from cookie (preferred) or Authorization header
-  // The client stores the token in localStorage, so we read it from a
-  // custom request header that the API layer adds (X-Admin-Token).
-  // For cookie-based auth, set an httpOnly cookie on login instead.
   const token =
     req.cookies.get('adminToken')?.value ||
     req.headers.get('x-admin-token');
 
   if (!token) {
-    return NextResponse.redirect(new URL('/login', req.url));
+    return redirectToLogin(req);
   }
 
   try {
     const secret = process.env.ADMIN_JWT_SECRET;
     if (!secret) {
-      // If secret is not configured on the server, deny access to be safe
-      console.error('ADMIN_JWT_SECRET not set — cannot verify admin token in middleware');
-      return NextResponse.redirect(new URL('/login', req.url));
+      console.error('ADMIN_JWT_SECRET not set - cannot verify admin token in middleware');
+      return redirectToLogin(req);
     }
 
-    // Verify the token using jose (works in Edge Runtime, unlike jsonwebtoken)
     await jwtVerify(token, new TextEncoder().encode(secret));
 
     return NextResponse.next();
   } catch {
-    // Token invalid or expired — redirect to login
-    return NextResponse.redirect(new URL('/login', req.url));
+    return redirectToLogin(req);
   }
 }
 
 export const config = {
   matcher: [
     /*
-     * Match all admin panel paths.
+     * Match app routes so admin pages can be protected.
      * Excludes:
      *   - /api routes (handled by their own auth middleware)
      *   - /_next (Next.js internals)
-     *   - /login (the login page itself)
      *   - Static files
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|login|.*\\..*).*)' ,
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)',
   ],
 };
