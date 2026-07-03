@@ -8,7 +8,7 @@ async function test() {
   // 1. Test smooth playback API for a known channel
   console.log('1. Testing GET /api/channels/{id}/smooth-playback...');
   try {
-    const smoothRes = await fetch(`${BASE}/api/channels/1/smooth-playback`);
+    const smoothRes = await fetch(`${BASE}/api/channels/9/smooth-playback`);
     const smoothData = await smoothRes.json();
     console.log('   Status:', smoothRes.status);
     console.log('   Response:', JSON.stringify(smoothData, null, 2));
@@ -19,7 +19,7 @@ async function test() {
   // 2. Test direct playback API
   console.log('\n2. Testing GET /api/channels/{id}/playback...');
   try {
-    const playbackRes = await fetch(`${BASE}/api/channels/1/playback`);
+    const playbackRes = await fetch(`${BASE}/api/channels/9/playback`);
     const playbackData = await playbackRes.json();
     console.log('   Status:', playbackRes.status);
     console.log('   Has primary_stream:', !!playbackData.data?.primary_stream);
@@ -53,7 +53,7 @@ async function test() {
   // 5. Test delayed HLS playlist endpoint (public)
   console.log('\n5. Testing GET /api/smooth/{id}/playlist.m3u8...');
   try {
-    const playlistRes = await fetch(`${BASE}/api/smooth/1/playlist.m3u8`);
+    const playlistRes = await fetch(`${BASE}/api/smooth/9/playlist.m3u8`);
     const playlistText = await playlistRes.text();
     console.log('   Status:', playlistRes.status);
     console.log('   Has #EXTM3U:', playlistText.includes('#EXTM3U'));
@@ -62,6 +62,18 @@ async function test() {
     console.log('   First 300 chars:', playlistText.substring(0, 300));
   } catch (e) {
     console.log('   Playlist test failed:', e.message);
+  }
+
+  // 6. Test proxy security
+  console.log('\n6. Testing Proxy Security...');
+  try {
+    const masterRes = await fetch(`${BASE}/api/proxy/1/master.m3u8`);
+    console.log('   Master without token status:', masterRes.status);
+    
+    const segmentRes = await fetch(`${BASE}/api/proxy/segment/1/badtoken`);
+    console.log('   Segment with bad token status:', segmentRes.status);
+  } catch (e) {
+    console.log('   Proxy security test failed:', e.message);
   }
 
   console.log('\n=== Tests Complete ===');

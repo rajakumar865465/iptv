@@ -266,6 +266,8 @@ router.get('/smooth-playback/health', smoothPlaybackController.adminBufferHealth
 router.get('/smooth-playback/channels', smoothPlaybackController.adminListChannels);
 router.put('/smooth-playback/channels/:id', smoothPlaybackController.adminUpdateChannel);
 router.post('/smooth-playback/channels/:id/restart', smoothPlaybackController.adminRestartRecorder);
+router.get('/smooth-playback/channels/:channelId/fallback-logs', smoothPlaybackController.adminGetFallbackLogs);
+router.post('/smooth-playback/channels/:id/clear-stale', smoothPlaybackController.adminClearStaleBuffer);
 
 // GET  /api/admin/stream-health
 //   ?status=unstable|likely_broken|offline|requires_licensed_source|...

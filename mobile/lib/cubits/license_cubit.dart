@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dio/dio.dart';
 import '../services/api_service.dart';
 import '../models/license_model.dart';
+import '../constants.dart';
 
 abstract class LicenseState {}
 
@@ -35,13 +36,15 @@ class LicenseCubit extends Cubit<LicenseState> {
   Future<void> checkStatus() async {
     emit(LicenseLoading());
     try {
-      final response = await _api.get('/api/license/status');
+      final response = await _api.get(ApiEndpoints.licenseStatus);
       if (response['success'] == true && response['data'] != null) {
         final data = response['data'];
         if (data['status'] == 'none') {
+          if (isClosed) return;
           emit(LicenseNone());
         } else {
           final license = LicenseModel.fromJson(data);
+          if (isClosed) return;
           if (license.isActive) {
             emit(LicenseActive(license));
           } else {
@@ -49,9 +52,11 @@ class LicenseCubit extends Cubit<LicenseState> {
           }
         }
       } else {
+        if (isClosed) return;
         emit(LicenseNone());
       }
     } catch (e) {
+      if (isClosed) return;
       emit(LicenseError(e.toString()));
     }
   }
@@ -59,16 +64,18 @@ class LicenseCubit extends Cubit<LicenseState> {
   Future<void> activate(String licenseKey, {bool forceLogoutOldest = false}) async {
     emit(LicenseLoading());
     try {
-      final response = await _api.post('/api/license/activate', {
+      final response = await _api.post(ApiEndpoints.activate, {
         'license_key': licenseKey,
-        'forceLogoutOldest': forceLogoutOldest,
+        'force_logout_oldest': forceLogoutOldest,
       });
       if (response['success'] == true) {
         await checkStatus();
       } else {
+        if (isClosed) return;
         emit(LicenseError(response['message'] ?? 'Activation failed'));
       }
     } catch (e) {
+      if (isClosed) return;
       if (e is DioException) {
         final data = e.response?.data;
         if (data is Map && data['error'] == 'DEVICE_LIMIT_REACHED') {

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
 import '../cubits/license_cubit.dart';
 import 'home_screen.dart';
+import 'payment_screen.dart';
 
 class LicenseActivationScreen extends StatefulWidget {
   const LicenseActivationScreen({super.key});
@@ -101,11 +102,6 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
                     textCapitalization: TextCapitalization.characters,
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    'Try using test key: TEST-LICENSE-2026',
-                    style: TextStyle(color: const Color(AppColors.textSecondary), fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
                   const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: state is LicenseLoading
@@ -130,7 +126,9 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
                   const SizedBox(height: 16),
                   TextButton(
                     onPressed: () {
-                      // Navigate to payment screen or support
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PaymentScreen()),
+                      );
                     },
                     child: const Text('Need a license? Contact Support'),
                   ),

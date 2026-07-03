@@ -30,7 +30,10 @@ export default function PlansPage() {
 
   const fetchPlans = () =>
     getPlans()
-      .then((data: unknown) => setPlans(Array.isArray(data) ? data : (data?.data || [])))
+      .then((data) => {
+        const arr = Array.isArray(data) ? data : (data as { data?: Plan[] })?.data;
+        setPlans(Array.isArray(arr) ? arr : []);
+      })
       .finally(() => setLoading(false));
 
   useEffect(() => { fetchPlans(); }, []);

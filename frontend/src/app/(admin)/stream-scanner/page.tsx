@@ -67,11 +67,12 @@ function ProgressBar({ total, completed, failed }: { total: number; completed: n
 export default function StreamScannerPage() {
   const [running, setRunning] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const [activeJob, setActiveJob] = useState<unknown | null>(null);
+  const [activeJob, setActiveJob] = useState<any>(null);
   const [scope, setScope] = useState('all');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [channels, setChannels] = useState<unknown[]>([]);
+  interface Channel { id: string; [key: string]: unknown }
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [healthFilter, setHealthFilter] = useState('');
@@ -144,7 +145,7 @@ export default function StreamScannerPage() {
   const handleFix = async (id: string) => {
     try {
       await fixBrokenChannel(id);
-      setChannels(prev => prev.filter(c => c.id !== id));
+      setChannels(prev => prev.filter((c: Channel) => c.id !== id));
     } catch { alert('Failed to mark channel for re-check'); }
   };
 
@@ -240,7 +241,7 @@ export default function StreamScannerPage() {
             <div className="flex items-center gap-3 mb-3">
               <Radar className="w-5 h-5 text-cyan-400 animate-pulse" />
               <h3 className="font-bold text-slate-200">Deep Scan in progress…</h3>
-              {activeJob && <StatusBadge status={activeJob.status} />}
+              {activeJob && typeof activeJob === 'object' && activeJob !== null && 'status' in activeJob ? <StatusBadge status={String(activeJob.status)} /> : null}
             </div>
             {activeJob ? (
               <>

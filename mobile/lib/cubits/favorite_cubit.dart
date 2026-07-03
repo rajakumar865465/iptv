@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../services/api_service.dart';
 import '../models/channel_model.dart';
+import '../constants.dart';
 
 abstract class FavoriteState {}
 
@@ -23,16 +24,19 @@ class FavoriteCubit extends Cubit<FavoriteState> {
   Future<void> loadFavorites() async {
     emit(FavoriteLoading());
     try {
-      final response = await _api.get('/api/user/favorites');
+      final response = await _api.get(ApiEndpoints.favorites);
       if (response['success'] == true) {
         final favs = (response['data'] as List)
             .map((c) => ChannelModel.fromJson(c))
             .toList();
+        if (isClosed) return;
         emit(FavoriteLoaded(favs));
       } else {
+        if (isClosed) return;
         emit(FavoriteLoaded([]));
       }
     } catch (e) {
+      if (isClosed) return;
       emit(FavoriteError(e.toString()));
     }
   }
@@ -40,12 +44,13 @@ class FavoriteCubit extends Cubit<FavoriteState> {
   Future<void> toggleFavorite(int channelId, {bool isFavorite = false}) async {
     try {
       if (isFavorite) {
-        await _api.delete('/api/user/favorites/$channelId');
+        await _api.delete('${ApiEndpoints.favorites}/$channelId');
       } else {
-        await _api.post('/api/user/favorites/$channelId', {});
+        await _api.post('${ApiEndpoints.favorites}/$channelId', {});
       }
       await loadFavorites();
     } catch (_) {
+      if (isClosed) return;
       emit(FavoriteError('Failed to update favorites. Please try again.'));
     }
   }

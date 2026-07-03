@@ -8,6 +8,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:share_plus/share_plus.dart';
 import '../constants.dart';
 import '../cubits/favorite_cubit.dart';
 import '../models/channel_model.dart';
@@ -494,7 +495,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   /// Report detected display info to backend for admin visibility
   Future<void> _reportDisplayInfo() async {
     try {
-      await _api.post('${ApiEndpoints.channels}/${_currentChannel.id}/display-report', {
+      await _api.post(ApiEndpoints.channelDisplayReportPath(_currentChannel.id), {
         'aspect_ratio_type': _detectedAspectRatioType,
         'video_width': _detectedVideoWidth,
         'video_height': _detectedVideoHeight,
@@ -536,7 +537,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   Future<void> _fetchSmoothPlayback() async {
     try {
-      final res = await _api.get('${ApiEndpoints.channels}/${_currentChannel.id}/smooth-playback');
+      final res = await _api.get(ApiEndpoints.channelSmoothPlaybackPath(_currentChannel.id));
       if (res['success'] == true) {
         final d = res['data'];
         final mode = d['playback_mode'] as String? ?? 'direct';
@@ -546,6 +547,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           _bufferReady = d['buffer_ready'] == true;
           _bufferStatus = d['buffer_status'] as String? ?? 'warming_up';
           _fallbackDirectUrl = d['fallback_direct_url'] as String?;
+          final statusMessage = d['message'] as String?;
 
           if (_bufferReady) {
             // Override stream URL with delayed buffer URL
@@ -555,9 +557,29 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               if (mounted) setState(() { _showPreparingOverlay = false; });
             }
           } else {
-            // Buffer warming up — show preparing overlay, play direct as fallback
-            if (mounted) setState(() { _showPreparingOverlay = true; });
+            // Buffer warming up — show preparing overlay with status message
+            if (mounted) {
+              setState(() {
+                _showPreparingOverlay = true;
+                _streamOverlayMessage = statusMessage ?? 'Preparing smooth playback...';
+              });
+            }
+            
+            // Show specific status messages based on buffer status
+            if (_bufferStatus == 'source_timeout' || _bufferStatus == 'trying_backup') {
+              _streamOverlayMessage = statusMessage ?? 'Trying another source...';
+            } else if (_bufferStatus == 'no_working_source') {
+              _streamOverlayMessage = statusMessage ?? 'No stable source is available right now.';
+            } else if (_bufferStatus == 'backup_active') {
+              _streamOverlayMessage = 'Using backup source...';
+            }
           }
+        } else if (mode == 'requires_licensed_source') {
+          _smoothPlaybackEnabled = true;
+          _bufferReady = false;
+          _bufferStatus = 'requires_licensed_source';
+          _showPreparingOverlay = false;
+          _streamOverlayMessage = d['message'] as String? ?? 'No stable source is available right now.';
         } else {
           _smoothPlaybackEnabled = false;
           _showPreparingOverlay = false;
@@ -593,7 +615,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
     if (mounted) setState(() { _isLoading = true; _hasError = false; _streamOverlayMessage = 'Loading channel...'; _isRetryingStream = false; });
     try {
-      final res = await _api.get('${ApiEndpoints.channels}/${_currentChannel.id}/playback');
+      final res = await _api.get(ApiEndpoints.channelPlaybackPath(_currentChannel.id));
       if (res['success'] == true) {
         final data = res['data'];
         _currentStreamMeta = data['primary_stream'];
@@ -606,6 +628,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
         // Fetch smooth playback info and override URL if delayed buffer is ready
         await _fetchSmoothPlayback();
+        if (_smoothPlaybackEnabled &&
+            (_bufferStatus == 'no_working_source' || _bufferStatus == 'requires_licensed_source')) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _hasError = true;
+              _showPreparingOverlay = false;
+              _streamOverlayMessage = 'No stable source is available right now.';
+            });
+          }
+          return;
+        }
 
         // Backend may recommend 'fast' profile for known-stable high-health streams
         final serverProfile = data['recommended_buffer_profile'] as String? ?? 'stable';
@@ -955,7 +989,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // Fix #14: Send token in Authorization header instead of URL query param.
       // Query param tokens appear in server logs, browser history, and analytics tools.
       // The backend already prefers Authorization header (streamController.js line 22).
-      final fallbackUrl = '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360';
+      final fallbackUrl = '${BackendConfig.baseUrl}${ApiEndpoints.streamTranscodePath(_currentChannel.id, quality: '360')}';
       final transcodeHeaders = {'Authorization': 'Bearer $token'};
       _currentStreamMeta = {'url': fallbackUrl, 'headers': transcodeHeaders};
       await _initializePlayer(fallbackUrl, transcodeHeaders);
@@ -1024,7 +1058,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _retryAttempt = 0; // Reset for fallback streams
 
     try {
-      await _api.post('${ApiEndpoints.channels}/${_currentChannel.id}/report-failure', {
+      await _api.post(ApiEndpoints.channelReportFailurePath(_currentChannel.id), {
         'reason': reason,
         'stream_url': _currentUrl,
         'stream_id': _currentStreamMeta?['id'],
@@ -1071,7 +1105,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           final token = await StorageService().getToken() ?? '';
           if (token.isEmpty) throw Exception('No token');
           // Fix #14: Token in Authorization header, not URL query param
-          final fallbackUrl = '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360';
+          final fallbackUrl = '${BackendConfig.baseUrl}${ApiEndpoints.streamTranscodePath(_currentChannel.id, quality: '360')}';
           final transcodeHeaders = {'Authorization': 'Bearer $token'};
           _currentStreamMeta = {'url': fallbackUrl, 'headers': transcodeHeaders};
           await _initializePlayer(fallbackUrl, transcodeHeaders);
@@ -1120,7 +1154,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       final int bufferSeconds = _playStartTime != null
           ? DateTime.now().difference(_playStartTime!).inSeconds
           : 0;
-      await _api.post('${ApiEndpoints.channels}/${_currentChannel.id}/playback-result', {
+      await _api.post(ApiEndpoints.channelPlaybackResultPath(_currentChannel.id), {
         'result': result,
         'status': _hadFailureBeforePlaying ? 'unstable' : 'online',
         'stream_url': _currentUrl,
@@ -1138,7 +1172,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
     // EPG Now Playing
     try {
-      final nowRes = await _api.get('${ApiEndpoints.channels}/$channelId/epg/now');
+      final nowRes = await _api.get(ApiEndpoints.channelEPGNowPath(channelId));
       if (mounted && nowRes['success'] == true && nowRes['data'] != null) {
         _nowPlaying = EpgProgram.fromJson(nowRes['data']);
       }
@@ -1148,7 +1182,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
     // Upcoming EPG
     try {
-      final upcomingRes = await _api.get('${ApiEndpoints.channels}/$channelId/epg/upcoming');
+      final upcomingRes = await _api.get(ApiEndpoints.channelEPGUpcomingPath(channelId));
       if (mounted && upcomingRes['success'] == true && upcomingRes['data'] != null) {
         final rawUpcoming = upcomingRes['data'];
         if (rawUpcoming is List) {
@@ -1163,7 +1197,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
     // Related Channels
     try {
-      final relatedRes = await _api.get('${ApiEndpoints.channels}/$channelId/related');
+      final relatedRes = await _api.get(ApiEndpoints.channelRelatedPath(channelId));
       if (mounted && relatedRes['success'] == true && relatedRes['data'] != null) {
         final data = relatedRes['data'];
         _relatedSourceType = data['source_type'] as String? ?? '';
@@ -1780,7 +1814,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               ),
               const SizedBox(height: 8),
               const Text(
-                'This channel is slow, blocked, or unsupported right now.',
+                'No stable source is available right now.',
                 style: TextStyle(color: Colors.white54, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
@@ -2405,7 +2439,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                             final token = await StorageService().getToken() ?? '';
                             _changeQuality({
                               'label': '480p Data Saver',
-                              'url': '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=480',
+                              'url': '${BackendConfig.baseUrl}${ApiEndpoints.streamTranscodePath(_currentChannel.id, quality: '480')}',
                               'headers': {'Authorization': 'Bearer $token'},
                             });
                           }
@@ -2419,7 +2453,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                             final token = await StorageService().getToken() ?? '';
                             _changeQuality({
                               'label': '360p Data Saver',
-                              'url': '${BackendConfig.baseUrl}/api/stream/transcode/${_currentChannel.id}?quality=360',
+                              'url': '${BackendConfig.baseUrl}${ApiEndpoints.streamTranscodePath(_currentChannel.id, quality: '360')}',
                               'headers': {'Authorization': 'Bearer $token'},
                             });
                           }
@@ -2952,13 +2986,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   void _shareChannel() {
-    _showPlayerToast('Share not available yet');
+    final name = _currentChannel.name;
+    final text = 'Watch $name on NivaTV — the best live TV experience!';
+    Share.share(text, subject: name);
   }
 
   void _reportChannel() {
     _showPlayerToast('Report submitted. Thank you.');
     try {
-      _api.post('${ApiEndpoints.channels}/${_currentChannel.id}/report-failure', {
+      _api.post(ApiEndpoints.channelReportFailurePath(_currentChannel.id), {
         'reason': 'user_report',
         'stream_url': _currentUrl,
       });

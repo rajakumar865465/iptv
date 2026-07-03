@@ -4,6 +4,7 @@ class AppConstants {
   // AppConstants.baseUrl previously pointed to the emulator (10.0.2.2:5000) which
   // breaks on real devices. BackendConfig is the single source of truth for the URL.
   static const String apiVersion = 'v1';
+  static const String appVersion = '1.0.0'; // Update with each release
   static const int connectTimeout = 30000;
   static const int receiveTimeout = 30000;
 }
@@ -60,7 +61,29 @@ class ApiEndpoints {
   static const String categoryList = '$channels/categories';
   static const String languageList = '$channels/languages';
   static const String channelSearch = '$channels/search';
+  static const String channelDetails = '$channels'; // GET /:id
+  static const String channelPlayback = '$channels'; // GET /:id/playback
+  static const String channelSmoothPlayback = '$channels'; // GET /:id/smooth-playback
+  static const String channelReportFailure = '$channels'; // POST /:id/report-failure
+  static const String channelPlaybackResult = '$channels'; // POST /:id/playback-result
   static const String channelDisplayReport = '$channels'; // POST /:id/display-report
+  static const String channelEPGNow = '$channels'; // GET /:id/epg/now
+  static const String channelEPGUpcoming = '$channels'; // GET /:id/epg/upcoming
+  static const String channelRelated = '$channels'; // GET /:id/related
+
+  static String channelPlaybackPath(int id) => '$channelPlayback/$id/playback';
+  static String channelSmoothPlaybackPath(int id) => '$channelSmoothPlayback/$id/smooth-playback';
+  static String channelReportFailurePath(int id) => '$channelReportFailure/$id/report-failure';
+  static String channelPlaybackResultPath(int id) => '$channelPlaybackResult/$id/playback-result';
+  static String channelDisplayReportPath(int id) => '$channelDisplayReport/$id/display-report';
+  static String channelEPGNowPath(int id) => '$channelEPGNow/$id/epg/now';
+  static String channelEPGUpcomingPath(int id) => '$channelEPGUpcoming/$id/epg/upcoming';
+  static String channelRelatedPath(int id) => '$channelRelated/$id/related';
+
+  // Stream / Proxy / Transcode
+  static const String streamTranscode = '$base/stream/transcode';
+  static String streamTranscodePath(int channelId, {required String quality}) =>
+      '$streamTranscode/$channelId?quality=$quality';
 
   // Home — DTH-style structured home page
   static const String home = '$base/home';

@@ -49,6 +49,10 @@ class PlanModel {
   final int durationDays;
   final int maxDevices;
   final String? description;
+  final bool isPopular;
+  final bool isBestValue;
+  final double? regularPrice;
+  final String? offerLabel;
 
   PlanModel({
     required this.id,
@@ -57,16 +61,24 @@ class PlanModel {
     required this.durationDays,
     required this.maxDevices,
     this.description,
+    this.isPopular = false,
+    this.isBestValue = false,
+    this.regularPrice,
+    this.offerLabel,
   });
 
   factory PlanModel.fromJson(Map<String, dynamic> json) {
     return PlanModel(
       id: json['id'],
-      name: json['name'],
-      price: (json['price'] as num).toDouble(),
-      durationDays: json['duration_days'],
-      maxDevices: json['max_devices'],
+      name: json['name'] ?? '',
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      durationDays: json['duration_days'] ?? 0,
+      maxDevices: json['max_devices'] ?? 1,
       description: json['description'],
+      isPopular: json['is_popular'] == true,
+      isBestValue: json['is_best_value'] == true,
+      regularPrice: (json['regular_price'] as num?)?.toDouble(),
+      offerLabel: json['offer_label'],
     );
   }
 }

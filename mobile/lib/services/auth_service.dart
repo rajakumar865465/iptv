@@ -73,9 +73,9 @@ class AuthService {
       'email': email,
       'password': password,
       'device_id': deviceId,
-      'device_name': deviceName ?? 'Android Device',
-      'app_version': '1.0.0',
-      'forceLogoutOldest': forceLogoutOldest,
+      'device_name': deviceName ?? 'Unknown Device',
+      'app_version': AppConstants.appVersion,
+      'force_logout_oldest': forceLogoutOldest,
     });
 
     return _parseAuthResponse(response.data);
@@ -107,7 +107,7 @@ class AuthService {
 
   Future<Map<String, dynamic>?> me() async {
     try {
-      final response = await _dio.get('/api/auth/me');
+      final response = await _dio.get(ApiEndpoints.me);
       if (response.data['success'] == true && response.data['data'] != null) {
         return response.data['data'];
       }

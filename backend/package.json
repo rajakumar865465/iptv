@@ -53,6 +53,7 @@
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.11.0",
     "node-fetch": "^2.7.0",
+    "nodemailer": "^9.0.3",
     "pg": "^8.22.0",
     "razorpay": "^2.9.6",
     "sharp": "^0.35.2",

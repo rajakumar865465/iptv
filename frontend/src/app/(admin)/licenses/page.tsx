@@ -11,6 +11,13 @@ interface License {
   activated_at: string; expires_at: string; created_at: string;
 }
 
+interface Plan {
+  id: number;
+  name: string;
+  price: number;
+  duration_days: number;
+}
+
 const STATUS_CLS: Record<string, string> = {
   active:    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   unused:    'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -61,7 +68,7 @@ function ConfirmModal({
 
 export default function LicensesPage() {
   const [licenses, setLicenses] = useState<License[]>([]);
-  const [plans, setPlans] = useState<unknown[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -83,17 +90,7 @@ export default function LicensesPage() {
   function fetchAll() {
     setLoading(true);
     Promise.all([getLicenses(), getPlans()])
-      .then(([licRes, plnRes]: unknown) => {
-        // Debug: log full API response
-        console.log('[DEBUG] getLicenses raw response:', licRes);
-        console.log('[DEBUG] getPlans raw response:', plnRes);
-
-        // Both return { data: [...], pagination: {...} } from r.data.data
-        const licData = licRes?.data || [];
-        const plnData = plnRes?.data || [];
-        console.log('[DEBUG] extracted licData:', licData, 'isArray:', Array.isArray(licData));
-        console.log('[DEBUG] extracted plnData:', plnData, 'isArray:', Array.isArray(plnData));
-
+      .then(([licData, plnData]) => {
         setLicenses(Array.isArray(licData) ? licData : []);
         setPlans(Array.isArray(plnData) ? plnData : []);
       })

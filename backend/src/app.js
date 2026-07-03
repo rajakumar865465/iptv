@@ -46,18 +46,22 @@ app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (mobile apps, Postman, curl, server-to-server)
     if (!origin) return callback(null, true);
-    // Allow all localhost origins for local development debugging against prod
-    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+
+    // Allow all localhost origins only in development
+    if (process.env.NODE_ENV !== 'production' &&
+        (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
       return callback(null, true);
     }
-    // If CORS_ORIGINS is not configured, deny all browser origins in production
+
+    // Production: deny if CORS_ORIGINS is not configured
     if (allowedOrigins.length === 0) {
       if (process.env.NODE_ENV === 'production') {
         return callback(new Error('CORS not configured for production'));
       }
-      // Development: allow all
+      // Development fallback: allow all
       return callback(null, true);
     }
+
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }

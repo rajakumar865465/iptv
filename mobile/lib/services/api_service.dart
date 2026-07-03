@@ -73,22 +73,33 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> get(String path, {Map<String, dynamic>? queryParameters}) async {
-    final response = await _dio.get(path, queryParameters: queryParameters);
-    return response.data;
+    final response = await _dio.get<Map<String, dynamic>>(path, queryParameters: queryParameters);
+    return response.data ?? {};
   }
 
   Future<Map<String, dynamic>> post(String path, dynamic data) async {
-    final response = await _dio.post(path, data: data);
-    return response.data;
+    final response = await _dio.post<Map<String, dynamic>>(path, data: data);
+    return response.data ?? {};
   }
 
   Future<Map<String, dynamic>> put(String path, dynamic data) async {
-    final response = await _dio.put(path, data: data);
-    return response.data;
+    final response = await _dio.put<Map<String, dynamic>>(path, data: data);
+    return response.data ?? {};
   }
 
   Future<Map<String, dynamic>> delete(String path) async {
-    final response = await _dio.delete(path);
+    final response = await _dio.delete<Map<String, dynamic>>(path);
+    return response.data ?? {};
+  }
+
+  /// Generic request for non-JSON responses (e.g., plain text/plan arrays).
+  Future<dynamic> requestDynamic(String method, String path, {dynamic data, Map<String, dynamic>? queryParameters}) async {
+    final response = await _dio.request(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: Options(method: method),
+    );
     return response.data;
   }
 }

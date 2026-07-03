@@ -77,6 +77,7 @@ class HomeCubit extends Cubit<HomeState> {
       if (res['success'] == true) {
         final rawData = res['data'];
         if (rawData is! Map<String, dynamic>) {
+          if (isClosed) return;
           emit(HomeError('Invalid response format from server'));
           return;
         }
@@ -102,6 +103,7 @@ class HomeCubit extends Cubit<HomeState> {
           '  categories=${categories.length}',
           name: 'HomeCubit',
         );
+        if (isClosed) return;
 
         emit(HomeLoaded(
           continueWatching: continueWatching,
@@ -111,10 +113,12 @@ class HomeCubit extends Cubit<HomeState> {
           categories: categories,
         ));
       } else {
+        if (isClosed) return;
         emit(HomeError('Failed to load home data from server'));
       }
     } catch (e) {
       developer.log('[HomeCubit] Error: $e', name: 'HomeCubit');
+      if (isClosed) return;
       emit(HomeError('Unable to load home. Please check your connection.'));
     }
   }

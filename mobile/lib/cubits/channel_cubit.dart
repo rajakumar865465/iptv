@@ -206,6 +206,7 @@ class ChannelCubit extends Cubit<ChannelState> {
           developer.log('[ChannelCubit] Error loading languages: $e', name: 'ChannelCubit');
         }
       }
+      if (isClosed) return;
 
       if (channelRes['success'] == true) {
         final newChannels = (channelRes['data'] as List)
@@ -239,6 +240,7 @@ class ChannelCubit extends Cubit<ChannelState> {
         }
 
         _currentPage++;
+        if (isClosed) return;
 
         // Cache first page of unfiltered standard load
         if (_currentPage == 2 && _currentQuery.isEmpty &&
@@ -254,6 +256,7 @@ class ChannelCubit extends Cubit<ChannelState> {
           await prefs.setInt('cache_timestamp', DateTime.now().millisecondsSinceEpoch);
         }
 
+        if (isClosed) return;
         emit(ChannelLoaded(
           List.from(_allChannels),
           _allCategories,
@@ -264,10 +267,12 @@ class ChannelCubit extends Cubit<ChannelState> {
           totalCount: _totalCount,
         ));
       } else {
+        if (isClosed) return;
         await _handleLoadError('Failed to load channels from server');
       }
     } catch (e) {
       developer.log('[ChannelCubit] Error: $e', name: 'ChannelCubit');
+      if (isClosed) return;
       await _handleLoadError('Unable to load channels. Please check connection and try again.');
     }
   }
@@ -293,6 +298,7 @@ class ChannelCubit extends Cubit<ChannelState> {
       } catch (_) {}
     }
 
+    if (isClosed) return;
     if (_allChannels.isNotEmpty) {
       emit(ChannelLoaded(
         List.from(_allChannels),
@@ -329,11 +335,14 @@ class ChannelCubit extends Cubit<ChannelState> {
         final channels = (channelRes['data'] as List)
             .map((c) => ChannelModel.fromJson(c))
             .toList();
+        if (isClosed) return;
         emit(ChannelLoaded(channels, _allCategories, _allLanguages));
       } else {
+        if (isClosed) return;
         emit(ChannelError('Failed to load channels'));
       }
     } catch (e) {
+      if (isClosed) return;
       emit(ChannelError('Error loading featured channels'));
     }
   }

@@ -64,9 +64,9 @@ export default function PaymentsPage() {
   const fetchPayments = () => {
     setLoading(true);
     getPayments()
-      .then((d: unknown) => {
-        // Support both paginated { data: [] } and plain array
-        setPayments(Array.isArray(d) ? d : (d?.data || []));
+      .then((d) => {
+        const resp = d as { data?: Payment[] };
+        setPayments(Array.isArray(resp.data) ? resp.data : []);
       })
       .finally(() => setLoading(false));
   };
@@ -96,7 +96,7 @@ export default function PaymentsPage() {
     return ms && mf;
   });
 
-  const totalRevenue = payments.filter(p => p.status === 'completed').reduce((s, p) => s + (parseFloat(p.amount as unknown) || 0), 0);
+  const totalRevenue = payments.filter(p => p.status === 'completed').reduce((s, p) => s + (parseFloat(String(p.amount || 0)) || 0), 0);
   const pending = payments.filter(p => p.status === 'pending').length;
 
   const paginated = filtered.slice((page - 1) * PAGE, page * PAGE);
@@ -166,7 +166,7 @@ export default function PaymentsPage() {
                         <p className="text-xs text-slate-500">{p.email}</p>
                       </td>
                       <td className="px-6 py-4 text-slate-400">{p.plan_name || '—'}</td>
-                      <td className="px-6 py-4 font-bold text-emerald-400">₹{parseFloat(p.amount as unknown).toLocaleString('en-IN')}</td>
+                      <td className="px-6 py-4 font-bold text-emerald-400">₹{parseFloat(String(p.amount || 0)).toLocaleString('en-IN')}</td>
                       <td className="px-6 py-4 text-slate-400 capitalize text-xs">{p.payment_method || 'manual'}</td>
                       <td className="px-6 py-4"><span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border ${STATUS_CLS[p.status]||STATUS_CLS.refunded}`}>{p.status}</span></td>
                       <td className="px-6 py-4 text-slate-500 text-xs">{new Date(p.created_at).toLocaleDateString()}</td>

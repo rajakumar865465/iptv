@@ -3,6 +3,9 @@ const crypto = require('crypto');
 const { hashPassword, comparePassword } = require('../utils/password');
 const { generateToken, generateRefreshToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
+const { sendMail } = require('../utils/mailer');
+
+const OTP_LIFETIME_MINUTES = 10;
 
 // Allowed status values for input validation
 const VALID_USER_STATUSES = ['active', 'blocked', 'suspended'];
@@ -185,13 +188,20 @@ exports.login = async (req, res) => {
 };
 
 exports.logout = async (req, res) => {
-  // Revoke refresh token if provided
-  const { refreshToken } = req.body;
-  if (refreshToken) {
-    const { revokeRefreshToken } = require('../utils/jwt');
-    revokeRefreshToken(refreshToken);
+  try {
+    // Revoke refresh token by storing its jti in a blocklist. For now we still
+    // rely on short-lived access tokens, but this makes logout effective once
+    // a refresh token is used again.
+    const { refreshToken } = req.body;
+    if (refreshToken) {
+      const { revokeRefreshToken } = require('../utils/jwt');
+      await revokeRefreshToken(refreshToken);
+    }
+    success(res, null, 'Logged out successfully');
+  } catch (err) {
+    console.error('Logout error:', err.message);
+    success(res, null, 'Logged out successfully');
   }
-  success(res, null, 'Logged out successfully');
 };
 
 exports.refreshToken = async (req, res) => {
@@ -201,7 +211,12 @@ exports.refreshToken = async (req, res) => {
       return error(res, 'Refresh token required', 400);
     }
 
-    const { consumeRefreshToken } = require('../utils/jwt');
+    const { consumeRefreshToken, isRefreshTokenRevoked } = require('../utils/jwt');
+
+    const revoked = await isRefreshTokenRevoked(refreshToken);
+    if (revoked) {
+      return error(res, 'Token revoked. Please log in again.', 401);
+    }
 
     // consumeRefreshToken validates the token and returns the userId embedded in it
     // userId is extracted from the signed token — NOT trusted from the request body
@@ -210,6 +225,9 @@ exports.refreshToken = async (req, res) => {
     if (!userId) {
       return error(res, 'Invalid refresh token', 401);
     }
+
+    // Revoke the old refresh token after rotation
+    await revokeRefreshToken(refreshToken);
 
     // Fetch user to confirm they still exist and are active
     const userResult = await db.query(
@@ -244,19 +262,47 @@ exports.forgotPassword = async (req, res) => {
       return error(res, 'Email or mobile required', 400);
     }
 
+    const identifier = email || mobile;
+
+    // Verify the identifier exists in users before generating an OTP to limit abuse.
+    const userResult = await db.query(
+      'SELECT id, email, full_name FROM users WHERE email = $1 OR mobile = $2 LIMIT 1',
+      [email || null, mobile || null]
+    );
+    if (userResult.rows.length === 0) {
+      // Return success to avoid account enumeration
+      return success(res, { message: 'If the account exists, an OTP has been sent' });
+    }
+    const user = userResult.rows[0];
+
     // Use cryptographically secure OTP
     const otp = crypto.randomInt(100000, 999999).toString();
 
-    // TODO: Send OTP via email or SMS (nodemailer, Twilio, etc.)
-    // NEVER return the OTP in the response — even in dev mode
-    console.log(`[Password Reset] OTP for ${email || mobile}: ${otp} [dev-only log, remove in prod]`);
+    // Invalidate old OTPs and store new one
+    const expiresAt = new Date(Date.now() + OTP_LIFETIME_MINUTES * 60 * 1000);
+    await db.query(
+      `INSERT INTO password_reset_otps (email, otp, expires_at)
+       VALUES ($1, $2, $3)`,
+      [user.email, otp, expiresAt]
+    );
 
-    // TODO: Store OTP in Redis or DB with 10-minute expiry
-    // await redis.setex(`otp:${email || mobile}`, 600, otp);
+    // Attempt to send email; failures are logged but not exposed.
+    try {
+      await sendMail({
+        to: user.email,
+        subject: 'NivaTV Password Reset OTP',
+        text: `Hi ${user.full_name || 'User'},\n\nYour OTP to reset your NivaTV password is: ${otp}\n\nThis OTP expires in ${OTP_LIFETIME_MINUTES} minutes.\n\nIf you did not request this, please ignore this email.`,
+        html: `<p>Hi ${user.full_name || 'User'},</p><p>Your OTP to reset your NivaTV password is: <strong>${otp}</strong></p><p>This OTP expires in ${OTP_LIFETIME_MINUTES} minutes.</p><p>If you did not request this, please ignore this email.</p>`,
+      });
+    } catch (mailErr) {
+      console.error('[forgotPassword] Failed to send OTP email:', mailErr);
+      // Still don't expose that the user exists.
+    }
 
     // Always return the same message to avoid account enumeration
     return success(res, { message: 'If the account exists, an OTP has been sent' });
   } catch (err) {
+    console.error('forgotPassword error:', err.message);
     error(res, 'Failed to process password reset request', 500);
   }
 };
@@ -272,13 +318,37 @@ exports.resetPassword = async (req, res) => {
       return error(res, 'Password must be 6–128 characters', 400);
     }
 
-    // TODO: Verify OTP from Redis/DB storage
-    // const storedOtp = await redis.get(`otp:${email || mobile}`);
-    // if (!storedOtp || storedOtp !== otp) return error(res, 'Invalid or expired OTP', 400);
-    // await redis.del(`otp:${email || mobile}`);
+    const identifier = email || mobile;
+    if (!identifier) {
+      return error(res, 'Email or mobile required', 400);
+    }
 
-    // Password reset is not yet fully implemented (OTP storage/email not set up)
-    return error(res, 'Password reset via OTP is not yet available. Please contact support.', 501);
+    // Look up the most recent unused OTP for the identifier
+    const otpResult = await db.query(
+      `SELECT id, otp FROM password_reset_otps
+       WHERE email = $1 AND used = false AND expires_at > NOW()
+       ORDER BY created_at DESC LIMIT 1`,
+      [identifier]
+    );
+    if (otpResult.rows.length === 0 || otpResult.rows[0].otp !== String(otp)) {
+      return error(res, 'Invalid or expired OTP', 400);
+    }
+
+    // Find user
+    const userResult = await db.query(
+      'SELECT id FROM users WHERE email = $1 LIMIT 1',
+      [identifier]
+    );
+    if (userResult.rows.length === 0) {
+      return error(res, 'User not found', 404);
+    }
+
+    // Update password and mark OTP used
+    const passwordHash = await hashPassword(newPassword);
+    await db.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, userResult.rows[0].id]);
+    await db.query('UPDATE password_reset_otps SET used = true, updated_at = NOW() WHERE id = $1', [otpResult.rows[0].id]);
+
+    return success(res, { message: 'Password reset successful. Please log in.' });
   } catch (err) {
     console.error('Reset password error:', err.message);
     error(res, 'Failed to reset password', 500);

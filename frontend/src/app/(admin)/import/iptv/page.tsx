@@ -10,7 +10,16 @@ export default function ImportPage() {
   const [country, setCountry] = useState('IN');
   const [skipAdult, setSkipAdult] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [jobs, setJobs] = useState<unknown[]>([]);
+  interface ImportJob {
+    id: number;
+    status: string;
+    total_parsed: number;
+    inserted: number;
+    updated: number;
+    skipped: number;
+    created_at: string;
+  }
+  const [jobs, setJobs] = useState<ImportJob[]>([]);
   const [message, setMessage] = useState({ type: '', text: '' });
 
   const fetchJobs = async () => {
@@ -28,7 +37,7 @@ export default function ImportPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleStartImport = async (e: unknown) => {
+  const handleStartImport = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setMessage({ type: '', text: '' });

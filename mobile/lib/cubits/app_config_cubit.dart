@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../services/api_service.dart';
+import '../constants.dart';
 
 abstract class AppConfigState {}
 
@@ -23,14 +24,17 @@ class AppConfigCubit extends Cubit<AppConfigState> {
   Future<void> fetchConfig() async {
     emit(AppConfigLoading());
     try {
-      final response = await _api.get('/api/app/config');
+      final response = await _api.get(ApiEndpoints.config);
       if (response['success'] == true) {
         _config = response['data'] ?? {};
+        if (isClosed) return;
         emit(AppConfigLoaded(_config));
       } else {
+        if (isClosed) return;
         emit(AppConfigError('Failed to fetch config'));
       }
     } catch (e) {
+      if (isClosed) return;
       emit(AppConfigError(e.toString()));
     }
   }

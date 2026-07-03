@@ -15,9 +15,11 @@ const path = require('path');
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const bufferRecorder = require('../jobs/buffer_recorder');
+const { generateSmoothToken } = require('../utils/jwt');
 
 const STORAGE_BASE = process.env.BUFFER_STORAGE_PATH
   || path.join(__dirname, '../../storage/buffers');
+const STALE_BUFFER_WINDOW_SEC = 90;
 
 // Health statuses that must never be buffered
 const BLOCKED_STATUSES = new Set([
@@ -38,6 +40,11 @@ exports.getSmoothPlayback = async (req, res) => {
               smooth_playback_enabled, playback_delay_seconds,
               buffer_status, buffer_depth_seconds, is_buffer_ready,
               restream_mode, last_buffer_error,
+              recorder_stream_url, recorder_stream_id, recorder_fail_count,
+              recorder_last_success_at, recorder_last_failure_at,
+              recorder_last_failure_reason, recorder_backup_attempts,
+              recorder_status_detail, recorder_failed_stream_url, recorder_backup_stream_url,
+              needs_manual_verification,
               is_hidden, is_removed
        FROM channels WHERE id = $1`,
       [id]
@@ -77,13 +84,41 @@ exports.getSmoothPlayback = async (req, res) => {
       });
     }
 
-    const delayedUrl = `${baseUrl}/api/smooth/${id}/playlist.m3u8`;
+    const smoothToken = generateSmoothToken(id, req.user?.id || null);
+    const delayedUrl = `${baseUrl}/api/smooth/${id}/playlist.m3u8?t=${smoothToken}`;
 
     // Buffer not ready yet — start on-demand if not already running
     if (!ch.is_buffer_ready) {
       const active = bufferRecorder.getActiveRecorders();
       if (!active.includes(parseInt(id)) && !BLOCKED_STATUSES.has(ch.health_status)) {
         bufferRecorder.startRecorder(parseInt(id)).catch(() => {});
+      }
+
+      let statusMessage = 'Preparing smooth playback...';
+      let statusCode = 'warming_up';
+      
+      // Provide user-friendly status messages based on recorder state
+      if (ch.recorder_status_detail && ch.recorder_status_detail.startsWith('retry_attempt_')) {
+        statusMessage = 'Source temporarily unavailable. Retrying...';
+        statusCode = 'retrying';
+      } else if (ch.buffer_status === 'trying_backup' || ch.recorder_status_detail === 'searching_backup_stream') {
+        statusMessage = 'Primary source timeout. Trying another source...';
+        statusCode = 'trying_backup';
+      } else if (ch.buffer_status === 'backup_active' || ch.recorder_status_detail === 'backup_active') {
+        statusMessage = 'Using backup source. Building buffer...';
+        statusCode = 'backup_active';
+      } else if (ch.buffer_status === 'source_timeout') {
+        statusMessage = 'Primary source timeout. Trying backup source...';
+        statusCode = 'source_timeout';
+      } else if (ch.buffer_status === 'no_working_source' || ch.recorder_status_detail === 'no_working_source') {
+        statusMessage = 'Stream unavailable. No stable source is available right now.';
+        statusCode = 'no_working_source';
+      } else if (ch.buffer_status === 'requires_licensed_source' || ch.recorder_status_detail === 'requires_licensed_source') {
+        statusMessage = 'This channel requires a licensed source and cannot be buffered.';
+        statusCode = 'requires_licensed_source';
+      } else if (ch.recorder_status_detail === 'needs_manual_verification') {
+        statusMessage = 'This channel requires manual verification.';
+        statusCode = 'needs_verification';
       }
 
       return success(res, {
@@ -93,10 +128,16 @@ exports.getSmoothPlayback = async (req, res) => {
         buffer_ready: false,
         buffer_depth_seconds: ch.buffer_depth_seconds || 0,
         buffer_status: ch.buffer_status || 'warming_up',
+        recorder_status_detail: ch.recorder_status_detail,
+        status_code: statusCode,
         primary_stream_id: parseInt(id),
         health_status: ch.health_status || 'unknown',
-        message: 'Preparing smooth playback...',
+        message: statusMessage,
         fallback_direct_url: ch.stream_url,
+        last_failure_reason: ch.recorder_last_failure_reason || null,
+        last_failure_at: ch.recorder_last_failure_at || null,
+        failed_stream_url: ch.recorder_failed_stream_url || null,
+        backup_stream_url: ch.recorder_backup_stream_url || null,
       });
     }
 
@@ -106,7 +147,7 @@ exports.getSmoothPlayback = async (req, res) => {
       delayed_stream_url: delayedUrl,
       buffer_ready: true,
       buffer_depth_seconds: ch.buffer_depth_seconds || 0,
-      buffer_status: ch.buffer_status || 'ready',
+      buffer_status: ch.buffer_status || 'buffer_ready',
       primary_stream_id: parseInt(id),
       health_status: ch.health_status || 'unknown',
     });
@@ -125,7 +166,15 @@ exports.servePlaylist = async (req, res) => {
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const baseUrl = `${protocol}://${req.get('host')}`;
 
-    const mediaUrl = `${baseUrl}/api/smooth/${channelId}/media.m3u8`;
+    const token = req.query.t;
+    try {
+      const { verifySmoothToken } = require('../utils/jwt');
+      verifySmoothToken(token, channelId);
+    } catch (err) {
+      return res.status(401).send('Unauthorized');
+    }
+
+    const mediaUrl = `${baseUrl}/api/smooth/${channelId}/media.m3u8?t=${token}`;
 
     const playlist = [
       '#EXTM3U',
@@ -149,12 +198,20 @@ exports.servePlaylist = async (req, res) => {
 exports.serveMediaPlaylist = async (req, res) => {
   try {
     const { channelId } = req.params;
+    const token = req.query.t;
+    try {
+      const { verifySmoothToken } = require('../utils/jwt');
+      verifySmoothToken(token, channelId);
+    } catch (err) {
+      return res.status(401).send('Unauthorized');
+    }
+
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const baseUrl = `${protocol}://${req.get('host')}`;
 
     // Get channel config
     const chRes = await db.query(
-      `SELECT playback_delay_seconds, is_buffer_ready, buffer_status FROM channels WHERE id = $1`,
+      `SELECT playback_delay_seconds, is_buffer_ready, buffer_status, recorder_stale_buffer_until FROM channels WHERE id = $1`,
       [channelId]
     );
     if (chRes.rows.length === 0) return res.status(404).send('Channel not found');
@@ -164,15 +221,17 @@ exports.serveMediaPlaylist = async (req, res) => {
 
     // Get segments within the delayed window
     // We serve segments that are older than delay_seconds (already buffered)
-    const cutoffTime = new Date(Date.now() - delaySeconds * 1000).toISOString();
+    const now = Date.now();
+    const cutoffTime = new Date(now - delaySeconds * 1000).toISOString();
+    const oldestAllowedTime = new Date(now - (delaySeconds + STALE_BUFFER_WINDOW_SEC) * 1000).toISOString();
 
     const segsRes = await db.query(
       `SELECT segment_name, sequence_number, duration
        FROM delayed_buffer_segments
-       WHERE channel_id = $1 AND created_at <= $2
+       WHERE channel_id = $1 AND created_at <= $2 AND created_at >= $3
        ORDER BY sequence_number ASC
        LIMIT 30`,
-      [channelId, cutoffTime]
+      [channelId, cutoffTime, oldestAllowedTime]
     );
 
     if (segsRes.rows.length === 0) {
@@ -188,7 +247,7 @@ exports.serveMediaPlaylist = async (req, res) => {
 
     for (const seg of segsRes.rows) {
       lines.push(`#EXTINF:${parseFloat(seg.duration).toFixed(3)},`);
-      lines.push(`${baseUrl}/api/smooth/${channelId}/segments/${seg.segment_name}`);
+      lines.push(`${baseUrl}/api/smooth/${channelId}/segments/${seg.segment_name}?t=${token}`);
     }
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
@@ -206,6 +265,13 @@ exports.serveMediaPlaylist = async (req, res) => {
 exports.serveSegment = async (req, res) => {
   try {
     const { channelId, segmentName } = req.params;
+    const token = req.query.t;
+    try {
+      const { verifySmoothToken } = require('../utils/jwt');
+      verifySmoothToken(token, channelId);
+    } catch (err) {
+      return res.status(401).send('Unauthorized');
+    }
 
     // Sanitize segment name — only allow safe filenames
     if (!/^seg_\d{6}\.ts$/.test(segmentName)) {
@@ -257,6 +323,11 @@ exports.adminListChannels = async (req, res) => {
                 c.smooth_playback_enabled, c.playback_delay_seconds,
                 c.buffer_status, c.buffer_depth_seconds, c.is_buffer_ready,
                 c.restream_mode, c.last_buffer_error,
+                c.recorder_stream_url, c.recorder_stream_id, c.recorder_fail_count,
+                c.recorder_last_success_at, c.recorder_last_failure_at,
+                c.recorder_last_failure_reason, c.recorder_backup_attempts,
+                c.recorder_status_detail, c.recorder_failed_stream_url, c.recorder_backup_stream_url,
+                c.needs_manual_verification,
                 (SELECT COUNT(*) FROM delayed_buffer_segments WHERE channel_id = c.id)::int as segment_count
          FROM channels c ${where}
          ORDER BY c.smooth_playback_enabled DESC, c.name ASC
@@ -380,25 +451,78 @@ exports.adminBufferHealth = async (req, res) => {
     const statsRes = await db.query(
       `SELECT
          COUNT(*) FILTER (WHERE smooth_playback_enabled = true)::int as enabled_count,
-         COUNT(*) FILTER (WHERE buffer_status = 'ready')::int as ready_count,
+         COUNT(*) FILTER (WHERE is_buffer_ready = true)::int as ready_count,
          COUNT(*) FILTER (WHERE buffer_status = 'warming_up')::int as warming_count,
          COUNT(*) FILTER (WHERE buffer_status = 'low_buffer')::int as low_buffer_count,
-         COUNT(*) FILTER (WHERE buffer_status = 'segment_missing')::int as segment_missing_count,
-         COUNT(*) FILTER (WHERE buffer_status = 'source_offline')::int as offline_count,
-         COUNT(*) FILTER (WHERE buffer_status = 'error')::int as error_count,
+         COUNT(*) FILTER (WHERE buffer_status IN ('source_offline', 'no_working_source'))::int as offline_count,
+         COUNT(*) FILTER (WHERE buffer_status IN ('error', 'segment_missing'))::int as error_count,
+         COUNT(*) FILTER (WHERE buffer_status = 'retrying' OR recorder_status_detail LIKE 'retry_attempt_%')::int as retrying_count,
+         COUNT(*) FILTER (WHERE buffer_status = 'trying_backup' OR recorder_status_detail = 'searching_backup_stream')::int as searching_backup_count,
+         COUNT(*) FILTER (WHERE buffer_status = 'backup_active' OR recorder_status_detail = 'backup_active')::int as backup_active_count,
+         COUNT(*) FILTER (WHERE recorder_status_detail = 'needs_manual_verification')::int as needs_verification_count,
+         COALESCE(SUM(recorder_backup_attempts) FILTER (WHERE smooth_playback_enabled = true), 0)::int as total_backup_switches,
          COALESCE(AVG(buffer_depth_seconds) FILTER (WHERE smooth_playback_enabled = true), 0)::int as avg_depth_seconds
        FROM channels`
     );
 
     const activeRecorders = bufferRecorder.getActiveRecorders();
+    const maxRecorders = parseInt(process.env.MAX_CONCURRENT_RECORDERS || '5');
 
     success(res, {
       ...statsRes.rows[0],
       active_recorders: activeRecorders.length,
-      max_recorders: parseInt(process.env.MAX_CONCURRENT_RECORDERS || '5'),
+      max_recorders: maxRecorders,
     });
   } catch (err) {
     console.error('adminBufferHealth error:', err);
     error(res, 'Failed to get buffer health', 500);
+  }
+};
+
+// ── Admin: get fallback logs for a channel ───────────────────────────────────
+
+exports.adminGetFallbackLogs = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const { limit = 20 } = req.query;
+
+    const result = await db.query(
+      `SELECT id, from_stream_id, to_stream_id, result, notes, created_at
+       FROM recorder_fallback_log
+       WHERE channel_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [channelId, parseInt(limit)]
+    );
+
+    success(res, { logs: result.rows });
+  } catch (err) {
+    console.error('adminGetFallbackLogs error:', err);
+    error(res, 'Failed to get fallback logs', 500);
+  }
+};
+
+// ── Admin: force clear stale buffer ──────────────────────────────────────────
+
+exports.adminClearStaleBuffer = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await db.query(
+      `UPDATE channels
+       SET recorder_stale_buffer_until = NULL,
+           recorder_fail_count = 0,
+           buffer_status = CASE
+             WHEN buffer_status = 'source_timeout' THEN 'buffer_ready'
+             ELSE buffer_status
+           END
+       WHERE id = $1`,
+      [id]
+    );
+
+    success(res, { message: 'Stale buffer cleared', channel_id: parseInt(id) });
+  } catch (err) {
+    console.error('adminClearStaleBuffer error:', err);
+    error(res, 'Failed to clear stale buffer', 500);
   }
 };

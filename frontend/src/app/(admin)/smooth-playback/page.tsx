@@ -36,17 +36,34 @@ interface ChannelRow {
   last_buffer_error: string | null;
   segment_count: number;
   recorder_active: boolean;
+  recorder_stream_url: string | null;
+  recorder_stream_id: number | null;
+  recorder_fail_count: number;
+  recorder_last_success_at: string | null;
+  recorder_last_failure_at: string | null;
+  recorder_last_failure_reason: string | null;
+  recorder_backup_attempts: number;
+  recorder_status_detail: string | null;
+  needs_manual_verification?: boolean;
+  recorder_failed_stream_url?: string | null;
+  recorder_backup_stream_url?: string | null;
 }
 
 // ── Status badge helpers ──────────────────────────────────────────────────────
 
 const STATUS_COLORS: Record<string, string> = {
   ready: 'bg-green-500/20 text-green-400 border-green-500/30',
+  buffer_ready: 'bg-green-500/20 text-green-400 border-green-500/30',
   warming_up: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
   low_buffer: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
   source_slow: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+  source_timeout: 'bg-red-500/20 text-red-400 border-red-500/30',
+  trying_backup: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  backup_active: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
   segment_missing: 'bg-red-500/20 text-red-400 border-red-500/30',
   source_offline: 'bg-red-500/20 text-red-400 border-red-500/30',
+  no_working_source: 'bg-red-500/20 text-red-400 border-red-500/30',
+  requires_licensed_source: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
   stopped: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
   error: 'bg-red-500/20 text-red-400 border-red-500/30',
   direct: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
@@ -222,7 +239,7 @@ export default function SmoothPlaybackPage() {
           className="bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
         >
           <option value="">All statuses</option>
-          {['ready', 'warming_up', 'low_buffer', 'source_slow', 'source_offline', 'stopped', 'error'].map((s) => (
+          {['buffer_ready', 'warming_up', 'low_buffer', 'source_timeout', 'trying_backup', 'backup_active', 'buffer_empty', 'source_offline', 'no_working_source', 'requires_licensed_source', 'stopped', 'error'].map((s) => (
             <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
           ))}
         </select>
@@ -244,6 +261,7 @@ export default function SmoothPlaybackPage() {
                 <th className="text-left px-4 py-3">Channel</th>
                 <th className="text-left px-4 py-3">Health</th>
                 <th className="text-left px-4 py-3">Buffer Status</th>
+                <th className="text-left px-4 py-3">Recorder Info</th>
                 <th className="text-left px-4 py-3">Depth</th>
                 <th className="text-left px-4 py-3">Segments</th>
                 <th className="text-left px-4 py-3">Delay Setting</th>
@@ -254,11 +272,11 @@ export default function SmoothPlaybackPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-gray-500">Loading...</td>
+                  <td colSpan={9} className="text-center py-12 text-gray-500">Loading...</td>
                 </tr>
               ) : channels.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-gray-500">No channels found</td>
+                  <td colSpan={9} className="text-center py-12 text-gray-500">No channels found</td>
                 </tr>
               ) : (
                 channels.map((ch) => (
@@ -280,6 +298,39 @@ export default function SmoothPlaybackPage() {
                         <StatusBadge status={ch.buffer_status || 'stopped'} />
                         {ch.recorder_active && (
                           <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse" title="Recorder active" />
+                        )}
+                      </div>
+                      {ch.recorder_status_detail && ch.recorder_status_detail !== ch.buffer_status && (
+                        <div className="text-xs text-gray-400 mt-1">{ch.recorder_status_detail.replace(/_/g, ' ')}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-xs text-gray-300 space-y-1">
+                        {ch.needs_manual_verification && (
+                          <div className="text-amber-300">Needs manual verification</div>
+                        )}
+                        {ch.recorder_stream_id && (
+                          <div>Stream: #{ch.recorder_stream_id}</div>
+                        )}
+                        {ch.recorder_stream_url && (
+                          <div className="truncate max-w-xs" title={ch.recorder_stream_url}>Current: {ch.recorder_stream_url}</div>
+                        )}
+                        {ch.recorder_failed_stream_url && (
+                          <div className="text-red-300 truncate max-w-xs" title={ch.recorder_failed_stream_url}>Failed: {ch.recorder_failed_stream_url}</div>
+                        )}
+                        {ch.recorder_backup_stream_url && (
+                          <div className="text-cyan-300 truncate max-w-xs" title={ch.recorder_backup_stream_url}>Backup: {ch.recorder_backup_stream_url}</div>
+                        )}
+                        {ch.recorder_fail_count > 0 && (
+                          <div className="text-orange-400">Fails: {ch.recorder_fail_count}</div>
+                        )}
+                        {ch.recorder_backup_attempts > 0 && (
+                          <div className="text-cyan-400">Backups: {ch.recorder_backup_attempts}</div>
+                        )}
+                        {ch.recorder_last_failure_at && (
+                          <div className="text-red-400 truncate max-w-xs" title={ch.recorder_last_failure_reason || ''}>
+                            Last fail: {new Date(ch.recorder_last_failure_at).toLocaleTimeString()}
+                          </div>
                         )}
                       </div>
                     </td>

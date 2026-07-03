@@ -3,16 +3,7 @@
 /**
  * buffer_recorder.js
  * Rolling HLS segment recorder for Smooth Playback / Delayed Live feature.
- *
- * Architecture:
- *   Original Stream → fetch M3U8 → download .ts segments → disk storage
- *   → delayed manifest served by smoothPlaybackController
- *
- * Safety rules:
- *   - Only records channels with smooth_playback_enabled = true
- *   - Skips channels with health_status in BLOCKED_STATUSES (DRM, geo-blocked, etc.)
- *   - Rolling buffer only — old segments deleted automatically
- *   - Max concurrent recorders controlled by MAX_CONCURRENT_RECORDERS env var
+ * Implements Intelligent Stream Selection, Fallback Systems, and Stale Buffer support.
  */
 
 const fs = require('fs');
@@ -21,70 +12,115 @@ const fetch = require('node-fetch');
 const db = require('../config/db');
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const STORAGE_BASE = process.env.BUFFER_STORAGE_PATH
-  || path.join(__dirname, '../../storage/buffers');
-
+const STORAGE_BASE = process.env.BUFFER_STORAGE_PATH || path.join(__dirname, '../../storage/buffers');
 const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_RECORDERS || '5', 10);
-const POLL_INTERVAL_MS = 3000;          // how often to poll the live M3U8
-const SEGMENT_FETCH_TIMEOUT_MS = 15000; // per-segment download timeout
-const MAX_RETRIES_BEFORE_OFFLINE = 5;   // consecutive fetch failures before marking source_offline
+const POLL_INTERVAL_MS = 3000;
+const FALLBACK_POLL_INTERVAL_MS = 30000;
+const SEGMENT_FETCH_TIMEOUT_MS = 20000; // Increased from 15s to 20s for unstable networks
+const M3U8_FETCH_TIMEOUT_MS = 18000; // Increased from 12s to 18s for unstable networks
+const STALE_BUFFER_WINDOW_SEC = 90;
+const MAX_STALE_BUFFER_AGE_SEC = 300;
+const FAILURE_THRESHOLD_FOR_FALLBACK = 3; // Changed from 2 to 3 to allow retries
+const MAX_RETRIES_BEFORE_FALLBACK = 2; // Retry same stream before switching
+const RETRY_BACKOFF_MS = [500, 1500, 3000]; // Exponential backoff for retries
+const EXCLUDED_STREAM_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes cooldown before retrying excluded streams
+const STREAM_TEST_TIMEOUT_MS = 8000; // Timeout for testing a backup stream
 
-// Health statuses that must NEVER be buffered (DRM, geo-block, unlicensed, etc.)
 const BLOCKED_STATUSES = new Set([
   'requires_licensed_source', 'drm_or_unsupported', 'geo_blocked',
   'forbidden_403', 'offline', 'dead',
 ]);
+const BLOCKED_LICENSE_TYPES = new Set([
+  'paid_drm', 'drm', 'unlicensed', 'unauthorized', 'pirated'
+]);
 
-// ── In-memory recorder registry ───────────────────────────────────────────────
-// channelId → { timer, seenSequences, retryCount, sessionId }
+// channelId -> { timer, state }
 const activeRecorders = new Map();
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
 async function startRecorder(channelId) {
-  if (activeRecorders.has(channelId)) return; // already running
+  if (activeRecorders.has(channelId)) return;
   if (activeRecorders.size >= MAX_CONCURRENT) {
     console.warn(`[buffer_recorder] MAX_CONCURRENT (${MAX_CONCURRENT}) reached, cannot start channel ${channelId}`);
     return;
   }
 
-  const channel = await _getEligibleChannel(channelId);
-  if (!channel) return;
+  try {
+    const channel = await _getEligibleChannel(channelId);
+    if (!channel) return;
 
-  const bufferDir = path.join(STORAGE_BASE, String(channelId));
-  fs.mkdirSync(bufferDir, { recursive: true });
+    const stream = await _selectWorkingStream(channelId, channel);
 
-  // Create or resume session in DB
-  const sessionRes = await db.query(
-    `INSERT INTO delayed_buffer_sessions (channel_id, status, started_at, updated_at)
-     VALUES ($1, 'running', NOW(), NOW())
-     RETURNING id`,
-    [channelId]
-  );
-  const sessionId = sessionRes.rows[0].id;
+    if (!stream || !stream.stream_url) {
+      console.error(`[buffer_recorder] No working stream URL available for channel ${channelId}`);
+      const needsVerification = channel.is_premium || channel.is_paid || channel.is_important;
+      await _updateChannelState(channelId, {
+        buffer_status: needsVerification ? 'requires_licensed_source' : 'no_working_source',
+        recorder_status_detail: needsVerification ? 'requires_licensed_source' : 'no_working_source',
+        recorder_last_failure_at: new Date(),
+        recorder_last_failure_reason: 'No working source available for smooth playback',
+        needs_manual_verification: needsVerification,
+        is_buffer_ready: false
+      });
+      return;
+    }
 
-  await db.query(
-    `UPDATE channels SET buffer_status = 'warming_up', is_buffer_ready = false, updated_at = NOW() WHERE id = $1`,
-    [channelId]
-  );
+    const bufferDir = path.join(STORAGE_BASE, String(channelId));
+    fs.mkdirSync(bufferDir, { recursive: true });
 
-  const state = { seenSequences: new Set(), retryCount: 0, sessionId, channelId };
-  const timer = setInterval(() => _pollChannel(state, channel, bufferDir), POLL_INTERVAL_MS);
-  activeRecorders.set(channelId, { timer, state });
+    const sessionRes = await db.query(
+      `INSERT INTO delayed_buffer_sessions (channel_id, status, started_at, updated_at)
+       VALUES ($1, 'running', NOW(), NOW())
+       ON CONFLICT (channel_id) DO UPDATE SET status = 'running', updated_at = NOW()
+       RETURNING id`,
+      [channelId]
+    );
+    const sessionId = sessionRes.rows[0].id;
 
-  console.log(`[buffer_recorder] Started recorder for channel ${channelId} (${channel.name})`);
+    await _updateChannelState(channelId, {
+      recorder_stream_url: stream.stream_url,
+      recorder_stream_id: stream.id || null,
+      buffer_status: 'warming_up',
+      is_buffer_ready: false,
+      recorder_fail_count: 0,
+      recorder_backup_attempts: 0,
+      recorder_status_detail: 'initializing'
+    });
+
+    const state = {
+      seenSequences: new Set(),
+      sessionId,
+      channelId,
+      currentPollInterval: POLL_INTERVAL_MS,
+      failedStreamIds: [],
+      failedStreamExcludeMap: {}, // Track when streams were excluded for cooldown
+      currentStreamRetries: 0, // Track retries for current stream
+      channel: channel,
+      bufferDir: bufferDir
+    };
+
+    const timer = setInterval(() => _pollChannel(state), state.currentPollInterval);
+    activeRecorders.set(channelId, { timer, state });
+
+    console.log(`[buffer_recorder] Started recorder for channel ${channelId} (${channel.name}) using stream ${stream.id || 'channel_url'}`);
+  } catch (err) {
+    console.error(`[buffer_recorder] Critical error starting recorder for ${channelId}:`, err);
+  }
 }
 
 async function stopRecorder(channelId) {
   const rec = activeRecorders.get(channelId);
   if (!rec) return;
+
   clearInterval(rec.timer);
   activeRecorders.delete(channelId);
 
-  await db.query(
-    `UPDATE channels SET buffer_status = 'stopped', is_buffer_ready = false, updated_at = NOW() WHERE id = $1`,
-    [channelId]
-  ).catch(() => {});
+  await _updateChannelState(channelId, {
+    buffer_status: 'stopped',
+    is_buffer_ready: false
+  });
+
   await db.query(
     `UPDATE delayed_buffer_sessions SET status = 'stopped', updated_at = NOW()
      WHERE channel_id = $1 AND status = 'running'`,
@@ -98,10 +134,6 @@ function getActiveRecorders() {
   return [...activeRecorders.keys()];
 }
 
-/**
- * Called on app startup — starts recorders for all channels that have
- * smooth_playback_enabled = true and are not blocked.
- */
 async function startAllEnabledRecorders() {
   try {
     const res = await db.query(
@@ -124,22 +156,16 @@ async function startAllEnabledRecorders() {
   }
 }
 
-/**
- * Cleanup job — removes segments older than max buffer window.
- * Run periodically (e.g. every 2 minutes).
- */
 async function cleanupOldSegments() {
   try {
-    // Find channels with smooth playback enabled
     const channels = await db.query(
       `SELECT id, playback_delay_seconds, max_buffer_segments FROM channels WHERE smooth_playback_enabled = true`
     );
 
     for (const ch of channels.rows) {
-      const maxSecs = Math.min(ch.playback_delay_seconds * 2, 600); // keep 2x delay, max 10 min
+      const maxSecs = Math.min(ch.playback_delay_seconds * 2, 600);
       const cutoff = new Date(Date.now() - maxSecs * 1000).toISOString();
 
-      // Get segments to delete
       const toDelete = await db.query(
         `SELECT file_path FROM delayed_buffer_segments
          WHERE channel_id = $1 AND created_at < $2`,
@@ -148,7 +174,7 @@ async function cleanupOldSegments() {
 
       for (const seg of toDelete.rows) {
         const fullPath = path.join(STORAGE_BASE, seg.file_path);
-        fs.unlink(fullPath, () => {}); // fire-and-forget
+        fs.unlink(fullPath, () => {});
       }
 
       await db.query(
@@ -161,87 +187,494 @@ async function cleanupOldSegments() {
   }
 }
 
-// ── Internal helpers ──────────────────────────────────────────────────────────
+async function forceFallback(channelId) {
+  console.log(`[buffer_recorder] Force fallback triggered for channel ${channelId}`);
+  await _updateChannelState(channelId, { recorder_fail_count: 0 });
+  const rec = activeRecorders.get(channelId);
+  if (rec) {
+    await _tryFallbackStream(rec.state);
+  }
+}
+
+async function clearStaleBuffer(channelId) {
+  console.log(`[buffer_recorder] Clearing stale buffer for channel ${channelId}`);
+  await _updateChannelState(channelId, {
+    recorder_stale_buffer_until: null,
+    recorder_fail_count: 0
+  });
+}
+
+// ── Internal Helpers ──────────────────────────────────────────────────────────
 
 async function _getEligibleChannel(channelId) {
   const res = await db.query(
     `SELECT id, name, stream_url, health_status, playback_delay_seconds,
-            smooth_playback_enabled, restream_mode
+            smooth_playback_enabled, is_premium, is_important
      FROM channels WHERE id = $1`,
     [channelId]
   );
   if (res.rows.length === 0) return null;
   const ch = res.rows[0];
   if (!ch.smooth_playback_enabled) return null;
-  if (!ch.stream_url) return null;
-  if (BLOCKED_STATUSES.has(ch.health_status)) {
-    console.warn(`[buffer_recorder] Channel ${channelId} blocked (${ch.health_status}), skipping`);
-    return null;
-  }
+  if (BLOCKED_STATUSES.has(ch.health_status)) return null;
   return ch;
 }
 
-async function _pollChannel(state, channel, bufferDir) {
-  try {
-    const m3u8Url = channel.stream_url;
-    const response = await fetch(m3u8Url, {
-      timeout: 10000,
-      headers: { 'User-Agent': 'Mozilla/5.0 NivaTV/1.0' },
-    });
+async function _selectBestStream(channelId, excludeStreamIds = [], excludeMap = {}) {
+  const candidates = await _getCandidateStreams(channelId, excludeStreamIds, excludeMap, 1);
+  return candidates[0] || null;
+}
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+async function _getCandidateStreams(channelId, excludeStreamIds = [], excludeMap = {}, limit = 10) {
+  const now = Date.now();
+  const activeExcludeIds = excludeStreamIds.filter(id => {
+    const excludedAt = excludeMap[id];
+    if (!excludedAt) return true;
+    return (now - excludedAt) < EXCLUDED_STREAM_COOLDOWN_MS;
+  });
+
+  const excludeClause = activeExcludeIds.length > 0
+    ? `AND id NOT IN (${activeExcludeIds.map((_, i) => `$${i + 2}`).join(',')})`
+    : '';
+  const params = activeExcludeIds.length > 0 ? [channelId, ...activeExcludeIds] : [channelId];
+
+  const res = await db.query(
+    `SELECT id, stream_url, license_type, health_status, fail_count, quality, restream_enabled
+     FROM channel_streams
+     WHERE channel_id = $1
+       AND is_hidden IS NOT TRUE
+       AND stream_url IS NOT NULL
+       AND stream_url <> ''
+       AND (license_type IS NULL OR license_type NOT IN ('paid_drm', 'drm', 'unlicensed', 'unauthorized', 'pirated'))
+       AND (health_status IS NULL OR health_status NOT IN (
+         'requires_licensed_source','drm_or_unsupported','geo_blocked',
+         'forbidden_403','offline','dead'
+       ))
+       ${excludeClause}
+     ORDER BY
+       CASE WHEN health_status IN ('stable', 'online') THEN 0 ELSE 1 END,
+       last_success_at DESC NULLS LAST,
+       fail_count ASC,
+       android_playable DESC,
+       segment_load_success_1 DESC,
+       CASE WHEN license_type IN ('free', 'licensed', 'public') THEN 0 ELSE 1 END,
+       priority ASC,
+       CASE
+         WHEN LOWER(COALESCE(quality, 'auto')) IN ('auto', 'hd', '1080p', '720p') THEN 0
+         WHEN LOWER(COALESCE(quality, 'auto')) IN ('sd', '480p') THEN 1
+         ELSE 2
+       END,
+       health_score DESC NULLS LAST
+     LIMIT $${params.length + 1}`,
+    [...params, limit]
+  );
+  return res.rows;
+}
+
+async function _selectWorkingStream(channelId, channel, excludeStreamIds = [], excludeMap = {}) {
+  const candidates = await _getCandidateStreams(channelId, excludeStreamIds, excludeMap, 12);
+
+  if (channel.stream_url && !candidates.some(s => s.stream_url === channel.stream_url)) {
+    candidates.push({
+      id: null,
+      stream_url: channel.stream_url,
+      license_type: 'channel_primary',
+      health_status: channel.health_status,
+      fail_count: channel.fail_count || 0,
+      quality: 'auto',
+    });
+  }
+
+  for (const candidate of candidates) {
+    if (BLOCKED_LICENSE_TYPES.has(String(candidate.license_type || '').toLowerCase())) continue;
+
+    const test = await _testStream(candidate.stream_url);
+    if (test.ok) {
+      if (candidate.id) await _markStreamSuccess(candidate.id);
+      return candidate;
     }
 
-    const text = await response.text();
-    const segments = _parseM3U8Segments(text, m3u8Url);
+    if (candidate.id) {
+      await _markStreamFailure(candidate.id, test.reason);
+      if (!excludeStreamIds.includes(candidate.id)) excludeStreamIds.push(candidate.id);
+      excludeMap[candidate.id] = Date.now();
+    }
+    await _logFallback(channelId, null, candidate.id || null, 'failed', test.reason);
+  }
 
-    if (segments.length === 0) {
-      state.retryCount++;
-      if (state.retryCount >= MAX_RETRIES_BEFORE_OFFLINE) {
-        await _markSourceOffline(state.channelId, 'No segments in M3U8');
-      }
+  return null;
+}
+
+async function _testStream(streamUrl) {
+  try {
+    const text = await _fetchTextWithTimeout(streamUrl, STREAM_TEST_TIMEOUT_MS);
+    const segments = _parseM3U8Segments(text, streamUrl);
+    if (segments.length === 0) return { ok: false, reason: 'No playable segments in manifest' };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), STREAM_TEST_TIMEOUT_MS);
+    const response = await fetch(segments[0].url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 NivaTV/1.0',
+        Range: 'bytes=0-2047',
+      },
+    }).finally(() => clearTimeout(timeoutId));
+
+    if (!response.ok && response.status !== 206) return { ok: false, reason: `Segment HTTP ${response.status}` };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: _normalizeErrorMessage(err) };
+  }
+}
+
+async function _fetchTextWithTimeout(url, timeoutMs) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const response = await fetch(url, {
+    signal: controller.signal,
+    headers: { 'User-Agent': 'Mozilla/5.0 NivaTV/1.0' },
+  }).finally(() => clearTimeout(timeoutId));
+
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.text();
+}
+
+function _normalizeErrorMessage(err) {
+  if (err.name === 'AbortError') return 'timeout';
+  return err.message || String(err);
+}
+async function _pollChannel(state) {
+  try {
+    const currentChannel = await db.query(
+      `SELECT recorder_stream_url, recorder_stream_id, recorder_stale_buffer_until,
+              is_premium, is_important, playback_delay_seconds, buffer_depth_seconds
+       FROM channels WHERE id = $1`,
+      [state.channelId]
+    );
+    const chData = currentChannel.rows[0];
+    if (!chData) {
+      console.error(`[buffer_recorder] Channel ${state.channelId} not found`);
+      await stopRecorder(state.channelId);
       return;
     }
 
-    state.retryCount = 0;
+    const isInStaleMode = chData.recorder_stale_buffer_until && new Date(chData.recorder_stale_buffer_until) > new Date();
+    const bufferAge = chData.buffer_depth_seconds || 0;
 
-    // Download only new segments
+    if (isInStaleMode && bufferAge > 0 && bufferAge < MAX_STALE_BUFFER_AGE_SEC) {
+      console.log(`[buffer_recorder] Channel ${state.channelId} in stale mode, buffer age: ${bufferAge}s`);
+    }
+
+    const m3u8Url = chData.recorder_stream_url;
+    if (!m3u8Url) throw new Error('No recorder_stream_url configured');
+
+    const text = await _fetchTextWithTimeout(m3u8Url, M3U8_FETCH_TIMEOUT_MS);
+    const segments = _parseM3U8Segments(text, m3u8Url);
+
+    if (segments.length === 0) throw new Error('No segments in M3U8');
+
+    // Success! Reset state
+    await _updateChannelState(state.channelId, {
+      recorder_fail_count: 0,
+      recorder_last_success_at: new Date(),
+      recorder_stale_buffer_until: null,
+      recorder_status_detail: 'active'
+    });
+
+    // Reset retry counter on success
+    state.currentStreamRetries = 0;
+    
+    // Clear failed streams list periodically on success to allow retrying after cooldown
+    if (state.failedStreamIds && state.failedStreamIds.length > 0) {
+      console.log(`[buffer_recorder] Channel ${state.channelId}: Stream recovered, clearing failed list`);
+      state.failedStreamIds = [];
+      state.failedStreamExcludeMap = {};
+    }
+
+    if (state.currentPollInterval !== POLL_INTERVAL_MS) {
+      state.currentPollInterval = POLL_INTERVAL_MS;
+      _restartTimer(state);
+    }
+
     for (const seg of segments) {
       if (state.seenSequences.has(seg.sequence)) continue;
       state.seenSequences.add(seg.sequence);
-      await _downloadSegment(state, seg, bufferDir);
+      await _downloadSegment(state, seg);
     }
 
-    // Update buffer depth
-    await _updateBufferDepth(state.channelId, channel.playback_delay_seconds);
+    await _updateBufferDepth(state.channelId, chData.playback_delay_seconds);
 
   } catch (err) {
-    state.retryCount++;
-    console.error(`[buffer_recorder] Poll error channel ${state.channelId}:`, err.message);
+    await _handlePollError(state, err);
+  }
+}
 
-    await db.query(
-      `UPDATE channels SET last_buffer_error = $1, updated_at = NOW() WHERE id = $2`,
-      [err.message.slice(0, 500), state.channelId]
-    ).catch(() => {});
+// Classify error type to determine retry strategy
+function _classifyError(err) {
+  const msg = err.message || '';
+  
+  // Permanent failures (don't retry same stream)
+  if (msg.includes('HTTP 403') || msg.includes('HTTP 404') || msg.includes('HTTP 410')) {
+    return 'permanent';
+  }
+  
+  // Transient failures (retry with backoff)
+  if (msg.includes('timeout') || msg.includes('ETIMEDOUT') || msg.includes('ECONNRESET') ||
+      msg.includes('ENOTFOUND') || msg.includes('ECONNREFUSED') || 
+      msg.includes('HTTP 5') || msg.includes('No segments')) {
+    return 'transient';
+  }
+  
+  // Unknown - treat as transient
+  return 'transient';
+}
 
-    if (state.retryCount >= MAX_RETRIES_BEFORE_OFFLINE) {
-      await _markSourceOffline(state.channelId, err.message);
+async function _handlePollError(state, err) {
+  const errorType = _classifyError(err);
+  const errMessage = _normalizeErrorMessage(err);
+  console.error(`[buffer_recorder] Poll error channel ${state.channelId} (${errorType}):`, errMessage);
+
+  const currentChannel = await db.query(
+    `SELECT recorder_fail_count, recorder_stale_buffer_until, recorder_stream_id,
+            is_premium, is_paid, is_important, buffer_depth_seconds, playback_delay_seconds,
+            recorder_stream_url
+     FROM channels WHERE id = $1`,
+    [state.channelId]
+  );
+  const chData = currentChannel.rows[0];
+  
+  // Initialize retry count if not exists
+  if (!state.currentStreamRetries) {
+    state.currentStreamRetries = 0;
+  }
+  
+  const hasExistingBuffer = (chData.buffer_depth_seconds || 0) > 0;
+  let staleUntil = chData.recorder_stale_buffer_until;
+
+  // Set stale buffer window if buffer exists and not already set
+  if (!staleUntil && hasExistingBuffer) {
+    staleUntil = new Date(Date.now() + STALE_BUFFER_WINDOW_SEC * 1000);
+    console.log(`[buffer_recorder] Channel ${state.channelId}: Primary stream timeout. Keeping buffer alive while retrying...`);
+  }
+
+  // For transient errors, retry same stream with backoff before switching
+  if (errorType === 'transient' && state.currentStreamRetries < MAX_RETRIES_BEFORE_FALLBACK) {
+    state.currentStreamRetries++;
+    const backoffMs = RETRY_BACKOFF_MS[state.currentStreamRetries - 1] || RETRY_BACKOFF_MS[RETRY_BACKOFF_MS.length - 1];
+    
+    console.log(`[buffer_recorder] Channel ${state.channelId}: Transient error, retry ${state.currentStreamRetries}/${MAX_RETRIES_BEFORE_FALLBACK} after ${backoffMs}ms`);
+    
+    const updates = {
+      recorder_last_failure_at: new Date(),
+      recorder_last_failure_reason: `Retrying (${state.currentStreamRetries}/${MAX_RETRIES_BEFORE_FALLBACK}): ${errMessage.slice(0, 400)}`,
+      recorder_stale_buffer_until: staleUntil,
+      buffer_status: hasExistingBuffer ? 'source_timeout' : 'retrying',
+      recorder_status_detail: `retry_attempt_${state.currentStreamRetries}`
+    };
+    
+    await _updateChannelState(state.channelId, updates);
+    
+    // Add backoff delay before next poll
+    await new Promise(resolve => setTimeout(resolve, backoffMs));
+    return;
+  }
+
+  // Retries exhausted or permanent error - increment fail count
+  const newFailCount = (chData.recorder_fail_count || 0) + 1;
+  state.currentStreamRetries = 0; // Reset retry counter
+
+  const updates = {
+    recorder_fail_count: newFailCount,
+    recorder_last_failure_at: new Date(),
+    recorder_last_failure_reason: `${errorType}: ${errMessage.slice(0, 450)}`,
+    recorder_stale_buffer_until: staleUntil,
+    buffer_status: hasExistingBuffer ? 'source_timeout' : 'source_offline',
+    recorder_status_detail: hasExistingBuffer ? 'trying_backup' : 'source_unavailable'
+  };
+
+  // Mark premium/important channels for manual verification
+  if ((chData.is_premium || chData.is_paid || chData.is_important) && newFailCount >= 2) {
+    updates.needs_manual_verification = true;
+    updates.recorder_status_detail = 'needs_manual_verification';
+    console.log(`[buffer_recorder] Channel ${state.channelId}: Premium/important channel needs manual verification`);
+  }
+
+  await _updateChannelState(state.channelId, updates);
+
+  // Try fallback after threshold reached
+  if (newFailCount >= FAILURE_THRESHOLD_FOR_FALLBACK) {
+    const needsImmediateFallback = !staleUntil || new Date(staleUntil) <= new Date() || !hasExistingBuffer;
+
+    if (needsImmediateFallback) {
+      console.log(`[buffer_recorder] Channel ${state.channelId}: Attempting fallback to backup stream...`);
+      const fallbackSuccess = await _tryFallbackStream(state);
+      if (!fallbackSuccess) {
+        if (state.currentPollInterval !== FALLBACK_POLL_INTERVAL_MS) {
+          state.currentPollInterval = FALLBACK_POLL_INTERVAL_MS;
+          _restartTimer(state);
+          console.log(`[buffer_recorder] Channel ${state.channelId}: All sources failed. Slowed polling to ${FALLBACK_POLL_INTERVAL_MS}ms`);
+        }
+      }
     } else {
-      await db.query(
-        `UPDATE channels SET buffer_status = 'source_slow', updated_at = NOW() WHERE id = $1`,
-        [state.channelId]
-      ).catch(() => {});
+      const remainingSec = Math.floor((new Date(staleUntil) - Date.now()) / 1000);
+      console.log(`[buffer_recorder] Channel ${state.channelId}: Using stale buffer while retrying (${remainingSec}s remaining)`);
     }
   }
 }
 
-async function _downloadSegment(state, seg, bufferDir) {
+function _restartTimer(state) {
+  const rec = activeRecorders.get(state.channelId);
+  if (!rec) return;
+
+  clearInterval(rec.timer);
+  rec.timer = setInterval(() => _pollChannel(state), state.currentPollInterval);
+  console.log(`[buffer_recorder] Channel ${state.channelId}: Poll interval changed to ${state.currentPollInterval}ms`);
+}
+
+async function _tryFallbackStream(state) {
   try {
-    const response = await fetch(seg.url, {
-      timeout: SEGMENT_FETCH_TIMEOUT_MS,
-      headers: { 'User-Agent': 'Mozilla/5.0 NivaTV/1.0' },
+    const channelId = state.channelId;
+    await _updateChannelState(channelId, {
+      buffer_status: 'trying_backup',
+      recorder_status_detail: 'searching_backup_stream'
     });
+
+    const channel = await db.query(
+      'SELECT id, stream_url, is_premium, is_paid, is_important, health_status, fail_count FROM channels WHERE id = $1',
+      [channelId]
+    );
+    const chData = channel.rows[0];
+    if (!chData) return false;
+
+    const current = await db.query(
+      'SELECT recorder_stream_id, recorder_stream_url FROM channels WHERE id = $1',
+      [channelId]
+    );
+    const currentStreamId = current.rows[0]?.recorder_stream_id;
+    const currentStreamUrl = current.rows[0]?.recorder_stream_url;
+
+    if (!state.failedStreamExcludeMap) state.failedStreamExcludeMap = {};
+    if (currentStreamId && !state.failedStreamIds.includes(currentStreamId)) {
+      state.failedStreamIds.push(currentStreamId);
+      state.failedStreamExcludeMap[currentStreamId] = Date.now();
+    }
+
+    await _updateChannelState(channelId, { recorder_failed_stream_url: currentStreamUrl || null });
+
+    console.log(`[buffer_recorder] Channel ${channelId}: Trying fallback streams (excluded: ${state.failedStreamIds.join(', ')})`);
+
+    const candidate = await _selectWorkingStream(channelId, chData, state.failedStreamIds, state.failedStreamExcludeMap);
+
+    if (candidate) {
+      const backupCountRes = await db.query(
+        'SELECT recorder_backup_attempts FROM channels WHERE id = $1',
+        [channelId]
+      );
+      const backupCount = (backupCountRes.rows[0]?.recorder_backup_attempts || 0) + 1;
+
+      await _updateChannelState(channelId, {
+        recorder_stream_url: candidate.stream_url,
+        recorder_stream_id: candidate.id || null,
+        recorder_failed_stream_url: currentStreamUrl || null,
+        recorder_backup_stream_url: candidate.stream_url,
+        recorder_fail_count: 0,
+        recorder_backup_attempts: backupCount,
+        recorder_stale_buffer_until: null,
+        buffer_status: 'backup_active',
+        recorder_status_detail: candidate.id ? 'backup_active' : 'fallback_to_main_url'
+      });
+
+      await _logFallback(channelId, currentStreamId, candidate.id || null, 'success', `Backup stream ${candidate.id || 'channel_url'} active`);
+
+      console.log(`[buffer_recorder] Channel ${channelId}: Backup stream ${candidate.id || 'channel_url'} is working. Switched successfully.`);
+
+      state.currentStreamRetries = 0;
+      state.currentPollInterval = POLL_INTERVAL_MS;
+      _restartTimer(state);
+
+      return true;
+    }
+
+    const needsVerification = chData.is_premium || chData.is_paid || chData.is_important;
+    await _updateChannelState(channelId, {
+      buffer_status: needsVerification ? 'requires_licensed_source' : 'no_working_source',
+      recorder_status_detail: needsVerification ? 'requires_licensed_source' : 'no_working_source',
+      needs_manual_verification: needsVerification
+    });
+
+    await _logFallback(channelId, currentStreamId, null, 'all_failed', 'No working backup source available');
+
+    console.log(`[buffer_recorder] Channel ${channelId}: No working source available. Will retry in background.`);
+
+    return false;
+  } catch (err) {
+    console.error(`[buffer_recorder] Fallback error for ${state.channelId}:`, err);
+    return false;
+  }
+}
+async function _markStreamFailure(streamId, reason) {
+  await db.query(
+    `UPDATE channel_streams
+     SET fail_count = COALESCE(fail_count, 0) + 1,
+         last_failed_at = NOW(),
+         health_status = CASE
+           WHEN COALESCE(fail_count, 0) + 1 >= 3 THEN 'unstable'
+           ELSE 'timeout'
+         END,
+         health_reason = $2,
+         updated_at = NOW()
+     WHERE id = $1`,
+    [streamId, String(reason || 'timeout').slice(0, 400)]
+  ).catch(() => {});
+}
+
+async function _markStreamSuccess(streamId) {
+  await db.query(
+    `UPDATE channel_streams
+     SET success_count = COALESCE(success_count, 0) + 1,
+         fail_count = 0,
+         last_success_at = NOW(),
+         health_status = CASE
+           WHEN health_status IN ('unstable', 'timeout', 'unknown') THEN 'online'
+           ELSE COALESCE(health_status, 'online')
+         END,
+         updated_at = NOW()
+     WHERE id = $1`,
+    [streamId]
+  ).catch(() => {});
+}
+async function _logFallback(channelId, fromStreamId, toStreamId, result, notes) {
+  try {
+    const fromUrl = fromStreamId
+      ? await db.query('SELECT stream_url FROM channel_streams WHERE id = $1', [fromStreamId])
+          .then(r => r.rows[0]?.stream_url)
+      : null;
+    const toUrl = toStreamId
+      ? await db.query(
+            'SELECT stream_url FROM channel_streams WHERE id = $1', [toStreamId])
+          .then(r => r.rows[0]?.stream_url)
+      : null;
+
+    await db.query(
+      `INSERT INTO recorder_fallback_log
+         (channel_id, from_stream_url, from_stream_id, to_stream_url, to_stream_id, result, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [channelId, fromUrl, fromStreamId, toUrl, toStreamId, result, notes]
+    ).catch(() => {});
+  } catch (err) {
+  }
+}
+
+async function _downloadSegment(state, seg) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SEGMENT_FETCH_TIMEOUT_MS);
+
+    const response = await fetch(seg.url, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 NivaTV/1.0' },
+    }).finally(() => clearTimeout(timeoutId));
 
     if (!response.ok) throw new Error(`Segment HTTP ${response.status}`);
 
@@ -252,7 +685,6 @@ async function _downloadSegment(state, seg, bufferDir) {
 
     fs.writeFileSync(fullPath, buffer);
 
-    // Record in DB
     await db.query(
       `INSERT INTO delayed_buffer_segments
          (channel_id, segment_name, sequence_number, duration, file_size_bytes, file_path)
@@ -261,7 +693,6 @@ async function _downloadSegment(state, seg, bufferDir) {
       [state.channelId, fileName, seg.sequence, seg.duration, buffer.length, relativePath]
     );
 
-    // Update session
     await db.query(
       `UPDATE delayed_buffer_sessions
        SET last_segment_at = NOW(), segment_count = segment_count + 1, updated_at = NOW()
@@ -271,10 +702,10 @@ async function _downloadSegment(state, seg, bufferDir) {
 
   } catch (err) {
     console.error(`[buffer_recorder] Segment download error ch=${state.channelId} seq=${seg.sequence}:`, err.message);
-    await db.query(
-      `UPDATE channels SET buffer_status = 'segment_missing', last_buffer_error = $1, updated_at = NOW() WHERE id = $2`,
-      [err.message.slice(0, 500), state.channelId]
-    ).catch(() => {});
+    await _updateChannelState(state.channelId, {
+      buffer_status: 'segment_missing',
+      recorder_status_detail: `segment_missing: ${err.message.slice(0, 100)}`
+    });
   }
 }
 
@@ -289,51 +720,46 @@ async function _updateBufferDepth(channelId, delaySeconds) {
     const depth = res.rows[0].depth_seconds;
     const isReady = depth >= delaySeconds;
 
+    const statusRes = await db.query('SELECT buffer_status FROM channels WHERE id = $1', [channelId]);
+    const currentStatus = statusRes.rows[0]?.buffer_status;
+
     let status = 'warming_up';
-    if (isReady) status = 'ready';
+    if (isReady) status = 'buffer_ready';
+    else if (currentStatus === 'backup_active') status = 'backup_active';
     else if (depth > 0 && depth < delaySeconds * 0.5) status = 'low_buffer';
 
-    await db.query(
-      `UPDATE channels
-       SET buffer_depth_seconds = $1, is_buffer_ready = $2, buffer_status = $3, updated_at = NOW()
-       WHERE id = $4`,
-      [depth, isReady, status, channelId]
-    );
+    await _updateChannelState(channelId, {
+      buffer_depth_seconds: depth,
+      is_buffer_ready: isReady,
+      buffer_status: status
+    });
   } catch (err) {
     console.error('[buffer_recorder] _updateBufferDepth error:', err.message);
   }
 }
+async function _updateChannelState(channelId, updates) {
+  const keys = Object.keys(updates);
+  if (keys.length === 0) return;
 
-async function _markSourceOffline(channelId, reason) {
-  await db.query(
-    `UPDATE channels
-     SET buffer_status = 'source_offline', is_buffer_ready = false,
-         last_buffer_error = $1, updated_at = NOW()
-     WHERE id = $2`,
-    [reason?.slice(0, 500), channelId]
-  ).catch(() => {});
+  const setClause = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
+  const values = Object.values(updates);
 
-  await db.query(
-    `UPDATE delayed_buffer_sessions SET status = 'error', error_message = $1, updated_at = NOW()
-     WHERE channel_id = $2 AND status = 'running'`,
-    [reason?.slice(0, 500), channelId]
-  ).catch(() => {});
-
-  // Stop the recorder — admin must re-enable after fixing source
-  stopRecorder(channelId);
+  try {
+    await db.query(
+      `UPDATE channels SET ${setClause}, updated_at = NOW() WHERE id = $1`,
+      [channelId, ...values]
+    );
+  } catch (err) {
+    console.error(`[buffer_recorder] _updateChannelState error for ${channelId}:`, err);
+  }
 }
 
-/**
- * Parse an HLS M3U8 playlist and return segment list with sequence numbers.
- * Handles both absolute and relative segment URLs.
- */
 function _parseM3U8Segments(text, baseUrl) {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   const segments = [];
   let sequence = 0;
   let duration = 0;
 
-  // Extract EXT-X-MEDIA-SEQUENCE for proper sequence numbering
   const seqMatch = text.match(/#EXT-X-MEDIA-SEQUENCE:(\d+)/);
   if (seqMatch) sequence = parseInt(seqMatch[1], 10);
 
@@ -341,7 +767,7 @@ function _parseM3U8Segments(text, baseUrl) {
     const line = lines[i];
     if (line.startsWith('#EXTINF:')) {
       duration = parseFloat(line.split(':')[1]) || 0;
-    } else if (!line.startsWith('#') && (line.endsWith('.ts') || line.includes('.ts?') || line.includes('segment'))) {
+    } else if (!line.startsWith('#') && duration > 0) {
       const url = line.startsWith('http') ? line : _resolveUrl(baseUrl, line);
       segments.push({ url, sequence, duration });
       sequence++;
@@ -367,4 +793,6 @@ module.exports = {
   getActiveRecorders,
   startAllEnabledRecorders,
   cleanupOldSegments,
+  forceFallback,
+  clearStaleBuffer
 };

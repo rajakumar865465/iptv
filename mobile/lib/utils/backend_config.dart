@@ -15,6 +15,11 @@ class BackendConfig {
 
   static const String baseUrl = String.fromEnvironment(
     'BACKEND_URL',
-    defaultValue: 'http://35.154.128.217',
+    // No production default — the app must be built with BACKEND_URL set.
+    // For local emulator dev only, use 10.0.2.2 via --dart-define.
+    defaultValue: '',
   );
+
+  /// Validates that the backend URL is configured. Call before runApp.
+  static bool get isConfigured => baseUrl.isNotEmpty;
 }

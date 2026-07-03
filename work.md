@@ -1,585 +1,166 @@
-# Full Project Rebrand — IPTVLive to NivaTV
+Fix NivaTV Smooth Playback when recorder source times out.
 
-## Rebrand Goal
+Current problem:
 
-Rebrand the entire project from the old brand name:
+For some channels like Star Gold Select HD, smooth playback shows:
 
-```txt id="w8x311"
-IPTVLive
-IPTV Live
-IPTV
-```
+Response timeout while trying to fetch stream URL.
 
-to the new brand:
+I added the 5-minute delayed playback feature because some streams are unstable. I do not want users to instantly see stream error if one source times out.
 
-```txt id="o0vg35"
-NivaTV
-```
+Important reality:
 
-Use the uploaded NivaTV logo as the official brand identity for the whole product.
+If the recorder cannot fetch any video from the source, it cannot create a 5-minute buffer.
 
-The rebrand must be applied consistently across:
+So the system must not depend on only one stream URL.
 
-* customer website
-* mobile app
-* APK branding
-* payment pages
-* checkout flow
-* support pages
-* legal pages
-* admin dashboard
-* backend settings
-* metadata / SEO
-* app text / UI
-* splash / icons / assets
-* documentation
+Required behavior:
 
-This should feel like a professional new brand, not partial text replacement.
+When smooth playback recorder fails on the primary stream:
 
----
+1. Do not immediately show final error.
+2. Mark that stream as timeout / unstable.
+3. Retry the same stream with safe timeout.
+4. Refresh the playback URL from backend.
+5. Try backup stream 1.
+6. Try backup stream 2.
+7. Try lower quality stream if available.
+8. Try proxy/restream mode if allowed.
+9. If any stream works, start building delayed buffer from that working stream.
+10. Only show error if all available streams fail.
 
-# 1. New Brand Name
+For smooth playback, backend should choose the best working stream before starting recorder.
 
-Use:
+Recorder source selection priority:
 
-```txt id="s18n2l"
-NivaTV
-```
+- stable stream
+- recently successful stream
+- stream with low fail count
+- Android playable stream
+- stream with successful segment test
+- legal/public/licensed stream
+- backup stream
+- lower quality stream
 
-Brand style:
+Do not always start recorder from the first stream URL.
 
-* write as `NivaTV`
-* no spaces
-* capital N and TV
-* use consistently everywhere
+Add recorder fallback system:
 
-Do not use mixed versions like:
+If primary stream timeout:
 
-```txt id="1qb76q"
-Niva Tv
-Niva tv
-NIVATV
-nivaTV
-```
+Show in admin:
 
-unless intentionally styled for logo/icon usage.
+Primary stream timeout. Trying backup source...
 
----
+If backup works:
 
-# 2. Replace Old Branding Everywhere
+Use backup stream for smooth playback.
 
-Search and replace all old branding references:
+If all streams fail:
 
-```txt id="dbqbv2"
-IPTVLive
-IPTV Live
-IPTV
-Live TV APK
-IPTV APK
-```
+Show:
 
-Replace with:
+No working source available for smooth playback.
 
-```txt id="9pq0b5"
-NivaTV
-NivaTV App
-NivaTV APK
-```
+Do not crash recorder.
 
-Be careful:
-Do not blindly replace generic technical references where `IPTV` is being used as a technical concept.
-Only replace branding/usages that refer to the product name.
+Do not keep retrying the same dead URL forever.
 
-Example:
+Add stale buffer support:
 
-* `IPTVLive Pricing` → `NivaTV Pricing`
-* `Download IPTV APK` → `Download NivaTV APK`
-* `Welcome to IPTVLive` → `Welcome to NivaTV`
+If the channel already has a previous delayed buffer and the source temporarily times out:
 
-But avoid breaking technical docs if they discuss IPTV as a technology.
-
----
-
-# 3. Logo Usage
-
-Use the uploaded NivaTV logo as the main official logo.
-
-Apply it to:
-
-```txt id="91jjwy"
-website header logo
-website footer logo
-favicon
-OG image / social preview
-mobile splash screen
-app launcher icon
-login page branding
-signup page branding
-APK icon
-sidebar/admin logo
-payment page branding
-email templates
-support/help pages
-loading screen
-empty states where branding is shown
-```
-
-## Logo handling rules
-
-* keep proportions correct
-* do not stretch logo
-* create dark and light background versions if needed
-* prepare small icon version for favicon/app icon
-* prepare horizontal version for header/footer if needed
-
----
-
-# 4. Brand Colors
-
-Use the NivaTV logo colors as the official brand palette.
-
-Suggested palette based on the logo:
-
-```txt id="am6nbo"
-Primary Dark Blue / Navy
-Electric Blue / Cyan
-Purple / Violet
-Orange / Coral
-White / Light Gray background where needed
-```
-
-Recommended use:
-
-```txt id="2zkmw6"
-Primary UI theme: dark background + red can be replaced/softened with blue-purple-coral identity
-Accent buttons: use brand gradient or strong primary accent
-Headings: dark blue / white depending on background
-Highlights: gradient from blue → purple → coral
-```
+- keep serving existing buffered segments while they are still valid
+- show playback as delayed
+- continue retrying source in background
+- if new segments cannot be fetched before buffer runs out, then switch backup stream
+- if backup also fails, then show channel unavailable
 
 Important:
-Do not keep the old heavy red “IPTVLive” branding style everywhere.
-Update the design to feel aligned with the NivaTV logo.
 
----
+Do not serve very old stale video as live forever.
 
-# 5. Website Rebrand
-
-Update the customer website completely.
-
-## Replace all old names
-
-Change every visible text reference:
-
-```txt id="1va6bs"
-IPTVLive
-Buy IPTV
-Download IPTV APK
-IPTV Pricing
-IPTV App
-```
-
-to NivaTV versions.
-
-## Website header
-
-Change:
-
-```txt id="eb5ta6"
-IPTVLive logo/text
-```
-
-to:
-
-```txt id="6t41z9"
-NivaTV logo/text
-```
-
-## Hero section
-
-Update headline/subheadline to match new brand.
+Stale buffer should only be used for short recovery window.
 
 Example:
 
-```txt id="4po5i4"
-Live TV for Every Indian Home
-with NivaTV
-```
+If 5-minute buffer exists and source fails for 20 seconds, user should still watch buffered video.
+
+If source fails for many minutes and no backup exists, buffer will run out and channel should be marked unstable.
+
+Add admin status:
+
+Recorder status should show:
+
+- warming_up
+- buffer_ready
+- source_timeout
+- trying_backup
+- backup_active
+- low_buffer
+- buffer_empty
+- no_working_source
+- requires_licensed_source
+
+Admin should see:
+
+- current recorder stream URL
+- failed stream URL
+- backup stream used
+- timeout reason
+- buffer depth
+- last successful segment time
+- last failure time
+
+For paid/popular channels:
+
+Do not auto-hide.
+
+Mark as:
+
+needs_manual_verification
 
 or
 
-```txt id="xycjxq"
-Watch Live TV with NivaTV
-```
+requires_licensed_source
 
-Example subtext:
+If there is no stable legal/licensed source, do not keep showing broken stream to users.
 
-```txt id="uv8e7d"
-NivaTV brings Hindi, regional, devotional, movies, news, music and entertainment channels into one smooth Android TV experience.
-```
+App behavior:
 
-## CTA buttons
+If smooth playback is enabled but buffer is not ready:
 
-Update button text:
+Show:
 
-```txt id="sdyk62"
-Buy NivaTV License
-Download NivaTV APK
-Get NivaTV Plan
-```
+Preparing smooth playback...
 
-## Footer
+If primary stream fails and backup is being tried:
 
-Change footer brand name and support references to NivaTV.
+Show:
 
----
+Trying another source...
 
-# 6. Mobile App Rebrand
+If buffer is ready:
 
-Update branding inside the mobile app.
+Show:
 
-## Change app name
+Smooth Live · 5 min delay
 
-Replace visible app name with:
+If all streams fail:
 
-```txt id="qzfui7"
-NivaTV
-```
+Show:
 
-## Update:
+Stream unavailable
+No stable source is available right now.
 
-* splash screen text
-* launcher icon
-* app title
-* login screen brand logo
-* signup screen brand text
-* profile page branding
-* about section
-* support section
-* activation screen
-* player top bar if branding appears
-* settings/about app
-* force update screen
-* blocked/maintenance screen
-* payment screen
+Acceptance criteria:
 
-## App package branding text
-
-Wherever UI currently says:
-
-```txt id="m1qobz"
-IPTVLive
-```
-
-replace with:
-
-```txt id="98a6f0"
-NivaTV
-```
-
----
-
-# 7. APK / App Store Branding
-
-Update APK branding:
-
-```txt id="8svd1f"
-app_name
-launcher icon
-splash asset
-notification label
-Android label
-version splash text
-```
-
-Use:
-
-```txt id="w1qgkz"
-NivaTV
-```
-
-If short name needed:
-
-```txt id="ji9qd6"
-NivaTV
-```
-
-Not `IPTVLive`.
-
----
-
-# 8. Admin Dashboard Rebrand
-
-Update admin dashboard branding too.
-
-Change:
-
-```txt id="ry344l"
-IPTVLive Admin
-IPTV Admin
-Dashboard logo
-```
-
-to:
-
-```txt id="69w3i9"
-NivaTV Admin
-NivaTV Dashboard
-```
-
-Update:
-
-* sidebar logo
-* top navbar brand
-* page titles
-* admin login page
-* dashboard footer
-* browser tab title
-
----
-
-# 9. Payment / Pricing Rebrand
-
-Update pricing page brand references:
-
-```txt id="xwpp0h"
-Get IPTVLive at special launch pricing
-```
-
-to:
-
-```txt id="v0m9fw"
-Get NivaTV at special launch pricing
-```
-
-Update checkout/payment text:
-
-```txt id="pxv8tn"
-Buy NivaTV License
-NivaTV Plan
-NivaTV APK Download
-NivaTV Support
-```
-
-Update payment success page:
-
-```txt id="qfrzdk"
-Your NivaTV license is ready
-```
-
----
-
-# 10. Legal / Policy Pages
-
-Update branding in:
-
-* Privacy Policy
-* Terms & Conditions
-* Refund Policy
-* Support Policy
-* Disclaimer
-
-Replace old product name with NivaTV consistently.
-
----
-
-# 11. SEO / Metadata Rebrand
-
-Update metadata across website.
-
-## Replace:
-
-* page titles
-* meta descriptions
-* OG title
-* OG description
-* favicon
-* structured brand name
-* browser tab titles
-
-Examples:
-
-```txt id="7m4sze"
-NivaTV - Live TV App for Indian & Regional Channels
-Buy NivaTV License
-Download NivaTV APK
-NivaTV Pricing Plans
-```
-
----
-
-# 12. Backend Settings Rebrand
-
-Update backend settings/config values that expose the brand name.
-
-Examples:
-
-```txt id="vun5cz"
-APP_NAME=NivaTV
-APP_DISPLAY_NAME=NivaTV
-SUPPORT_EMAIL=...
-BRAND_NAME=NivaTV
-DEFAULT_FROM_NAME=NivaTV
-```
-
-Update any email templates:
-
-```txt id="8gbr7v"
-Welcome to NivaTV
-Your NivaTV License Key
-NivaTV Payment Confirmation
-```
-
----
-
-# 13. Documentation Rebrand
-
-Update docs and README files:
-
-* setup guides
-* API docs branding text
-* deployment docs
-* screenshots references
-* product name mentions
-
-Replace old branding with NivaTV where appropriate.
-
----
-
-# 14. UI/UX Style Update
-
-Since rebrand is happening, align design language with the new logo.
-
-## Update visual style
-
-* reduce old red-heavy branding
-* introduce new blue-purple-coral accent palette
-* keep dark premium base if desired
-* update button gradients if useful
-* update badges and highlights to feel like NivaTV brand
-* keep UI modern and premium
-
-Important:
-Do not fully break the current UI.
-This is a brand refresh, not a total redesign unless needed.
-
----
-
-# 15. Files / Assets to Update
-
-Make sure these assets are created and wired correctly:
-
-```txt id="l87c95"
-logo main
-logo dark background version
-logo light background version
-favicon
-app icon
-splash icon
-social preview image
-header logo
-footer logo
-admin logo
-loading indicator branding if needed
-```
-
----
-
-# 16. Search Targets
-
-Search the entire codebase for:
-
-```txt id="j3mx6b"
-IPTVLive
-IPTV Live
-IPTV
-iptvlive
-iptv-live
-iptv_live
-IPTVLive Admin
-Download APK
-Buy License
-Live TV APK
-```
-
-Review each result and replace branding carefully.
-
----
-
-# 17. Important Replacement Rules
-
-Do not replace technical IPTV references when the sentence is talking about IPTV technology in general.
-
-Example:
-
-* `This app uses IPTV streams` → may stay technical if needed
-* `IPTVLive` → must become `NivaTV`
-
-Be smart about contextual replacement.
-
----
-
-# 18. Final QA Checklist
-
-After rebrand, verify:
-
-## Website
-
-* header logo updated
-* footer logo updated
-* browser title updated
-* hero text updated
-* pricing page updated
-* support page updated
-* favicon updated
-* all references show NivaTV
-
-## Mobile app
-
-* splash screen updated
-* app icon updated
-* login/signup branding updated
-* profile/about branding updated
-* app name updated
-* force update / blocked / maintenance screens updated
-
-## Admin
-
-* admin login branding updated
-* admin dashboard name updated
-* sidebar logo updated
-
-## Backend
-
-* email templates updated
-* support name updated
-* metadata updated
-* config/app name updated
-
-## Docs
-
-* README updated
-* screenshots references updated if needed
-
----
-
-# 19. Final Deliverable Expectation
-
-After this rebrand, the whole project should feel like one consistent brand:
-
-```txt id="j9969h"
-NivaTV
-```
-
-There should be no visible leftover public branding of:
-
-```txt id="jlwmg0"
-IPTVLive
-IPTV Live
-old logo
-old favicon
-old app icon
-old page titles
-```
-
-The project should look like a professionally rebranded product across website, app, admin, and backend.
+- recorder does not fail permanently after one timeout
+- recorder tries backup streams
+- recorder starts buffer from backup if backup works
+- existing buffer continues playing during short source failure
+- buffer depth is visible in admin
+- dead source is marked timeout/unstable
+- channel is not shown as smooth-ready until buffer exists
+- paid/DRM/unlicensed channels are not bypassed
+- important channels go to manual verification instead of auto-hide
