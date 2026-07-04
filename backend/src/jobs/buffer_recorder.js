@@ -34,6 +34,18 @@ const BLOCKED_LICENSE_TYPES = new Set([
   'paid_drm', 'drm', 'unlicensed', 'unauthorized', 'pirated'
 ]);
 
+// Segment statuses for delayed_buffer_segments.segment_status column
+const SEG_STATUS_GOOD = 'good';
+const SEG_STATUS_MISSING = 'missing';
+const SEG_STATUS_SKIPPED = 'skipped';
+const SEG_STATUS_RECOVERED = 'recovered';
+const SEG_STATUS_BACKUP = 'backup';
+const SEG_STATUS_LOWER_QUALITY = 'lower_quality';
+
+// Max segment download retries before skipping (per work.md: 2-3 retries)
+const MAX_SEGMENT_RETRIES = 3;
+const SEGMENT_RETRY_BACKOFF_MS = [600, 1500, 3000];
+
 // channelId -> { timer, state }
 const activeRecorders = new Map();
 
@@ -667,32 +679,70 @@ async function _logFallback(channelId, fromStreamId, toStreamId, result, notes) 
 }
 
 async function _downloadSegment(state, seg) {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), SEGMENT_FETCH_TIMEOUT_MS);
+  // Try primary download with retries, then backup, then lower-quality fallback.
+  // Per work.md: never retry one dead segment forever — skip after MAX_SEGMENT_RETRIES.
+  const channelId = state.channelId;
+  const fileName = `seg_${String(seg.sequence).padStart(6, '0')}.ts`;
+  const relativePath = path.join(String(channelId), fileName);
+  const fullPath = path.join(STORAGE_BASE, relativePath);
 
-    const response = await fetch(seg.url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 NivaTV/1.0' },
-    }).finally(() => clearTimeout(timeoutId));
+  // ── Attempt 1: Download from primary source with retries ────────────────────
+  let primaryResult = null;
+  for (let attempt = 1; attempt <= MAX_SEGMENT_RETRIES; attempt++) {
+    primaryResult = await _tryDownloadSegment(seg.url, fullPath);
+    if (primaryResult.ok) break;
 
-    if (!response.ok) throw new Error(`Segment HTTP ${response.status}`);
+    if (attempt < MAX_SEGMENT_RETRIES) {
+      const backoff = SEGMENT_RETRY_BACKOFF_MS[attempt - 1] || 2000;
+      await new Promise(r => setTimeout(r, backoff));
+    }
+  }
 
-    const buffer = await response.buffer();
-    const fileName = `seg_${String(seg.sequence).padStart(6, '0')}.ts`;
-    const relativePath = path.join(String(state.channelId), fileName);
-    const fullPath = path.join(STORAGE_BASE, relativePath);
+  let finalBuffer = primaryResult && primaryResult.ok ? primaryResult.buffer : null;
+  let segmentStatus = SEG_STATUS_GOOD;
+  let sourceType = 'primary';
+  let recoveryMethod = null;
 
-    fs.writeFileSync(fullPath, buffer);
+  // ── Attempt 2: Try backup stream if primary failed ──────────────────────────
+  if (!finalBuffer) {
+    const backupSeg = await _tryBackupSegment(state, seg);
+    if (backupSeg.ok) {
+      finalBuffer = backupSeg.buffer;
+      segmentStatus = SEG_STATUS_BACKUP;
+      sourceType = 'backup';
+      recoveryMethod = 'backup_stream';
+      console.log(`[buffer_recorder] ch=${channelId} seq=${seg.sequence}: recovered from backup stream`);
+    }
+  }
 
+  // ── Attempt 3: Try lower-quality stream if still no segment ────────────────
+  if (!finalBuffer) {
+    const lowerSeg = await _tryLowerQualitySegment(state, seg);
+    if (lowerSeg.ok) {
+      finalBuffer = lowerSeg.buffer;
+      segmentStatus = SEG_STATUS_LOWER_QUALITY;
+      sourceType = 'lower_quality';
+      recoveryMethod = 'lower_quality_stream';
+      console.log(`[buffer_recorder] ch=${channelId} seq=${seg.sequence}: recovered from lower-quality stream`);
+    }
+  }
+
+  // ── Outcome: skip or save ──────────────────────────────────────────────────
+  if (finalBuffer) {
+    fs.writeFileSync(fullPath, finalBuffer);
     await db.query(
       `INSERT INTO delayed_buffer_segments
-         (channel_id, segment_name, sequence_number, duration, file_size_bytes, file_path)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (channel_id, sequence_number) DO NOTHING`,
-      [state.channelId, fileName, seg.sequence, seg.duration, buffer.length, relativePath]
+         (channel_id, segment_name, sequence_number, duration, file_size_bytes, file_path,
+          segment_status, source_type, is_verified)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
+       ON CONFLICT (channel_id, sequence_number) DO UPDATE SET
+         segment_status = EXCLUDED.segment_status,
+         source_type = EXCLUDED.source_type,
+         is_verified = true,
+         file_size_bytes = EXCLUDED.file_size_bytes`,
+      [channelId, fileName, seg.sequence, seg.duration, finalBuffer.length, relativePath,
+       segmentStatus, sourceType]
     );
-
     await db.query(
       `UPDATE delayed_buffer_sessions
        SET last_segment_at = NOW(), segment_count = segment_count + 1, updated_at = NOW()
@@ -700,12 +750,198 @@ async function _downloadSegment(state, seg) {
       [state.sessionId]
     ).catch(() => {});
 
-  } catch (err) {
-    console.error(`[buffer_recorder] Segment download error ch=${state.channelId} seq=${seg.sequence}:`, err.message);
-    await _updateChannelState(state.channelId, {
-      buffer_status: 'segment_missing',
-      recorder_status_detail: `segment_missing: ${err.message.slice(0, 100)}`
+    // Update channel buffer health counters
+    await _updateBufferCounters(channelId, {
+      downloaded: true,
+      recovered: segmentStatus === SEG_STATUS_RECOVERED || segmentStatus === SEG_STATUS_BACKUP || segmentStatus === SEG_STATUS_LOWER_QUALITY,
+      backup: segmentStatus === SEG_STATUS_BACKUP,
+      lowerQuality: segmentStatus === SEG_STATUS_LOWER_QUALITY,
+      lastSuccess: true,
     });
+  } else {
+    // Could not recover — mark as skipped (skip_missing_chunks mode default)
+    await db.query(
+      `INSERT INTO delayed_buffer_segments
+         (channel_id, segment_name, sequence_number, duration, file_path, segment_status, is_verified)
+       VALUES ($1, $2, $3, $4, $5, $6, false)
+       ON CONFLICT (channel_id, sequence_number) DO UPDATE SET
+         segment_status = EXCLUDED.segment_status,
+         is_verified = false`,
+      [channelId, fileName, seg.sequence, seg.duration, relativePath, SEG_STATUS_SKIPPED]
+    );
+
+    console.warn(`[buffer_recorder] ch=${channelId} seq=${seg.sequence}: SKIPPED (unavailable, skipping per skip_missing_chunks mode)`);
+
+    await _updateBufferCounters(channelId, {
+      skipped: true,
+      lastMissing: true,
+    });
+
+    await _updateChannelState(channelId, {
+      buffer_status: 'segment_missing',
+      recorder_status_detail: `segment_skipped: seq ${seg.sequence}`,
+      last_source_error: `Segment ${seg.sequence} could not be recovered`,
+    });
+  }
+}
+
+// ── Helper: attempt a single segment download from a URL ─────────────────────
+async function _tryDownloadSegment(url, fullPath) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SEGMENT_FETCH_TIMEOUT_MS);
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 NivaTV/1.0' },
+    }).finally(() => clearTimeout(timeoutId));
+
+    if (!response.ok) return { ok: false, reason: `HTTP ${response.status}` };
+
+    const buffer = await response.buffer();
+    // Verify segment is not an HTML/error response and has a valid size
+    if (buffer.length < 1000) return { ok: false, reason: 'segment too small (possibly HTML error page)' };
+    return { ok: true, buffer };
+  } catch (err) {
+    return { ok: false, reason: _normalizeErrorMessage(err) };
+  }
+}
+
+// ── Helper: try to recover segment from a backup stream ─────────────────────
+async function _tryBackupSegment(state, seg) {
+  try {
+    const res = await db.query(
+      `SELECT cs.id, cs.stream_url, cs.user_agent, cs.referer, cs.origin
+       FROM channel_streams cs
+       WHERE cs.channel_id = $1
+         AND cs.is_hidden IS NOT TRUE
+         AND cs.stream_url IS NOT NULL
+         AND cs.stream_url <> $2
+         AND (cs.license_type IS NULL OR cs.license_type NOT IN ('paid_drm','drm','unlicensed','unauthorized','pirated'))
+         AND (cs.health_status IS NULL OR cs.health_status NOT IN ('requires_licensed_source','drm_or_unsupported','geo_blocked','forbidden_403','offline','dead'))
+       ORDER BY cs.health_score DESC NULLS LAST, cs.priority ASC
+       LIMIT 3`,
+      [state.channelId, seg.url]
+    );
+
+    for (const backup of res.rows) {
+      // Fetch the backup playlist to find a segment with matching approximate timestamp
+      const headers = { 'User-Agent': backup.user_agent || 'Mozilla/5.0 NivaTV/1.0' };
+      if (backup.referer) headers['Referer'] = backup.referer;
+      if (backup.origin) headers['Origin'] = backup.origin;
+
+      const m3u8Text = await _fetchTextWithTimeout(backup.stream_url, M3U8_FETCH_TIMEOUT_MS).catch(() => null);
+      if (!m3u8Text) continue;
+
+      const backupSegs = _parseM3U8Segments(m3u8Text, backup.stream_url);
+      // Pick the most recent segment from the backup (time-window match is approximate)
+      const targetSeg = backupSegs[backupSegs.length - 1];
+      if (!targetSeg) continue;
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), SEGMENT_FETCH_TIMEOUT_MS);
+      try {
+        const response = await fetch(targetSeg.url, { signal: controller.signal, headers }).finally(() => clearTimeout(timeoutId));
+        if (!response.ok) continue;
+        const buffer = await response.buffer();
+        if (buffer.length < 1000) continue;
+        return { ok: true, buffer };
+      } catch {
+        continue;
+      }
+    }
+    return { ok: false };
+  } catch {
+    return { ok: false };
+  }
+}
+
+// ── Helper: try to recover segment from a lower-quality stream ──────────────
+async function _tryLowerQualitySegment(state, seg) {
+  try {
+    const res = await db.query(
+      `SELECT id, stream_url, user_agent, referer, origin, quality, resolution_height
+       FROM channel_streams
+       WHERE channel_id = $1
+         AND is_hidden IS NOT TRUE
+         AND stream_url IS NOT NULL
+         AND (resolution_height IS NOT NULL AND resolution_height < 720)
+         AND (license_type IS NULL OR license_type NOT IN ('paid_drm','drm','unlicensed','unauthorized','pirated'))
+         AND (health_status IS NULL OR health_status NOT IN ('requires_licensed_source','drm_or_unsupported','geo_blocked','forbidden_403','offline','dead'))
+       ORDER BY resolution_height ASC, health_score DESC NULLS LAST
+       LIMIT 2`,
+      [state.channelId]
+    );
+
+    for (const lower of res.rows) {
+      const headers = { 'User-Agent': lower.user_agent || 'Mozilla/5.0 NivaTV/1.0' };
+      if (lower.referer) headers['Referer'] = lower.referer;
+      if (lower.origin) headers['Origin'] = lower.origin;
+
+      const m3u8Text = await _fetchTextWithTimeout(lower.stream_url, M3U8_FETCH_TIMEOUT_MS).catch(() => null);
+      if (!m3u8Text) continue;
+
+      const lowerSegs = _parseM3U8Segments(m3u8Text, lower.stream_url);
+      const targetSeg = lowerSegs[lowerSegs.length - 1];
+      if (!targetSeg) continue;
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), SEGMENT_FETCH_TIMEOUT_MS);
+      try {
+        const response = await fetch(targetSeg.url, { signal: controller.signal, headers }).finally(() => clearTimeout(timeoutId));
+        if (!response.ok) continue;
+        const buffer = await response.buffer();
+        if (buffer.length < 1000) continue;
+        return { ok: true, buffer };
+      } catch {
+        continue;
+      }
+    }
+    return { ok: false };
+  } catch {
+    return { ok: false };
+  }
+}
+
+// ── Helper: update per-channel buffer health counters + clean buffer % ────────
+async function _updateBufferCounters(channelId, opts) {
+  try {
+    const inc = (col) => `, ${col} = COALESCE(${col}, 0) + 1`;
+    const setClauses = [];
+    if (opts.downloaded) setClauses.push('downloaded_segments = COALESCE(downloaded_segments, 0) + 1');
+    if (opts.skipped) setClauses.push('skipped_segment_count = COALESCE(skipped_segment_count, 0) + 1');
+    if (opts.missing) setClauses.push('missing_segment_count = COALESCE(missing_segment_count, 0) + 1');
+    if (opts.recovered) setClauses.push('recovered_segment_count = COALESCE(recovered_segment_count, 0) + 1');
+    if (opts.backup) setClauses.push('backup_segment_count = COALESCE(backup_segment_count, 0) + 1');
+    if (opts.lowerQuality) setClauses.push('lower_quality_segment_count = COALESCE(lower_quality_segment_count, 0) + 1');
+    if (opts.lastSuccess) setClauses.push('last_successful_segment_at = NOW()');
+    if (opts.lastMissing) setClauses.push('last_missing_segment_at = NOW()');
+
+    // total_expected_segments: increment whenever we attempt a segment
+    setClauses.push('total_expected_segments = COALESCE(total_expected_segments, 0) + 1');
+
+    await _updateChannelState(channelId, {});
+    // Compute clean buffer percentage from good (downloaded) vs expected
+    const statRes = await db.query(
+      `UPDATE channels SET
+         ${setClauses.join(', ')},
+         clean_buffer_percentage = CASE
+           WHEN COALESCE(total_expected_segments, 0) = 0 THEN 100
+           ELSE LEAST(100, ROUND((COALESCE(downloaded_segments, 0)::numeric / COALESCE(total_expected_segments, 1)) * 100, 2))
+         END,
+         buffer_quality_status = CASE
+           WHEN COALESCE(downloaded_segments, 0)::numeric / NULLIF(COALESCE(total_expected_segments, 0), 0) >= 0.85 THEN 'clean_buffer'
+           WHEN COALESCE(downloaded_segments, 0)::numeric / NULLIF(COALESCE(total_expected_segments, 0), 0) >= 0.65 THEN 'minor_gaps'
+           WHEN COALESCE(downloaded_segments, 0)::numeric / NULLIF(COALESCE(total_expected_segments, 0), 0) >= 0.60 THEN 'too_many_missing_segments'
+           ELSE 'no_working_source'
+         END,
+         updated_at = NOW()
+       WHERE id = $1
+       RETURNING clean_buffer_percentage, buffer_quality_status`,
+      [channelId]
+    );
+    return statRes.rows[0];
+  } catch (err) {
+    console.error(`[buffer_recorder] _updateBufferCounters error for ${channelId}:`, err.message);
   }
 }
 

@@ -9,6 +9,7 @@ import 'cubits/app_config_cubit.dart';
 import 'cubits/favorite_cubit.dart';
 import 'screens/splash_screen.dart';
 import 'theme.dart';
+import 'constants.dart';
 import 'utils/backend_config.dart';
 
 void main() {

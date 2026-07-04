@@ -165,10 +165,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
                               '₹${plan.price} / ${plan.durationDays} days',
                               style: const TextStyle(color: Colors.white70, fontSize: 14),
                             ),
-                            if (plan.description.isNotEmpty)
+                            if (plan.description != null && plan.description!.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 8),
-                                child: Text(plan.description, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                                child: Text(plan.description!, style: const TextStyle(color: Colors.white54, fontSize: 12)),
                               ),
                             const SizedBox(height: 16),
                             SizedBox(

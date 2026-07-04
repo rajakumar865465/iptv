@@ -291,3 +291,15 @@ export const updateSmoothPlaybackChannel = (id: number, data: Record<string, unk
 
 export const restartSmoothPlaybackRecorder = (id: number) =>
   api.post(`/smooth-playback/channels/${id}/restart`).then((r) => r.data.data);
+
+export const clearSmoothPlaybackStaleBuffer = (id: number) =>
+  api.post(`/smooth-playback/channels/${id}/clear-stale`).then((r) => r.data.data);
+
+export const testSmoothPlaybackSegment = (id: number) =>
+  api.post(`/smooth-playback/channels/${id}/test-segment`).then((r) => r.data.data);
+
+export const promoteSmoothPlaybackBackup = (id: number) =>
+  api.post(`/smooth-playback/channels/${id}/promote-backup`).then((r) => r.data.data);
+
+export const resetSmoothPlaybackCounters = (id: number) =>
+  api.post(`/smooth-playback/channels/${id}/reset-counters`).then((r) => r.data.data);

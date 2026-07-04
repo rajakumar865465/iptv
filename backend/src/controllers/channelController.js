@@ -1103,6 +1103,45 @@ exports.getChannelPlayback = async (req, res) => {
       proxy_url: proxyUrl,           // null when DRM/geo/hidden/unlicensed
       health_status: channel.health_status || 'unknown',
       health_score: channel.health_score ?? 50,
+      // ── Smooth Playback / Gap Warning fields (per work.md) ──
+      smooth_playback_enabled: channel.smooth_playback_enabled === true,
+      smooth_stream_url: channel.smooth_playback_enabled === true
+        ? `${req.protocol}://${req.get('host')}/api/channels/${id}/smooth-playback`
+        : null,
+      delay_seconds: channel.playback_delay_seconds || 300,
+      buffer_ready: channel.is_buffer_ready === true,
+      buffer_depth_seconds: channel.buffer_depth_seconds || 0,
+      buffer_quality_status: channel.buffer_quality_status || 'clean_buffer',
+      clean_buffer_percentage: channel.clean_buffer_percentage !== null && channel.clean_buffer_percentage !== undefined
+        ? Number(channel.clean_buffer_percentage) : 100,
+      skipped_segment_count: channel.skipped_segment_count || 0,
+      missing_segment_count: channel.missing_segment_count || 0,
+      gap_handling_mode: channel.gap_handling_mode || 'skip_missing_chunks',
+      allow_skip_missing_segments: channel.allow_skip_missing_segments !== false,
+      // gap_warning = true tells the Flutter app to show the small unstable-source overlay
+      gap_warning: (
+        channel.buffer_quality_status === 'skipping_missing_segments' ||
+        channel.buffer_quality_status === 'minor_gaps' ||
+        channel.buffer_quality_status === 'gap_repaired' ||
+        channel.buffer_quality_status === 'using_backup_segments' ||
+        channel.buffer_quality_status === 'using_lower_quality_segments'
+      ),
+      gap_warning_message: (
+        channel.buffer_quality_status === 'skipping_missing_segments'
+          ? 'Channel source is unstable. Skipping unavailable part...'
+          : (channel.buffer_quality_status === 'skipping_missing_segments' ||
+             channel.buffer_quality_status === 'minor_gaps' ||
+             channel.buffer_quality_status === 'gap_repaired' ||
+             channel.buffer_quality_status === 'using_backup_segments' ||
+             channel.buffer_quality_status === 'using_lower_quality_segments')
+            ? 'Channel source is unstable. Continuing playback...' : null
+      ),
+      // Go Live — only available when there is a direct live URL and channel is not blocked
+      direct_live_url: channel.stream_url || null,
+      can_go_live: !!(channel.stream_url) && !channel.is_hidden && !channel.is_removed &&
+        channel.is_visible_app !== false &&
+        !['requires_licensed_source','drm_or_unsupported','geo_blocked','forbidden_403','offline','dead']
+          .includes(channel.health_status),
     });
   } catch (err) {
     console.error('getChannelPlayback error:', err);

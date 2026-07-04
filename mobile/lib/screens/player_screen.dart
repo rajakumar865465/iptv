@@ -222,6 +222,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   String? _fallbackDirectUrl;
   bool _showPreparingOverlay = false;
 
+  // Buffer quality / gap warning state (skip-missing-chunks phase)
+  bool _gapWarning = false;
+  String _gapWarningMessage = '';
+  String _bufferQualityStatus = 'clean_buffer';
+  int _cleanBufferPercentage = 100;
+  Timer? _gapWarningRefreshTimer;
+
   // Auto quality upgrade state
   bool _wasQualityDowngraded = false;
   Timer? _qualityUpgradeTimer;
@@ -549,6 +556,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           _fallbackDirectUrl = d['fallback_direct_url'] as String?;
           final statusMessage = d['message'] as String?;
 
+          // Parse buffer quality / gap warning fields
+          _gapWarning = d['gap_warning'] == true;
+          _gapWarningMessage = d['gap_warning_message'] as String? ?? '';
+          _bufferQualityStatus = d['buffer_quality_status'] as String? ?? 'clean_buffer';
+          _cleanBufferPercentage = (d['clean_buffer_percentage'] as num?)?.toInt() ?? 100;
+
           if (_bufferReady) {
             // Override stream URL with delayed buffer URL
             final delayedUrl = d['delayed_stream_url'] as String?;
@@ -556,6 +569,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               _currentStreamMeta = {'url': delayedUrl, 'headers': {}};
               if (mounted) setState(() { _showPreparingOverlay = false; });
             }
+            // When buffer is ready but quality is degraded, start a refresh timer
+            // so the banner clears automatically once the channel recovers.
+            _startGapWarningRefreshIfNeeded();
           } else {
             // Buffer warming up — show preparing overlay with status message
             if (mounted) {
@@ -564,7 +580,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                 _streamOverlayMessage = statusMessage ?? 'Preparing smooth playback...';
               });
             }
-            
+
             // Show specific status messages based on buffer status
             if (_bufferStatus == 'source_timeout' || _bufferStatus == 'trying_backup') {
               _streamOverlayMessage = statusMessage ?? 'Trying another source...';
@@ -583,12 +599,40 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         } else {
           _smoothPlaybackEnabled = false;
           _showPreparingOverlay = false;
+          _gapWarning = false;
+          _gapWarningMessage = '';
         }
       }
     } catch (_) {
       // Smooth playback info unavailable — continue with direct stream
       _smoothPlaybackEnabled = false;
     }
+  }
+
+  /// While a gap warning is active, periodically re-fetch smooth playback status
+  /// so the banner clears automatically once the channel recovers. Only runs when
+  /// smooth playback is enabled and the gap warning is showing.
+  void _startGapWarningRefreshIfNeeded() {
+    if (!_smoothPlaybackEnabled || !_gapWarning) {
+      _gapWarningRefreshTimer?.cancel();
+      _gapWarningRefreshTimer = null;
+      return;
+    }
+    _gapWarningRefreshTimer?.cancel();
+    _gapWarningRefreshTimer = Timer.periodic(const Duration(seconds: 12), (_) async {
+      if (!mounted) {
+        _gapWarningRefreshTimer?.cancel();
+        _gapWarningRefreshTimer = null;
+        return;
+      }
+      await _fetchSmoothPlayback();
+      if (mounted) setState(() {});
+      // Stop refreshing once the warning clears
+      if (!_gapWarning) {
+        _gapWarningRefreshTimer?.cancel();
+        _gapWarningRefreshTimer = null;
+      }
+    });
   }
 
   Future<void> _fetchPlaybackAndInitialize() async {
@@ -1314,6 +1358,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _bufferStatus = '';
     _fallbackDirectUrl = null;
     _showPreparingOverlay = false;
+    // Reset gap warning state and stop the refresh timer for the previous channel
+    _gapWarningRefreshTimer?.cancel();
+    _gapWarningRefreshTimer = null;
+    _gapWarning = false;
+    _gapWarningMessage = '';
+    _bufferQualityStatus = 'clean_buffer';
+    _cleanBufferPercentage = 100;
     // Reset auto-detected display state for new channel
     _autoDetectedFitMode = null;
     _detectedAspectRatioType = 'unknown';
@@ -1602,6 +1653,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _slowOverlayTimer?.cancel();
     _playerToastTimer?.cancel();
     _qualityUpgradeTimer?.cancel();
+    _gapWarningRefreshTimer?.cancel();
     _playerSubscription?.cancel();
     _playerErrorSubscription?.cancel();
     _videoParamsSubscription?.cancel();
@@ -1696,6 +1748,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                 ),
                 if (_isLoading) Positioned.fill(child: _buildLoadingOverlay()),
                 if (_hasError) Positioned.fill(child: _buildErrorOverlay()),
+                if (_gapWarning && !_isLoading && !_hasError)
+                  Positioned(top: 0, left: 0, right: 0, child: _buildGapWarningBanner()),
                 if (!_hasError && !_isLoading)
                   Positioned.fill(
                     child: FadeTransition(
@@ -1794,6 +1848,58 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       );
     }
     return const SizedBox.shrink();
+  }
+
+  /// Skip-missing-chunks gap warning banner. Shown when the backend reports
+  /// moderate/severe buffer gaps so the viewer knows playback continues but
+  /// the source is unstable (not a player bug).
+  Widget _buildGapWarningBanner() {
+    final Color borderColor = _bufferQualityStatus == 'severe_gaps'
+        ? const Color(0xFFE53935)
+        : const Color(0xFFFFA726);
+    final String message = _gapWarningMessage.isNotEmpty
+        ? _gapWarningMessage
+        : 'Channel source is unstable. Playback may skip briefly.';
+    return SafeArea(
+      bottom: false,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.66),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: borderColor, width: 1),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: borderColor, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600),
+              ),
+            ),
+            if (_cleanBufferPercentage < 100) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: borderColor.withOpacity(0.22),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '$_cleanBufferPercentage%',
+                  style: TextStyle(color: borderColor, fontSize: 10, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildErrorOverlay() {

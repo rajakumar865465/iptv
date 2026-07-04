@@ -6,6 +6,10 @@ import {
   getSmoothPlaybackChannels,
   updateSmoothPlaybackChannel,
   restartSmoothPlaybackRecorder,
+  clearSmoothPlaybackStaleBuffer,
+  testSmoothPlaybackSegment,
+  promoteSmoothPlaybackBackup,
+  resetSmoothPlaybackCounters,
   getErrorMessage,
 } from '@/lib/api';
 
@@ -21,6 +25,24 @@ interface BufferHealth {
   avg_depth_seconds: number;
   active_recorders: number;
   max_recorders: number;
+  clean_buffer_count?: number;
+  minor_gaps_count?: number;
+  gap_repaired_count?: number;
+  skipping_count?: number;
+  using_backup_count?: number;
+  using_lower_quality_count?: number;
+  too_many_missing_count?: number;
+  source_timeout_count?: number;
+  source_dead_count?: number;
+  skip_mode_count?: number;
+  black_filler_count?: number;
+  strict_stop_count?: number;
+  backup_active_channels?: number;
+  avg_clean_buffer_pct?: number;
+  total_missing_segments?: number;
+  total_skipped_segments?: number;
+  total_recovered_segments?: number;
+  total_backup_segments?: number;
 }
 
 interface ChannelRow {
@@ -47,6 +69,25 @@ interface ChannelRow {
   needs_manual_verification?: boolean;
   recorder_failed_stream_url?: string | null;
   recorder_backup_stream_url?: string | null;
+  // New buffer quality fields
+  gap_handling_mode?: string;
+  allow_skip_missing_segments?: boolean;
+  missing_segment_count?: number;
+  skipped_segment_count?: number;
+  recovered_segment_count?: number;
+  backup_segment_count?: number;
+  lower_quality_segment_count?: number;
+  clean_buffer_percentage?: number;
+  buffer_quality_status?: string;
+  total_expected_segments?: number;
+  downloaded_segments?: number;
+  last_missing_segment_at?: string | null;
+  last_successful_segment_at?: string | null;
+  last_source_error?: string | null;
+  active_recorder_stream_id?: number | null;
+  backup_active?: boolean;
+  good_segment_count?: number;
+  missing_segment_count_db?: number;
 }
 
 // ── Status badge helpers ──────────────────────────────────────────────────────
@@ -67,7 +108,31 @@ const STATUS_COLORS: Record<string, string> = {
   stopped: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
   error: 'bg-red-500/20 text-red-400 border-red-500/30',
   direct: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  // Buffer quality statuses
+  clean_buffer: 'bg-green-500/20 text-green-400 border-green-500/30',
+  minor_gaps: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  gap_repaired: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
+  skipping_missing_segments: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+  using_backup_segments: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  using_lower_quality_segments: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  too_many_missing_segments: 'bg-red-500/20 text-red-400 border-red-500/30',
+  source_dead: 'bg-red-500/20 text-red-400 border-red-500/30',
 };
+
+const GAP_MODES = ['skip_missing_chunks', 'black_filler', 'strict_stop'] as const;
+const BUFFER_QUALITY_STATUSES = [
+  'clean_buffer', 'minor_gaps', 'gap_repaired', 'skipping_missing_segments',
+  'using_backup_segments', 'using_lower_quality_segments', 'too_many_missing_segments',
+  'source_timeout', 'source_dead', 'no_working_source',
+];
+
+function cleanBufferColor(pct: number | undefined): string {
+  const p = pct ?? 100;
+  if (p >= 85) return 'text-green-400';
+  if (p >= 65) return 'text-yellow-400';
+  if (p >= 60) return 'text-orange-400';
+  return 'text-red-400';
+}
 
 function StatusBadge({ status }: { status: string }) {
   const cls = STATUS_COLORS[status] || 'bg-gray-500/20 text-gray-400 border-gray-500/30';
@@ -186,6 +251,86 @@ export default function SmoothPlaybackPage() {
     }
   }
 
+  async function handleClearStale(ch: ChannelRow) {
+    setSaving(ch.id);
+    try {
+      await clearSmoothPlaybackStaleBuffer(ch.id);
+      showToast(`${ch.name}: stale buffer cleared`);
+      load();
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Clear failed'));
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function handleTestSegment(ch: ChannelRow) {
+    setSaving(ch.id);
+    try {
+      const result = await testSmoothPlaybackSegment(ch.id);
+      showToast(result?.is_playable
+        ? `${ch.name}: segment OK (${result.segment_count_in_playlist} segments)`
+        : `${ch.name}: test failed — ${result?.error || 'not playable'}`);
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Test failed'));
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function handlePromoteBackup(ch: ChannelRow) {
+    if (!confirm(`Promote backup stream to primary for "${ch.name}"? The recorder will restart.`)) return;
+    setSaving(ch.id);
+    try {
+      await promoteSmoothPlaybackBackup(ch.id);
+      showToast(`${ch.name}: backup promoted to primary`);
+      load();
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Promote failed'));
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function handleResetCounters(ch: ChannelRow) {
+    setSaving(ch.id);
+    try {
+      await resetSmoothPlaybackCounters(ch.id);
+      showToast(`${ch.name}: buffer counters reset`);
+      load();
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Reset failed'));
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function handleGapModeChange(ch: ChannelRow, mode: string) {
+    setSaving(ch.id);
+    try {
+      await updateSmoothPlaybackChannel(ch.id, { gap_handling_mode: mode });
+      showToast(`${ch.name}: gap mode → ${mode.replace(/_/g, ' ')}`);
+      load();
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Update failed'));
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function handleToggleSkip(ch: ChannelRow, allow: boolean) {
+    setSaving(ch.id);
+    try {
+      await updateSmoothPlaybackChannel(ch.id, { allow_skip_missing_segments: allow });
+      showToast(`${ch.name}: skip missing ${allow ? 'enabled' : 'disabled'}`);
+      load();
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Update failed'));
+    } finally {
+      setSaving(null);
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Toast */}
@@ -206,22 +351,45 @@ export default function SmoothPlaybackPage() {
 
       {/* Health Summary */}
       {health && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-          {[
-            { label: 'Enabled', value: health.enabled_count, color: 'text-blue-400' },
-            { label: 'Ready', value: health.ready_count, color: 'text-green-400' },
-            { label: 'Warming Up', value: health.warming_count, color: 'text-yellow-400' },
-            { label: 'Low Buffer', value: health.low_buffer_count, color: 'text-orange-400' },
-            { label: 'Offline', value: health.offline_count, color: 'text-red-400' },
-            { label: 'Avg Depth', value: `${health.avg_depth_seconds}s`, color: 'text-purple-400' },
-            { label: `Recorders (${health.active_recorders}/${health.max_recorders})`, value: health.active_recorders, color: 'text-cyan-400' },
-          ].map((s) => (
-            <div key={s.label} className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-center">
-              <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
-              <div className="text-gray-400 text-xs mt-1">{s.label}</div>
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+            {[
+              { label: 'Enabled', value: health.enabled_count, color: 'text-blue-400' },
+              { label: 'Ready', value: health.ready_count, color: 'text-green-400' },
+              { label: 'Clean Buffer', value: health.clean_buffer_count ?? 0, color: 'text-green-400' },
+              { label: 'Skipping', value: health.skipping_count ?? 0, color: 'text-orange-400' },
+              { label: 'Backup Active', value: (health.using_backup_count ?? 0) + (health.backup_active_channels ?? 0), color: 'text-cyan-400' },
+              { label: 'Avg Clean %', value: `${Math.round(health.avg_clean_buffer_pct ?? 100)}%`, color: cleanBufferColor(health.avg_clean_buffer_pct ?? 100) },
+              { label: `Recorders (${health.active_recorders}/${health.max_recorders})`, value: health.active_recorders, color: 'text-cyan-400' },
+            ].map((s) => (
+              <div key={s.label} className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-center">
+                <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
+                <div className="text-gray-400 text-xs mt-1">{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+            {[
+              { label: 'Warming Up', value: health.warming_count ?? 0, color: 'text-yellow-400' },
+              { label: 'Low Buffer', value: health.low_buffer_count ?? 0, color: 'text-orange-400' },
+              { label: 'Minor Gaps', value: health.minor_gaps_count ?? 0, color: 'text-yellow-400' },
+              { label: 'Gap Repaired', value: health.gap_repaired_count ?? 0, color: 'text-cyan-400' },
+              { label: 'Lower Quality', value: health.using_lower_quality_count ?? 0, color: 'text-purple-400' },
+              { label: 'Too Many Missing', value: health.too_many_missing_count ?? 0, color: 'text-red-400' },
+              { label: 'Source Timeout', value: health.source_timeout_count ?? 0, color: 'text-red-400' },
+              { label: 'Source Dead', value: health.source_dead_count ?? 0, color: 'text-red-400' },
+              { label: 'Offline', value: health.offline_count ?? 0, color: 'text-red-400' },
+              { label: 'Total Missing Segs', value: health.total_missing_segments ?? 0, color: 'text-orange-400' },
+              { label: 'Total Skipped Segs', value: health.total_skipped_segments ?? 0, color: 'text-orange-400' },
+              { label: 'Total Recovered', value: health.total_recovered_segments ?? 0, color: 'text-cyan-400' },
+            ].map((s) => (
+              <div key={s.label} className="bg-gray-800/60 border border-gray-700/60 rounded-lg p-2 text-center">
+                <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
+                <div className="text-gray-500 text-[10px] mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Filters */}
@@ -261,10 +429,12 @@ export default function SmoothPlaybackPage() {
                 <th className="text-left px-4 py-3">Channel</th>
                 <th className="text-left px-4 py-3">Health</th>
                 <th className="text-left px-4 py-3">Buffer Status</th>
-                <th className="text-left px-4 py-3">Recorder Info</th>
-                <th className="text-left px-4 py-3">Depth</th>
+                <th className="text-left px-4 py-3">Buffer Quality</th>
+                <th className="text-left px-4 py-3">Clean %</th>
                 <th className="text-left px-4 py-3">Segments</th>
+                <th className="text-left px-4 py-3">Recorder Info</th>
                 <th className="text-left px-4 py-3">Delay Setting</th>
+                <th className="text-left px-4 py-3">Gap Mode</th>
                 <th className="text-left px-4 py-3">Enabled</th>
                 <th className="text-left px-4 py-3">Actions</th>
               </tr>
@@ -272,11 +442,11 @@ export default function SmoothPlaybackPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-12 text-gray-500">Loading...</td>
+                  <td colSpan={11} className="text-center py-12 text-gray-500">Loading...</td>
                 </tr>
               ) : channels.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-12 text-gray-500">No channels found</td>
+                  <td colSpan={11} className="text-center py-12 text-gray-500">No channels found</td>
                 </tr>
               ) : (
                 channels.map((ch) => (
@@ -334,11 +504,76 @@ export default function SmoothPlaybackPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-300">
-                      {ch.buffer_depth_seconds > 0 ? `${ch.buffer_depth_seconds}s` : '—'}
-                      {ch.is_buffer_ready && <span className="ml-1 text-green-400 text-xs">✓</span>}
+                    <td className="px-4 py-3">
+                      <div>
+                        <StatusBadge status={ch.buffer_quality_status || 'clean_buffer'} />
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        DL: {ch.downloaded_segments ?? 0} / {ch.total_expected_segments ?? 0}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-400">{ch.segment_count}</td>
+                    <td className={`px-4 py-3 font-bold ${cleanBufferColor(ch.clean_buffer_percentage)}`}>
+                      {ch.clean_buffer_percentage !== undefined && ch.clean_buffer_percentage !== null
+                        ? `${Math.round(ch.clean_buffer_percentage)}%` : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-400 space-y-0.5">
+                      <div className="text-gray-300">{ch.segment_count} total</div>
+                      <div className={ch.missing_segment_count ? 'text-red-400' : 'text-gray-500'}>
+                        ✗ missing: {ch.missing_segment_count ?? 0}
+                      </div>
+                      <div className={ch.skipped_segment_count ? 'text-orange-400' : 'text-gray-500'}>
+                        ⤳ skipped: {ch.skipped_segment_count ?? 0}
+                      </div>
+                      <div className={ch.recovered_segment_count ? 'text-cyan-400' : 'text-gray-500'}>
+                        ✓ recovered: {ch.recovered_segment_count ?? 0}
+                      </div>
+                      <div className={ch.backup_segment_count ? 'text-blue-400' : 'text-gray-500'}>
+                        backup: {ch.backup_segment_count ?? 0}
+                      </div>
+                      <div className={ch.lower_quality_segment_count ? 'text-purple-400' : 'text-gray-500'}>
+                        lower-q: {ch.lower_quality_segment_count ?? 0}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-xs text-gray-300 space-y-1">
+                        {ch.needs_manual_verification && (
+                          <div className="text-amber-300">Needs manual verification</div>
+                        )}
+                        {ch.recorder_stream_id && (
+                          <div>Stream: #{ch.recorder_stream_id}</div>
+                        )}
+                        {ch.recorder_stream_url && (
+                          <div className="truncate max-w-xs" title={ch.recorder_stream_url}>Current: {ch.recorder_stream_url}</div>
+                        )}
+                        {ch.recorder_failed_stream_url && (
+                          <div className="text-red-300 truncate max-w-xs" title={ch.recorder_failed_stream_url}>Failed: {ch.recorder_failed_stream_url}</div>
+                        )}
+                        {ch.recorder_backup_stream_url && (
+                          <div className="text-cyan-300 truncate max-w-xs" title={ch.recorder_backup_stream_url}>Backup: {ch.recorder_backup_stream_url}</div>
+                        )}
+                        {ch.recorder_fail_count > 0 && (
+                          <div className="text-orange-400">Fails: {ch.recorder_fail_count}</div>
+                        )}
+                        {ch.recorder_backup_attempts > 0 && (
+                          <div className="text-cyan-400">Backup switches: {ch.recorder_backup_attempts}</div>
+                        )}
+                        {ch.last_source_error && (
+                          <div className="text-red-400 truncate max-w-xs" title={ch.last_source_error}>
+                            Error: {ch.last_source_error}
+                          </div>
+                        )}
+                        {ch.last_successful_segment_at && (
+                          <div className="text-green-500 text-[10px]">
+                            Last good: {new Date(ch.last_successful_segment_at).toLocaleTimeString()}
+                          </div>
+                        )}
+                        {ch.last_missing_segment_at && (
+                          <div className="text-orange-500 text-[10px]">
+                            Last missing: {new Date(ch.last_missing_segment_at).toLocaleTimeString()}
+                          </div>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <select
                         disabled={saving === ch.id}
@@ -357,6 +592,31 @@ export default function SmoothPlaybackPage() {
                           <option key={o.value} value={o.value}>{o.label}</option>
                         ))}
                       </select>
+                      <div className="text-[10px] text-gray-500 mt-1">
+                        {ch.buffer_depth_seconds > 0 ? `${ch.buffer_depth_seconds}s buffered` : 'no buffer'}
+                        {ch.is_buffer_ready && <span className="ml-1 text-green-400">✓</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <select
+                        disabled={saving === ch.id || !ch.smooth_playback_enabled}
+                        value={ch.gap_handling_mode || 'skip_missing_chunks'}
+                        onChange={(e) => handleGapModeChange(ch, e.target.value)}
+                        className="bg-gray-700 border border-gray-600 text-white rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                      >
+                        {GAP_MODES.map((m) => (
+                          <option key={m} value={m}>{m.replace(/_/g, ' ')}</option>
+                        ))}
+                      </select>
+                      <label className="flex items-center gap-1 text-[10px] text-gray-400 mt-1">
+                        <input
+                          type="checkbox"
+                          disabled={saving === ch.id || !ch.smooth_playback_enabled}
+                          checked={ch.allow_skip_missing_segments !== false}
+                          onChange={(e) => handleToggleSkip(ch, e.target.checked)}
+                        />
+                        Skip missing
+                      </label>
                     </td>
                     <td className="px-4 py-3">
                       <button
@@ -372,15 +632,47 @@ export default function SmoothPlaybackPage() {
                       </button>
                     </td>
                     <td className="px-4 py-3">
-                      {ch.smooth_playback_enabled && (
+                      <div className="flex flex-col gap-1">
+                        {ch.smooth_playback_enabled && (
+                          <>
+                            <button
+                              disabled={saving === ch.id}
+                              onClick={() => handleRestart(ch)}
+                              className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded disabled:opacity-50"
+                            >
+                              Restart
+                            </button>
+                            <button
+                              disabled={saving === ch.id}
+                              onClick={() => handleTestSegment(ch)}
+                              className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded disabled:opacity-50"
+                            >
+                              Test Seg
+                            </button>
+                            <button
+                              disabled={saving === ch.id || !ch.recorder_backup_stream_url}
+                              onClick={() => handlePromoteBackup(ch)}
+                              className="text-xs bg-cyan-700 hover:bg-cyan-600 text-white px-2 py-1 rounded disabled:opacity-50"
+                            >
+                              Promote Backup
+                            </button>
+                          </>
+                        )}
                         <button
                           disabled={saving === ch.id}
-                          onClick={() => handleRestart(ch)}
+                          onClick={() => handleResetCounters(ch)}
                           className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded disabled:opacity-50"
                         >
-                          Restart
+                          Reset Counts
                         </button>
-                      )}
+                        <button
+                          disabled={saving === ch.id}
+                          onClick={() => handleClearStale(ch)}
+                          className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded disabled:opacity-50"
+                        >
+                          Clear Stale
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
