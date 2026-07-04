@@ -34,14 +34,73 @@ class _BackendConfigErrorApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       home: Scaffold(
         backgroundColor: Color(AppColors.background),
-        body: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              'Backend URL is not configured.\n\nBuild with:\n'
-              '--dart-define=BACKEND_URL=https://api.yourdomain.com',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white, fontSize: 16),
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Icon(Icons.cloud_off, size: 64, color: Colors.redAccent),
+                const SizedBox(height: 20),
+                const Text(
+                  'Backend URL missing',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'This app was built without a backend URL.\n'
+                  'Rebuild the app with the BACKEND_URL flag:',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70, fontSize: 15),
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Color(AppColors.surface),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Color(AppColors.surfaceLight)),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Local phone testing (PC Wi-Fi IPv4):',
+                        style: TextStyle(color: Colors.amber, fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 8),
+                        Text(
+                        'flutter run --debug \\\n'
+                          '  --dart-define=BACKEND_URL=http://192.168.1.25:5000',
+                        style: TextStyle(color: Colors.greenAccent, fontSize: 12, fontFamily: 'monospace'),
+                      ),
+                      SizedBox(height: 14),
+                      Text(
+                        'Production APK (backend server):',
+                        style: TextStyle(color: Colors.amber, fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'flutter build apk --release \\\n'
+                          '  --dart-define=BACKEND_URL=http://35.154.128.217',
+                        style: TextStyle(color: Colors.greenAccent, fontSize: 12, fontFamily: 'monospace'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'This build is not usable. Please rebuild with your backend URL.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white54, fontSize: 13),
+                ),
+              ],
             ),
           ),
         ),

@@ -2,14 +2,18 @@ import 'package:flutter/foundation.dart';
 
 /// Backend configuration loaded at build time via --dart-define.
 ///
-/// Usage (development):
-///   flutter run --dart-define=BACKEND_URL=https://35.154.128.217
+/// Local phone testing (use your PC's Wi-Fi IPv4, not localhost):
+///   flutter run --debug --dart-define=BACKEND_URL=http://192.168.1.25:5000
 ///
-/// Usage (production build):
-///   flutter build apk --dart-define=BACKEND_URL=https://api.yourdomain.com
+/// Android emulator points to the host PC at 10.0.2.2:
+///   flutter run --debug --dart-define=BACKEND_URL=http://10.0.2.2:5000
 ///
-/// If BACKEND_URL is not supplied, falls back to the production HTTPS URL.
-/// Never hardcode the IP directly in source — use --dart-define or a CI secret.
+/// Production build (backend server — release builds REQUIRE this and the
+/// Gradle guard in android/app/build.gradle.kts will fail without it):
+///   flutter build apk --release --dart-define=BACKEND_URL=http://35.154.128.217
+///
+/// If BACKEND_URL is not supplied, the app shows a configuration-error screen
+/// instead of running. Never hardcode a URL in source — always use --dart-define.
 class BackendConfig {
   static const bool isDev = !kReleaseMode;
 
