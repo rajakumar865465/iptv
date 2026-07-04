@@ -7,6 +7,7 @@ import '../utils/backend_config.dart';
 class AuthUserResult {
   final int userId;
   final String token;
+  final String? refreshToken;
   final String userStatus;
   final String licenseStatus;
   final Map<String, dynamic>? license;
@@ -14,6 +15,7 @@ class AuthUserResult {
   AuthUserResult({
     required this.userId,
     required this.token,
+    this.refreshToken,
     required this.userStatus,
     required this.licenseStatus,
     this.license,
@@ -87,6 +89,7 @@ class AuthService {
       return AuthUserResult(
         userId: d['user']['id'],
         token: d['token'],
+        refreshToken: d['refreshToken']?.toString(),
         userStatus: d['user_status'] ?? 'active',
         licenseStatus: d['license_status'] ?? 'none',
         license: d['license'],
@@ -95,9 +98,47 @@ class AuthService {
     return null;
   }
 
+  /// Exchanges a stored refresh token for a fresh access + refresh token pair.
+  /// Returns null if the refresh token is missing, invalid, or the server
+  /// refused the rotation (caller must then sign the user out).
+  Future<AuthUserResult?> refreshToken(String refreshToken) async {
+    try {
+      final response = await _dio.post(ApiEndpoints.refreshToken, data: {
+        'refreshToken': refreshToken,
+      });
+      return _parseRefreshResponse(response.data);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  AuthUserResult? _parseRefreshResponse(Map<String, dynamic> data) {
+    if (data['success'] == true && data['data'] != null) {
+      final d = data['data'];
+      return AuthUserResult(
+        userId: d['user']?['id'] ?? 0,
+        token: d['token'],
+        refreshToken: d['refreshToken']?.toString(),
+        userStatus: 'active',
+        licenseStatus: 'none',
+      );
+    }
+    return null;
+  }
+
   Future<void> saveSession(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(StorageKeys.token, token);
+  }
+
+  Future<void> saveRefreshSession(String refreshToken) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(StorageKeys.refreshToken, refreshToken);
+  }
+
+  Future<String?> getRefreshSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(StorageKeys.refreshToken);
   }
 
   Future<String?> getSession() async {
@@ -121,6 +162,7 @@ class AuthService {
   Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(StorageKeys.token);
+    await prefs.remove(StorageKeys.refreshToken);
     _token = null;
   }
 }

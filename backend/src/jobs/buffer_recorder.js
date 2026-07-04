@@ -25,6 +25,10 @@ const MAX_RETRIES_BEFORE_FALLBACK = 2; // Retry same stream before switching
 const RETRY_BACKOFF_MS = [500, 1500, 3000]; // Exponential backoff for retries
 const EXCLUDED_STREAM_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes cooldown before retrying excluded streams
 const STREAM_TEST_TIMEOUT_MS = 8000; // Timeout for testing a backup stream
+// No-chunks watchdog: if a recorder fetches manifests but lands zero good segments
+// within this window of starting, flip to no_working_source so the client falls back
+// to direct live instead of warming forever.
+const NO_CHUNKS_TIMEOUT_MS = parseInt(process.env.NO_CHUNKS_TIMEOUT_MS || '45000', 10);
 
 const BLOCKED_STATUSES = new Set([
   'requires_licensed_source', 'drm_or_unsupported', 'geo_blocked',
@@ -109,7 +113,9 @@ async function startRecorder(channelId) {
       failedStreamExcludeMap: {}, // Track when streams were excluded for cooldown
       currentStreamRetries: 0, // Track retries for current stream
       channel: channel,
-      bufferDir: bufferDir
+      bufferDir: bufferDir,
+      startedAt: Date.now(),
+      firstGoodSegmentAt: null // set when the first good/backup/lower_quality segment persists
     };
 
     const timer = setInterval(() => _pollChannel(state), state.currentPollInterval);
@@ -148,6 +154,9 @@ function getActiveRecorders() {
 
 async function startAllEnabledRecorders() {
   try {
+    // Order by popularity/featured so the MAX_CONCURRENT cap favors the most-watched
+    // channels first (pre-warm mode). Lower-ranked channels fall back to on-demand start
+    // when a user opens them (see smoothPlaybackController.getSmoothPlayback).
     const res = await db.query(
       `SELECT id FROM channels
        WHERE smooth_playback_enabled = true
@@ -157,12 +166,19 @@ async function startAllEnabledRecorders() {
          AND (health_status IS NULL OR health_status NOT IN (
            'requires_licensed_source','drm_or_unsupported','geo_blocked',
            'forbidden_403','offline','dead'
-         ))`
+         ))
+       ORDER BY is_featured DESC NULLS LAST,
+                is_popular DESC NULLS LAST,
+                popularity_score DESC NULLS LAST,
+                name ASC`
     );
+    let started = 0;
     for (const row of res.rows) {
+      const before = activeRecorders.size;
       await startRecorder(row.id);
+      if (activeRecorders.size > before) started++;
     }
-    console.log(`[buffer_recorder] Auto-started ${res.rows.length} recorders`);
+    console.log(`[buffer_recorder] Auto-started ${started} recorders (of ${res.rows.length} eligible, cap ${MAX_CONCURRENT})`);
   } catch (err) {
     console.error('[buffer_recorder] startAllEnabledRecorders error:', err.message);
   }
@@ -407,6 +423,26 @@ async function _pollChannel(state) {
     if (state.currentPollInterval !== POLL_INTERVAL_MS) {
       state.currentPollInterval = POLL_INTERVAL_MS;
       _restartTimer(state);
+    }
+
+    // No-chunks watchdog: manifest loads but no segment has persisted yet.
+    // If we've been running past NO_CHUNKS_TIMEOUT_MS with zero good segments, the
+    // source is effectively unusable — flip to no_working_source so the client stops
+    // showing the warming overlay and falls back to direct live.
+    if (!state.firstGoodSegmentAt && (Date.now() - state.startedAt) > NO_CHUNKS_TIMEOUT_MS) {
+      console.warn(`[buffer_recorder] No chunks after ${Math.round(NO_CHUNKS_TIMEOUT_MS/1000)}s for channel ${state.channelId} — marking no_working_source`);
+      const ch = state.channel || {};
+      const needsVerification = ch.is_premium || ch.is_paid || ch.is_important;
+      await _updateChannelState(state.channelId, {
+        buffer_status: needsVerification ? 'requires_licensed_source' : 'no_working_source',
+        recorder_status_detail: needsVerification ? 'requires_licensed_source' : 'no_working_source',
+        recorder_last_failure_at: new Date(),
+        recorder_last_failure_reason: 'No segments produced within timeout',
+        needs_manual_verification: needsVerification,
+        is_buffer_ready: false
+      });
+      await stopRecorder(state.channelId);
+      return;
     }
 
     for (const seg of segments) {
@@ -729,6 +765,7 @@ async function _downloadSegment(state, seg) {
 
   // ── Outcome: skip or save ──────────────────────────────────────────────────
   if (finalBuffer) {
+    if (!state.firstGoodSegmentAt) state.firstGoodSegmentAt = Date.now();
     fs.writeFileSync(fullPath, finalBuffer);
     await db.query(
       `INSERT INTO delayed_buffer_segments

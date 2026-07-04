@@ -21,6 +21,16 @@ class StorageService {
     return prefs.getString(StorageKeys.token);
   }
 
+  Future<void> saveRefreshToken(String refreshToken) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(StorageKeys.refreshToken, refreshToken);
+  }
+
+  Future<String?> getRefreshToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(StorageKeys.refreshToken);
+  }
+
   // Fix #24: Use real hardware device ID for stable cross-reinstall tracking
   Future<String> getDeviceId() async {
     final prefs = await SharedPreferences.getInstance();
@@ -173,6 +183,7 @@ class StorageService {
   Future<void> clearAuthData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(StorageKeys.token);
+    await prefs.remove(StorageKeys.refreshToken);
     await prefs.remove(StorageKeys.user);
     await prefs.remove(StorageKeys.cachedChannels);
     await prefs.remove(StorageKeys.cachedCategories);
@@ -183,6 +194,7 @@ class StorageService {
   Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(StorageKeys.token);
+    await prefs.remove(StorageKeys.refreshToken);
     await prefs.remove(StorageKeys.user);
     await prefs.remove(StorageKeys.deviceId);
     await prefs.remove(StorageKeys.isFirstLaunch);

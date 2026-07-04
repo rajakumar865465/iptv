@@ -44,6 +44,7 @@ class ApiEndpoints {
   static const String logout = '$auth/logout';
   static const String forgotPassword = '$auth/forgot-password';
   static const String me = '$auth/me';
+  static const String refreshToken = '$auth/refresh-token';
 
   // App Config
   static const String config = '$appConfig/config';
@@ -103,6 +104,7 @@ class ApiEndpoints {
 
 class StorageKeys {
   static const String token = 'auth_token';
+  static const String refreshToken = 'auth_refresh_token';
   static const String user = 'user_data';
   static const String deviceId = 'device_id';
   static const String isFirstLaunch = 'is_first_launch';

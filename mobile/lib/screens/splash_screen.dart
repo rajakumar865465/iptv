@@ -88,20 +88,44 @@ class _SplashScreenState extends State<SplashScreen> {
         } catch (e) {
           if (e is DioException) {
             if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
-              // Token is genuinely invalid — clear auth data only (not onboarding/settings)
-              // and redirect to login.
-              await StorageService().clearAuthData();
-              if (context.mounted) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                );
+              // Access token expired (15-min lifetime). Try to rotate it via the
+              // stored 30-day refresh token before giving up on the session.
+              final refreshed = await authCubit.tryRefresh();
+              if (refreshed && context.mounted) {
+                try {
+                  meResult = await authCubit.me(throwOnError: true);
+                } catch (e2) {
+                  // Refresh succeeded but /me still failed — fall through to
+                  // the temporary-error handling below if it's not a hard 401/403.
+                  if (e2 is DioException &&
+                      (e2.response?.statusCode == 401 ||
+                       e2.response?.statusCode == 403)) {
+                    await StorageService().clearAuthData();
+                    if (context.mounted) {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      );
+                    }
+                    return;
+                  }
+                  isTemporaryError = true;
+                }
+              } else {
+                // No usable refresh token, or server rejected the rotation.
+                await StorageService().clearAuthData();
+                if (context.mounted) {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  );
+                }
+                return;
               }
-              return;
+            } else {
+              // Any other DioException (5xx server errors, timeouts, network loss,
+              // DNS failures, connection refused, etc.) is a temporary problem.
+              // The token may still be valid — don't clear it, let the user through.
+              isTemporaryError = true;
             }
-            // Any other DioException (5xx server errors, timeouts, network loss,
-            // DNS failures, connection refused, etc.) is a temporary problem.
-            // The token may still be valid — don't clear it, let the user through.
-            isTemporaryError = true;
           } else {
             // Non-DioException (parse error, null pointer, etc.) — also temporary.
             // Previously this fell through with isNetworkError=false and cleared the

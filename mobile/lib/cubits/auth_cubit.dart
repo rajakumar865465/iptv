@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
+import '../services/token_refresh_service.dart';
 
 // States
 abstract class AuthState {}
@@ -41,6 +42,9 @@ class AuthCubit extends Cubit<AuthState> {
       );
       if (result != null) {
         await _storage.saveToken(result.token);
+        if (result.refreshToken != null && result.refreshToken!.isNotEmpty) {
+          await _storage.saveRefreshToken(result.refreshToken!);
+        }
         emit(AuthAuthenticated());
       } else {
         emit(AuthError('Login failed'));
@@ -83,6 +87,9 @@ class AuthCubit extends Cubit<AuthState> {
       );
       if (result != null) {
         await _storage.saveToken(result.token);
+        if (result.refreshToken != null && result.refreshToken!.isNotEmpty) {
+          await _storage.saveRefreshToken(result.refreshToken!);
+        }
         emit(AuthAuthenticated());
       } else {
         emit(AuthError('Signup failed'));
@@ -153,6 +160,14 @@ class AuthCubit extends Cubit<AuthState> {
 
   void setToken(String token) {
     _authService.setToken(token);
+  }
+
+  /// Proactively exchanges the stored refresh token for a fresh access token.
+  /// Called during app startup so a user whose 15-minute access token has
+  /// expired can still resume their session without re-entering credentials.
+  /// Returns true on success.
+  Future<bool> tryRefresh() async {
+    return TokenRefreshService.instance.refresh();
   }
 
   Future<Map<String, dynamic>?> me({bool throwOnError = false}) async {

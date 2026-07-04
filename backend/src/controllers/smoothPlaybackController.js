@@ -191,10 +191,12 @@ exports.getSmoothPlayback = async (req, res) => {
       return success(res, {
         playback_mode: 'delayed',
         delay_seconds: ch.playback_delay_seconds || 300,
+        required_delay_seconds: ch.playback_delay_seconds || 300,
         delayed_stream_url: delayedUrl,
         buffer_ready: false,
         buffer_depth_seconds: ch.buffer_depth_seconds || 0,
         buffer_status: ch.buffer_status || 'warming_up',
+        recorder_status: ch.recorder_status_detail || ch.buffer_status || 'warming_up',
         recorder_status_detail: ch.recorder_status_detail,
         status_code: statusCode,
         primary_stream_id: parseInt(id),
@@ -239,10 +241,12 @@ exports.getSmoothPlayback = async (req, res) => {
       return success(res, {
         playback_mode: 'delayed',
         delay_seconds: ch.playback_delay_seconds || 300,
+        required_delay_seconds: ch.playback_delay_seconds || 300,
         delayed_stream_url: delayedUrl,
         buffer_ready: false,
         buffer_depth_seconds: ch.buffer_depth_seconds || 0,
         buffer_status: ch.buffer_status || 'buffer_ready',
+        recorder_status: ch.recorder_status_detail || ch.buffer_status || 'buffer_ready',
         primary_stream_id: parseInt(id),
         health_status: ch.health_status || 'unknown',
         smooth_playback_enabled: true,
@@ -254,6 +258,7 @@ exports.getSmoothPlayback = async (req, res) => {
         gap_warning: true,
         gap_warning_message: 'This channel is unstable right now.',
         direct_live_url: directLiveUrl,
+        fallback_direct_url: ch.stream_url,
         can_go_live: canGoLive,
         message: 'This channel is unstable right now.',
       });
@@ -262,10 +267,12 @@ exports.getSmoothPlayback = async (req, res) => {
     return success(res, {
       playback_mode: 'delayed',
       delay_seconds: ch.playback_delay_seconds || 300,
+      required_delay_seconds: ch.playback_delay_seconds || 300,
       delayed_stream_url: delayedUrl,
       buffer_ready: true,
       buffer_depth_seconds: ch.buffer_depth_seconds || 0,
       buffer_status: ch.buffer_status || 'buffer_ready',
+      recorder_status: ch.recorder_status_detail || ch.buffer_status || 'buffer_ready',
       primary_stream_id: parseInt(id),
       health_status: ch.health_status || 'unknown',
       smooth_playback_enabled: true,
@@ -283,6 +290,7 @@ exports.getSmoothPlayback = async (req, res) => {
         ? 'Channel source is unstable. Continuing playback...'
         : null,
       direct_live_url: directLiveUrl,
+      fallback_direct_url: ch.stream_url,
       can_go_live: canGoLive,
     });
 

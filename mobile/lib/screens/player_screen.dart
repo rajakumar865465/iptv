@@ -218,9 +218,19 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _smoothPlaybackEnabled = false;
   bool _bufferReady = false;
   int _delaySeconds = 0;
+  int _requiredDelaySeconds = 0;
+  int _bufferDepthSeconds = 0;
   String _bufferStatus = '';
-  String? _fallbackDirectUrl;
+  String? _directLiveUrl;
+  bool _canGoLive = false;
   bool _showPreparingOverlay = false;
+  // While warming a cold/channel on-demand, the player keeps playing the direct/live URL and
+  // a small warming banner is shown instead of a full-screen spinner. The poll loop swaps the
+  // player to the delayed stream once buffer_ready becomes true (only once per channel).
+  bool _switchedToSmooth = false;
+  Timer? _smoothWarmTimer;
+  DateTime? _warmStartedAt;
+  static const int _smoothWarmTimeoutSec = 180;
 
   // Buffer quality / gap warning state (skip-missing-chunks phase)
   bool _gapWarning = false;
@@ -543,6 +553,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Future<void> _fetchSmoothPlayback() async {
+    final bool wasReady = _bufferReady;
     try {
       final res = await _api.get(ApiEndpoints.channelSmoothPlaybackPath(_currentChannel.id));
       if (res['success'] == true) {
@@ -551,9 +562,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         if (mode == 'delayed') {
           _smoothPlaybackEnabled = true;
           _delaySeconds = (d['delay_seconds'] as num?)?.toInt() ?? 300;
+          _requiredDelaySeconds = (d['required_delay_seconds'] as num?)?.toInt() ?? _delaySeconds;
+          _bufferDepthSeconds = (d['buffer_depth_seconds'] as num?)?.toInt() ?? 0;
           _bufferReady = d['buffer_ready'] == true;
           _bufferStatus = d['buffer_status'] as String? ?? 'warming_up';
-          _fallbackDirectUrl = d['fallback_direct_url'] as String?;
+          _directLiveUrl = d['direct_live_url'] as String?;
+          _canGoLive = d['can_go_live'] == true;
           final statusMessage = d['message'] as String?;
 
           // Parse buffer quality / gap warning fields
@@ -569,11 +583,24 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               _currentStreamMeta = {'url': delayedUrl, 'headers': {}};
               if (mounted) setState(() { _showPreparingOverlay = false; });
             }
+            // Stop the warming poll loop — buffer is ready.
+            _smoothWarmTimer?.cancel();
+            _smoothWarmTimer = null;
+            // First transition to ready: swap the player from the direct URL to the
+            // delayed smooth URL so the user silently moves from live to delayed stream.
+            if (!wasReady && !_switchedToSmooth && mounted) {
+              _switchedToSmooth = true;
+              if (delayedUrl != null && delayedUrl.isNotEmpty) {
+                await _initializePlayer(delayedUrl, {});
+              }
+            }
             // When buffer is ready but quality is degraded, start a refresh timer
             // so the banner clears automatically once the channel recovers.
             _startGapWarningRefreshIfNeeded();
           } else {
-            // Buffer warming up — show preparing overlay with status message
+            // Buffer warming up. The player keeps playing the direct/live URL underneath and we
+            // show a small warming banner (not a full-screen spinner) via _buildWarmingBanner.
+            _warmStartedAt ??= DateTime.now();
             if (mounted) {
               setState(() {
                 _showPreparingOverlay = true;
@@ -583,11 +610,21 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
             // Show specific status messages based on buffer status
             if (_bufferStatus == 'source_timeout' || _bufferStatus == 'trying_backup') {
-              _streamOverlayMessage = statusMessage ?? 'Trying another source...';
+              _streamOverlayMessage = statusMessage ?? 'Channel source is unstable. Trying another source...';
             } else if (_bufferStatus == 'no_working_source') {
-              _streamOverlayMessage = statusMessage ?? 'No stable source is available right now.';
+              _streamOverlayMessage = statusMessage ?? 'Stream unavailable. No stable source is available right now.';
             } else if (_bufferStatus == 'backup_active') {
-              _streamOverlayMessage = 'Using backup source...';
+              _streamOverlayMessage = statusMessage ?? 'Using backup source. Building buffer...';
+            }
+
+            // Start the poll loop so we notice when the buffer becomes ready and so the
+            // progress banner ticks. Terminal failure states stop the loop.
+            if (_bufferStatus != 'no_working_source' &&
+                _bufferStatus != 'requires_licensed_source') {
+              _startSmoothWarmPoll();
+            } else {
+              _smoothWarmTimer?.cancel();
+              _smoothWarmTimer = null;
             }
           }
         } else if (mode == 'requires_licensed_source') {
@@ -596,17 +633,113 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           _bufferStatus = 'requires_licensed_source';
           _showPreparingOverlay = false;
           _streamOverlayMessage = d['message'] as String? ?? 'No stable source is available right now.';
+          _smoothWarmTimer?.cancel();
+          _smoothWarmTimer = null;
         } else {
           _smoothPlaybackEnabled = false;
           _showPreparingOverlay = false;
           _gapWarning = false;
           _gapWarningMessage = '';
+          _smoothWarmTimer?.cancel();
+          _smoothWarmTimer = null;
         }
       }
     } catch (_) {
       // Smooth playback info unavailable — continue with direct stream
       _smoothPlaybackEnabled = false;
     }
+  }
+
+  /// While the smooth buffer is warming, poll the smooth-playback endpoint every few seconds
+  /// so the progress banner updates and the player silently switches to the delayed stream
+  /// the moment `buffer_ready` becomes true. Stops on ready, terminal failure, or a
+  /// configurable timeout (after which it surfaces a clear source-issue message).
+  void _startSmoothWarmPoll() {
+    if (!_smoothPlaybackEnabled) return;
+    _smoothWarmTimer?.cancel();
+    _smoothWarmTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (!mounted) {
+        _smoothWarmTimer?.cancel();
+        _smoothWarmTimer = null;
+        return;
+      }
+      // Timeout: if warming has been going longer than _smoothWarmTimeoutSec and the buffer
+      // is still not ready, stop polling and surface a clear source-issue message + Direct Live.
+      final started = _warmStartedAt;
+      if (started != null && DateTime.now().difference(started).inSeconds >= _smoothWarmTimeoutSec) {
+        _smoothWarmTimer?.cancel();
+        _smoothWarmTimer = null;
+        if (mounted) {
+          setState(() {
+            _bufferStatus = 'warm_timeout';
+            _streamOverlayMessage = 'Channel source is unstable. Trying another source...';
+          });
+        }
+        return;
+      }
+      await _fetchSmoothPlayback();
+      if (mounted) setState(() {});
+      // _fetchSmoothPlayback cancels this timer once buffer_ready becomes true.
+    });
+  }
+
+  /// Compact, human-readable warming progress string for the banner / fallback spinner.
+  /// Uses the configured delay (5-min/2-min label) and live buffer depth, never a
+  /// hardcoded minute value.
+  String _warmingProgressText() {
+    final delay = _requiredDelaySeconds > 0 ? _requiredDelaySeconds : _delaySeconds;
+    final mins = delay ~/ 60;
+    final label = mins >= 1 ? '$mins-min' : '$delay-sec';
+    final isUnstable = _bufferStatus == 'source_timeout' ||
+        _bufferStatus == 'trying_backup' ||
+        _bufferStatus == 'backup_active' ||
+        _bufferStatus == 'no_working_source' ||
+        _bufferStatus == 'warm_timeout';
+    if (isUnstable) {
+      return _streamOverlayMessage.isNotEmpty
+          ? _streamOverlayMessage
+          : 'Channel source is unstable. Trying another source...';
+    }
+    final depth = _bufferDepthSeconds < 0 ? 0 : _bufferDepthSeconds;
+    final cappedDepth = depth > delay ? delay : depth;
+    return 'Building $label buffer: ${cappedDepth}s / ${delay}s';
+  }
+
+  /// Whether the player is currently showing the direct/live URL underneath the warming
+  /// banner (the "start like TV" mode). True only when smooth is enabled, not ready, and
+  /// the direct stream is actually playing — so we render the small banner, not a spinner.
+  bool get _warmingOverLive =>
+      _smoothPlaybackEnabled &&
+      _showPreparingOverlay &&
+      !_bufferReady &&
+      !_hasError &&
+      !_isLoading;
+
+  /// Whether a normal direct/live stream is available to play immediately while warming,
+  /// so we show a small banner over live video instead of a full-screen "Preparing" spinner.
+  /// False when the primary stream is missing — then the full-screen preparing UI is correct.
+  bool get _hasPlayableDirectStream =>
+      _currentStreamMeta != null &&
+      _currentStreamMeta!['url'] != null &&
+      (_currentStreamMeta!['url'] as String).isNotEmpty;
+
+  /// Switch from warming to direct/live playback on user request (Play Direct Live),
+  /// abandoning the smooth delayed stream for this session.
+  void _goLiveFromWarming() {
+    _smoothWarmTimer?.cancel();
+    _smoothWarmTimer = null;
+    final url = _directLiveUrl;
+    if (url == null || url.isEmpty) return;
+    if (mounted) {
+      setState(() {
+        _smoothPlaybackEnabled = false;
+        _bufferReady = false;
+        _showPreparingOverlay = false;
+        _streamOverlayMessage = '';
+      });
+    }
+    _initializePlayer(url, {});
+    _showPlayerToast('Switched to Live');
   }
 
   /// While a gap warning is active, periodically re-fetch smooth playback status
@@ -1355,9 +1488,16 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _smoothPlaybackEnabled = false;
     _bufferReady = false;
     _delaySeconds = 0;
+    _requiredDelaySeconds = 0;
+    _bufferDepthSeconds = 0;
     _bufferStatus = '';
-    _fallbackDirectUrl = null;
+    _directLiveUrl = null;
+    _canGoLive = false;
     _showPreparingOverlay = false;
+    _switchedToSmooth = false;
+    _smoothWarmTimer?.cancel();
+    _smoothWarmTimer = null;
+    _warmStartedAt = null;
     // Reset gap warning state and stop the refresh timer for the previous channel
     _gapWarningRefreshTimer?.cancel();
     _gapWarningRefreshTimer = null;
@@ -1654,6 +1794,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playerToastTimer?.cancel();
     _qualityUpgradeTimer?.cancel();
     _gapWarningRefreshTimer?.cancel();
+    _smoothWarmTimer?.cancel();
     _playerSubscription?.cancel();
     _playerErrorSubscription?.cancel();
     _videoParamsSubscription?.cancel();
@@ -1708,6 +1849,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           Positioned.fill(child: _buildVideoSurface()),
           if (_isLoading) Positioned.fill(child: _buildLoadingOverlay()),
           if (_hasError) Positioned.fill(child: _buildErrorOverlay()),
+          if (_warmingOverLive)
+            Positioned(top: 0, left: 0, right: 0, child: _buildWarmingBanner()),
           // Controls overlay - safe padding on controls only, not video
           Positioned.fill(
             child: FadeTransition(
@@ -1748,6 +1891,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                 ),
                 if (_isLoading) Positioned.fill(child: _buildLoadingOverlay()),
                 if (_hasError) Positioned.fill(child: _buildErrorOverlay()),
+                if (_warmingOverLive)
+                  Positioned(top: 0, left: 0, right: 0, child: _buildWarmingBanner()),
                 if (_gapWarning && !_isLoading && !_hasError)
                   Positioned(top: 0, left: 0, right: 0, child: _buildGapWarningBanner()),
                 if (!_hasError && !_isLoading)
@@ -1833,11 +1978,30 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             mainAxisSize: MainAxisSize.min,
             children: [
               const CircularProgressIndicator(color: Color(AppColors.primary), strokeWidth: 3),
-              if (_showPreparingOverlay) ...[
+              // While a direct/live stream can play, warming shows as a small banner over the
+              // video (see _buildWarmingBanner), NOT a full-screen "Preparing" spinner. The
+              // preparing spinner + Play Direct Live button only appears when there is no
+              // playable direct stream (cold source) or a terminal/timeout state.
+              if (_showPreparingOverlay && !_hasPlayableDirectStream) ...[
                 const SizedBox(height: 16),
                 const Text('Preparing smooth playback...', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
-                Text('Building ${(_delaySeconds ~/ 60)}-min buffer for smoother viewing', style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                Text(_warmingProgressText(), style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                if (_canGoLive && _directLiveUrl != null && _directLiveUrl!.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  ElevatedButton.icon(
+                    onPressed: _goLiveFromWarming,
+                    icon: const Icon(Icons.play_arrow_rounded, size: 16),
+                    label: const Text('Play Direct Live'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(AppColors.primary),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      minimumSize: const Size(0, 32),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
               ] else if (_streamOverlayMessage.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Text(_streamOverlayMessage, style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
@@ -1937,6 +2101,65 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Small translucent banner shown over the live/direct video while the smooth buffer is
+  /// warming. Lets the user watch the live channel immediately ("start like TV") while the
+  /// delayed stream builds, with live progress. A "Go Live" chip escapes to direct playback.
+  /// Rendered only when _warmingOverLive is true (smooth enabled, not ready, video playing).
+  Widget _buildWarmingBanner() {
+    final isUnstable = _bufferStatus == 'source_timeout' ||
+        _bufferStatus == 'trying_backup' ||
+        _bufferStatus == 'backup_active' ||
+        _bufferStatus == 'no_working_source' ||
+        _bufferStatus == 'warm_timeout';
+    final Color borderColor = isUnstable
+        ? const Color(0xFFFFA726)
+        : const Color(0xFF42A5F5);
+    return SafeArea(
+      bottom: false,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.66),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: borderColor, width: 1),
+        ),
+        child: Row(
+          children: [
+            Icon(isUnstable ? Icons.warning_amber_rounded : Icons.slow_motion_video_rounded,
+                color: borderColor, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _warmingProgressText(),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600),
+              ),
+            ),
+            if (_canGoLive && _directLiveUrl != null && _directLiveUrl!.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _goLiveFromWarming,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: borderColor.withOpacity(0.22),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'Go Live',
+                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -2245,15 +2468,21 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                 ],
               ),
             ),
-          // Go Live button (only when delayed playback is active and direct fallback exists)
-          if (_smoothPlaybackEnabled && _bufferReady && _fallbackDirectUrl != null && _fallbackDirectUrl!.isNotEmpty)
+          // Go Live button — shown both while warming (offer direct live escape) and after
+          // the delayed stream is playing, whenever a direct URL is available.
+          if (_smoothPlaybackEnabled &&
+              (_bufferReady || _showPreparingOverlay) &&
+              _canGoLive &&
+              (_directLiveUrl != null && _directLiveUrl!.isNotEmpty))
             Padding(
               padding: const EdgeInsets.only(right: 4),
               child: TextButton(
                 onPressed: () async {
                   try {
+                    _smoothWarmTimer?.cancel();
+                    _smoothWarmTimer = null;
                     await _player.stop();
-                    await _initializePlayer(_fallbackDirectUrl!, {});
+                    await _initializePlayer(_directLiveUrl!, {});
                     if (mounted) {
                       setState(() {
                         _smoothPlaybackEnabled = false;

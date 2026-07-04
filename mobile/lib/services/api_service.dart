@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
+import 'token_refresh_service.dart';
 
 import '../utils/backend_config.dart';
 
@@ -37,7 +38,7 @@ class ApiService {
         );
         return handler.next(response);
       },
-      onError: (error, handler) {
+      onError: (error, handler) async {
         developer.log(
           '[API Error] ${error.response?.statusCode} ${error.requestOptions.path} | ${error.message}',
           name: 'ApiService',
@@ -45,7 +46,7 @@ class ApiService {
         if (error.response?.statusCode == 401 || error.response?.statusCode == 403) {
           final data = error.response?.data;
           bool isTokenError = false;
-          
+
           if (data is Map && data['message'] != null) {
             final msg = data['message'].toString().toLowerCase();
             if (msg.contains('invalid token') || msg.contains('token expired') || (error.response?.statusCode == 403 && data['error'] != 'DEVICE_LIMIT_REACHED')) {
@@ -54,10 +55,36 @@ class ApiService {
           } else if (error.response?.statusCode == 403) {
             isTokenError = true;
           }
-          
+
           if (isTokenError) {
-            developer.log('[API] Invalid/Expired token detected, clearing session.', name: 'ApiService');
-            _clearToken();
+            // Don't refresh the token request itself, and only retry once per
+            // request to avoid an infinite loop if the refresh is unusable.
+            final req = error.requestOptions;
+            final alreadyRetried = req.extra['refreshed'] == true;
+            final isRefreshCall = req.path.contains(ApiEndpoints.refreshToken);
+
+            if (!isRefreshCall && !alreadyRetried) {
+              developer.log('[API] Access token expired — attempting refresh + retry.', name: 'ApiService');
+              final ok = await TokenRefreshService.instance.refresh();
+              if (ok) {
+                try {
+                  final prefs = await SharedPreferences.getInstance();
+                  final newToken = prefs.getString(StorageKeys.token);
+                  if (newToken != null) {
+                    req.headers['Authorization'] = 'Bearer $newToken';
+                  }
+                  req.extra['refreshed'] = true;
+                  // Replay the original request with the fresh token.
+                  final response = await _dio.fetch(req);
+                  return handler.resolve(response);
+                } catch (retryErr) {
+                  developer.log('[API] Retry after refresh failed: $retryErr', name: 'ApiService');
+                  return handler.next(error);
+                }
+              }
+            }
+            developer.log('[API] Refresh failed or unavailable — clearing session.', name: 'ApiService');
+            await _clearToken();
           } else {
             developer.log('[API] 401 received but not a token expiration, preserving session.', name: 'ApiService');
           }
@@ -70,6 +97,7 @@ class ApiService {
   Future<void> _clearToken() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(StorageKeys.token);
+    await prefs.remove(StorageKeys.refreshToken);
   }
 
   Future<Map<String, dynamic>> get(String path, {Map<String, dynamic>? queryParameters}) async {
