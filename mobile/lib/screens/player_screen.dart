@@ -127,8 +127,8 @@ class PlaybackProfile {
 /// Larger buffer keeps player well behind live edge - avoids 404 on fresh segments.
 const PlaybackProfile kStableProfile = PlaybackProfile(
   name: 'stable',
-  demuxerReadaheadSecs: 30,
-  bufferSizeBytes: 64 * 1024 * 1024, // 64 MB
+  demuxerReadaheadSecs: 8,
+  bufferSizeBytes: 64 * 1024 * 1024, // 64 MB — handles HD IPTV without stalling
   startupTimeoutSecs: 25,
   stallTimeoutSecs: 30,
   preferredQuality: 'auto',
@@ -137,7 +137,7 @@ const PlaybackProfile kStableProfile = PlaybackProfile(
 /// Fast: lower latency, for known-stable channels only.
 const PlaybackProfile kFastProfile = PlaybackProfile(
   name: 'fast',
-  demuxerReadaheadSecs: 10,
+  demuxerReadaheadSecs: 4,
   bufferSizeBytes: 16 * 1024 * 1024, // 16 MB
   startupTimeoutSecs: 15,
   stallTimeoutSecs: 18,
@@ -147,8 +147,8 @@ const PlaybackProfile kFastProfile = PlaybackProfile(
 /// Data Saver: moderate buffer, starts at lower quality.
 const PlaybackProfile kDataSaverProfile = PlaybackProfile(
   name: 'data_saver',
-  demuxerReadaheadSecs: 20,
-  bufferSizeBytes: 32 * 1024 * 1024, // 32 MB
+  demuxerReadaheadSecs: 6,
+  bufferSizeBytes: 16 * 1024 * 1024, // 16 MB
   startupTimeoutSecs: 25,
   stallTimeoutSecs: 30,
   preferredQuality: '360p',
@@ -888,9 +888,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           // Larger readahead keeps player behind live edge, reducing segment 404s
           await (platform as dynamic).setProperty(
               'demuxer-readahead-secs', '${profile.demuxerReadaheadSecs}');
+          // cache-secs is the MAX cache size — keep it much larger than readahead
+          // so variable-bitrate or slow-CDN streams don't stall
           await (platform as dynamic).setProperty(
-              'cache-secs', '${profile.demuxerReadaheadSecs}');
+              'cache-secs', '${profile.demuxerReadaheadSecs * 4}');
           await (platform as dynamic).setProperty('cache', 'yes');
+          // Don't auto-pause when the cache runs low; keep playing
+          await (platform as dynamic).setProperty('cache-pause', 'no');
           // Auto-reconnect on network stall — never use seek() on live streams
           await (platform as dynamic).setProperty(
               'stream-lavf-o',

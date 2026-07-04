@@ -335,8 +335,18 @@ async function _selectWorkingStream(channelId, channel, excludeStreamIds = [], e
 
 async function _testStream(streamUrl) {
   try {
-    const text = await _fetchTextWithTimeout(streamUrl, STREAM_TEST_TIMEOUT_MS);
-    const segments = _parseM3U8Segments(text, streamUrl);
+    let text = await _fetchTextWithTimeout(streamUrl, STREAM_TEST_TIMEOUT_MS);
+    let resolvedUrl = streamUrl;
+
+    // Resolve master playlist to a media playlist before checking segments
+    if (_isMasterPlaylist(text)) {
+      const variantUrl = _selectBestVariantUrl(text, streamUrl);
+      if (!variantUrl) return { ok: false, reason: 'Master playlist has no variant streams' };
+      text = await _fetchTextWithTimeout(variantUrl, STREAM_TEST_TIMEOUT_MS);
+      resolvedUrl = variantUrl;
+    }
+
+    const segments = _parseM3U8Segments(text, resolvedUrl);
     if (segments.length === 0) return { ok: false, reason: 'No playable segments in manifest' };
 
     const controller = new AbortController();
@@ -397,8 +407,20 @@ async function _pollChannel(state) {
     const m3u8Url = chData.recorder_stream_url;
     if (!m3u8Url) throw new Error('No recorder_stream_url configured');
 
-    const text = await _fetchTextWithTimeout(m3u8Url, M3U8_FETCH_TIMEOUT_MS);
-    const segments = _parseM3U8Segments(text, m3u8Url);
+    let text = await _fetchTextWithTimeout(m3u8Url, M3U8_FETCH_TIMEOUT_MS);
+    let resolvedUrl = m3u8Url;
+
+    // If this is a master playlist, follow the best-quality variant
+    if (_isMasterPlaylist(text)) {
+      const variantUrl = _selectBestVariantUrl(text, m3u8Url);
+      if (!variantUrl) throw new Error('Master playlist has no variant streams');
+      text = await _fetchTextWithTimeout(variantUrl, M3U8_FETCH_TIMEOUT_MS);
+      resolvedUrl = variantUrl;
+      // Persist the resolved media playlist URL so future polls use it directly
+      await _updateChannelState(state.channelId, { recorder_stream_url: variantUrl });
+    }
+
+    const segments = _parseM3U8Segments(text, resolvedUrl);
 
     if (segments.length === 0) throw new Error('No segments in M3U8');
 
@@ -448,6 +470,11 @@ async function _pollChannel(state) {
     for (const seg of segments) {
       if (state.seenSequences.has(seg.sequence)) continue;
       state.seenSequences.add(seg.sequence);
+      // Prevent unbounded growth — keep only the last 2000 sequence numbers
+      if (state.seenSequences.size > 2000) {
+        const oldest = state.seenSequences.values().next().value;
+        state.seenSequences.delete(oldest);
+      }
       await _downloadSegment(state, seg);
     }
 
@@ -1025,6 +1052,32 @@ async function _updateChannelState(channelId, updates) {
   } catch (err) {
     console.error(`[buffer_recorder] _updateChannelState error for ${channelId}:`, err);
   }
+}
+
+function _isMasterPlaylist(text) {
+  return text.includes('#EXT-X-STREAM-INF');
+}
+
+function _selectBestVariantUrl(text, baseUrl) {
+  // Pick the highest-bandwidth variant from a master playlist
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  let bestBandwidth = -1;
+  let bestUrl = null;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].startsWith('#EXT-X-STREAM-INF')) {
+      const bwMatch = lines[i].match(/BANDWIDTH=(\d+)/);
+      const bw = bwMatch ? parseInt(bwMatch[1], 10) : 0;
+      const urlLine = lines[i + 1];
+      if (urlLine && !urlLine.startsWith('#')) {
+        const variantUrl = urlLine.startsWith('http') ? urlLine : _resolveUrl(baseUrl, urlLine);
+        if (bw > bestBandwidth) {
+          bestBandwidth = bw;
+          bestUrl = variantUrl;
+        }
+      }
+    }
+  }
+  return bestUrl;
 }
 
 function _parseM3U8Segments(text, baseUrl) {
