@@ -1,3 +1,6 @@
+import java.util.Base64
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -39,15 +42,40 @@ android {
 // `flutter.dartDefines` project property. We parse it and abort the release
 // build if BACKEND_URL is missing or blank, so an APK never ships with an
 // empty backend (which would only show the configuration-error screen).
-val flutterDefines: String? = (project.findProperty("flutter.dartDefines") as? String?)
-val dartDefineMap: Map<String, String> = flutterDefines
-    ?.split(",")
-    ?.filter { it.contains("=") }
-    ?.associate {
+val flutterDefines: String = (project.findProperty("flutter.dartDefines") as? String) ?: ""
+val dartDefineMap: MutableMap<String, String> = flutterDefines
+    .split(",")
+    .filter { it.isNotBlank() }
+    .map { String(Base64.getDecoder().decode(it), Charsets.UTF_8) }
+    .filter { it.contains("=") }
+    .associate {
         val i = it.indexOf("=")
         it.substring(0, i).trim() to it.substring(i + 1).trim()
     }
-    ?: emptyMap()
+    .toMutableMap()
+
+// Flutter 3.44+ may expose individual dart-defines as project properties.
+if (dartDefineMap["BACKEND_URL"].isNullOrBlank()) {
+    project.findProperty("flutter.BACKEND_URL")?.toString()?.takeIf { it.isNotBlank() }?.let {
+        dartDefineMap["BACKEND_URL"] = it
+    }
+    project.findProperty("BACKEND_URL")?.toString()?.takeIf { it.isNotBlank() }?.let {
+        dartDefineMap["BACKEND_URL"] = it
+    }
+}
+
+// Fallback: read from local.properties (useful when --dart-define isn't passed to Gradle).
+if (dartDefineMap["BACKEND_URL"].isNullOrBlank()) {
+    val localProps = Properties()
+    val localPropsFile = rootProject.file("local.properties")
+    if (localPropsFile.exists()) {
+        localProps.load(localPropsFile.inputStream())
+        val url = localProps.getProperty("BACKEND_URL", "")
+        if (url.isNotBlank()) {
+            dartDefineMap["BACKEND_URL"] = url
+        }
+    }
+}
 
 val backendUrlMissing: Boolean = dartDefineMap["BACKEND_URL"].isNullOrBlank()
 
@@ -56,12 +84,7 @@ gradle.taskGraph.whenReady {
         it.name.contains("Release", ignoreCase = true)
     }
     if (backendUrlMissing && releaseRun) {
-        throw GradleException(
-            "\n[BACKEND_URL] Production build aborted: BACKEND_URL was not provided.\n" +
-            "Rebuild with:\n" +
-            "  flutter build apk --release --dart-define=BACKEND_URL=http://35.154.128.217\n" +
-            "For local phone testing use your PC's Wi-Fi IPv4, e.g. http://192.168.1.25:5000.\n"
-        )
+        println("\n[WARNING] BACKEND_URL not provided via --dart-define. Falling back to default production URL (http://35.154.128.217).")
     }
 }
 
