@@ -13,7 +13,7 @@ async function runHealthScan() {
     // Bug fix: is_active column does not exist in channel_streams; use is_hidden instead.
     // Also guard against NULL booleans with IS NOT TRUE / IS NOT FALSE pattern.
     const { rows: streams } = await db.query(`
-      SELECT cs.id, cs.stream_url, cs.headers_json, cs.channel_id
+      SELECT cs.id, cs.stream_url, cs.headers_json, cs.user_agent, cs.referer, cs.channel_id
       FROM channel_streams cs
       JOIN channels c ON cs.channel_id = c.id
       WHERE cs.is_hidden IS NOT TRUE
@@ -46,6 +46,8 @@ async function runHealthScan() {
               console.warn(`[StreamScanner] Invalid headers for stream ${stream.id}`);
             }
           }
+          if (stream.user_agent && !headers['User-Agent']) headers['User-Agent'] = stream.user_agent;
+          if (stream.referer && !headers['Referer']) headers['Referer'] = stream.referer;
 
           const result = await StreamScanner.deepScan(stream.stream_url, headers);
 
