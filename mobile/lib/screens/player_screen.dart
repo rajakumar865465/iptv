@@ -113,6 +113,10 @@ class PlaybackProfile {
   final int stallTimeoutSecs;
   /// Default quality override when Data Saver is active
   final String preferredQuality;
+  /// Max forward demuxer buffer (libmpv demuxer-max-bytes), in MiB
+  final int demuxerMaxBytesMib;
+  /// Max backward demuxer buffer (libmpv demuxer-max-back-bytes), in MiB
+  final int demuxerMaxBackBytesMib;
   const PlaybackProfile({
     required this.name,
     required this.demuxerReadaheadSecs,
@@ -120,6 +124,8 @@ class PlaybackProfile {
     required this.startupTimeoutSecs,
     required this.stallTimeoutSecs,
     required this.preferredQuality,
+    required this.demuxerMaxBytesMib,
+    required this.demuxerMaxBackBytesMib,
   });
 }
 
@@ -127,21 +133,25 @@ class PlaybackProfile {
 /// Larger buffer keeps player well behind live edge - avoids 404 on fresh segments.
 const PlaybackProfile kStableProfile = PlaybackProfile(
   name: 'stable',
-  demuxerReadaheadSecs: 8,
+  demuxerReadaheadSecs: 10,
   bufferSizeBytes: 64 * 1024 * 1024, // 64 MB — handles HD IPTV without stalling
   startupTimeoutSecs: 25,
   stallTimeoutSecs: 30,
   preferredQuality: 'auto',
+  demuxerMaxBytesMib: 64,
+  demuxerMaxBackBytesMib: 32,
 );
 
 /// Fast: lower latency, for known-stable channels only.
 const PlaybackProfile kFastProfile = PlaybackProfile(
   name: 'fast',
-  demuxerReadaheadSecs: 4,
-  bufferSizeBytes: 16 * 1024 * 1024, // 16 MB
-  startupTimeoutSecs: 15,
+  demuxerReadaheadSecs: 3,
+  bufferSizeBytes: 32 * 1024 * 1024, // 32 MB
+  startupTimeoutSecs: 18,
   stallTimeoutSecs: 18,
   preferredQuality: 'auto',
+  demuxerMaxBytesMib: 32,
+  demuxerMaxBackBytesMib: 16,
 );
 
 /// Data Saver: moderate buffer, starts at lower quality.
@@ -152,6 +162,8 @@ const PlaybackProfile kDataSaverProfile = PlaybackProfile(
   startupTimeoutSecs: 25,
   stallTimeoutSecs: 30,
   preferredQuality: '360p',
+  demuxerMaxBytesMib: 32,
+  demuxerMaxBackBytesMib: 16,
 );
 
 // ----
@@ -188,6 +200,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   StreamSubscription? _playerSubscription;
   StreamSubscription? _playerErrorSubscription;
   StreamSubscription? _videoParamsSubscription;
+  StreamSubscription? _playerPlayingSubscription;
   bool _hadFailureBeforePlaying = false;
 
   // Fix #4: Prevent multiple error callbacks from firing simultaneously.
@@ -781,6 +794,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playerErrorSubscription = null;
     _videoParamsSubscription?.cancel();
     _videoParamsSubscription = null;
+    _playerPlayingSubscription?.cancel();
+    _playerPlayingSubscription = null;
 
     // Reset proxy + upgrade state for new channel
     _proxyUrl = null;
@@ -865,6 +880,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playerErrorSubscription = null;
     _videoParamsSubscription?.cancel();
     _videoParamsSubscription = null;
+    _playerPlayingSubscription?.cancel();
+    _playerPlayingSubscription = null;
     _bufferTimer?.cancel();
     _bufferTimer = null;
     _startupTimer?.cancel();
@@ -893,14 +910,38 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           await (platform as dynamic).setProperty(
               'cache-secs', '${profile.demuxerReadaheadSecs * 4}');
           await (platform as dynamic).setProperty('cache', 'yes');
-          // Don't auto-pause when the cache runs low; keep playing
-          await (platform as dynamic).setProperty('cache-pause', 'no');
+          // Bound the demuxer byte buffer so live streams don't balloon RAM.
+          await (platform as dynamic).setProperty(
+              'demuxer-max-bytes', '${profile.demuxerMaxBytesMib}MiB');
+          await (platform as dynamic).setProperty(
+              'demuxer-max-back-bytes', '${profile.demuxerMaxBackBytesMib}MiB');
+          // Pause briefly on buffer underrun then resume — avoids freeze-then-skip
+          // rendering of partial frames that looked like a frozen stream.
+          await (platform as dynamic).setProperty('cache-pause', 'yes');
+          await (platform as dynamic).setProperty('cache-pause-wait', '0.5');
+          await (platform as dynamic).setProperty('cache-pause-action', 'resume');
           // Auto-reconnect on network stall — never use seek() on live streams
           await (platform as dynamic).setProperty(
               'stream-lavf-o',
               'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1,'
               'reconnect_delay_max=4,timeout=20000000');
           await (platform as dynamic).setProperty('network-timeout', '20');
+          // IPTV HLS sources often need permissive playlist loading.
+          try {
+            await (platform as dynamic).setProperty('load-unsafe-playlists', 'yes');
+          } catch (_) {}
+          // Larger byte-level stream buffer absorbs slow CDN segment starts.
+          try {
+            await (platform as dynamic).setProperty('stream-buffer-size', '4194304');
+          } catch (_) {}
+          // Drop late frames at the video output instead of stalling the pipeline.
+          try {
+            await (platform as dynamic).setProperty('framedrop', 'vo');
+          } catch (_) {}
+          // Hardware decode where supported; auto-safe falls back to software.
+          try {
+            await (platform as dynamic).setProperty('hwdec', 'auto-safe');
+          } catch (_) {}
         }
       } catch (_) {
         // setProperty not available on this platform — safe to ignore
@@ -922,6 +963,23 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
       // -- Listen for buffering changes ----------------------------------
       _playerSubscription = _player.stream.buffering.listen(_onBufferingChanged);
+
+      // -- Clear the loading overlay as soon as frames start playing --------
+      // videoParams (w/h) can take 2–5s on live-edge HLS, leaving a frozen black
+      // spinner even though libmpv is already producing frames. 'playing' asserts
+      // the decoder pipeline is outputting frames — use it to drop the spinner
+      // immediately so the first frame is visible. Aspect-ratio / track selection
+      // still waits on videoParams below.
+      _playerPlayingSubscription = _player.stream.playing.listen((isPlaying) {
+        if (!isPlaying || !mounted) return;
+        if (_isLoading && !_hasError) {
+          setState(() {
+            _isLoading = false;
+            _isRetryingStream = false;
+            _streamOverlayMessage = '';
+          });
+        }
+      });
 
       // -- Listen for errors ---------------------------------------------
       // media_kit fires error events during normal HLS playlist resolution
@@ -970,12 +1028,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           }
 
           setState(() {
-            _isLoading = false;
             _isRetryingStream = false;
-            _streamOverlayMessage = '';
           });
           // Fix #18: Record when the video actually starts so we can compute accurate watch_duration
-          _playStartTime = DateTime.now();
+          _playStartTime ??= DateTime.now();
           // Detect aspect ratio and re-resolve fit mode from stream dimensions
           _detectAspectRatio(paramsWidth: params.w, paramsHeight: params.h);
           _retryAttempt = 0; // reset retry counter on success
@@ -1802,6 +1858,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playerSubscription?.cancel();
     _playerErrorSubscription?.cancel();
     _videoParamsSubscription?.cancel();
+    _playerPlayingSubscription?.cancel();
     // Fix #4: Cancel error grace timer on dispose to prevent post-dispose callbacks
     _errorGraceTimer?.cancel();
     _player.dispose();
@@ -1966,7 +2023,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             controller: _videoController,
             fit: _getBoxFit(),
             controls: NoVideoControls,
-            filterQuality: FilterQuality.high,
+            filterQuality: FilterQuality.low,
           ),
         ),
       ),
