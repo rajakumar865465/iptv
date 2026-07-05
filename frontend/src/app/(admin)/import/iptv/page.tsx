@@ -45,7 +45,7 @@ export default function ImportPage() {
       await startImportJob(sourceUrl, { country, skipAdult });
       setMessage({ type: 'success', text: 'Import job started in the background.' });
       fetchJobs();
-    } catch (err: unknown) {
+    } catch (err: any) {
       setMessage({ type: 'error', text: getErrorMessage(err, 'Failed to start import') });
     }
     setLoading(false);

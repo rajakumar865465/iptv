@@ -54,7 +54,7 @@ export default function AppSettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updateAppSettings(settings as unknown as Record<string, unknown>);
+      await updateAppSettings(settings as any as Record<string, unknown>);
       setOriginal({ ...settings });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);

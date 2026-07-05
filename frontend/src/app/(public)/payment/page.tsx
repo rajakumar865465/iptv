@@ -94,7 +94,7 @@ function PaymentForm() {
               razorpay_signature: response.razorpay_signature,
             });
             router.push(`/payment/success?order_id=${response.razorpay_order_id}`);
-          } catch (err: unknown) {
+          } catch (err: any) {
             const msg = getPublicErrorMessage(err, 'Payment verification failed. Please contact support.');
             alert(msg);
             router.push(`/payment/failed?order_id=${response.razorpay_order_id}`);
@@ -105,7 +105,7 @@ function PaymentForm() {
         },
       });
       rzp.open();
-    } catch (err: unknown) {
+    } catch (err: any) {
       const msg = getPublicErrorMessage(err, 'Failed to initiate payment. Please try again.');
       setError(msg);
       setLoading(false);

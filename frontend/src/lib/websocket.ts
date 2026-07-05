@@ -4,11 +4,11 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 
 interface WebSocketMessage {
   type: string;
-  data: unknown;
+  data: any;
   timestamp: string;
 }
 
-type MessageHandler = (data: unknown) => void;
+type MessageHandler = (data: any) => void;
 
 export function useWebSocket(url: string, onMessage?: MessageHandler) {
   const wsRef = useRef<WebSocket | null>(null);
@@ -84,7 +84,7 @@ export function useWebSocket(url: string, onMessage?: MessageHandler) {
     };
   }, []);
 
-  const send = useCallback((data: unknown) => {
+  const send = useCallback((data: any) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(data));
     }
@@ -113,7 +113,7 @@ export function useDashboardStats() {
     : '';
 
   const { isConnected: connected } = useWebSocket(wsUrl, (data) => {
-    setStats(data as unknown);
+    setStats(data as any);
   });
 
   return { stats, isConnected: connected };

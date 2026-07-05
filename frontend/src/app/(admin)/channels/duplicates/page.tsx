@@ -132,7 +132,7 @@ export default function DuplicateChannelsPage() {
       setGroups(prev => prev.filter(gr => gr.canonical_name !== g.canonical_name));
       setTotal(prev => prev - 1);
       showToast(`"${g.canonical_name}" merged successfully`, 'success');
-    } catch (err: unknown) {
+    } catch (err: any) {
       showToast(getErrorMessage(err, 'Merge failed'), 'error');
     } finally { setMerging(null); }
   };
@@ -153,7 +153,7 @@ export default function DuplicateChannelsPage() {
       }).filter(gr => gr.channels.length > 1));
       
       showToast('Channel hidden successfully', 'success');
-    } catch (err: unknown) {
+    } catch (err: any) {
       showToast('Failed to hide channel', 'error');
     }
   };
@@ -168,7 +168,7 @@ export default function DuplicateChannelsPage() {
       setGroups(prev => prev.filter(gr => gr.canonical_name !== g.canonical_name));
       setTotal(prev => prev - 1);
       showToast(`Entire group "${g.canonical_name}" hidden successfully`, 'success');
-    } catch (err: unknown) {
+    } catch (err: any) {
       showToast(getErrorMessage(err, 'Failed to hide group'), 'error');
     } finally { 
       setHiding(null); 

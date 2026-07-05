@@ -24,7 +24,7 @@ export default function LoginPage() {
         login(res.data.data.token);
         router.push('/dashboard');
       }
-    } catch (err: unknown) {
+    } catch (err: any) {
       if (!err.response) {
         setError('Cannot connect to server. Please check your internet connection and try again.');
       } else if (err.response?.status >= 500) {

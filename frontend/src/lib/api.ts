@@ -42,7 +42,7 @@ api.interceptors.response.use(
 
 export default api;
 
-export function getErrorMessage(err: unknown, fallback: string) {
+export function getErrorMessage(err: any, fallback: string) {
   if (axios.isAxiosError(err)) {
     const data = err.response?.data as { message?: string } | undefined;
     return data?.message || err.message || fallback;
@@ -150,7 +150,7 @@ export const getReportedChannels = (status?: string) =>
 export const updateReportStatus = (id: string, status: string) =>
   api.put(`/channels/reports/${id}/status`, { status }).then((r) => r.data.data);
 
-export const startImportJob = (source_url?: string, options?: unknown) =>
+export const startImportJob = (source_url?: string, options?: any) =>
   api.post('/import/iptv-org', { source_url, options }).then((r) => r.data.data);
 
 export const getImportJobs = () =>

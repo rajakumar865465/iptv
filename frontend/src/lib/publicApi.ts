@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export function getPublicErrorMessage(err: unknown, fallback: string) {
+export function getPublicErrorMessage(err: any, fallback: string) {
   if (axios.isAxiosError(err)) {
     const data = err.response?.data as { message?: string } | undefined;
     return data?.message || err.message || fallback;
@@ -47,7 +47,7 @@ export interface Category {
   channel_count: number;
 }
 
-function normalizeCategory(cat: unknown): Category {
+function normalizeCategory(cat: any): Category {
   return {
     ...cat,
     channel_count: typeof cat.channel_count === 'string' ? parseInt(cat.channel_count, 10) : cat.channel_count,
@@ -123,9 +123,9 @@ export interface LicenseCheckResult {
   expires_at: string | null;
 }
 
-const unwrap = (res: { data: { data: unknown } }) => res.data.data;
+const unwrap = (res: { data: { data: any } }) => res.data.data;
 
-function normalizePlan(plan: unknown): Plan {
+function normalizePlan(plan: any): Plan {
   return {
     ...plan,
     price: typeof plan.price === 'string' ? parseFloat(plan.price) : plan.price,
@@ -135,7 +135,7 @@ function normalizePlan(plan: unknown): Plan {
 
 export const getPublicPlans = (): Promise<Plan[]> =>
   publicAxios.get('/api/public/plans').then(res => {
-    const data = res.data.data as unknown[];
+    const data = res.data.data as any[];
     return data.map(normalizePlan);
   });
 
@@ -149,7 +149,7 @@ export const getChannelPreview = (category?: string): Promise<Channel[]> => {
 
 export const getCategories = (): Promise<Category[]> =>
   publicAxios.get('/api/public/categories').then(res => {
-    const data = res.data.data as unknown[];
+    const data = res.data.data as any[];
     return data.map(normalizeCategory);
   });
 

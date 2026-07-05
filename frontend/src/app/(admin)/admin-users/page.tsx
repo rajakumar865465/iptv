@@ -42,7 +42,7 @@ export default function AdminUsersPage() {
       setShowCreateModal(false);
       setCreateForm(emptyForm);
       fetchUsers();
-    } catch (err: unknown) {
+    } catch (err: any) {
       alert(getErrorMessage(err, 'Failed to create admin user'));
     } finally {
       setSaving(false);

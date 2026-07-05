@@ -143,7 +143,7 @@ export default function StreamHealthPage() {
       const res = await api.get('/stream-health', { params });
       setChannels(res.data.data || []);
       setPagination(res.data.pagination || { page, limit: 50, total: 0, hasMore: false });
-    } catch (e: unknown) {
+    } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Failed to load';
       showToast(`Error: ${msg}`);
     } finally {
@@ -165,7 +165,7 @@ export default function StreamHealthPage() {
       await api.post(`/stream-health/${channelId}/mark`, { action, note });
       showToast(`Done: ${action.replace(/_/g, ' ')}`);
       fetchData();
-    } catch (e: unknown) {
+    } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Action failed';
       showToast(`Error: ${msg}`);
     } finally {
@@ -181,7 +181,7 @@ export default function StreamHealthPage() {
       const { health_status, health_score } = res.data.data || res.data;
       showToast(`Recheck done: ${health_status} (score ${health_score ?? '?'})`);
       fetchData();
-    } catch (e: unknown) {
+    } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Recheck failed';
       showToast(`Error: ${msg}`);
     } finally {

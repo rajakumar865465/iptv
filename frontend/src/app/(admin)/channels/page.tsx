@@ -26,7 +26,7 @@ interface Stream {
   user_agent?: string;
   referer?: string;
   origin?: string;
-  headers_json?: unknown;
+  headers_json?: any;
   playback_mode?: string;
   codec_video?: string;
   codec_audio?: string;
@@ -125,15 +125,15 @@ export default function ChannelsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
-    try { await createChannel(form as unknown as Record<string, unknown>); setModal(null); fetchChannels(); }
-    catch (err: unknown) { alert(getErrorMessage(err, 'Failed to create channel')); }
+    try { await createChannel(form as any as Record<string, unknown>); setModal(null); fetchChannels(); }
+    catch (err: any) { alert(getErrorMessage(err, 'Failed to create channel')); }
     finally { setSaving(false); }
   };
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editChannel) return; setSaving(true);
-    try { await updateChannel(editChannel.id, form as unknown as Record<string, unknown>); setModal(null); fetchChannels(); }
-    catch (err: unknown) { alert(getErrorMessage(err, 'Failed to update channel')); }
+    try { await updateChannel(editChannel.id, form as any as Record<string, unknown>); setModal(null); fetchChannels(); }
+    catch (err: any) { alert(getErrorMessage(err, 'Failed to update channel')); }
     finally { setSaving(false); }
   };
 
@@ -173,7 +173,7 @@ export default function ChannelsPage() {
         const d = await getChannelStreams(streamChannelId);
         setStreams(d || []);
       }
-    } catch (err: unknown) {
+    } catch (err: any) {
       alert(getErrorMessage(err, 'Failed to run diagnosis'));
     } finally {
       setDiagnosingId(null);

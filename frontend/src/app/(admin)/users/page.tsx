@@ -169,7 +169,7 @@ export default function UsersPage() {
                   { id: 'licenses', label: 'Licenses', icon: KeyRound, count: userLicenses.length },
                   { id: 'payments', label: 'Payments', icon: CreditCard, count: userPayments.length },
                 ].map(tab => (
-                  <button key={tab.id} onClick={() => setActiveTab(tab.id as unknown)} 
+                  <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} 
                     className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
                       activeTab === tab.id ? 'text-cyan-400 border-cyan-500' : 'text-slate-400 border-transparent hover:text-slate-200'
                     }`}>
