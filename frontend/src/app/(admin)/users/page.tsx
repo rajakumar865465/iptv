@@ -71,9 +71,9 @@ export default function UsersPage() {
     Promise.all([getUsers(), getLicenses(), getPayments()])
       .then(([u, l, p]) => {
         // Support both paginated { data: [] } shape and plain array
-        setUsers(Array.isArray(u) ? u : ((u as unknown)?.data || []));
-        setLicenses(Array.isArray(l) ? l : ((l as unknown)?.data || []));
-        setAllPayments(Array.isArray(p) ? p : ((p as unknown)?.data || []));
+        setUsers(Array.isArray(u) ? u : ((u as any)?.data || []));
+        setLicenses(Array.isArray(l) ? l : ((l as any)?.data || []));
+        setAllPayments(Array.isArray(p) ? p : ((p as any)?.data || []));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -83,10 +83,10 @@ export default function UsersPage() {
     setLoadingDetail(true);
     setActiveTab('devices');
     try {
-      const [userData, devicesData]: unknown = await Promise.all([getUser(u.id), getDevices({ user_id: u.id })]);
+      const [userData, devicesData]: any = await Promise.all([getUser(u.id), getDevices({ user_id: u.id })]);
       setUserDevices(devicesData?.data || devicesData || []);
       setUserLicenses(licenses.filter(l => l.user_email?.toLowerCase() === u.email?.toLowerCase()));
-      setUserPayments(allPayments.filter(p => p.id && (p as unknown).email?.toLowerCase() === u.email?.toLowerCase()));
+      setUserPayments(allPayments.filter(p => p.id && (p as any).email?.toLowerCase() === u.email?.toLowerCase()));
     } catch {
       setUserDevices([]);
       setUserLicenses(licenses.filter(l => l.user_email?.toLowerCase() === u.email?.toLowerCase()));
