@@ -51,15 +51,60 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = TIMEOUT) {
       let body = '';
       const enc = segmentMode ? 'binary' : 'utf8';
       res.setEncoding(enc);
+      
+      let isResolved = false;
+      const timer = setTimeout(() => {
+        if (!isResolved) {
+          isResolved = true;
+          req.destroy();
+          resolve({ ok: false, reason: 'hard_timeout' });
+        }
+      }, timeout + 2000); // hard timeout slightly longer than socket timeout
+      
       res.on('data', chunk => {
         body += chunk;
         if (body.length > (segmentMode ? MAX_SEG_BYTES : MAX_M3U_BYTES)) { res.destroy(); }
       });
-      res.on('end', () => resolve({ ok: status >= 200 && status < 400 || status === 206, status, ct, body }));
-      res.on('error', e => resolve({ ok: false, reason: 'res_error', msg: e.message }));
+      res.on('end', () => {
+        if (isResolved) return;
+        isResolved = true;
+        clearTimeout(timer);
+        resolve({ ok: status >= 200 && status < 400 || status === 206, status, ct, body });
+      });
+      res.on('error', e => {
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timer);
+          resolve({ ok: false, reason: 'res_error', msg: e.message });
+        }
+      });
+      
+      res.on('close', () => {
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timer);
+          resolve({ ok: false, reason: 'premature_close' });
+        }
+      });
     });
-    req.on('error', e => resolve({ ok: false, reason: 'req_error', msg: e.message }));
-    req.on('timeout', () => { req.destroy(); resolve({ ok: false, reason: 'timeout' }); });
+
+    req.on('error', e => {
+      if (!isResolved) {
+        isResolved = true;
+        clearTimeout(timer);
+        resolve({ ok: false, reason: 'req_error', msg: e.message });
+      }
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      if (!isResolved) {
+        isResolved = true;
+        clearTimeout(timer);
+        resolve({ ok: false, reason: 'timeout' });
+      }
+    });
+    
     req.end();
   });
 }

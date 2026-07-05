@@ -52,6 +52,7 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = 10000, redire
       const status = res.statusCode;
 
       if (status >= 300 && status < 400 && res.headers.location) {
+        req.destroy(); // abort current connection
         const nextUrl = resolveUrl(url, res.headers.location);
         return resolve(httpGet(nextUrl, headers, segmentMode, timeout, redirectDepth + 1));
       }
@@ -60,6 +61,15 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = 10000, redire
       let body = '';
       const enc = segmentMode ? 'binary' : 'utf8';
       res.setEncoding(enc);
+      
+      let isResolved = false;
+      const timer = setTimeout(() => {
+        if (!isResolved) {
+          isResolved = true;
+          req.destroy();
+          resolve({ ok: false, reason: 'hard_timeout', finalUrl: url });
+        }
+      }, timeout + 2000); // hard timeout slightly longer than socket timeout
       
       const chunks = [];
       res.on('data', chunk => {
@@ -78,6 +88,10 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = 10000, redire
       });
 
       res.on('end', () => {
+        if (isResolved) return;
+        isResolved = true;
+        clearTimeout(timer);
+        
         if (segmentMode) {
           const fullBuf = Buffer.concat(chunks);
           resolve({ 
@@ -98,11 +112,40 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = 10000, redire
         }
       });
 
-      res.on('error', e => resolve({ ok: false, reason: 'res_error', msg: e.message, finalUrl: url }));
+      res.on('error', e => {
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timer);
+          resolve({ ok: false, reason: 'res_error', msg: e.message, finalUrl: url });
+        }
+      });
+      
+      res.on('close', () => {
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timer);
+          resolve({ ok: false, reason: 'premature_close', finalUrl: url });
+        }
+      });
     });
 
-    req.on('error', e => resolve({ ok: false, reason: 'req_error', msg: e.message, finalUrl: url }));
-    req.on('timeout', () => { req.destroy(); resolve({ ok: false, reason: 'timeout', finalUrl: url }); });
+    req.on('error', e => {
+      if (!isResolved) {
+        isResolved = true;
+        clearTimeout(timer);
+        resolve({ ok: false, reason: 'req_error', msg: e.message, finalUrl: url });
+      }
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      if (!isResolved) {
+        isResolved = true;
+        clearTimeout(timer);
+        resolve({ ok: false, reason: 'timeout', finalUrl: url });
+      }
+    });
+
     req.end();
   });
 }
