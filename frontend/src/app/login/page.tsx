@@ -26,9 +26,11 @@ export default function LoginPage() {
       }
     } catch (err: unknown) {
       if (!err.response) {
-        setError('Cannot connect to server. Please check your internet.');
+        setError('Cannot connect to server. Please check your internet connection and try again.');
+      } else if (err.response?.status >= 500) {
+        setError('Server error. Please try again later.');
       } else {
-        setError(err.response?.data?.message || 'Login failed');
+        setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
       }
     } finally {
       setLoading(false);

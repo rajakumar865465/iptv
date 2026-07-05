@@ -51,18 +51,23 @@ class AuthCubit extends Cubit<AuthState> {
       }
     } catch (e) {
       if (e is DioException) {
+        final statusCode = e.response?.statusCode;
         final data = e.response?.data;
         String message = 'Login failed. Please check your credentials.';
+
+        // First try to extract message from JSON response body
         if (data is Map<String, dynamic> && data['message'] != null) {
           if (data['error'] == 'DEVICE_LIMIT_REACHED') {
             emit(AuthDeviceLimitReached(email, password, data['message'].toString()));
             return;
           }
           message = data['message'].toString();
-        } else if (e.response?.statusCode == 401) {
+        } else if (statusCode == 401) {
           message = 'Invalid email or password.';
-        } else if (e.response?.statusCode == 403) {
+        } else if (statusCode == 403) {
           message = 'Access denied. Please contact support.';
+        } else if (statusCode != null && statusCode >= 500) {
+          message = 'Server error. Please try again later.';
         } else if (e.type == DioExceptionType.connectionTimeout ||
                    e.type == DioExceptionType.receiveTimeout) {
           message = 'Connection timed out. Please try again.';
@@ -96,12 +101,15 @@ class AuthCubit extends Cubit<AuthState> {
       }
     } catch (e) {
       if (e is DioException) {
+        final statusCode = e.response?.statusCode;
         final data = e.response?.data;
         String message = 'Signup failed. Please try again.';
         if (data is Map<String, dynamic> && data['message'] != null) {
           message = data['message'].toString();
-        } else if (e.response?.statusCode == 409) {
+        } else if (statusCode == 409) {
           message = 'Email or mobile number already registered.';
+        } else if (statusCode != null && statusCode >= 500) {
+          message = 'Server error. Please try again later.';
         } else if (e.type == DioExceptionType.connectionTimeout ||
                    e.type == DioExceptionType.receiveTimeout) {
           message = 'Connection timed out. Please try again.';
