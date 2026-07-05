@@ -297,6 +297,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _moreLoading = false;
 
   final List<DateTime> _bufferingEvents = [];
+  // ABR-style adaptive downgrade: fires when a single buffering stall lasts
+  // several seconds — drop quality immediately instead of waiting for the
+  // full stall timeout and a disruptive stream restart.
+  Timer? _qualityStallTimer;
 
   // Slow connection overlay
   bool _showSlowConnectionOverlay = false;
@@ -888,6 +892,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _bufferTimer = null;
     _startupTimer?.cancel();
     _startupTimer = null;
+    _qualityStallTimer?.cancel();
+    _qualityStallTimer = null;
     // Fix #4: Cancel any pending error grace timer when reinitializing — prevents a delayed
     // error from a previous stream from triggering failure on the newly loaded stream.
     _errorGraceTimer?.cancel();
@@ -900,27 +906,39 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // -- Apply profile-based libmpv tuning --------------------------------
       // media_kit / libmpv only. No ExoPlayer/Media3. No seek() on live streams.
       final profile = _activeProfile;
+      // The backend delayed (smooth) stream serves segments recorded minutes
+      // behind live, so unlike a raw live URL there is always deep content
+      // available ahead of the playhead — buffer it aggressively (YouTube-style)
+      // so short network dips never reach the screen.
+      final bool isDelayedStream = url.contains('/api/smooth/');
+      final int readaheadSecs =
+          isDelayedStream ? 30 : profile.demuxerReadaheadSecs;
+      final int demuxerMaxBytesMib = isDelayedStream
+          ? (profile.demuxerMaxBytesMib < 96 ? 96 : profile.demuxerMaxBytesMib)
+          : profile.demuxerMaxBytesMib;
       try {
         final platform = _player.platform;
         if (platform.runtimeType.toString().contains('NativePlayer') ||
             platform.runtimeType.toString().contains('LibmpvPlayer')) {
           // Larger readahead keeps player behind live edge, reducing segment 404s
           await (platform as dynamic).setProperty(
-              'demuxer-readahead-secs', '${profile.demuxerReadaheadSecs}');
+              'demuxer-readahead-secs', '$readaheadSecs');
           // cache-secs is the MAX cache size — keep it much larger than readahead
           // so variable-bitrate or slow-CDN streams don't stall
           await (platform as dynamic).setProperty(
-              'cache-secs', '${profile.demuxerReadaheadSecs * 4}');
+              'cache-secs', '${readaheadSecs * 4}');
           await (platform as dynamic).setProperty('cache', 'yes');
           // Bound the demuxer byte buffer so live streams don't balloon RAM.
           await (platform as dynamic).setProperty(
-              'demuxer-max-bytes', '${profile.demuxerMaxBytesMib}MiB');
+              'demuxer-max-bytes', '${demuxerMaxBytesMib}MiB');
           await (platform as dynamic).setProperty(
               'demuxer-max-back-bytes', '${profile.demuxerMaxBackBytesMib}MiB');
           // Pause briefly on buffer underrun then resume — avoids freeze-then-skip
           // rendering of partial frames that looked like a frozen stream.
+          // cache-pause-wait=2 rebuilds 2s of buffer before resuming: one short
+          // pause instead of the play-0.5s/stall-0.5s stutter loop users saw.
           await (platform as dynamic).setProperty('cache-pause', 'yes');
-          await (platform as dynamic).setProperty('cache-pause-wait', '0.5');
+          await (platform as dynamic).setProperty('cache-pause-wait', '2');
           await (platform as dynamic).setProperty('cache-pause-action', 'resume');
           // Auto-reconnect on network stall — never use seek() on live streams
           await (platform as dynamic).setProperty(
@@ -1017,8 +1035,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
           // Force HD/highest quality native track automatically to improve sharpness
           // like a paid Live TV app, unless restricted by data saver settings.
+          // Never force HD when quality was adaptively downgraded or the network
+          // showed buffering recently — this ran on every re-init and silently
+          // undid the downgrade, restarting the buffering loop.
+          final bool networkStruggling =
+              _wasQualityDowngraded || _bufferingEvents.isNotEmpty;
           final nativeTracks = _player.state.tracks.video;
-          if (nativeTracks.length > 2 && !_dataSaverEnabled && !(_hdOnlyWifi && _isOnMobileData)) {
+          if (nativeTracks.length > 2 && !_dataSaverEnabled && !networkStruggling &&
+              !(_hdOnlyWifi && _isOnMobileData)) {
             try {
               final bestTrack = nativeTracks
                   .where((t) => t.id != 'auto' && t.id != 'no' && t.h != null)
@@ -1120,10 +1144,22 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _bufferingEvents.add(now);
         _bufferingEvents.removeWhere((t) => now.difference(t).inSeconds > 60);
 
-        if (_bufferingEvents.length >= 3 && !_currentUrl.contains('/api/stream/transcode/')) {
+        // Two stalls inside a minute already means the bitrate is too high for
+        // this connection — adapt early like YouTube instead of letting the
+        // user watch a stutter loop.
+        if (_bufferingEvents.length >= 2 && !_currentUrl.contains('/api/stream/transcode/')) {
           _showNetworkSlowPrompt();
           _bufferingEvents.clear();
         }
+
+        // A single stall lasting 7s means the buffer fully drained — drop one
+        // quality step right away rather than waiting for the 30s stall
+        // timeout, which tears the stream down and restarts it.
+        _qualityStallTimer ??= Timer(const Duration(seconds: 7), () {
+          _qualityStallTimer = null;
+          if (!mounted || _currentUrl.contains('/api/stream/transcode/')) return;
+          _tryAdaptiveDowngrade();
+        });
 
         // Show "Reconnecting..." overlay message after 3 seconds of sustained buffering
         _reconnectTimer?.cancel();
@@ -1148,6 +1184,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _bufferTimer = null;
       _reconnectTimer?.cancel();
       _reconnectTimer = null;
+      _qualityStallTimer?.cancel();
+      _qualityStallTimer = null;
       if (mounted && _isLoading) {
         setState(() {
           _isLoading = false;
@@ -1174,13 +1212,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     final canSwitchQuality = lowerQuality != null;
     final canSwitchTranscode = _isPremium && !_currentUrl.contains('/api/stream/transcode/');
 
-    if (!canSwitchQuality && !canSwitchTranscode) return;
+    if (!canSwitchQuality && !canSwitchTranscode) {
+      // No backend variants — the stream itself may still expose lower native
+      // tracks (multi-variant HLS). Step down in place; instant, no reload.
+      if (_stepDownNativeTrack()) _lastSlowWarningAt = now;
+      return;
+    }
 
     _lastSlowWarningAt = now;
 
     // Auto quality mode: switch silently without bothering the user
     if (_defaultQualityPref == 'auto' && canSwitchQuality) {
-      _autoSwitchQualityQuietly(lowerQuality!);
+      _autoSwitchQualityQuietly(lowerQuality);
       return;
     }
 
@@ -1204,11 +1247,51 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _isLoading = true;
       _hasError = false;
     });
+    _wasQualityDowngraded = true; // arm auto-upgrade timer + suppress force-HD
     _isRetryingStream = false;
     await _initializePlayer(
       lowerQuality['url'],
       lowerQuality['headers'] ?? _currentStreamMeta?['headers'] ?? {},
     );
+  }
+
+  /// ABR-style reaction to a sustained buffering stall: drop one quality step
+  /// without tearing the stream down when possible. Preference order:
+  /// 1. Backend quality variant one step lower (auto quality mode only)
+  /// 2. Lower native video track inside the same HLS master playlist
+  Future<void> _tryAdaptiveDowngrade() async {
+    if (_defaultQualityPref == 'auto') {
+      final lower = _findLowerQuality();
+      if (lower != null) {
+        await _autoSwitchQualityQuietly(lower);
+        return;
+      }
+    }
+    _stepDownNativeTrack();
+  }
+
+  /// Switches to the next lower native video track (multi-variant HLS) without
+  /// reloading the stream — an instant quality drop, like YouTube's ABR.
+  /// Returns true if a lower track was applied.
+  bool _stepDownNativeTrack() {
+    try {
+      final tracks = _player.state.tracks.video
+          .where((t) => t.id != 'auto' && t.id != 'no' && (t.h ?? 0) > 0)
+          .toList();
+      if (tracks.length < 2) return false;
+      tracks.sort((a, b) => (b.h ?? 0).compareTo(a.h ?? 0)); // highest first
+      final currentId = _player.state.track.video.id;
+      int idx = tracks.indexWhere((t) => t.id == currentId);
+      if (idx < 0) idx = 0; // 'auto' selected — treat as highest
+      if (idx >= tracks.length - 1) return false; // already lowest
+      final next = tracks[idx + 1];
+      _player.setVideoTrack(next);
+      _wasQualityDowngraded = true;
+      _showPlayerToast('Optimizing playback -> ${next.h}p');
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   void _showPlayerToast(String msg) {
@@ -1857,6 +1940,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _bufferTimer?.cancel();
     _startupTimer?.cancel();
     _reconnectTimer?.cancel();
+    _qualityStallTimer?.cancel();
     _controlsTimer?.cancel();
     _slowOverlayTimer?.cancel();
     _playerToastTimer?.cancel();
