@@ -71,7 +71,7 @@ export default function StreamScannerPage() {
   const [scope, setScope] = useState('all');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  interface Channel { id: string; [key: string]: unknown }
+  interface Channel { id: string; [key: string]: any }
   const [channels, setChannels] = useState<Channel[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
