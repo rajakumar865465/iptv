@@ -48,6 +48,15 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = 10000, redire
       ...(parsed.protocol === 'https:' ? { rejectUnauthorized: false } : {})
     };
 
+    let isResolved = false;
+    const timer = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        if (req) req.destroy();
+        resolve({ ok: false, reason: 'hard_timeout', finalUrl: url });
+      }
+    }, timeout + 2000); // hard timeout slightly longer than socket timeout
+
     const req = client.request(url, reqOpts, res => {
       const status = res.statusCode;
 
@@ -61,15 +70,6 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = 10000, redire
       let body = '';
       const enc = segmentMode ? 'binary' : 'utf8';
       res.setEncoding(enc);
-      
-      let isResolved = false;
-      const timer = setTimeout(() => {
-        if (!isResolved) {
-          isResolved = true;
-          req.destroy();
-          resolve({ ok: false, reason: 'hard_timeout', finalUrl: url });
-        }
-      }, timeout + 2000); // hard timeout slightly longer than socket timeout
       
       const chunks = [];
       res.on('data', chunk => {

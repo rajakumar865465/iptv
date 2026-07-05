@@ -45,21 +45,21 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = TIMEOUT) {
       ...(segmentMode ? { 'Range': 'bytes=0-8191' } : {}),
     };
 
+    let isResolved = false;
+    const timer = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        if (req) req.destroy();
+        resolve({ ok: false, reason: 'hard_timeout' });
+      }
+    }, timeout + 2000); // hard timeout slightly longer than socket timeout
+
     const req = client.request(url, { method: 'GET', timeout, headers: reqHeaders }, res => {
       const status = res.statusCode;
       const ct = (res.headers['content-type'] || '').toLowerCase();
       let body = '';
       const enc = segmentMode ? 'binary' : 'utf8';
       res.setEncoding(enc);
-      
-      let isResolved = false;
-      const timer = setTimeout(() => {
-        if (!isResolved) {
-          isResolved = true;
-          req.destroy();
-          resolve({ ok: false, reason: 'hard_timeout' });
-        }
-      }, timeout + 2000); // hard timeout slightly longer than socket timeout
       
       res.on('data', chunk => {
         body += chunk;
