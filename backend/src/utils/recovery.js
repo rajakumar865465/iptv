@@ -57,9 +57,11 @@ async function checkStreamsIntegrity() {
       await db.query(`
         INSERT INTO channel_streams 
           (channel_id, stream_url, quality, priority, user_agent, referer, source_name, health_status)
-        VALUES 
-          ($1, $2, 'auto', 1, $3, $4, 'recovery-backfill', 'unknown')
-        ON CONFLICT (channel_id, stream_url) DO NOTHING
+        SELECT 
+          $1, $2, 'auto', 1, $3, $4, 'recovery-backfill', 'unknown'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM channel_streams WHERE channel_id = $1 AND stream_url = $2
+        )
       `, [channel.id, channel.stream_url, channel.user_agent, channel.referrer]);
       hasRecovered = true;
     }
@@ -69,9 +71,11 @@ async function checkStreamsIntegrity() {
       await db.query(`
         INSERT INTO channel_streams 
           (channel_id, stream_url, quality, priority, user_agent, referer, source_name, health_status)
-        VALUES 
-          ($1, $2, 'auto', 2, $3, $4, 'recovery-backfill', 'unknown')
-        ON CONFLICT (channel_id, stream_url) DO NOTHING
+        SELECT 
+          $1, $2, 'auto', 2, $3, $4, 'recovery-backfill', 'unknown'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM channel_streams WHERE channel_id = $1 AND stream_url = $2
+        )
       `, [channel.id, channel.backup_stream_url, channel.user_agent, channel.referrer]);
       hasRecovered = true;
     }
