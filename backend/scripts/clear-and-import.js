@@ -78,12 +78,12 @@ async function main() {
   // Insert them
   for (const [name, data] of channelMap.entries()) {
     try {
-      // 1. Insert channel
+      // 1. Insert channel with the first stream as its active stream
       const cRes = await db.query(`
-        INSERT INTO channels (name, logo_url, category_id, language, is_premium, is_hidden, is_visible_app, status, health_status)
-        VALUES ($1, $2, $3, 'Hindi', false, false, true, 'active', 'unknown')
+        INSERT INTO channels (name, logo_url, category_id, language, is_premium, is_hidden, is_visible_app, status, health_status, stream_url)
+        VALUES ($1, $2, $3, 'Hindi', false, false, true, 'active', 'unknown', $4)
         RETURNING id
-      `, [data.name, data.logo, defaultCategoryId]);
+      `, [data.name, data.logo, defaultCategoryId, data.streams[0]]);
       
       const channelId = cRes.rows[0].id;
 
