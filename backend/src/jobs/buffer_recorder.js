@@ -52,16 +52,20 @@ const SEGMENT_RETRY_BACKOFF_MS = [600, 1500, 3000];
 
 // channelId -> { timer, state }
 const activeRecorders = new Map();
+const pendingRecorders = new Set();
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
 async function startRecorder(channelId) {
   if (activeRecorders.has(channelId)) return;
+  if (pendingRecorders.has(channelId)) return;
+
   if (activeRecorders.size >= MAX_CONCURRENT) {
     console.warn(`[buffer_recorder] MAX_CONCURRENT (${MAX_CONCURRENT}) reached, cannot start channel ${channelId}`);
     return;
   }
 
+  pendingRecorders.add(channelId);
   try {
     const channel = await _getEligibleChannel(channelId);
     if (!channel) return;
@@ -124,6 +128,8 @@ async function startRecorder(channelId) {
     console.log(`[buffer_recorder] Started recorder for channel ${channelId} (${channel.name}) using stream ${stream.id || 'channel_url'}`);
   } catch (err) {
     console.error(`[buffer_recorder] Critical error starting recorder for ${channelId}:`, err);
+  } finally {
+    pendingRecorders.delete(channelId);
   }
 }
 
