@@ -17,7 +17,6 @@ async function runHealthScan() {
       FROM channel_streams cs
       JOIN channels c ON cs.channel_id = c.id
       WHERE cs.is_hidden IS NOT TRUE
-        AND c.is_hidden IS NOT TRUE
         AND c.is_removed IS NOT TRUE
         AND c.is_visible_app IS NOT FALSE
       ORDER BY
@@ -131,7 +130,7 @@ async function updateParentChannelHealth() {
   console.log('[StreamScanner] Updating parent channels aggregate health...');
   
   const { rows: channels } = await db.query(`
-    SELECT id FROM channels WHERE is_removed IS NOT TRUE AND is_hidden IS NOT TRUE
+    SELECT id FROM channels WHERE is_removed IS NOT TRUE
   `);
 
   for (const c of channels) {
@@ -157,7 +156,12 @@ async function updateParentChannelHealth() {
       UPDATE channels
       SET health_status  = COALESCE((SELECT health_status  FROM best_stream), 'unknown'),
           health_score   = COALESCE((SELECT health_score   FROM best_stream), 0),
-          last_checked_at = NOW()
+          last_checked_at = NOW(),
+          is_hidden = CASE 
+             WHEN COALESCE((SELECT health_status FROM best_stream), 'unknown') = 'offline' THEN true
+             WHEN COALESCE((SELECT health_status FROM best_stream), 'unknown') IN ('online', 'unstable') THEN false
+             ELSE is_hidden
+          END
       WHERE id = $1
     `, [c.id]);
   }
