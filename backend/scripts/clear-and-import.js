@@ -47,21 +47,34 @@ async function main() {
       let logo = line.match(/tvg-logo="([^"]*)"/) ?. [1] || null;
 
       let url = null;
+      let userAgent = null;
+      let referer = null;
       for (let j = i + 1; j < lines.length; j++) {
-        if (lines[j].startsWith('http')) {
-          url = lines[j];
+        const lj = lines[j];
+        if (lj.startsWith('http')) {
+          url = lj;
           break;
-        } else if (lines[j].startsWith('#EXTINF:')) {
+        } else if (lj.startsWith('#EXTINF:')) {
           break;
+        } else if (lj.startsWith('#EXTVLCOPT:http-user-agent=')) {
+          userAgent = lj.substring('#EXTVLCOPT:http-user-agent='.length).trim();
+        } else if (lj.startsWith('#EXTVLCOPT:http-referrer=')) {
+          referer = lj.substring('#EXTVLCOPT:http-referrer='.length).trim();
+        } else if (lj.startsWith('#EXTHTTP:')) {
+          try {
+            const hdrs = JSON.parse(lj.substring('#EXTHTTP:'.length));
+            if (hdrs['User-Agent']) userAgent = hdrs['User-Agent'];
+            if (hdrs['Referer']) referer = hdrs['Referer'];
+          } catch(e) {}
         }
       }
 
       if (!url) continue;
 
       if (!channelMap.has(rawName)) {
-        channelMap.set(rawName, { name: rawName, logo, streams: [url] });
+        channelMap.set(rawName, { name: rawName, logo, streams: [{ url, userAgent, referer }] });
       } else {
-        channelMap.get(rawName).streams.push(url);
+        channelMap.get(rawName).streams.push({ url, userAgent, referer });
       }
     }
   }
@@ -89,11 +102,11 @@ async function main() {
 
       // 2. Insert streams
       for (let i = 0; i < data.streams.length; i++) {
-        const streamUrl = data.streams[i];
+        const { url, userAgent, referer } = data.streams[i];
         await db.query(`
-          INSERT INTO channel_streams (channel_id, stream_url, quality, priority, health_status, health_score)
-          VALUES ($1, $2, 'auto', $3, 'unknown', 50)
-        `, [channelId, streamUrl, i + 1]);
+          INSERT INTO channel_streams (channel_id, stream_url, user_agent, referer, quality, priority, health_status, health_score)
+          VALUES ($1, $2, $3, $4, 'auto', $5, 'unknown', 50)
+        `, [channelId, url, userAgent, referer, i + 1]);
       }
       
       insertedChannels++;
