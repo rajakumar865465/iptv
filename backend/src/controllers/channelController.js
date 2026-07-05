@@ -16,7 +16,8 @@ async function checkHealthStatusColumn() {
     `);
     healthStatusColumnExists = result.rows.length > 0;
   } catch (err) {
-    healthStatusColumnExists = false;
+    // DB unavailable — don't cache, retry on the next call once it recovers
+    return false;
   }
   return healthStatusColumnExists;
 }
@@ -29,7 +30,8 @@ async function checkMergedIntoColumn() {
     );
     mergedIntoColumnExists = result.rows.length > 0;
   } catch (err) {
-    mergedIntoColumnExists = false;
+    // DB unavailable — don't cache, retry on the next call once it recovers
+    return false;
   }
   return mergedIntoColumnExists;
 }
@@ -42,7 +44,8 @@ async function checkChannelStreamsTable() {
     );
     channelStreamsTableExists = result.rows.length > 0;
   } catch (err) {
-    channelStreamsTableExists = false;
+    // DB unavailable — don't cache, retry on the next call once it recovers
+    return false;
   }
   return channelStreamsTableExists;
 }
@@ -55,7 +58,8 @@ async function checkChannelFailColumns() {
     );
     channelFailColumnsExist = result.rows.length > 0;
   } catch (err) {
-    channelFailColumnsExist = false;
+    // DB unavailable — don't cache, retry on the next call once it recovers
+    return false;
   }
   return channelFailColumnsExist;
 }

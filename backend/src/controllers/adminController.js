@@ -172,6 +172,18 @@ exports.updateLicense = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, user_id, expires_at } = req.body;
+
+    // Validate user_id references a real user before re-assigning the license
+    if (user_id !== null && user_id !== undefined) {
+      if (!Number.isInteger(Number(user_id)) || Number(user_id) < 1) {
+        return error(res, 'user_id must be a positive integer', 400);
+      }
+      const userCheck = await db.query('SELECT 1 FROM users WHERE id = $1', [user_id]);
+      if (userCheck.rows.length === 0) {
+        return error(res, 'User not found for given user_id', 400);
+      }
+    }
+
     const result = await db.query(
       'UPDATE licenses SET status = $1, user_id = $2, expires_at = $3, updated_at = NOW() WHERE id = $4 RETURNING *',
       [status, user_id, expires_at, id]
@@ -327,7 +339,8 @@ exports.updateChannel = async (req, res) => {
 exports.deleteChannel = async (req, res) => {
   try {
     const { id } = req.params;
-    await db.query('DELETE FROM channels WHERE id = $1', [id]);
+    const result = await db.query('DELETE FROM channels WHERE id = $1', [id]);
+    if (result.rowCount === 0) return error(res, 'Channel not found', 404);
 
     await logAdminAction(req, req.user.id, 'delete_channel', 'channels', id);
 

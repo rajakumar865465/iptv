@@ -213,8 +213,12 @@ exports.proxyManifest = async (req, res) => {
     const stream_url = stream.stream_url || stream.final_url;
     if (!stream_url) return res.status(404).send('Stream URL not configured');
 
-    // Check manifest cache (after auth so we don't cache responses for unauthorized requests)
-    const cachedManifest = manifestCache.get(streamId);
+    // Check manifest cache (after auth so we don't cache responses for unauthorized requests).
+    // Cache key includes the user: segment tokens are encrypted per-user, so a manifest
+    // cached for user A would fail token decryption when served to user B.
+    const manifestUserId = req.user?.id || 'anon';
+    const manifestCacheKey = `${streamId}:${manifestUserId}`;
+    const cachedManifest = manifestCache.get(manifestCacheKey);
     if (cachedManifest) {
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
       return res.send(cachedManifest.data);
@@ -255,7 +259,7 @@ exports.proxyManifest = async (req, res) => {
 
     // Rewrite URLs — encrypt each segment URL so the original source is never exposed.
     // The client only sees an opaque AES-GCM ciphertext token, not the real URL.
-    const userId = req.user?.id || 'anon';
+    const userId = manifestUserId;
     const baseUrl = stream_url;
     const lines = body.split('\n');
     const rewritten = lines.map(line => {
@@ -269,9 +273,7 @@ exports.proxyManifest = async (req, res) => {
       return `/api/proxy/segment/${streamId}/${token}${ext}`;
     }).join('\n');
 
-    // Note: cache key is still streamId but cache holds DIFFERENT tokens each fetch
-    // (IVs differ per encryption). This is correct — we don't cache plaintext URLs.
-    manifestCache.set(streamId, rewritten);
+    manifestCache.set(manifestCacheKey, rewritten);
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.send(rewritten);

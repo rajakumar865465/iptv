@@ -50,6 +50,22 @@ export function getErrorMessage(err: unknown, fallback: string) {
   if (err instanceof Error) return err.message || fallback;
   return fallback;
 }
+// The backend paginates these endpoints (max 200/page) but the admin pages
+// filter/paginate client-side over the full dataset, so walk every page.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchAllPages<T = any>(path: string, params?: Record<string, unknown>): Promise<T[]> {
+  const limit = 200;
+  const all: T[] = [];
+  for (let page = 1; ; page++) {
+    const r = await api.get(path, { params: { ...params, page, limit } });
+    const payload = r.data.data;
+    const rows: T[] = Array.isArray(payload) ? payload : payload?.data ?? [];
+    all.push(...rows);
+    const hasMore = !Array.isArray(payload) && payload?.pagination?.hasMore === true && rows.length > 0;
+    if (!hasMore) return all;
+  }
+}
+
 export const loginAdmin = (email: string, password: string) =>
   api.post('/login', { email, password });
 
@@ -57,7 +73,7 @@ export const getDashboardStats = () =>
   api.get('/dashboard/stats').then((r) => r.data.data);
 
 export const getUsers = (params?: Record<string, string>) =>
-  api.get('/users', { params }).then((r) => r.data.data);
+  fetchAllPages('/users', params);
 
 export const getUser = (id: string) =>
   api.get(`/users/${id}`).then((r) => r.data.data);
@@ -72,7 +88,7 @@ export const deleteDevice = (id: string) =>
   api.delete(`/devices/${id}`).then((r) => r.data.data);
 
 export const getLicenses = () =>
-  api.get('/licenses').then((r) => r.data.data);
+  fetchAllPages('/licenses');
 
 export const createLicense = (data: Record<string, unknown>) =>
   api.post('/licenses', data).then((r) => r.data.data);
@@ -102,7 +118,7 @@ export const deletePlan = (id: string) =>
   api.delete(`/plans/${id}`).then((r) => r.data.data);
 
 export const getPayments = () =>
-  api.get('/payments').then((r) => r.data.data);
+  fetchAllPages('/payments');
 
 export const updatePaymentStatus = (id: string, status: string) =>
   api.put(`/payments/${id}/status`, { status }).then((r) => r.data.data);
@@ -271,13 +287,13 @@ export const updateWebsiteSettings = (data: Record<string, unknown>) =>
 
 // Stream Health
 export const getStreamHealth = (params?: Record<string, string>) =>
-  api.get('/stream-health', { params });
+  api.get('/stream-health', { params }).then((r) => r.data.data);
 
 export const markStreamStatus = (channelId: number, action: string, note?: string) =>
-  api.post(`/stream-health/${channelId}/mark`, { action, note });
+  api.post(`/stream-health/${channelId}/mark`, { action, note }).then((r) => r.data.data);
 
 export const recheckStream = (channelId: number) =>
-  api.post(`/stream-health/${channelId}/recheck`);
+  api.post(`/stream-health/${channelId}/recheck`).then((r) => r.data.data);
 
 // Smooth Playback / Delayed Live Buffer
 export const getSmoothPlaybackHealth = () =>

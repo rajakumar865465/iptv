@@ -1,7 +1,7 @@
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegStatic = require('ffmpeg-static');
 const db = require('../config/db');
-const jwt = require('jsonwebtoken');
+const { verifyToken } = require('../utils/jwt');
 
 ffmpeg.setFfmpegPath(ffmpegStatic);
 
@@ -28,7 +28,7 @@ exports.transcodeStream = async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = verifyToken(token);
 
     // BUG-10 FIX: JWT payload uses `userId`, not `id`. Using decoded.id was always undefined,
     // causing every premium user to get a 403. Use decoded.userId instead.

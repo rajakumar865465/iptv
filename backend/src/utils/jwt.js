@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 // Fail fast in production if secrets are missing
 if (process.env.NODE_ENV === 'production') {

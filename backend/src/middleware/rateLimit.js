@@ -32,4 +32,14 @@ const authLimiter = rateLimit({
   },
 });
 
-module.exports = { standardLimiter, apiLimiter, searchLimiter, authLimiter };
+// Token refresh happens automatically in the background (Dio interceptor on 401s),
+// so it needs a much higher ceiling than interactive login/signup attempts.
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  handler: (req, res, next, options) => {
+    res.status(429).json({ success: false, message: 'Too many token refresh attempts, please try again later.' });
+  },
+});
+
+module.exports = { standardLimiter, apiLimiter, searchLimiter, authLimiter, refreshLimiter };

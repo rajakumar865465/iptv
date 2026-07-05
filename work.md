@@ -1,782 +1,225 @@
-# NivaTV Smooth Playback — Skip Missing Chunks Without Freeze
-
-## Main Goal
-
-Update the NivaTV Smooth Playback / 5-minute delayed live playback system so unstable channels can continue playing even when some HLS chunks are unavailable.
-
-The app should not freeze, should not buffer endlessly, and should not make users think the app is broken.
-
-When a channel source is unstable and one or more chunks are missing, the backend should skip the unavailable chunks and continue with the next available video chunks.
-
-The user should clearly understand that the issue is from the channel/source signal, not from the NivaTV app.
-
----
-
-## Current Problem
-
-Some channels are unstable. The source stream sometimes fails to provide HLS chunks.
-
-Example:
-
-```txt
-Good chunks:
-1 2 3 4 5 6 7 8 9 10
-
-Unstable source:
-1 2 3 missing 5 6 missing 8 9 10
-```
-
-Currently, when a chunk is missing, playback may buffer, stop, or show stream error.
-
-I do not want this behavior.
-
-I want the backend to create a smoother delayed playback playlist using available chunks.
-
-Expected smooth playlist:
-
-```txt
-1 2 3 5 6 8 9 10
-```
-
-The missing parts should be skipped.
-
-The user may see a small jump forward, but playback should continue instead of buffering forever.
-
----
-
-## Very Important Rule
-
-Do not use freeze-frame fallback.
-
-Do not freeze the last frame.
-
-Freezing makes users think the app is stuck or broken.
-
-Do not show a long black screen either.
-
-The default behavior must be:
-
-```txt
-Skip unavailable chunks and continue playback.
-```
-
----
-
-## Required Behavior
-
-When a chunk is missing:
-
-1. Retry the missing chunk.
-2. Refresh the source playlist.
-3. Try the final redirected URL if available.
-4. Try required headers, referer, user-agent, and origin.
-5. Try backup stream if available.
-6. Try lower-quality stream if available.
-7. If the chunk still cannot be recovered, mark it as missing.
-8. Do not include that missing chunk in the delayed playlist.
-9. Skip it and continue with the next available chunk.
-10. Show a small message to the user explaining that the channel source is unstable.
-
-Do not stop the full recorder because of one missing chunk.
-
-Do not show stream error for one missing chunk.
-
-Do not include broken segment URLs in the HLS playlist.
-
----
-
-## User-Facing Message
-
-When chunks are skipped, show a small overlay inside the player.
-
-Message option 1:
-
-```txt
-Channel source is unstable
-Skipping unavailable part...
-```
-
-Message option 2:
-
-```txt
-This channel signal is unstable
-Continuing playback...
-```
-
-Message option 3:
-
-```txt
-Channel stream is unstable
-Playback may skip slightly.
-```
-
-Use message option 1 as default.
-
-Overlay behavior:
-
-* Small dark overlay inside the player.
-* Auto-hide after 3–5 seconds.
-* Do not block the video.
-* Do not cover player controls permanently.
-* Do not show every second.
-* Cooldown: show maximum once every 30–60 seconds.
-* Do not use a full error screen unless the stream fully fails.
-* The message should clearly explain this is a source/channel issue, not an app issue.
-
----
-
-## App Message Rules
-
-### If one or few chunks are skipped
-
-Show:
-
-```txt
-Channel source is unstable. Continuing playback...
-```
-
-Playback should continue.
-
-### If many chunks are missing
-
-Show:
-
-```txt
-This channel is unstable right now.
-```
-
-Continue only if enough chunks are available.
-
-### If no chunks are available
-
-Show final error:
-
-```txt
-Stream unavailable
-No stable source is available right now.
-```
-
-### If backup source is being used
-
-Show:
-
-```txt
-Trying another source...
-```
-
-### If backend is repairing / retrying
-
-Show:
-
-```txt
-Optimizing stream...
-```
-
----
-
-## Backend Gap Handling Modes
-
-Add per-channel gap handling mode.
-
-Supported modes:
-
-```txt
-skip_missing_chunks
-black_filler
-strict_stop
-```
-
-Do not make freeze mode default.
-
-Default mode:
-
-```txt
-skip_missing_chunks
-```
-
-### skip_missing_chunks
-
-If a segment is missing and cannot be recovered, skip it and continue with next available segment.
-
-This is the default.
-
-### black_filler
-
-Optional only. Insert a very short black/silent segment when a chunk is missing.
-
-Do not use by default.
-
-### strict_stop
-
-Stop delayed playback when any chunk is missing.
-
-Use only for testing or special channels.
-
----
-
-## Removed / Disabled Behavior
-
-Do not use this as default:
-
-```txt
-freeze_last_frame
-```
-
-Reason:
-
-A frozen screen looks like the app is stuck.
-
-If freeze mode exists in code, it should be disabled by default and not selected automatically.
-
----
-
-## HLS Playlist Rules
-
-The generated delayed playlist must always be valid HLS.
-
-Playlist must include:
-
-```txt
-#EXTM3U
-#EXT-X-TARGETDURATION
-#EXT-X-MEDIA-SEQUENCE
-```
-
-Playlist must not include:
-
-```txt
-#EXT-X-PLAYLIST-TYPE:EVENT
-```
-
-Because this is rolling live delayed playback, not a DVR/event recording.
-
-Important playlist rules:
-
-* Never include missing segment URLs.
-* Never include broken segment URLs.
-* Never include segment files that do not exist.
-* Keep segment order valid.
-* Keep media sequence correct.
-* Keep target duration correct.
-* If skipping creates timeline jump, handle it safely.
-* If discontinuity is needed, add correct discontinuity marker.
-* Old segments should be cleaned automatically.
-* Playlist should remain a live sliding window.
-
----
-
-## Chunk Recording Logic
-
-The recorder should continuously record available HLS segments.
-
-For every segment:
-
-1. Detect segment URL from playlist.
-2. Check if segment was already downloaded.
-3. Download segment.
-4. Verify segment file exists.
-5. Verify segment has valid size.
-6. Verify segment is not HTML/error response.
-7. Save valid segment.
-8. Update buffer depth.
-9. If download fails, mark segment as missing and retry.
-
-Segment retry rules:
-
-* Retry missing segment 2–3 times.
-* Refresh source playlist before retry.
-* Try final URL if available.
-* Try headers if needed.
-* Try backup source if available.
-* Try lower quality source if available.
-* After retry limit, skip the segment and continue.
-
-Do not retry one dead segment forever.
-
----
-
-## Source Timeout Behavior
-
-If source timeout happens:
-
-1. Mark current segment as timeout.
-2. Increment timeout count.
-3. Retry same segment.
-4. Refresh playlist.
-5. If timeout continues, try backup stream.
-6. If backup stream works, continue recording from backup.
-7. If no backup works, keep recording any future available segments from original source.
-8. If too many segments are missing, mark channel unstable.
-
-Do not crash recorder.
-
-Do not stop the whole channel because of one timeout.
-
----
-
-## Backup Stream Behavior
-
-If backup stream exists, use it for chunk repair.
-
-When primary stream misses a segment:
-
-1. Try to recover same time window from backup stream.
-2. If backup provides a valid segment, save it.
-3. Mark that segment as recovered from backup.
-4. Continue playback.
-5. Show admin that backup was used.
-
-If backup becomes more stable than primary, admin should be able to promote it as primary.
-
-Auto-promote only if safe and enabled.
-
----
-
-## Lower Quality Repair
-
-If lower quality stream exists, allow using it to repair missing chunks.
-
-Example:
-
-Primary 1080p segment missing.
-Backup 720p or 480p segment exists.
-Use lower quality segment for that moment instead of buffering.
-
-User may notice slight quality change, but playback continues.
-
-This should be allowed only when the streams are compatible enough for HLS playback.
-
-If discontinuity is needed, add it safely.
-
----
-
-## Buffer Quality Status
-
-Add buffer quality status for each smooth playback channel:
-
-```txt
-clean_buffer
-minor_gaps
-gap_repaired
-skipping_missing_segments
-using_backup_segments
-using_lower_quality_segments
-too_many_missing_segments
-source_timeout
-source_dead
-backup_active
-no_working_source
-```
-
-Meaning:
-
-### clean_buffer
-
-All expected chunks downloaded successfully.
-
-### minor_gaps
-
-Small number of chunks missing, but playback is still acceptable.
-
-### gap_repaired
-
-Missing chunks were recovered using backup/lower-quality source.
-
-### skipping_missing_segments
-
-Some unavailable chunks were skipped.
-
-### using_backup_segments
-
-Backup stream is being used for some segments.
-
-### using_lower_quality_segments
-
-Lower quality segments are being used for some missing parts.
-
-### too_many_missing_segments
-
-Too many chunks are missing; playback may be poor.
-
-### source_timeout
-
-Current source is timing out.
-
-### source_dead
-
-Source is not giving video.
-
-### backup_active
-
-Recorder switched to backup stream.
-
-### no_working_source
-
-No valid chunks are available from any stream.
-
----
-
-## Clean Buffer Percentage
-
-Add clean buffer percentage.
-
-Formula idea:
-
-```txt
-clean_buffer_percentage = downloaded_good_segments / expected_segments * 100
-```
-
-Example:
-
-```txt
-100% = perfect buffer
-90% = minor gaps, still good
-70% = playable but visible skips
-60% = unstable
-below 40% = do not serve smooth playback
-```
-
-Rules:
-
-* If clean buffer percentage is high, serve smooth playback.
-* If clean buffer percentage is medium, serve with warning.
-* If clean buffer percentage is too low, do not serve smooth playback.
-* If no working source exists, show unavailable.
-
-Recommended thresholds:
-
-```txt
-Serve smooth playback normally: 85%+
-Serve with source unstable warning: 65% to 84%
-Do not serve smooth playback: below 60%
-```
-
----
-
-## Admin Dashboard Requirements
-
-Update Smooth Playback / Buffer Health admin page.
-
-Admin should see:
-
-* channel name
-* current recorder status
-* active stream source
-* primary stream URL
-* backup stream URL
-* buffer depth seconds
-* clean buffer percentage
-* total expected segments
-* downloaded segments
-* missing segments
-* skipped segments
-* recovered segments
-* backup segments used
-* lower-quality segments used
-* timeout count
-* last missing segment time
-* last successful segment time
-* last source error
-* current gap handling mode
-* health status
-* needs manual verification
-
-Admin statuses:
-
-```txt
-buffer_ready
-warming_up
-clean_buffer
-minor_gaps
-skipping_missing_segments
-trying_backup
-backup_active
-low_buffer
-too_many_missing_segments
-source_timeout
-source_dead
-no_working_source
-requires_licensed_source
-needs_manual_verification
-```
-
-Admin actions:
-
-* restart recorder
-* recheck stream
-* test segment download
-* switch to backup source
-* promote backup as primary
-* mark stream unstable
-* mark stream working
-* mark requires licensed source
-* set gap handling mode
-* enable/disable skip missing chunks
-* set clean buffer threshold
-* hide stream
-* hide channel
-* add admin note
-
----
-
-## Database Fields Needed
-
-Add fields only if they do not already exist.
-
-Suggested fields:
-
-```txt
-gap_handling_mode
-allow_skip_missing_segments
-max_missing_segments_allowed
-min_clean_buffer_percentage
-missing_segment_count
-skipped_segment_count
-recovered_segment_count
-backup_segment_count
-lower_quality_segment_count
-clean_buffer_percentage
-last_missing_segment_at
-last_successful_segment_at
-buffer_quality_status
-active_recorder_stream_id
-backup_active
-last_source_error
-```
-
-Store per-channel or per-smooth-playback buffer record depending on current schema.
-
-Use migrations.
-
-Migrations must be idempotent.
-
-Do not duplicate columns.
-
----
-
-## App Player Requirements
-
-The Flutter app should understand smooth playback buffer quality.
-
-Playback API should return:
-
-```txt
-playback_mode
-smooth_playback_enabled
-delay_seconds
-smooth_stream_url
-buffer_ready
-buffer_depth_seconds
-buffer_quality_status
-clean_buffer_percentage
-skipped_segment_count
-gap_warning
-direct_live_url
-can_go_live
-```
-
-If `gap_warning = true`, app shows a small overlay.
-
-Overlay text:
-
-```txt
-Channel source is unstable
-Continuing playback...
-```
-
-or
-
-```txt
-Channel source is unstable
-Skipping unavailable part...
-```
-
-Do not show full error unless `no_working_source`.
-
-Do not freeze the video.
-
-Do not show infinite spinner for skipped chunks.
-
----
-
-## Go Live Behavior
-
-Go Live should still work.
-
-Rules:
-
-* Show Go Live only when delayed playback is active.
-* Show Go Live only if direct live URL exists.
-* Do not show Go Live for blocked/DRM/geo/requires_licensed_source channels.
-* If user taps Go Live, switch to direct live.
-* If direct live buffers, allow returning to Smooth Live.
-
----
-
-## User Experience Goal
-
-The user should feel:
-
-```txt
-The channel signal is unstable, but NivaTV is continuing playback.
-```
-
-The user should not feel:
-
-```txt
-The app is frozen.
-The app is broken.
-The app is loading forever.
-```
-
-So:
-
-* no freeze
-* no endless spinner
-* no scary full error for small gaps
-* skip bad chunks
-* continue playback
-* show clear small message
-
----
-
-## Important Limitations
-
-Do not make false promise of perfect video.
-
-If the source gives no video for a long time and no backup exists, the backend cannot create real missing content.
-
-In that case:
-
-* mark no_working_source
-* show stream unavailable
-* require working backup or licensed source
-* send important channel to manual verification
-
-For Star / Zee / Sony / paid-style channels:
-
-* do not auto-hide
-* mark needs_manual_verification
-* if source is not legal/licensed or is DRM/geo-blocked, mark requires_licensed_source
-* do not bypass DRM or geo-blocking
-
----
-
-## Testing Plan
-
-Test with controlled segment failures.
-
-Test cases:
-
-### Case 1: Clean source
-
-Expected:
-
-* clean_buffer_percentage = 100%
-* smooth playback works
-* no warning overlay
-
-### Case 2: One missing segment
-
-Expected:
-
-* segment retried
-* if still missing, skipped
-* playback continues
-* small unstable-source overlay shown
-* no full error
-
-### Case 3: Several missing segments
-
-Expected:
-
-* missing count increases
-* skipped count increases
-* clean percentage decreases
-* app still plays if above threshold
-* admin shows minor_gaps or skipping_missing_segments
-
-### Case 4: Too many missing segments
-
-Expected:
-
-* smooth playback disabled or warning shown
-* channel marked unstable
-* app shows stream unstable or unavailable
-* admin shows too_many_missing_segments
-
-### Case 5: Backup stream works
-
-Expected:
-
-* missing primary segment recovered from backup
-* backup_segment_count increases
-* playback continues
-* admin shows backup_active or gap_repaired
-
-### Case 6: Source dead
-
-Expected:
-
-* no_working_source
-* app shows Stream unavailable
-* recorder does not crash
-* admin shows source_dead / no_working_source
-
-### Case 7: DRM/licensed blocked channel
-
-Expected:
-
-* recorder does not start
-* no buffer built
-* status requires_licensed_source
-* app does not bypass protection
-
----
-
-## Acceptance Criteria
-
-This feature is complete when:
-
-* missing chunk does not cause endless buffering
-* missing chunk does not freeze the video
-* missing chunk is skipped if it cannot be recovered
-* playback continues from next good chunk
-* playlist never includes missing/broken segment URLs
-* app shows small message explaining channel source instability
-* admin shows missing/skipped/recovered segment counts
-* clean buffer percentage is calculated
-* too many missing chunks marks stream unstable
-* backup stream can repair missing chunks
-* lower quality can repair missing chunks when possible
-* no_working_source is shown when no chunks are available
-* DRM/geo/unauthorized channels are not bypassed
-* user understands issue is channel source, not app problem
-
----
-
-## Final Desired Result
-
-NivaTV Smooth Playback should become more professional.
-
-If a channel misses a few chunks, users should still watch smoothly with small jumps instead of buffering.
-
-If the channel source is unstable, the app should clearly say:
-
-```txt
-Channel source is unstable
-Continuing playback...
-```
-
-If the channel has no working source, the app should honestly show:
-
-```txt
-Stream unavailable
-No stable source available right now.
-```
-
-Do not freeze the screen.
-
-Do not buffer forever.
-
-Skip unavailable chunks and continue playback whenever possible.
+  ---
+  🔴 CRITICAL
+  1. backend/src/controllers/authController.js:230 — ReferenceError: revokeRefreshToken not imported
+  // Line 214 only imports:
+  const { consumeRefreshToken, isRefreshTokenRevoked } = require('../utils/jwt');
+  // Line 230 calls:
+  await revokeRefreshToken(refreshToken);  // ← ReferenceError!
+  revokeRefreshToken is imported in logout (line 197) but not in refreshToken. This means every call to POST /api/auth/refresh-token throws a ReferenceError  caught at line 252, returning 401 to all clients. Token refresh is completely broken for all users. Old tokens are also never revoked (rotation silently
+  fails). Fix: add revokeRefreshToken to the destructure on line 214.
+
+  ---
+  2. backend/src/controllers/authController.js:333-344 — Password reset via mobile always fails
+  // OTP was stored with user.email (line 284):
+  INSERT INTO password_reset_otps (email, otp...) VALUES ($1, ...) [user.email]
+
+  // But lookup uses the raw identifier (could be a mobile number):
+  WHERE email = $1 ...  [identifier = email || mobile]
+  If a user requests a reset with their mobile number, the OTP is stored under their email but queried by mobile — always returns no rows → "Invalid or
+  expired OTP". Mobile-number based password reset is broken.
+
+  ---
+  3. mobile/lib/services/api_client.dart:37 — ALL 403 responses treated as expired token
+  if (msg.contains('invalid token') || msg.contains('token expired')
+      || error.response?.statusCode == 403) {  // ← catches ALL 403s
+    isTokenError = true;
+  }
+  "Device limit reached" (403), "No active license" (403), "Channel not available" (403) — all trigger a token refresh attempt, then clearSession() → silent  logout. Users get logged out when they simply lack a license or hit a device limit.
+
+  ---
+  🟠 HIGH
+
+  4. backend/src/controllers/authController.js:33-36 — Mobile number not normalized before duplicate check
+  const cleanMobile = (mobile || '').replace(/[\s\-+]/g, '');
+  // validation passes, but the DB check uses the original `mobile`:
+  'SELECT id FROM users WHERE email = $1 OR mobile = $2', [email, mobile]
+  // and the INSERT also uses original `mobile` (line 46)
+  User with +91 9876543210 and 9876543210 can register twice. Stored and queried value are inconsistent.
+
+  5. backend/src/controllers/paymentController.js:95-156 — Payment verification not idempotent (duplicate license)
+  No check whether the payment record is already completed before processing. If Razorpay fires the webhook twice (common retry behavior), two licenses rows  are created for the same payment, and UPDATE payments SET status = 'completed' runs twice harmlessly but the license INSERT runs twice — creating
+  duplicate licenses.
+
+  6. backend/src/controllers/adminController.js:171-187 — updateLicense accepts arbitrary user_id with no validation
+  'UPDATE licenses SET status=$1, user_id=$2, expires_at=$3 ...'
+  [status, user_id, expires_at, id]
+  An admin can set user_id to any integer, including a non-existent user. No EXISTS check on users table, so the FK can be silently violated or licenses can  be re-assigned to arbitrary users.
+
+  7. backend/src/app.js:139-144 — Seed data runs on every startup without idempotency tracking
+  const sql = fs.readFileSync(seedPath, 'utf8');
+  await db.query(sql);  // Runs every boot
+  Migrations are tracked in schema_migrations and skipped if already applied. The seed is not tracked — it runs every server restart, potentially creating
+  duplicate plans/categories/default data each time.
+
+  8. backend/src/app.js:289-293 — WebSocket initial stats call ignores errors
+  dashboardController.getDashboardStats({ user: null }, {
+    json: (data) => ws.send(...)
+  });
+  No await, no .catch(). If getDashboardStats throws (DB down at connect time), the unhandled rejection crashes the WebSocket handler for that client. Also
+  req.user is null here — if any controller method accesses req.user.id, it throws.
+
+  9. mobile/lib/cubits/auth_cubit.dart:149-155 — Server 5xx errors silently authenticate users
+  } else {
+    // Any other error (5xx, unknown) — treat as temporary server issue.
+    emit(AuthAuthenticated());  // ← emits authenticated on 500!
+  }
+  If the backend returns a 500 on /me, the app treats the user as authenticated. A misconfigured server or backend error could let blocked/non-existent
+  users into the app.
+
+  10. backend/src/controllers/channelController.js:4-21 — Schema introspection permanently cached on first failure
+  let healthStatusColumnExists = null;
+  // If DB is unavailable at the first call, caches `false` forever
+  healthStatusColumnExists = false;
+  If the DB isn't ready when the first channel API call fires, healthStatusColumnExists is permanently false for the process lifetime. Health status queries  are then silently skipped for all subsequent requests even after the DB recovers, causing incorrect/degraded API responses.
+
+  ---
+  🟡 MEDIUM
+
+  11. backend/src/controllers/streamController.js:31 — Uses process.env.JWT_SECRET directly (not via jwt.js)
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  Bypasses the verifyToken() wrapper from jwt.js. If the JWT fallback default ('dev-jwt-secret-change-in-production') is in place and JWT_SECRET is unset,
+  this is silently insecure. Also, JWT_SECRET could be undefined in environments where the var isn't set — jwt.verify() would throw a misleading error.
+
+  12. backend/src/routes/auth.js — authLimiter (20 req/15min) applied to refresh-token
+  Token refresh is a legitimate background operation done automatically by the app. The Flutter app uses a Dio interceptor to refresh on 401s. Under any
+  usage pattern with concurrent API calls, 20 refresh attempts per 15 min is very easy to hit, causing cascading 429s and forcing re-login.
+
+  13. backend/src/controllers/proxyController.js:272-274 — Manifest cached with stale encrypted tokens
+  // tokens have different IVs per-call (correct)
+  // but cache stores ONE set of tokens for `cacheManifest_ms` (8s)
+  manifestCache.set(streamId, rewritten);
+  Two users hitting the same stream within 8s get the same encrypted tokens — tokens include userId in encryption. Since encryptSegmentUrl(fullUrl,
+  streamId, userId) is called with different userIds, the first user's cached manifest (with tokens encrypted for user A) is served to user B. User B's
+  segments then fail token decryption with "stream binding" mismatch (if userId is part of the HMAC binding).
+
+  14. mobile/lib/screens/player_screen.dart:1676-1688 — _getBoxFit() fill returns BoxFit.contain
+  case 'fill':
+    return BoxFit.contain;  // Semantic bug: 'fill' should be BoxFit.fill or BoxFit.cover
+  The fill effect is achieved via a separate scale transform, but the BoxFit.contain here means if the scale transform ever fails to apply (e.g., render
+  object not yet laid out), fill mode renders identically to fit — invisible to the user but silently wrong.
+
+  15. mobile/lib/screens/player_screen.dart:325-328 — _nextPage calculated incorrectly
+  _nextPage = (_contextChannels.length / limit).ceil() + 1;
+  With limit = 50 hard-coded locally and channels.length from the passed list (often not 50 exactly), this can compute a page number that skips pages. For
+  example, 30 channels → ceil(30/50)+1 = 2 which is correct; but 75 channels → ceil(75/50)+1 = 3, skipping page 2's data.
+
+  16. frontend/src/lib/api.ts:104 — getPayments() fetches without pagination params
+  export const getPayments = () => api.get('/payments').then((r) => r.data.data);
+  Backend defaults to first 50 payments. Admin payments page only ever shows 50 records regardless of total. Same issue for getLicenses() (line 74) and
+  getUsers() (line 59) — pagination exists in backend but ignored in frontend, admin sees incomplete data.
+
+  17. frontend/src/lib/api.ts:273-282 — getStreamHealth, markStreamStatus, recheckStream return full AxiosResponse
+  export const getStreamHealth = (params?: ...) =>
+    api.get('/stream-health', { params });  // ← returns AxiosResponse, not .data.data
+  All other API functions unwrap .then(r => r.data.data). These three return the raw Axios response object, requiring callers to manually unwrap. This
+  inconsistency likely causes undefined data rendering in the stream-health admin page.
+
+  18. backend/src/utils/jwt.js:23 — crypto.randomUUID() used without import
+  return jwt.sign({ userId, type: 'refresh', jti: crypto.randomUUID() }, ...);
+  crypto from Node's built-in is not imported at the top of jwt.js. The db module is imported (line 48) but there's no const crypto = require('crypto').
+  This throws ReferenceError: crypto is not defined when generating refresh tokens. (Node 18+ provides globalThis.crypto but crypto.randomUUID() on the
+  global is only available in Node 19+. In Node 18, you need require('crypto').randomUUID().)
+
+  19. mobile/lib/services/api_client.dart:9 — ApiClient must call init() before use; no guard
+  late Dio _dio;
+  // init() sets _dio; getter exposes _dio:
+  Dio get dio => _dio;
+  If any code instantiates ApiClient and calls dio before calling init(), it throws LateInitializationError: Field '_dio@...' has not been initialized. No
+  factory constructor or assertion prevents this.
+
+  ---
+  🔵 LOW / CODE QUALITY
+
+  20. backend/src/app.js:126-134 — Migration failures are swallowed, server continues
+  } catch (err) {
+    console.error(`Migration failed for ${migrationFile}:`, err.message);
+    // ← execution continues to next migration
+  }
+  If 001_initial_schema.sql fails (e.g., syntax error or missing table), later migrations that depend on it silently run against an incomplete schema.
+  Consider failing fast or marking bad migrations in a failed state.
+
+  21. backend/src/controllers/adminController.js:327-337 — deleteChannel has no 404 check
+  await db.query('DELETE FROM channels WHERE id = $1', [id]);
+  // Always returns 200 even if channel doesn't exist
+  Unlike deleteCategory which also has no 404 check — deleting a non-existent channel silently succeeds. Should return 404 on rowCount === 0.
+
+  22. mobile/lib/screens/player_screen.dart:1099-1105 — Auto quality upgrade timer not cancelled on channel switch
+  _qualityUpgradeTimer = Timer(const Duration(minutes: 3), _tryUpgradeQuality);
+  In _onChannelChanged() (line 1544), _qualityUpgradeTimer?.cancel() is NOT called. If you switch channels within 3 minutes of a quality downgrade, the old
+  timer fires on the new channel and tries to upgrade quality that may not be appropriate for it.
+
+  23. mobile/lib/screens/player_screen.dart — _VideoController not disposed
+  late final VideoController _videoController;
+  // dispose() (line 1846) disposes _player but never _videoController
+  VideoController is initialized in initState but _videoController.dispose() is missing from dispose(). This can cause memory leaks when navigating back
+  from the player.
+
+  24. backend/src/controllers/authController.js — OTP table never cleaned up
+  password_reset_otps rows are marked used=true but never deleted. Over time this table grows unboundedly. No cleanup job or TTL-based deletion exists.
+
+  25. frontend/src/contexts/AuthContext.tsx:27 — Admin token in non-httpOnly cookie
+  document.cookie = `adminToken=${encodeURIComponent(token)}; path=/; max-age=${maxAge}; SameSite=Strict`;
+  // Not httpOnly — accessible to any JS on the page
+  XSS on the admin panel would exfiltrate the admin JWT directly. The comment acknowledges this is intentional (for middleware access), but the admin panel
+  has no CSP header configured in next.config.ts to mitigate XSS.
+
+  ---
+  Summary Table
+
+  ┌─────┬─────────────┬──────────┬─────────────────────────┬───────────────────────────────────────────────────────────────────────────────────┐
+  │  #  │  Severity   │  Layer   │          File           │                                       Issue                                       │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 1   │ 🔴 Critical │ Backend  │ authController.js:230   │ revokeRefreshToken not imported → token refresh crashes with 401 for ALL users    │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 2   │ 🔴 Critical │ Backend  │ authController.js:333   │ Mobile-based password reset always fails (OTP stored by email, queried by mobile) │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 3   │ 🔴 Critical │ Mobile   │ api_client.dart:37      │ All 403s (license/device errors) trigger logout instead of only token expiry      │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 4   │ 🟠 High     │ Backend  │ authController.js:36    │ Mobile number not normalized before duplicate check → duplicate accounts possible │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 5   │ 🟠 High     │ Backend  │ paymentController.js:95 │ Payment verification not idempotent → double license on duplicate webhook         │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 6   │ 🟠 High     │ Backend  │ adminController.js:175  │ updateLicense accepts unvalidated user_id                                         │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 7   │ 🟠 High     │ Backend  │ app.js:139              │ Seed data runs every startup → duplicates categories/plans on restart             │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 8   │ 🟠 High     │ Backend  │ app.js:290              │ WebSocket init stats call unhandled, req.user = null crash risk                   │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 9   │ 🟠 High     │ Mobile   │ auth_cubit.dart:149     │ 5xx server errors authenticate user silently                                      │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 10  │ 🟠 High     │ Backend  │ channelController.js:4  │ Schema flags cached false permanently on first DB failure                         │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 11  │ 🟡 Medium   │ Backend  │ streamController.js:31  │ Direct JWT_SECRET usage bypasses safe wrapper                                     │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 12  │ 🟡 Medium   │ Backend  │ routes/auth.js:10       │ Refresh token rate-limited at 20/15min — blocks legitimate auto-refresh           │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 13  │ 🟡 Medium   │ Backend  │ proxyController.js:272  │ Manifest cache serves one user's encrypted tokens to another user                 │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 14  │ 🟡 Medium   │ Mobile   │ player_screen.dart:1679 │ fill mode maps to BoxFit.contain (semantically wrong)                             │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 15  │ 🟡 Medium   │ Mobile   │ player_screen.dart:325  │ _nextPage computed incorrectly — can skip channel pages                           │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 16  │ 🟡 Medium   │ Frontend │ api.ts:104              │ Payments/licenses/users pages only ever show first 50 records                     │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 17  │ 🟡 Medium   │ Frontend │ api.ts:273              │ Stream health API functions return raw AxiosResponse (inconsistent)               │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 18  │ 🟡 Medium   │ Backend  │ jwt.js:23               │ crypto.randomUUID() used without require('crypto')                                │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 19  │ 🟡 Medium   │ Mobile   │ api_client.dart:9       │ late Dio _dio throws if init() not called before dio getter                       │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 20  │ 🔵 Low      │ Backend  │ app.js:126              │ Failed migration swallowed, server continues with broken schema                   │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 21  │ 🔵 Low      │ Backend  │ adminController.js:327  │ deleteChannel no 404 check, silently succeeds for missing IDs                     │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 22  │ 🔵 Low      │ Mobile   │ player_screen.dart:1099 │ Quality upgrade timer not cancelled on channel switch                             │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 23  │ 🔵 Low      │ Mobile   │ player_screen.dart      │ VideoController never disposed → memory leak                                      │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 24  │ 🔵 Low      │ Backend  │ authController.js       │ OTP table grows unboundedly, no cleanup                                           │
+  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
+  │ 25  │ 🔵 Low      │ Frontend │ AuthContext.tsx:27      │ Admin token in JS-accessible cookie, no CSP header                                │
+  └─────┴─────────────┴──────────┴─────────────────────────┴───────────────────────────────────────────────────────────────────────────────────┘
+
+  ---
+  The three most urgent fixes are #1 (token refresh crashes for all users), #3 (403 responses log users out), and #18 (crypto not imported = refresh tokens
+  can't be generated). Want me to fix any of these now?

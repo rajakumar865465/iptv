@@ -6,21 +6,22 @@ import 'token_refresh_service.dart';
 import '../utils/backend_config.dart';
 
 class ApiClient {
-  late Dio _dio;
+  Dio? _dio;
   final AuthService _authService;
 
   ApiClient({AuthService? authService})
       : _authService = authService ?? AuthService();
 
   void init() {
-    _dio = Dio(BaseOptions(
+    if (_dio != null) return;
+    final dio = Dio(BaseOptions(
       baseUrl: BackendConfig.baseUrl,
       connectTimeout: const Duration(milliseconds: AppConstants.connectTimeout),
       receiveTimeout: const Duration(milliseconds: AppConstants.receiveTimeout),
       headers: {'Content-Type': 'application/json'},
     ));
 
-    _dio.interceptors.add(InterceptorsWrapper(
+    dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
         final token = await _authService.getSession();
         if (token != null) {
@@ -34,9 +35,18 @@ class ApiClient {
           bool isTokenError = false;
           if (data is Map && data['message'] != null) {
             final msg = data['message'].toString().toLowerCase();
-            if (msg.contains('invalid token') || msg.contains('token expired') || error.response?.statusCode == 403) {
+            if (msg.contains('invalid token') || msg.contains('token expired')) {
               isTokenError = true;
             }
+          }
+          // A 401 without an explicit non-token message is treated as an
+          // expired session; 403s are only token errors when the message says so.
+          if (!isTokenError && error.response?.statusCode == 401) {
+            isTokenError = true;
+          }
+          if (!isTokenError && error.response?.statusCode == 403) {
+            // Not a token error — pass through without clearing session
+            return handler.next(error);
           }
           if (isTokenError) {
             final req = error.requestOptions;
@@ -52,7 +62,7 @@ class ApiClient {
                     req.headers['Authorization'] = 'Bearer $newToken';
                   }
                   req.extra['refreshed'] = true;
-                  final response = await _dio.fetch(req);
+                  final response = await dio.fetch(req);
                   return handler.resolve(response);
                 } catch (_) {
                   return handler.next(error);
@@ -65,7 +75,14 @@ class ApiClient {
         return handler.next(error);
       },
     ));
+
+    _dio = dio;
   }
 
-  Dio get dio => _dio;
+  // Lazily initialize so callers that forget init() don't hit a
+  // LateInitializationError.
+  Dio get dio {
+    if (_dio == null) init();
+    return _dio!;
+  }
 }

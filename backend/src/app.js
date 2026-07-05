@@ -130,17 +130,29 @@ async function initDatabase() {
           );
           console.log(`Migration applied: ${migrationFile}`);
         } catch (err) {
+          // Fail fast: later migrations often depend on earlier ones, so running
+          // them against an incomplete schema would silently corrupt the DB.
           console.error(`Migration failed for ${migrationFile}:`, err.message);
+          throw new Error(`Migration ${migrationFile} failed — aborting startup: ${err.message}`);
         }
       }
     }
 
-    // Run seed data idempotently
+    // Run seed data once, tracked in schema_migrations like migrations,
+    // so restarts don't re-insert default plans/categories.
     const seedPath = path.join(__dirname, '..', 'seeds', 'seed.sql');
     if (fs.existsSync(seedPath)) {
-      const sql = fs.readFileSync(seedPath, 'utf8');
-      await db.query(sql);
-      console.log('Seed data applied');
+      const seedName = 'seed:seed.sql';
+      const seedCheck = await db.query(
+        'SELECT 1 FROM schema_migrations WHERE migration_name = $1',
+        [seedName]
+      );
+      if (seedCheck.rows.length === 0) {
+        const sql = fs.readFileSync(seedPath, 'utf8');
+        await db.query(sql);
+        await db.query('INSERT INTO schema_migrations (migration_name) VALUES ($1)', [seedName]);
+        console.log('Seed data applied');
+      }
     }
 
     // Run automatic data recovery checks
@@ -152,6 +164,11 @@ async function initDatabase() {
     }
   } catch (err) {
     console.error('Database initialization error:', err.message);
+    // A failed migration means the schema is in an unknown state — refuse to
+    // serve traffic against it rather than corrupt data.
+    if (err.message.startsWith('Migration ')) {
+      process.exit(1);
+    }
   }
 }
 
@@ -285,11 +302,19 @@ initDatabase().then(() => {
 
     console.log('WebSocket admin client connected');
 
-    // Send initial stats on connection
+    // Send initial stats on connection. Errors (e.g. DB down) must not crash
+    // the handler, and the mock res needs status() since controllers may call it.
     const dashboardController = require('./controllers/dashboardController');
-    dashboardController.getDashboardStats({ user: null }, {
-      json: (data) => ws.send(JSON.stringify({ type: 'stats', data, timestamp: new Date().toISOString() }))
-    });
+    const mockRes = {
+      json: (data) => {
+        if (ws.readyState === 1) {
+          ws.send(JSON.stringify({ type: 'stats', data, timestamp: new Date().toISOString() }));
+        }
+      },
+    };
+    mockRes.status = () => mockRes;
+    Promise.resolve(dashboardController.getDashboardStats({ user: { id: null, role: 'admin' } }, mockRes))
+      .catch((err) => console.error('WebSocket initial stats failed:', err.message));
 
     ws.on('close', () => console.log('WebSocket client disconnected'));
     ws.on('error', (err) => console.error('WebSocket error:', err.message));

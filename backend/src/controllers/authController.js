@@ -29,10 +29,10 @@ exports.signup = async (req, res) => {
       return error(res, 'Password must be 6–128 characters', 400);
     }
 
-    // Check if user exists
+    // Check if user exists using cleanMobile for consistent lookup
     const existing = await db.query(
       'SELECT id FROM users WHERE email = $1 OR mobile = $2',
-      [email, mobile]
+      [email, cleanMobile]
     );
     if (existing.rows.length > 0) {
       return error(res, 'Email or mobile number already registered', 409);
@@ -43,7 +43,7 @@ exports.signup = async (req, res) => {
     const result = await db.query(
       `INSERT INTO users (full_name, email, mobile, password_hash)
        VALUES ($1, $2, $3, $4) RETURNING id, full_name, email, mobile, status, role, created_at`,
-      [full_name, email, mobile, passwordHash]
+      [full_name, email, cleanMobile, passwordHash]
     );
 
     const user = result.rows[0];
@@ -211,7 +211,7 @@ exports.refreshToken = async (req, res) => {
       return error(res, 'Refresh token required', 400);
     }
 
-    const { consumeRefreshToken, isRefreshTokenRevoked } = require('../utils/jwt');
+    const { consumeRefreshToken, isRefreshTokenRevoked, revokeRefreshToken } = require('../utils/jwt');
 
     const revoked = await isRefreshTokenRevoked(refreshToken);
     if (revoked) {
@@ -278,6 +278,9 @@ exports.forgotPassword = async (req, res) => {
     // Use cryptographically secure OTP
     const otp = crypto.randomInt(100000, 999999).toString();
 
+    // Purge used/expired OTP rows so the table doesn't grow unboundedly
+    await db.query('DELETE FROM password_reset_otps WHERE used = true OR expires_at < NOW()');
+
     // Invalidate old OTPs and store new one
     const expiresAt = new Date(Date.now() + OTP_LIFETIME_MINUTES * 60 * 1000);
     await db.query(
@@ -323,24 +326,25 @@ exports.resetPassword = async (req, res) => {
       return error(res, 'Email or mobile required', 400);
     }
 
-    // Look up the most recent unused OTP for the identifier
+    // Resolve the user first — OTPs are always stored under the user's email,
+    // even when the reset was requested with a mobile number.
+    const userResult = await db.query(
+      'SELECT id, email FROM users WHERE email = $1 OR mobile = $2 LIMIT 1',
+      [email || null, mobile || null]
+    );
+    if (userResult.rows.length === 0) {
+      return error(res, 'User not found', 404);
+    }
+
+    // Look up the most recent unused OTP for the user's email
     const otpResult = await db.query(
       `SELECT id, otp FROM password_reset_otps
        WHERE email = $1 AND used = false AND expires_at > NOW()
        ORDER BY created_at DESC LIMIT 1`,
-      [identifier]
+      [userResult.rows[0].email]
     );
     if (otpResult.rows.length === 0 || otpResult.rows[0].otp !== String(otp)) {
       return error(res, 'Invalid or expired OTP', 400);
-    }
-
-    // Find user
-    const userResult = await db.query(
-      'SELECT id FROM users WHERE email = $1 LIMIT 1',
-      [identifier]
-    );
-    if (userResult.rows.length === 0) {
-      return error(res, 'User not found', 404);
     }
 
     // Update password and mark OTP used

@@ -323,9 +323,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _sourceType = widget.sourceType;
     _sourceFilters = widget.sourceFilters;
 
-    // Calculate initial page limits
+    // Calculate initial page limits. Use floor division so a partially-loaded
+    // page is re-fetched (duplicates are filtered) instead of skipped —
+    // e.g. 75 loaded channels must fetch page 2, not jump to page 3.
     final limit = 50; // standard limit
-    _nextPage = (_contextChannels.length / limit).ceil() + 1;
+    _nextPage = (_contextChannels.length ~/ limit) + 1;
     _previousPage = 1;
     _hasMoreBefore = false;
     _hasMoreAfter = _sourceType == PlayerSourceType.liveTv ||
@@ -1558,6 +1560,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _smoothWarmTimer?.cancel();
     _smoothWarmTimer = null;
     _warmStartedAt = null;
+    // Cancel any pending quality upgrade scheduled for the previous channel
+    _qualityUpgradeTimer?.cancel();
+    _qualityUpgradeTimer = null;
     // Reset gap warning state and stop the refresh timer for the previous channel
     _gapWarningRefreshTimer?.cancel();
     _gapWarningRefreshTimer = null;
@@ -1676,6 +1681,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   BoxFit _getBoxFit() {
     switch (_effectiveFitMode()) {
       case 'fill':
+        // Intentionally contain, NOT cover/fill: the fill effect is a bounded
+        // scale transform on top of contain (see _getTransformScale /
+        // _safeFillScale) so cropping stays capped at 4-8% per side.
         return BoxFit.contain;
       case 'zoom':
         return BoxFit.cover;

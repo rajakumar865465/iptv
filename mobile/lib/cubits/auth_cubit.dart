@@ -148,9 +148,9 @@ class AuthCubit extends Cubit<AuthState> {
           emit(AuthAuthenticated());
         } else {
           // Any other error (5xx, unknown) — treat as temporary server issue.
-          // The token may still be valid; don't clear it or the user loses their
-          // session every time the server has a hiccup.
-          emit(AuthAuthenticated());
+          // Re-authenticating on 5xx is unsafe — don't silently pass users through.
+          emit(AuthError('Server temporarily unavailable. Please try again later.'));
+          return;
         }
       }
     } else {

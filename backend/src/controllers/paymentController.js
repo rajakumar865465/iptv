@@ -124,12 +124,33 @@ exports.verifyRazorpayPayment = async (req, res) => {
     }
     const payment = paymentResult.rows[0];
 
-    // Update payment status
-    await db.query(
+    // Idempotency: Razorpay may retry verification/webhooks. If this payment is
+    // already completed, return the existing license instead of creating a duplicate.
+    if (payment.status === 'completed') {
+      const existingLicense = await db.query(
+        `SELECT license_key FROM licenses
+         WHERE user_id = $1 AND plan_id = $2
+         ORDER BY created_at DESC LIMIT 1`,
+        [payment.user_id, payment.plan_id]
+      );
+      return success(res, {
+        success: true,
+        license_key: existingLicense.rows[0]?.license_key || null,
+        already_processed: true,
+      });
+    }
+
+    // Update payment status — guard on status to avoid a race between two
+    // concurrent verifications creating two licenses.
+    const updateResult = await db.query(
       `UPDATE payments SET status = 'completed', paid_at = NOW(), updated_at = NOW()
-       WHERE id = $1 RETURNING *`,
+       WHERE id = $1 AND status <> 'completed' RETURNING *`,
       [payment.id]
     );
+    if (updateResult.rows.length === 0) {
+      // Another request completed it first — treat as already processed
+      return success(res, { success: true, already_processed: true });
+    }
 
     // Create/activate license
     const licenseKey = generateLicenseKey();

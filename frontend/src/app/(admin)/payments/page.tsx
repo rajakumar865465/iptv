@@ -65,8 +65,7 @@ export default function PaymentsPage() {
     setLoading(true);
     getPayments()
       .then((d) => {
-        const resp = d as { data?: Payment[] };
-        setPayments(Array.isArray(resp.data) ? resp.data : []);
+        setPayments(Array.isArray(d) ? (d as Payment[]) : []);
       })
       .finally(() => setLoading(false));
   };
