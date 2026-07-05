@@ -183,7 +183,8 @@ function makeProxyRequest(url, headers, redirectDepth = 0) {
     const req = client.request(url, { headers, timeout: 20000 }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         // Follow redirect with incremented depth counter
-        return resolve(makeProxyRequest(res.headers.location, headers, redirectDepth + 1));
+        const nextUrl = resolveUrl(url, res.headers.location);
+        return resolve(makeProxyRequest(nextUrl, headers, redirectDepth + 1));
       }
       resolve(res);
     });

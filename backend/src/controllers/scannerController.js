@@ -33,8 +33,9 @@ async function ensureScanJobsTable() {
   `);
 }
 
-function httpGet(url, headers = {}, segmentMode = false, timeout = TIMEOUT) {
+function httpGet(url, headers = {}, segmentMode = false, timeout = TIMEOUT, redirectDepth = 0) {
   return new Promise(resolve => {
+    if (redirectDepth > 5) return resolve({ ok: false, reason: 'too_many_redirects' });
     let parsed;
     try { parsed = new URL(url); } catch { return resolve({ ok: false, reason: 'invalid_url' }); }
 
@@ -56,6 +57,13 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = TIMEOUT) {
 
     const req = client.request(url, { method: 'GET', timeout, headers: reqHeaders }, res => {
       const status = res.statusCode;
+      
+      if (status >= 300 && status < 400 && res.headers.location) {
+        req.destroy();
+        const nextUrl = resolveUrl(url, res.headers.location);
+        return resolve(httpGet(nextUrl, headers, segmentMode, timeout, redirectDepth + 1));
+      }
+      
       const ct = (res.headers['content-type'] || '').toLowerCase();
       let body = '';
       const enc = segmentMode ? 'binary' : 'utf8';
