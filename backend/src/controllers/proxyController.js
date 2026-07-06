@@ -416,6 +416,28 @@ exports.proxySegment = async (req, res) => {
     const contentType = proxyRes.headers['content-type'] || (targetUrl.includes('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp2t');
     res.setHeader('Content-Type', contentType);
 
+    const isM3u8 = targetUrl.includes('.m3u8') || (contentType && contentType.includes('mpegurl'));
+
+    if (isM3u8) {
+      let body = '';
+      proxyRes.setEncoding('utf8');
+      for await (const chunk of proxyRes) body += chunk;
+
+      const userId = payload.userId || 'anon';
+      const lines = body.split('\n');
+      const rewritten = lines.map(line => {
+        const t = line.trim();
+        if (!t || t.startsWith('#')) return line;
+        const fullUrl = resolveUrl(targetUrl, t);
+        if (!fullUrl) return line;
+        const token = encryptSegmentUrl(fullUrl, streamId, userId);
+        const ext = fullUrl.includes('.m3u8') ? '.m3u8' : '.ts';
+        return `/api/proxy/segment/${streamId}/${token}${ext}`;
+      }).join('\n');
+      
+      return res.send(rewritten);
+    }
+
     // Fix #9: Use stream.pipeline() instead of proxyRes.pipe(res).
     // pipeline() handles backpressure properly — if the client reads slowly,
     // it pauses the upstream read instead of buffering unboundedly in memory.
