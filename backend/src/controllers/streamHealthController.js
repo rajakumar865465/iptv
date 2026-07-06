@@ -380,7 +380,7 @@ exports.recheckStream = async (req, res) => {
     const adminId = req.adminUser?.id || req.user?.id || null;
     await db.query(`
       INSERT INTO admin_audit_logs
-        (admin_id, action, target_type, target_id, new_value, ip_address)
+        (admin_id, action, target_type, target_id, details, ip_address)
       VALUES ($1, 'stream_health_recheck', 'channel', $2, $3, $4)
     `, [
       adminId, channelId,
