@@ -142,7 +142,7 @@ async function checkDeep(streamUrl, customHeaders = {}) {
     if (m3u.status === 404) return { status: 'offline', score: 0, reason: 'not_found_404' };
     if (m3u.status === 451) return { status: 'offline', score: 0, reason: 'geo_blocked' };
     if (m3u.reason === 'timeout') return { status: 'offline', score: 0, reason: 'timeout' };
-    return { status: 'offline', score: 0, reason: `http_\${m3u.status || m3u.reason || 'error'}` };
+    return { status: 'offline', score: 0, reason: `http_${m3u.status || m3u.reason || 'error'}` };
   }
   const body = (m3u.body || '').trim();
   if (body.startsWith('<') || body.includes('<html')) return { status: 'offline', score: 0, reason: 'geo_blocked_html' };
@@ -150,7 +150,7 @@ async function checkDeep(streamUrl, customHeaders = {}) {
 
   let mediaUrl = streamUrl, mediaBody = body, variants = [];
   if (body.includes('#EXT-X-STREAM-INF')) {
-    const lines = body.split('\\n');
+    const lines = body.split('\n');
     let bestBw = -1, bestVariantUrl = null;
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].startsWith('#EXT-X-STREAM-INF')) {
@@ -174,7 +174,7 @@ async function checkDeep(streamUrl, customHeaders = {}) {
   }
 
   let segRelUrl = null;
-  const lines = mediaBody.split('\\n');
+  const lines = mediaBody.split('\n');
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].trim().startsWith('#EXTINF') && lines[i + 1]) {
       const next = lines[i + 1].trim();
@@ -217,7 +217,7 @@ async function runScanJob(jobId, options = {}) {
              WHERE c.is_removed = false`;
     const params = [];
     
-    if (channel_id) { params.push(channel_id); q += ` AND c.id = $\${params.length}`; }
+    if (channel_id) { params.push(channel_id); q += ` AND c.id = $${params.length}`; }
     else {
       if (scope === 'visible') q += ` AND c.is_hidden = false AND c.is_visible_app = true`;
       else if (scope === 'online') q += ` AND cs.health_status = 'online'`;
@@ -225,8 +225,8 @@ async function runScanJob(jobId, options = {}) {
       else if (scope === 'unstable') q += ` AND cs.health_status = 'unstable'`;
       else if (scope === 'unknown') q += ` AND (cs.health_status IS NULL OR cs.health_status = 'unknown' OR cs.health_status = 'pending_check')`;
       
-      if (category_id) { params.push(category_id); q += ` AND c.category_id = $\${params.length}`; }
-      if (language) { params.push(language); q += ` AND c.language ILIKE $\${params.length}`; }
+      if (category_id) { params.push(category_id); q += ` AND c.category_id = $${params.length}`; }
+      if (language) { params.push(language); q += ` AND c.language ILIKE $${params.length}`; }
     }
     
     const r = await db.query(q, params);
