@@ -999,14 +999,18 @@ exports.getChannelPlayback = async (req, res) => {
       });
     }
 
-    // ── Fetch streams: prefer healthy non-offline streams ───────────────────
-    // Fix #2: NULL != 'offline' is NULL in PG — use explicit IS NULL check
+    // Fix: Exclude known-dead statuses — 'segment_failed', 'offline', 'dead',
+    // 'forbidden_403', 'geo_blocked' — from playback so the app never tries a broken stream.
+    // Also use explicit NULL check since NULL != 'offline' evaluates to NULL in PG.
     let result = await db.query(`
       SELECT cs.*
       FROM channel_streams cs
       WHERE cs.channel_id = $1
         AND cs.is_hidden IS NOT TRUE
-        AND (cs.health_status IS NULL OR cs.health_status != 'offline')
+        AND (
+          cs.health_status IS NULL
+          OR cs.health_status IN ('online', 'unstable', 'unknown', 'pending_check')
+        )
       ORDER BY
         cs.priority ASC,
         CASE cs.health_status

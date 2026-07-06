@@ -559,7 +559,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     bool restrictToSD = _dataSaverEnabled || (_autoMobileData && _isOnMobileData);
     bool blockHD = _hdOnlyWifi && _isOnMobileData;
 
+    // Dead statuses that should never be selected for playback
+    const Set<String> deadStatuses = {'segment_failed', 'offline', 'dead', 'forbidden_403', 'geo_blocked'};
+
     List<dynamic> allowed = _qualities.where((q) {
+      // Skip any quality variant with a known-dead health status
+      final hs = q['health_status'] as String?;
+      if (hs != null && deadStatuses.contains(hs)) return false;
       if (q['type'] == 'auto') return restrictToSD == false; // Prefer explicit SD variants if restricted
       int h = q['height'] ?? 0;
       if (restrictToSD && h > 480) return false;
@@ -567,7 +573,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       return true;
     }).toList();
 
-    if (allowed.isEmpty) allowed = _qualities; // Fallback
+    if (allowed.isEmpty) allowed = _qualities; // Fallback to all if everything filtered out
 
     String targetLabel = _defaultQualityPref;
     if (_dataSaverEnabled) targetLabel = '240p'; // Data saver defaults to lowest
