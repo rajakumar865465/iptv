@@ -830,7 +830,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _qualityUpgradeTimer?.cancel();
     _qualityUpgradeTimer = null;
 
-    if (mounted) setState(() { _isLoading = true; _hasError = false; _streamOverlayMessage = 'Loading channel...'; _isRetryingStream = false; });
+    if (mounted) setState(() { _isLoading = true; _hasError = false; _streamOverlayMessage = 'Loading...'; _isRetryingStream = false; });
     _playerDebugLog('fetch_playback', {
       'backend_url': BackendConfig.baseUrl,
       'channel_id': _currentChannel.id,
@@ -942,7 +942,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _errorGraceTimer = null;
     _playerErrorPending = false;
     _playStartTime = null;
-    if (mounted) setState(() { _isLoading = true; _hasError = false; if (_streamOverlayMessage.isEmpty) _streamOverlayMessage = 'Loading channel...'; });
+    if (mounted) setState(() { _isLoading = true; _hasError = false; if (_streamOverlayMessage.isEmpty) _streamOverlayMessage = 'Loading...'; });
 
     try {
       // -- Apply profile-based libmpv tuning --------------------------------
@@ -1235,7 +1235,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               'has_played_before': hasPlayedBefore,
             });
             setState(() {
-              _streamOverlayMessage = hasPlayedBefore ? 'Reconnecting...' : 'Loading channel...';
+              _streamOverlayMessage = 'Loading...';
               _isLoading = true;
             });
           }
@@ -1439,9 +1439,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _retryAttempt++;
       if (mounted) {
         setState(() {
-          // Before first video frame: keep showing "Loading channel..." (not "Still loading")
-          // so the user sees a clean initial load experience instead of retry messages.
-          _streamOverlayMessage = _playStartTime != null ? 'Still loading. Trying again...' : 'Loading channel...';
+          // Always show "Loading..." so the user sees a clean load experience.
+          _streamOverlayMessage = 'Loading...';
           _isLoading = true;
           _hasError = false;
         });
