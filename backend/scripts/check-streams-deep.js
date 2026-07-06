@@ -58,9 +58,12 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = TIMEOUT) {
       res.on('data', chunk => {
         body += chunk;
         const limit = segmentMode ? MAX_SEG_BYTES : MAX_M3U_BYTES;
-        if (body.length > limit) { res.destroy(); }
+        if (body.length > limit) {
+          resolve({ ok: status >= 200 && status < 300 || status === 206, status, ct, body });
+          res.destroy();
+        }
       });
-      res.on('end', () => resolve({ ok: status >= 200 && status < 400 || status === 206, status, ct, body }));
+      res.on('end', () => resolve({ ok: status >= 200 && status < 300 || status === 206, status, ct, body }));
       res.on('error', e => resolve({ ok: false, reason: 'res_error', msg: e.message }));
     });
     req.on('error', e => resolve({ ok: false, reason: 'req_error', msg: e.message }));
