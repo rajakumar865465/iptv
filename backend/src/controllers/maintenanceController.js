@@ -15,7 +15,7 @@
  *   GET  /api/internal/maintenance/status        ← current job status
  *
  * Usage from browser/curl/Postman:
- *   POST https://iptv-6vbq.onrender.com/api/internal/maintenance/run-all
+ *   POST http://35.154.128.217/api/internal/maintenance/run-all
  *   Header: x-maintenance-secret: your-secret
  */
 

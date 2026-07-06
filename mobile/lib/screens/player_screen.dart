@@ -19,6 +19,18 @@ import '../widgets/channel_logo.dart';
 import '../cubits/license_cubit.dart';
 import '../utils/backend_config.dart';
 
+// Temporary diagnostic logging for the "all channels reconnecting" investigation
+// (work.md). Redacts token/auth values. Safe to remove once root cause is confirmed.
+void _playerDebugLog(String tag, Map<String, dynamic> fields) {
+  final redacted = fields.map((k, v) {
+    if (k.toLowerCase().contains('token') || k.toLowerCase().contains('authorization')) {
+      return MapEntry(k, v == null ? null : '<redacted:${v.toString().length}chars>');
+    }
+    return MapEntry(k, v);
+  });
+  debugPrint('[PlayerDiag][$tag] $redacted');
+}
+
 enum PlayerSourceType {
   homeFeatured,
   homePopular,
@@ -813,6 +825,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _qualityUpgradeTimer = null;
 
     if (mounted) setState(() { _isLoading = true; _hasError = false; _streamOverlayMessage = 'Loading channel...'; _isRetryingStream = false; });
+    _playerDebugLog('fetch_playback', {
+      'backend_url': BackendConfig.baseUrl,
+      'channel_id': _currentChannel.id,
+      'channel_name': _currentChannel.name,
+      'playback_api_url': '${BackendConfig.baseUrl}${ApiEndpoints.channelPlaybackPath(_currentChannel.id)}',
+    });
     try {
       final res = await _api.get(ApiEndpoints.channelPlaybackPath(_currentChannel.id));
       if (res['success'] == true) {
@@ -824,6 +842,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         // Parse new fields from enhanced playback API
         // proxy_url is null when DRM/geo-blocked/hidden/unlicensed — never try proxy then
         _proxyUrl = data['proxy_url'] as String?;
+        _playerDebugLog('playback_api_response', {
+          'channel_id': _currentChannel.id,
+          'playback_mode': data['primary_stream']?['playback_mode'],
+          'health_status': data['health_status'],
+          'selected_stream_url': data['primary_stream']?['url'],
+          'direct_live_url': data['direct_live_url'],
+          'proxy_url': _proxyUrl,
+          'smooth_playback_enabled': data['smooth_playback_enabled'],
+          'smooth_stream_url': data['smooth_stream_url'],
+          'buffer_ready': data['buffer_ready'],
+          'buffer_depth_seconds': data['buffer_depth_seconds'],
+        });
 
         // Fetch smooth playback info and override URL if delayed buffer is ready
         await _fetchSmoothPlayback();
@@ -869,6 +899,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         throw Exception('Playback fetch failed');
       }
     } catch(e) {
+      _playerDebugLog('playback_api_failed_fallback_to_cached', {
+        'channel_id': _currentChannel.id,
+        'error': e.toString(),
+        'fallback_url': _currentChannel.streamUrl,
+      });
       _backupStreams = _currentChannel.backupStreamUrl?.isNotEmpty == true ? [
         {'url': _currentChannel.backupStreamUrl, 'headers': { 'User-Agent': _currentChannel.userAgent, 'Referer': _currentChannel.referrer }}
       ] : [];
@@ -977,6 +1012,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
       final media = Media(url, httpHeaders: headers.isNotEmpty ? headers : null);
 
+      _playerDebugLog('initialize_player', {
+        'channel_id': _currentChannel.id,
+        'selected_stream_url': url,
+        'headers': headers,
+        'retry_count': _retryAttempt,
+        'proxy_attempted': _proxyAttempted,
+      });
+
       // Fix: Use open(play: true) — removes redundant play() call
       // IMPORTANT: Do NOT seek() for live stream recovery — it can jump to the beginning
       // or fail outright. Let libmpv start from the live edge via reconnect=1.
@@ -1012,6 +1055,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // can race with each other and exhaust backup streams in one burst.
       _playerErrorSubscription = _player.stream.error.listen((errorMsg) {
         if (errorMsg.isEmpty || !mounted) return;
+        _playerDebugLog('player_error', {
+          'channel_id': _currentChannel.id,
+          'selected_stream_url': url,
+          'player_error': errorMsg,
+          'is_playing': _player.state.playing,
+          'is_buffering': _player.state.buffering,
+        });
         if (_playerErrorPending) return; // already have a pending error call — skip duplicate
         _playerErrorPending = true;
         _errorGraceTimer = Timer(const Duration(seconds: 3), () {
@@ -1166,6 +1216,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _reconnectTimer?.cancel();
         _reconnectTimer = Timer(const Duration(seconds: 3), () {
           if (mounted && alreadyStarted) {
+            _playerDebugLog('showing_reconnecting_overlay', {
+              'channel_id': _currentChannel.id,
+              'current_url': _currentUrl,
+              'is_buffering': _player.state.buffering,
+            });
             setState(() {
               _streamOverlayMessage = 'Reconnecting...';
               _isLoading = true;
@@ -1349,6 +1404,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Future<void> _handleStreamFailure(String reason) async {
+    _playerDebugLog('stream_failure', {
+      'channel_id': _currentChannel.id,
+      'reason': reason,
+      'retry_count': _retryAttempt,
+      'current_url': _currentUrl,
+      'proxy_attempted': _proxyAttempted,
+      'is_playing': _player.state.playing,
+      'is_buffering': _player.state.buffering,
+    });
     if (_isRetryingStream) return;
     _bufferTimer?.cancel();
     _bufferTimer = null;

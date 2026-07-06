@@ -27,7 +27,7 @@ const channelController = require('./controllers/channelController');
 
 const app = express();
 
-// Trust proxy for rate limiters (required for Render/Heroku)
+// Trust proxy for rate limiters (required for reverse proxy like nginx)
 app.set('trust proxy', 1);
 
 // Middleware — helmet with cross-origin policies relaxed so browser frontends on

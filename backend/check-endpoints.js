@@ -1,6 +1,6 @@
-const https = require('https');
+const http = require('http');
 const checkUrl = (url) => {
-  https.get(url, (res) => {
+  http.get(url, (res) => {
     console.log(`[${res.statusCode}] ${url}`);
     let data = '';
     res.on('data', chunk => data += chunk);
@@ -9,5 +9,5 @@ const checkUrl = (url) => {
     });
   }).on('error', console.error);
 };
-checkUrl('https://iptv-6vbq.onrender.com/api/channels/categories?workingOnly=true');
-checkUrl('https://iptv-6vbq.onrender.com/api/channels/languages?workingOnly=true');
+checkUrl('http://35.154.128.217/api/channels/categories?workingOnly=true');
+checkUrl('http://35.154.128.217/api/channels/languages?workingOnly=true');

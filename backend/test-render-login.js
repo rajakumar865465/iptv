@@ -1,4 +1,4 @@
-const http = require('https');
+const http = require('http');
 
 const data = JSON.stringify({
   email: 'demo12@gmail.com',
@@ -9,8 +9,8 @@ const data = JSON.stringify({
 });
 
 const options = {
-  hostname: 'iptv-6vbq.onrender.com',
-  port: 443,
+  hostname: '35.154.128.217',
+  port: 80,
   path: '/api/auth/login',
   method: 'POST',
   headers: {

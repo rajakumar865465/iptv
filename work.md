@@ -1,225 +1,555 @@
-  ---
-  🔴 CRITICAL
-  1. backend/src/controllers/authController.js:230 — ReferenceError: revokeRefreshToken not imported
-  // Line 214 only imports:
-  const { consumeRefreshToken, isRefreshTokenRevoked } = require('../utils/jwt');
-  // Line 230 calls:
-  await revokeRefreshToken(refreshToken);  // ← ReferenceError!
-  revokeRefreshToken is imported in logout (line 197) but not in refreshToken. This means every call to POST /api/auth/refresh-token throws a ReferenceError  caught at line 252, returning 401 to all clients. Token refresh is completely broken for all users. Old tokens are also never revoked (rotation silently
-  fails). Fix: add revokeRefreshToken to the destructure on line 214.
+# Investigate NivaTV Issue — All Channels Showing Reconnecting / Black Player / No Channel Works
 
-  ---
-  2. backend/src/controllers/authController.js:333-344 — Password reset via mobile always fails
-  // OTP was stored with user.email (line 284):
-  INSERT INTO password_reset_otps (email, otp...) VALUES ($1, ...) [user.email]
+## Current Problem
 
-  // But lookup uses the raw identifier (could be a mobile number):
-  WHERE email = $1 ...  [identifier = email || mobile]
-  If a user requests a reset with their mobile number, the OTP is stored under their email but queried by mobile — always returns no rows → "Invalid or
-  expired OTP". Mobile-number based password reset is broken.
+In the Android app, every channel is failing to play.
 
-  ---
-  3. mobile/lib/services/api_client.dart:37 — ALL 403 responses treated as expired token
-  if (msg.contains('invalid token') || msg.contains('token expired')
-      || error.response?.statusCode == 403) {  // ← catches ALL 403s
-    isTokenError = true;
-  }
-  "Device limit reached" (403), "No active license" (403), "Channel not available" (403) — all trigger a token refresh attempt, then clearSession() → silent  logout. Users get logged out when they simply lack a license or hit a device limit.
+From the screenshots:
 
-  ---
-  🟠 HIGH
+* Player area is black.
+* Some channels show “Reconnecting...”.
+* Some channels show blank black player without video.
+* Channel metadata loads correctly.
+* Channel logo, name, category, quality, Now Playing, and More Live Channels are visible.
+* This means the app can load channel data from backend, but playback itself is failing.
+* The issue is affecting all channels, not only one channel.
 
-  4. backend/src/controllers/authController.js:33-36 — Mobile number not normalized before duplicate check
-  const cleanMobile = (mobile || '').replace(/[\s\-+]/g, '');
-  // validation passes, but the DB check uses the original `mobile`:
-  'SELECT id FROM users WHERE email = $1 OR mobile = $2', [email, mobile]
-  // and the INSERT also uses original `mobile` (line 46)
-  User with +91 9876543210 and 9876543210 can register twice. Stored and queried value are inconsistent.
+This looks like a global playback/backend/proxy/config issue, not an individual stream issue.
 
-  5. backend/src/controllers/paymentController.js:95-156 — Payment verification not idempotent (duplicate license)
-  No check whether the payment record is already completed before processing. If Razorpay fires the webhook twice (common retry behavior), two licenses rows  are created for the same payment, and UPDATE payments SET status = 'completed' runs twice harmlessly but the license INSERT runs twice — creating
-  duplicate licenses.
+Examples from screenshots:
 
-  6. backend/src/controllers/adminController.js:171-187 — updateLicense accepts arbitrary user_id with no validation
-  'UPDATE licenses SET status=$1, user_id=$2, expires_at=$3 ...'
-  [status, user_id, expires_at, id]
-  An admin can set user_id to any integer, including a non-existent user. No EXISTS check on users table, so the FK can be silently violated or licenses can  be re-assigned to arbitrary users.
+* DD Kisan shows Reconnecting.
+* Aastha Kannada shows Reconnecting.
+* Aaj Tak HD shows black player and no playback.
+* Related/more channels load, so the channel list API is working.
 
-  7. backend/src/app.js:139-144 — Seed data runs on every startup without idempotency tracking
-  const sql = fs.readFileSync(seedPath, 'utf8');
-  await db.query(sql);  // Runs every boot
-  Migrations are tracked in schema_migrations and skipped if already applied. The seed is not tracked — it runs every server restart, potentially creating
-  duplicate plans/categories/default data each time.
+---
 
-  8. backend/src/app.js:289-293 — WebSocket initial stats call ignores errors
-  dashboardController.getDashboardStats({ user: null }, {
-    json: (data) => ws.send(...)
-  });
-  No await, no .catch(). If getDashboardStats throws (DB down at connect time), the unhandled rejection crashes the WebSocket handler for that client. Also
-  req.user is null here — if any controller method accesses req.user.id, it throws.
+# Main Goal
 
-  9. mobile/lib/cubits/auth_cubit.dart:149-155 — Server 5xx errors silently authenticate users
-  } else {
-    // Any other error (5xx, unknown) — treat as temporary server issue.
-    emit(AuthAuthenticated());  // ← emits authenticated on 500!
-  }
-  If the backend returns a 500 on /me, the app treats the user as authenticated. A misconfigured server or backend error could let blocked/non-existent
-  users into the app.
+Find the exact reason why all channels are not playing and fix it.
 
-  10. backend/src/controllers/channelController.js:4-21 — Schema introspection permanently cached on first failure
-  let healthStatusColumnExists = null;
-  // If DB is unavailable at the first call, caches `false` forever
-  healthStatusColumnExists = false;
-  If the DB isn't ready when the first channel API call fires, healthStatusColumnExists is permanently false for the process lifetime. Health status queries  are then silently skipped for all subsequent requests even after the DB recovers, causing incorrect/degraded API responses.
+Do not guess.
 
-  ---
-  🟡 MEDIUM
+Investigate step by step:
 
-  11. backend/src/controllers/streamController.js:31 — Uses process.env.JWT_SECRET directly (not via jwt.js)
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  Bypasses the verifyToken() wrapper from jwt.js. If the JWT fallback default ('dev-jwt-secret-change-in-production') is in place and JWT_SECRET is unset,
-  this is silently insecure. Also, JWT_SECRET could be undefined in environments where the var isn't set — jwt.verify() would throw a misleading error.
+1. Backend URL used by APK.
+2. Playback API response.
+3. Smooth playback API response.
+4. Proxy URL response.
+5. Direct stream URL response.
+6. Auth/license/device checks.
+7. media_kit player errors.
+8. EC2 vs Render backend mismatch.
+9. HTTP/HTTPS/cleartext issue.
+10. Backend generated URLs.
+11. Smooth playback state.
+12. Player reconnect loop.
 
-  12. backend/src/routes/auth.js — authLimiter (20 req/15min) applied to refresh-token
-  Token refresh is a legitimate background operation done automatically by the app. The Flutter app uses a Dio interceptor to refresh on 401s. Under any
-  usage pattern with concurrent API calls, 20 refresh attempts per 15 min is very easy to hit, causing cascading 429s and forcing re-login.
+---
 
-  13. backend/src/controllers/proxyController.js:272-274 — Manifest cached with stale encrypted tokens
-  // tokens have different IVs per-call (correct)
-  // but cache stores ONE set of tokens for `cacheManifest_ms` (8s)
-  manifestCache.set(streamId, rewritten);
-  Two users hitting the same stream within 8s get the same encrypted tokens — tokens include userId in encryption. Since encryptSegmentUrl(fullUrl,
-  streamId, userId) is called with different userIds, the first user's cached manifest (with tokens encrypted for user A) is served to user B. User B's
-  segments then fail token decryption with "stream binding" mismatch (if userId is part of the HMAC binding).
+# Important Context
 
-  14. mobile/lib/screens/player_screen.dart:1676-1688 — _getBoxFit() fill returns BoxFit.contain
-  case 'fill':
-    return BoxFit.contain;  // Semantic bug: 'fill' should be BoxFit.fill or BoxFit.cover
-  The fill effect is achieved via a separate scale transform, but the BoxFit.contain here means if the scale transform ever fails to apply (e.g., render
-  object not yet laid out), fill mode renders identically to fit — invisible to the user but silently wrong.
+We recently moved backend from Render to EC2.
 
-  15. mobile/lib/screens/player_screen.dart:325-328 — _nextPage calculated incorrectly
-  _nextPage = (_contextChannels.length / limit).ceil() + 1;
-  With limit = 50 hard-coded locally and channels.length from the passed list (often not 50 exactly), this can compute a page number that skips pages. For
-  example, 30 channels → ceil(30/50)+1 = 2 which is correct; but 75 channels → ceil(75/50)+1 = 3, skipping page 2's data.
+Make sure the app is not still using the old Render backend.
 
-  16. frontend/src/lib/api.ts:104 — getPayments() fetches without pagination params
-  export const getPayments = () => api.get('/payments').then((r) => r.data.data);
-  Backend defaults to first 50 payments. Admin payments page only ever shows 50 records regardless of total. Same issue for getLicenses() (line 74) and
-  getUsers() (line 59) — pagination exists in backend but ignored in frontend, admin sees incomplete data.
+Search and remove old Render references from:
 
-  17. frontend/src/lib/api.ts:273-282 — getStreamHealth, markStreamStatus, recheckStream return full AxiosResponse
-  export const getStreamHealth = (params?: ...) =>
-    api.get('/stream-health', { params });  // ← returns AxiosResponse, not .data.data
-  All other API functions unwrap .then(r => r.data.data). These three return the raw Axios response object, requiring callers to manually unwrap. This
-  inconsistency likely causes undefined data rendering in the stream-health admin page.
+* Flutter mobile app
+* frontend admin
+* public website
+* backend env
+* database app settings
+* generated proxy URLs
+* generated smooth playback URLs
+* CORS config
+* API service files
 
-  18. backend/src/utils/jwt.js:23 — crypto.randomUUID() used without import
-  return jwt.sign({ userId, type: 'refresh', jti: crypto.randomUUID() }, ...);
-  crypto from Node's built-in is not imported at the top of jwt.js. The db module is imported (line 48) but there's no const crypto = require('crypto').
-  This throws ReferenceError: crypto is not defined when generating refresh tokens. (Node 18+ provides globalThis.crypto but crypto.randomUUID() on the
-  global is only available in Node 19+. In Node 18, you need require('crypto').randomUUID().)
+Search terms:
 
-  19. mobile/lib/services/api_client.dart:9 — ApiClient must call init() before use; no guard
-  late Dio _dio;
-  // init() sets _dio; getter exposes _dio:
-  Dio get dio => _dio;
-  If any code instantiates ApiClient and calls dio before calling init(), it throws LateInitializationError: Field '_dio@...' has not been initialized. No
-  factory constructor or assertion prevents this.
+```txt
+onrender.com
+render.com
+localhost
+127.0.0.1
+old backend URL
+```
 
-  ---
-  🔵 LOW / CODE QUALITY
+The app must use the EC2 backend only.
 
-  20. backend/src/app.js:126-134 — Migration failures are swallowed, server continues
-  } catch (err) {
-    console.error(`Migration failed for ${migrationFile}:`, err.message);
-    // ← execution continues to next migration
-  }
-  If 001_initial_schema.sql fails (e.g., syntax error or missing table), later migrations that depend on it silently run against an incomplete schema.
-  Consider failing fast or marking bad migrations in a failed state.
+---
 
-  21. backend/src/controllers/adminController.js:327-337 — deleteChannel has no 404 check
-  await db.query('DELETE FROM channels WHERE id = $1', [id]);
-  // Always returns 200 even if channel doesn't exist
-  Unlike deleteCategory which also has no 404 check — deleting a non-existent channel silently succeeds. Should return 404 on rowCount === 0.
+# First Priority: Confirm APK Backend URL
 
-  22. mobile/lib/screens/player_screen.dart:1099-1105 — Auto quality upgrade timer not cancelled on channel switch
-  _qualityUpgradeTimer = Timer(const Duration(minutes: 3), _tryUpgradeQuality);
-  In _onChannelChanged() (line 1544), _qualityUpgradeTimer?.cancel() is NOT called. If you switch channels within 3 minutes of a quality downgrade, the old
-  timer fires on the new channel and tries to upgrade quality that may not be appropriate for it.
+Check how the APK was built.
 
-  23. mobile/lib/screens/player_screen.dart — _VideoController not disposed
-  late final VideoController _videoController;
-  // dispose() (line 1846) disposes _player but never _videoController
-  VideoController is initialized in initState but _videoController.dispose() is missing from dispose(). This can cause memory leaks when navigating back
-  from the player.
+The app must be built with:
 
-  24. backend/src/controllers/authController.js — OTP table never cleaned up
-  password_reset_otps rows are marked used=true but never deleted. Over time this table grows unboundedly. No cleanup job or TTL-based deletion exists.
+```txt
+--dart-define=BACKEND_URL=<EC2_BACKEND_URL>
+```
 
-  25. frontend/src/contexts/AuthContext.tsx:27 — Admin token in non-httpOnly cookie
-  document.cookie = `adminToken=${encodeURIComponent(token)}; path=/; max-age=${maxAge}; SameSite=Strict`;
-  // Not httpOnly — accessible to any JS on the page
-  XSS on the admin panel would exfiltrate the admin JWT directly. The comment acknowledges this is intentional (for middleware access), but the admin panel
-  has no CSP header configured in next.config.ts to mitigate XSS.
+If BACKEND_URL is missing or wrong, rebuild APK.
 
-  ---
-  Summary Table
+For local phone testing, do not use localhost.
 
-  ┌─────┬─────────────┬──────────┬─────────────────────────┬───────────────────────────────────────────────────────────────────────────────────┐
-  │  #  │  Severity   │  Layer   │          File           │                                       Issue                                       │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 1   │ 🔴 Critical │ Backend  │ authController.js:230   │ revokeRefreshToken not imported → token refresh crashes with 401 for ALL users    │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 2   │ 🔴 Critical │ Backend  │ authController.js:333   │ Mobile-based password reset always fails (OTP stored by email, queried by mobile) │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 3   │ 🔴 Critical │ Mobile   │ api_client.dart:37      │ All 403s (license/device errors) trigger logout instead of only token expiry      │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 4   │ 🟠 High     │ Backend  │ authController.js:36    │ Mobile number not normalized before duplicate check → duplicate accounts possible │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 5   │ 🟠 High     │ Backend  │ paymentController.js:95 │ Payment verification not idempotent → double license on duplicate webhook         │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 6   │ 🟠 High     │ Backend  │ adminController.js:175  │ updateLicense accepts unvalidated user_id                                         │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 7   │ 🟠 High     │ Backend  │ app.js:139              │ Seed data runs every startup → duplicates categories/plans on restart             │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 8   │ 🟠 High     │ Backend  │ app.js:290              │ WebSocket init stats call unhandled, req.user = null crash risk                   │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 9   │ 🟠 High     │ Mobile   │ auth_cubit.dart:149     │ 5xx server errors authenticate user silently                                      │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 10  │ 🟠 High     │ Backend  │ channelController.js:4  │ Schema flags cached false permanently on first DB failure                         │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 11  │ 🟡 Medium   │ Backend  │ streamController.js:31  │ Direct JWT_SECRET usage bypasses safe wrapper                                     │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 12  │ 🟡 Medium   │ Backend  │ routes/auth.js:10       │ Refresh token rate-limited at 20/15min — blocks legitimate auto-refresh           │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 13  │ 🟡 Medium   │ Backend  │ proxyController.js:272  │ Manifest cache serves one user's encrypted tokens to another user                 │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 14  │ 🟡 Medium   │ Mobile   │ player_screen.dart:1679 │ fill mode maps to BoxFit.contain (semantically wrong)                             │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 15  │ 🟡 Medium   │ Mobile   │ player_screen.dart:325  │ _nextPage computed incorrectly — can skip channel pages                           │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 16  │ 🟡 Medium   │ Frontend │ api.ts:104              │ Payments/licenses/users pages only ever show first 50 records                     │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 17  │ 🟡 Medium   │ Frontend │ api.ts:273              │ Stream health API functions return raw AxiosResponse (inconsistent)               │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 18  │ 🟡 Medium   │ Backend  │ jwt.js:23               │ crypto.randomUUID() used without require('crypto')                                │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 19  │ 🟡 Medium   │ Mobile   │ api_client.dart:9       │ late Dio _dio throws if init() not called before dio getter                       │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 20  │ 🔵 Low      │ Backend  │ app.js:126              │ Failed migration swallowed, server continues with broken schema                   │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 21  │ 🔵 Low      │ Backend  │ adminController.js:327  │ deleteChannel no 404 check, silently succeeds for missing IDs                     │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 22  │ 🔵 Low      │ Mobile   │ player_screen.dart:1099 │ Quality upgrade timer not cancelled on channel switch                             │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 23  │ 🔵 Low      │ Mobile   │ player_screen.dart      │ VideoController never disposed → memory leak                                      │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 24  │ 🔵 Low      │ Backend  │ authController.js       │ OTP table grows unboundedly, no cleanup                                           │
-  ├─────┼─────────────┼──────────┼─────────────────────────┼───────────────────────────────────────────────────────────────────────────────────┤
-  │ 25  │ 🔵 Low      │ Frontend │ AuthContext.tsx:27      │ Admin token in JS-accessible cookie, no CSP header                                │
-  └─────┴─────────────┴──────────┴─────────────────────────┴───────────────────────────────────────────────────────────────────────────────────┘
+Wrong:
 
-  ---
-  The three most urgent fixes are #1 (token refresh crashes for all users), #3 (403 responses log users out), and #18 (crypto not imported = refresh tokens
-  can't be generated). Want me to fix any of these now?
+```txt
+http://localhost:5000
+http://127.0.0.1:5000
+old Render URL
+```
+
+Correct example:
+
+```txt
+https://api.nivatv.com
+```
+
+or temporary EC2 test:
+
+```txt
+http://EC2_PUBLIC_IP:5000
+```
+
+If using HTTP on Android, confirm cleartext is allowed or use HTTPS.
+
+---
+
+# Add Debug Logs in Flutter Player
+
+Add temporary debug logs in PlayerScreen and API service.
+
+Log these values when opening any channel:
+
+```txt
+BACKEND_URL
+channel_id
+channel_name
+playback API URL
+smooth playback API URL
+playback_mode
+selected_stream_url
+smooth_stream_url
+direct_live_url
+proxy_url
+headers
+buffer_ready
+buffer_depth_seconds
+recorder_status
+player_error
+retry_count
+is_playing
+is_buffering
+```
+
+Important:
+
+Do not log sensitive tokens in production logs.
+
+For debugging, hide token values.
+
+---
+
+# Backend API Checks
+
+For each failing channel, test these APIs manually:
+
+```txt
+GET /api/channels/:id/playback
+GET /api/channels/:id/smooth-playback
+```
+
+Check if response contains valid playable URL.
+
+For playback API, confirm:
+
+```txt
+primary_stream exists
+primary_stream.url exists
+primary_stream.headers exists if needed
+backup_streams returned if available
+proxy_url returned only if allowed
+health_status is not blocked
+```
+
+For smooth playback API, confirm:
+
+```txt
+playback_mode
+buffer_ready
+smooth_stream_url
+direct_live_url
+buffer_depth_seconds
+recorder_status
+message
+```
+
+If playback API returns no stream URL, the app cannot play.
+
+If playback API returns old Render URL, fix backend base URL generation.
+
+If playback API returns localhost, fix backend host/proxy config.
+
+If smooth playback returns warming forever, app should temporarily play direct_live_url.
+
+---
+
+# Check EC2 Backend Generated URLs
+
+All generated URLs must use EC2/backend domain.
+
+Correct:
+
+```txt
+https://EC2_BACKEND_DOMAIN/api/proxy/...
+https://EC2_BACKEND_DOMAIN/api/smooth/...
+```
+
+Wrong:
+
+```txt
+https://old-render-url.onrender.com/api/proxy/...
+http://localhost:5000/api/proxy/...
+http://127.0.0.1:5000/api/smooth/...
+```
+
+Check:
+
+* proxy URL generation
+* smooth playback URL generation
+* playlist segment URLs
+* API base URL in app
+* API base URL in admin
+* API base URL in website
+
+---
+
+# Check Proxy Playback
+
+If backend returns proxy URL, test it directly.
+
+Test:
+
+```txt
+GET /api/proxy/:streamId/master.m3u8
+```
+
+Expected:
+
+* returns valid HLS playlist
+* contains #EXTM3U
+* segment URLs are valid
+* segment URLs point to EC2
+* segment token is valid
+* no old Render URL
+* no localhost URL
+
+Then test one segment URL.
+
+Expected:
+
+* segment returns video content
+* not HTML
+* not 401
+* not 403
+* not timeout
+* not 404
+
+If manifest loads but segment fails, app will show Reconnecting.
+
+---
+
+# Check Smooth Playback
+
+If channel uses smooth playback:
+
+Check:
+
+```txt
+GET /api/smooth/:channelId/playlist.m3u8
+```
+
+Expected:
+
+```txt
+#EXTM3U
+#EXT-X-TARGETDURATION
+#EXT-X-MEDIA-SEQUENCE
+```
+
+Must not contain:
+
+```txt
+#EXT-X-PLAYLIST-TYPE:EVENT
+```
+
+Check segment URLs:
+
+* segments exist
+* segment URLs point to EC2
+* segment files are not missing
+* old segments are not referenced after cleanup
+* missing segments are skipped
+* playlist does not include broken segment URLs
+
+If smooth playlist includes missing segment URLs, media_kit will reconnect forever.
+
+---
+
+# Check Auth / License / Device Issue
+
+All channels reconnecting can happen if the app gets stream URL but proxy/segments are blocked.
+
+Check:
+
+* user is logged in
+* access token is valid
+* refresh token works
+* license is active
+* device is registered
+* device limit not exceeded
+* proxy manifest accepts auth
+* proxy segments use valid token
+* hidden/removed channel is blocked correctly
+* normal visible channels are allowed
+
+If playback API works but proxy returns 401/403, fix auth/proxy token flow.
+
+---
+
+# Check media_kit Player Error
+
+Add listener/log for media_kit player errors.
+
+Need exact error:
+
+```txt
+network timeout
+403 forbidden
+404 not found
+cleartext not permitted
+invalid data
+codec unsupported
+manifest parse error
+segment missing
+connection refused
+SSL error
+```
+
+Without exact player error, do not guess.
+
+If error says cleartext not permitted:
+
+* use HTTPS backend
+* or allow cleartext only for test
+
+If error says 403:
+
+* check auth/proxy token/header/license
+
+If error says 404:
+
+* check proxy segment URL or missing segment file
+
+If error says timeout:
+
+* check EC2 port/firewall/source stream timeout
+
+If error says invalid data:
+
+* backend may be returning HTML/error instead of video segment
+
+---
+
+# Check Android Network Access
+
+If using EC2 direct IP or HTTP:
+
+Verify from phone browser:
+
+```txt
+http://EC2_PUBLIC_IP:5000/api/app/status
+```
+
+or:
+
+```txt
+https://api.nivatv.com/api/app/status
+```
+
+If phone browser cannot open backend API, app also cannot play.
+
+Check:
+
+* EC2 security group inbound rules
+* port 5000 open if direct
+* port 80/443 open if Nginx
+* backend listening on 0.0.0.0
+* Nginx proxy config
+* SSL certificate
+* firewall/ufw
+* CORS if browser/admin
+* Android cleartext if HTTP
+
+---
+
+# Check App Player State Bug
+
+If backend and stream are valid but app still shows Reconnecting:
+
+Check Flutter state logic.
+
+Possible bugs:
+
+1. `_isBuffering` remains true forever.
+2. Player starts but overlay does not hide.
+3. `isPlaying` event is not updating UI.
+4. Retry loop restarts same URL again and again.
+5. App never switches from direct to smooth URL.
+6. Smooth status polling is not working.
+7. Buffer ready becomes true but app does not reload smooth URL.
+8. Player is disposed/recreated repeatedly.
+9. Switching related channels triggers wrong channel stream.
+10. Selected stream URL is empty or stale.
+
+Add logs around:
+
+* initializePlayer
+* open media
+* buffering event
+* playing event
+* error event
+* reconnect timer
+* fallback chain
+* dispose
+* channel switch
+
+---
+
+# Check Whether App Is Playing Smooth or Direct
+
+For every channel, identify what URL app is actually trying to play.
+
+App must print:
+
+```txt
+Playing mode: direct / proxy / smooth
+Playing URL: ...
+```
+
+If smooth playback is enabled and buffer_ready=true:
+
+App should play:
+
+```txt
+smooth_stream_url
+```
+
+If smooth playback warming and direct URL exists:
+
+App should play:
+
+```txt
+direct_live_url temporarily
+```
+
+If neither exists:
+
+Show clear error.
+
+Do not keep infinite Reconnecting.
+
+---
+
+# Fix Reconnecting Forever
+
+Do not let player show Reconnecting forever.
+
+Add limit:
+
+```txt
+Max reconnect attempts: 3
+```
+
+After attempts fail:
+
+Show:
+
+```txt
+Stream unavailable
+No stable source available right now.
+Retry
+Try another channel
+Report
+```
+
+Also report failure to backend with exact player error.
+
+---
+
+# Test With Known Good Stream
+
+To separate app issue from IPTV source issue, test with known public HLS test stream.
+
+Use:
+
+```txt
+https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
+```
+
+Assign it to one test channel.
+
+If Mux test stream plays in app:
+
+* app player is working
+* problem is source/proxy/smooth URLs
+
+If Mux test stream also shows Reconnecting:
+
+* global app/backend/network/player config is broken
+
+This is the fastest diagnosis.
+
+---
+
+# Required Investigation Output
+
+After investigation, provide a report with:
+
+```txt
+1. APK BACKEND_URL value
+2. EC2 backend health check result
+3. Channel ID tested
+4. Playback API response summary
+5. Smooth playback API response summary
+6. Actual URL app tried to play
+7. Proxy manifest test result
+8. Proxy segment test result
+9. media_kit exact error
+10. Whether URL points to EC2 or old Render
+11. Whether issue is backend config, proxy, smooth playlist, auth, or player state
+12. Exact files changed
+13. Test result after fix
+```
+
+---
+
+# Acceptance Criteria
+
+This issue is fixed when:
+
+* APK uses EC2 backend URL.
+* No Render URL remains in playback/proxy/smooth URLs.
+* EC2 backend is reachable from phone.
+* Playback API returns valid stream URL.
+* Smooth playback API returns valid smooth URL or direct fallback.
+* Proxy manifest loads.
+* Proxy segment loads.
+* media_kit receives a playable HLS URL.
+* Known Mux test stream plays inside app.
+* At least one real public channel plays.
+* All channels no longer stay stuck on Reconnecting.
+* If a channel source is bad, app shows proper channel/source error, not infinite reconnecting.
