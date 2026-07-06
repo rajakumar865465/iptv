@@ -128,7 +128,7 @@ function normalizeLanguage(raw) {
 }
 
 // PLAYABLE health statuses — shown when workingOnly=true
-const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable'];
+const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable', 'segment_failed', 'unknown'];
 // Hidden health statuses — always hidden from normal users
 const DEAD_STATUSES = ['offline', 'dead', 'forbidden_403', 'drm_or_unsupported', 'geo_blocked', 'requires_licensed_source'];
 // Allow unknown streams (channels not yet checked) when ALLOW_UNKNOWN_STREAMS=true in .env
