@@ -9,6 +9,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
 import '../cubits/favorite_cubit.dart';
 import '../models/channel_model.dart';
@@ -1458,8 +1459,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _isLoading = true;
         _hasError = false;
       });
-      // Proxy URL already routes through auth - no extra headers needed from client
-      await _initializePlayer(_proxyUrl!, {});
+      // Proxy URL requires Bearer token via headers
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(StorageKeys.token);
+      final proxyHeaders = {
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+      await _initializePlayer(_proxyUrl!, proxyHeaders);
       return;
     }
 
