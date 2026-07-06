@@ -61,6 +61,8 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = 10000, redire
       const status = res.statusCode;
 
       if (status >= 300 && status < 400 && res.headers.location) {
+        isResolved = true;
+        clearTimeout(timer);
         req.destroy(); // abort current connection
         const nextUrl = resolveUrl(url, res.headers.location);
         return resolve(httpGet(nextUrl, headers, segmentMode, timeout, redirectDepth + 1));
@@ -75,8 +77,18 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = 10000, redire
       res.on('data', chunk => {
         if (segmentMode) {
           chunks.push(Buffer.from(chunk, 'binary'));
-          let totalBytes = chunks.reduce((acc, c) => acc + c.length, 0);
+          const totalBytes = chunks.reduce((acc, c) => acc + c.length, 0);
           if (totalBytes > 8192) {
+            // Resolve BEFORE destroying — server may ignore Range and send full file (200).
+            // res.destroy() fires 'close' not 'end', so resolve here to avoid ok:false.
+            if (!isResolved) {
+              isResolved = true;
+              clearTimeout(timer);
+              resolve({
+                ok: status >= 200 && status < 300 || status === 206,
+                status, ct, body: Buffer.concat(chunks), finalUrl: url
+              });
+            }
             res.destroy();
           }
         } else {
@@ -91,23 +103,23 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = 10000, redire
         if (isResolved) return;
         isResolved = true;
         clearTimeout(timer);
-        
+
         if (segmentMode) {
           const fullBuf = Buffer.concat(chunks);
-          resolve({ 
-            ok: status >= 200 && status < 300 || status === 206, 
-            status, 
-            ct, 
-            body: fullBuf, 
-            finalUrl: url 
+          resolve({
+            ok: status >= 200 && status < 300 || status === 206,
+            status,
+            ct,
+            body: fullBuf,
+            finalUrl: url
           });
         } else {
-          resolve({ 
-            ok: status >= 200 && status < 300, 
-            status, 
-            ct, 
-            body, 
-            finalUrl: url 
+          resolve({
+            ok: status >= 200 && status < 300,
+            status,
+            ct,
+            body,
+            finalUrl: url
           });
         }
       });
@@ -119,7 +131,7 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = 10000, redire
           resolve({ ok: false, reason: 'res_error', msg: e.message, finalUrl: url });
         }
       });
-      
+
       res.on('close', () => {
         if (!isResolved) {
           isResolved = true;

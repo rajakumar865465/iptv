@@ -68,16 +68,26 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = TIMEOUT, redi
       let body = '';
       const enc = segmentMode ? 'binary' : 'utf8';
       res.setEncoding(enc);
-      
+
       res.on('data', chunk => {
         body += chunk;
-        if (body.length > (segmentMode ? MAX_SEG_BYTES : MAX_M3U_BYTES)) { res.destroy(); }
+        if (body.length > (segmentMode ? MAX_SEG_BYTES : MAX_M3U_BYTES)) {
+          // Resolve BEFORE destroying — server may not honour Range header (returns 200 + full file).
+          // Calling res.destroy() fires 'close' not 'end', so we must resolve here or the
+          // close handler would return ok:false and mark every such segment as SEGMENT_FAILED.
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timer);
+            resolve({ ok: status >= 200 && status < 300 || status === 206, status, ct, body });
+          }
+          res.destroy();
+        }
       });
       res.on('end', () => {
         if (isResolved) return;
         isResolved = true;
         clearTimeout(timer);
-        resolve({ ok: status >= 200 && status < 400 || status === 206, status, ct, body });
+        resolve({ ok: status >= 200 && status < 300 || status === 206, status, ct, body });
       });
       res.on('error', e => {
         if (!isResolved) {
@@ -86,7 +96,7 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = TIMEOUT, redi
           resolve({ ok: false, reason: 'res_error', msg: e.message });
         }
       });
-      
+
       res.on('close', () => {
         if (!isResolved) {
           isResolved = true;
@@ -187,9 +197,10 @@ async function checkDeep(streamUrl, customHeaders = {}) {
   const latency = Date.now() - t0;
 
   if (!segRes.ok) {
-    if (segRes.status === 403) return { status: 'offline', score: 0, reason: 'segment_forbidden' };
-    if (segRes.reason === 'timeout') return { status: 'offline', score: 30, reason: 'segment_timeout' };
-    return { status: 'offline', score: 30, reason: `segment_\${segRes.status || segRes.reason || 'failed'}` };
+    // Manifest was fine — classify as unstable, not offline, so the channel stays visible
+    if (segRes.status === 403) return { status: 'unstable', score: 20, reason: 'segment_forbidden' };
+    if (segRes.reason === 'timeout') return { status: 'unstable', score: 25, reason: 'segment_timeout' };
+    return { status: 'unstable', score: 25, reason: `segment_${segRes.status || segRes.reason || 'failed'}` };
   }
 
   let score = latency > 8000 ? 40 : latency > 4000 ? 65 : 80;
@@ -319,3 +330,5 @@ exports.getScanHistory = async (req, res) => {
     success(res, result.rows);
   } catch (err) { error(res, 'Failed to fetch scan history', 500); }
 };
+
+exports.checkDeep = checkDeep;
