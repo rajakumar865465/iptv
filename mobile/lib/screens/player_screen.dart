@@ -1218,17 +1218,24 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           _tryAdaptiveDowngrade();
         });
 
-        // Show "Reconnecting..." overlay message after 3 seconds of sustained buffering
+        // Show buffering overlay after sustained buffering.
+        // - If we've never received video frames yet (_playStartTime == null) → "Loading channel..."
+        //   (the stream is still doing its initial HLS manifest + segment fetch)
+        // - If video was actually playing before and dropped → "Reconnecting..."
+        //   (a real mid-stream interruption)
         _reconnectTimer?.cancel();
-        _reconnectTimer = Timer(const Duration(seconds: 3), () {
+        final bool hasPlayedBefore = _playStartTime != null;
+        final int reconnectDelaySecs = hasPlayedBefore ? 3 : 5;
+        _reconnectTimer = Timer(Duration(seconds: reconnectDelaySecs), () {
           if (mounted && alreadyStarted) {
-            _playerDebugLog('showing_reconnecting_overlay', {
+            _playerDebugLog('showing_buffering_overlay', {
               'channel_id': _currentChannel.id,
               'current_url': _currentUrl,
               'is_buffering': _player.state.buffering,
+              'has_played_before': hasPlayedBefore,
             });
             setState(() {
-              _streamOverlayMessage = 'Reconnecting...';
+              _streamOverlayMessage = hasPlayedBefore ? 'Reconnecting...' : 'Loading channel...';
               _isLoading = true;
             });
           }
@@ -1432,7 +1439,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _retryAttempt++;
       if (mounted) {
         setState(() {
-          _streamOverlayMessage = 'Still loading. Trying again...';
+          // Before first video frame: keep showing "Loading channel..." (not "Still loading")
+          // so the user sees a clean initial load experience instead of retry messages.
+          _streamOverlayMessage = _playStartTime != null ? 'Still loading. Trying again...' : 'Loading channel...';
           _isLoading = true;
           _hasError = false;
         });
