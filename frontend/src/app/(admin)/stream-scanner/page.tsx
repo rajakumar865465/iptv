@@ -251,6 +251,21 @@ export default function StreamScannerPage() {
                   <span className="text-rose-400">✗ {activeJob.failed_channels} failed</span>
                   <span>/ {activeJob.total_channels} total</span>
                 </div>
+                {activeJob.live_logs && activeJob.live_logs.length > 0 && (
+                  <div className="mt-4 bg-slate-900/80 rounded-xl border border-slate-800 p-3 h-48 overflow-y-auto font-mono text-[11px] flex flex-col-reverse shadow-inner">
+                    {activeJob.live_logs.slice().reverse().map((log: any, i: number) => (
+                      <div key={i} className="py-1 border-b border-slate-800/50 last:border-0 flex items-center gap-2">
+                        <span>{log.status === 'online' ? '🟢' : log.status === 'unstable' ? '🟡' : '🔴'}</span>
+                        <span className="text-slate-500">[{log.index}/{log.total}]</span>
+                        <span className="text-slate-200 font-semibold">{log.name || 'Unknown Channel'}</span>
+                        <span className="text-slate-600">|</span>
+                        <span className={log.status === 'online' ? 'text-emerald-400' : log.status === 'unstable' ? 'text-amber-400' : 'text-rose-400'}>{log.status}</span>
+                        <span className="text-slate-600">|</span>
+                        <span className="text-slate-400">{log.reason} {log.latency ? `${log.latency}ms` : ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             ) : <p className="text-sm text-slate-400 animate-pulse">Initialising scan job…</p>}
           </motion.div>
