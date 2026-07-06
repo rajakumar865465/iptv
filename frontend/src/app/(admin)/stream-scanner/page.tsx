@@ -70,6 +70,7 @@ export default function StreamScannerPage() {
   const [activeJob, setActiveJob] = useState<any>(null);
   const [scope, setScope] = useState('all');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const terminalRef = useRef<HTMLDivElement | null>(null);
 
   interface Channel { id: string; [key: string]: any }
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -107,6 +108,13 @@ export default function StreamScannerPage() {
     void Promise.resolve().then(() => fetchChannels());
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
+
+  // Auto-scroll terminal to bottom as new results stream in
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    }
+  }, [activeJob?.channel_log?.length]);
 
   const startPolling = (jobId: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -236,38 +244,65 @@ export default function StreamScannerPage() {
         {running && (
           <motion.div
             initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            className="rounded-2xl border border-cyan-500/30 bg-cyan-500/5 backdrop-blur-xl p-5"
+            className="rounded-2xl border border-cyan-500/30 bg-slate-900/80 backdrop-blur-xl overflow-hidden shadow-2xl"
           >
-            <div className="flex items-center gap-3 mb-3">
-              <Radar className="w-5 h-5 text-cyan-400 animate-pulse" />
-              <h3 className="font-bold text-slate-200">Deep Scan in progress…</h3>
-              {activeJob && typeof activeJob === 'object' && activeJob !== null && 'status' in activeJob ? <StatusBadge status={String(activeJob.status)} /> : null}
+            {/* Header bar */}
+            <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-700/60 bg-slate-800/60">
+              <Radar className="w-4 h-4 text-cyan-400 animate-pulse flex-shrink-0" />
+              <h3 className="font-bold text-slate-200 flex-1">Deep Scan in progress…</h3>
+              {activeJob && typeof activeJob === 'object' && 'status' in activeJob
+                ? <StatusBadge status={String(activeJob.status)} />
+                : null}
             </div>
+
+            {/* Progress bar */}
             {activeJob ? (
-              <>
+              <div className="px-5 pt-3">
                 <ProgressBar total={activeJob.total_channels} completed={activeJob.completed_channels} failed={activeJob.failed_channels} />
-                <div className="flex gap-4 mt-3 text-xs text-slate-400">
+                <div className="flex gap-4 mt-2 text-xs text-slate-400">
                   <span className="text-emerald-400">✓ {activeJob.completed_channels} online</span>
+                  <span className="text-amber-400">~ {activeJob.unstable_channels || 0} unstable</span>
                   <span className="text-rose-400">✗ {activeJob.failed_channels} failed</span>
                   <span>/ {activeJob.total_channels} total</span>
                 </div>
-                {activeJob.live_logs && activeJob.live_logs.length > 0 && (
-                  <div className="mt-4 bg-slate-900/80 rounded-xl border border-slate-800 p-3 h-48 overflow-y-auto font-mono text-[11px] flex flex-col-reverse shadow-inner">
-                    {activeJob.live_logs.slice().reverse().map((log: any, i: number) => (
-                      <div key={i} className="py-1 border-b border-slate-800/50 last:border-0 flex items-center gap-2">
-                        <span>{log.status === 'online' ? '🟢' : log.status === 'unstable' ? '🟡' : '🔴'}</span>
-                        <span className="text-slate-500">[{log.index}/{log.total}]</span>
-                        <span className="text-slate-200 font-semibold">{log.name || 'Unknown Channel'}</span>
+              </div>
+            ) : (
+              <div className="px-5 pt-3">
+                <p className="text-sm text-slate-400 animate-pulse">Initialising scan job…</p>
+              </div>
+            )}
+
+            {/* Terminal output box */}
+            <div
+              ref={terminalRef}
+              className="mx-5 my-3 rounded-xl bg-black/70 border border-slate-700/50 overflow-y-auto font-mono text-xs leading-5"
+              style={{ height: '260px' }}
+            >
+              {activeJob?.channel_log?.length ? (
+                <div className="p-3 space-y-0.5">
+                  {(activeJob.channel_log as Array<{name:string;status:string;reason:string;latency:number|null;idx:number;total:number}>).map((entry, i) => {
+                    const icon = entry.status === 'online' ? '🟢' : entry.status === 'unstable' ? '🟡' : '🔴';
+                    const color = entry.status === 'online' ? 'text-emerald-400' : entry.status === 'unstable' ? 'text-amber-400' : 'text-rose-400';
+                    return (
+                      <div key={i} className="flex items-center gap-2 whitespace-nowrap">
+                        <span>{icon}</span>
+                        <span className="text-slate-500">[{entry.idx}/{entry.total}]</span>
+                        <span className="text-slate-200 truncate max-w-[220px]">{entry.name}</span>
                         <span className="text-slate-600">|</span>
-                        <span className={log.status === 'online' ? 'text-emerald-400' : log.status === 'unstable' ? 'text-amber-400' : 'text-rose-400'}>{log.status}</span>
+                        <span className={color}>{entry.status}</span>
                         <span className="text-slate-600">|</span>
-                        <span className="text-slate-400">{log.reason} {log.latency ? `${log.latency}ms` : ''}</span>
+                        <span className="text-slate-400">{entry.reason}</span>
+                        {entry.latency && <span className="text-slate-500 ml-1">{entry.latency}ms</span>}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : <p className="text-sm text-slate-400 animate-pulse">Initialising scan job…</p>}
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full text-slate-600">
+                  <span>Waiting for results…</span>
+                </div>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

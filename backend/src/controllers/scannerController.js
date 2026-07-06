@@ -11,9 +11,6 @@ const { URL } = require('url');
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
 
-// Global store for live scanner logs
-global.scanLogs = global.scanLogs || {};
-
 const TIMEOUT = 10000;
 const SEG_TIMEOUT = 12000;
 const UA = 'ExoPlayer/2.18.1 (Linux; Android 11)';
@@ -29,11 +26,14 @@ async function ensureScanJobsTable() {
       completed_channels INTEGER DEFAULT 0,
       failed_channels    INTEGER DEFAULT 0,
       results            JSONB,
+      channel_log        JSONB DEFAULT '[]'::jsonb,
       started_at         TIMESTAMP,
       completed_at       TIMESTAMP,
       created_at         TIMESTAMP DEFAULT NOW()
     )
   `);
+  // Add channel_log column to existing tables if missing
+  await db.query(`ALTER TABLE stream_scan_jobs ADD COLUMN IF NOT EXISTS channel_log JSONB DEFAULT '[]'::jsonb`);
 }
 
 function httpGet(url, headers = {}, segmentMode = false, timeout = TIMEOUT, redirectDepth = 0) {
@@ -236,12 +236,21 @@ async function runScanJob(jobId, options = {}) {
     const streams = r.rows;
     const total = streams.length;
     
-    global.scanLogs[jobId] = { logs: [], processed: 0 };
-
     await db.query('UPDATE stream_scan_jobs SET total_channels=$1, started_at=NOW(), status=$2 WHERE id=$3', [total, 'running', jobId]);
 
     let completed = 0, failed = 0;
     const CONCURRENCY = 8;
+    const logBuffer = [];
+    let logFlushPending = false;
+
+    const flushLog = async () => {
+      if (logBuffer.length === 0) return;
+      const snapshot = logBuffer.splice(0, logBuffer.length);
+      await db.query(
+        `UPDATE stream_scan_jobs SET channel_log = COALESCE(channel_log, '[]'::jsonb) || $1::jsonb WHERE id=$2`,
+        [JSON.stringify(snapshot), jobId]
+      );
+    };
     
     for (let i = 0; i < streams.length; i += CONCURRENCY) {
       const chunk = streams.slice(i, i + CONCURRENCY);
@@ -252,18 +261,6 @@ async function runScanJob(jobId, options = {}) {
         
         const result = await checkDeep(st.stream_url, hdrs);
         
-        global.scanLogs[jobId].processed++;
-        const logEntry = {
-          name: st.channel_name,
-          status: result.status,
-          reason: result.reason,
-          latency: result.latency,
-          index: global.scanLogs[jobId].processed,
-          total: total
-        };
-        global.scanLogs[jobId].logs.push(logEntry);
-        if (global.scanLogs[jobId].logs.length > 50) global.scanLogs[jobId].logs.shift();
-
         // Smart logic: if previously online and now fails, maybe just unstable
         let finalStatus = result.status;
         if (finalStatus === 'offline' && st.health_status === 'online') finalStatus = 'unstable';
@@ -302,18 +299,29 @@ async function runScanJob(jobId, options = {}) {
           [st.channel_id]
         );
 
-        if (result.status === 'online') completed++; else failed++;
+        if (finalStatus === 'online') completed++; else failed++;
+
+        // Append to live log buffer
+        logBuffer.push({
+          name: st.channel_name || `Channel ${st.channel_id}`,
+          status: finalStatus,
+          reason: result.reason || '',
+          latency: result.latency || null,
+          idx: completed + failed,
+          total,
+        });
       }));
 
-      await db.query('UPDATE stream_scan_jobs SET completed_channels=$1, failed_channels=$2 WHERE id=$3', [completed, failed, jobId]);
+      await Promise.all([
+        db.query('UPDATE stream_scan_jobs SET completed_channels=$1, failed_channels=$2 WHERE id=$3', [completed, failed, jobId]),
+        flushLog(),
+      ]);
     }
     
     await db.query(`UPDATE stream_scan_jobs SET status='completed', completed_at=NOW(), results=$1::jsonb WHERE id=$2`, [JSON.stringify({ total, completed, failed }), jobId]);
-    delete global.scanLogs[jobId]; // Clean up memory
   } catch (err) {
     console.error('Job fail:', err);
     try { await db.query(`UPDATE stream_scan_jobs SET status='failed', completed_at=NOW(), results=$1::jsonb WHERE id=$2`, [JSON.stringify({ error: err.message }), jobId]); } catch (_) {}
-    delete global.scanLogs[jobId]; // Clean up memory
   }
 }
 
@@ -338,11 +346,7 @@ exports.getScanStatus = async (req, res) => {
     const { id } = req.params;
     const result = await db.query('SELECT * FROM stream_scan_jobs WHERE id=$1', [id]);
     if (result.rows.length === 0) return error(res, 'Job not found', 404);
-    const job = result.rows[0];
-    if (global.scanLogs[id]) {
-      job.live_logs = global.scanLogs[id].logs;
-    }
-    success(res, job);
+    success(res, result.rows[0]);
   } catch (err) { error(res, 'Failed to fetch scan status', 500); }
 };
 
