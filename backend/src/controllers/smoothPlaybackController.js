@@ -318,10 +318,14 @@ exports.servePlaylist = async (req, res) => {
 
     const mediaUrl = `${baseUrl}/api/smooth/${channelId}/media.m3u8?t=${token}`;
 
+    // Omit CODECS from STREAM-INF — the actual segments may be H.264 High Profile,
+    // HEVC, or other codec depending on the source. Declaring a fixed codec (e.g.
+    // avc1.42e01e = H.264 Baseline) causes strict players to reject streams encoded
+    // with a different profile. Let the player auto-detect from segment data instead.
     const playlist = [
       '#EXTM3U',
       '#EXT-X-VERSION:3',
-      `#EXT-X-STREAM-INF:BANDWIDTH=1000000,CODECS="avc1.42e01e,mp4a.40.2"`,
+      '#EXT-X-STREAM-INF:BANDWIDTH=2000000',
       mediaUrl,
     ].join('\n');
 
@@ -371,12 +375,16 @@ exports.serveMediaPlaylist = async (req, res) => {
     const cutoffTime = new Date(now - delaySeconds * 1000).toISOString();
     const oldestAllowedTime = new Date(now - (delaySeconds + STALE_BUFFER_WINDOW_SEC) * 1000).toISOString();
 
+    // LIMIT 60: at the shortest common segment duration (2s), the 90s stale window
+    // contains 45 segments. At 1s segments it could be 90. Cap at 60 for a ~2 min
+    // sliding window — enough to cover all normal segment durations without
+    // sending an excessively large playlist to the player.
     const segsRes = await db.query(
       `SELECT segment_name, sequence_number, duration, segment_status, source_type
        FROM delayed_buffer_segments
        WHERE channel_id = $1 AND created_at <= $2 AND created_at >= $3
        ORDER BY sequence_number ASC
-       LIMIT 30`,
+       LIMIT 60`,
       [channelId, cutoffTime, oldestAllowedTime]
     );
 

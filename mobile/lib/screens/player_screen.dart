@@ -146,12 +146,12 @@ class PlaybackProfile {
 /// Larger buffer keeps player well behind live edge - avoids 404 on fresh segments.
 const PlaybackProfile kStableProfile = PlaybackProfile(
   name: 'stable',
-  demuxerReadaheadSecs: 10,
+  demuxerReadaheadSecs: 20,
   bufferSizeBytes: 64 * 1024 * 1024, // 64 MB — handles HD IPTV without stalling
   startupTimeoutSecs: 25,
-  stallTimeoutSecs: 30,
+  stallTimeoutSecs: 20,
   preferredQuality: 'auto',
-  demuxerMaxBytesMib: 64,
+  demuxerMaxBytesMib: 96,
   demuxerMaxBackBytesMib: 32,
 );
 
@@ -161,7 +161,7 @@ const PlaybackProfile kFastProfile = PlaybackProfile(
   demuxerReadaheadSecs: 3,
   bufferSizeBytes: 32 * 1024 * 1024, // 32 MB
   startupTimeoutSecs: 18,
-  stallTimeoutSecs: 18,
+  stallTimeoutSecs: 10,
   preferredQuality: 'auto',
   demuxerMaxBytesMib: 32,
   demuxerMaxBackBytesMib: 16,
@@ -173,7 +173,7 @@ const PlaybackProfile kDataSaverProfile = PlaybackProfile(
   demuxerReadaheadSecs: 6,
   bufferSizeBytes: 16 * 1024 * 1024, // 16 MB
   startupTimeoutSecs: 25,
-  stallTimeoutSecs: 30,
+  stallTimeoutSecs: 20,
   preferredQuality: '360p',
   demuxerMaxBytesMib: 32,
   demuxerMaxBackBytesMib: 16,
@@ -975,34 +975,62 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               'demuxer-max-bytes', '${demuxerMaxBytesMib}MiB');
           await (platform as dynamic).setProperty(
               'demuxer-max-back-bytes', '${profile.demuxerMaxBackBytesMib}MiB');
-          // Pause briefly on buffer underrun then resume — avoids freeze-then-skip
-          // rendering of partial frames that looked like a frozen stream.
-          // cache-pause-wait=2 rebuilds 2s of buffer before resuming: one short
-          // pause instead of the play-0.5s/stall-0.5s stutter loop users saw.
+          // Pause on buffer underrun and rebuild before resuming — VLC-style.
+          // 8s threshold: CDN hiccups on Indian IPTV networks often recover in 5-7s.
+          // Waiting 8s avoids the play→stall→play→stall micro-loop.
           await (platform as dynamic).setProperty('cache-pause', 'yes');
-          await (platform as dynamic).setProperty('cache-pause-wait', '2');
-          await (platform as dynamic).setProperty('cache-pause-action', 'resume');
-          // Auto-reconnect on network stall — never use seek() on live streams
+          await (platform as dynamic).setProperty('cache-pause-wait', '8');
+          // Keep the player alive at stream end (HLS live streams return EOF between
+          // playlist windows). Without this, media_kit disposes the player on EOF.
+          await (platform as dynamic).setProperty('keep-open', 'yes');
+          await (platform as dynamic).setProperty('keep-open-pause', 'no');
+          // Auto-reconnect on network stall — never use seek() on live streams.
+          // reconnect_on_network_errors=1 reconnects on TCP-level drops, not just EOF.
+          // reconnect_delay_max=5: Indian CDNs may need up to 5s between reconnects.
+          // timeout=30s: segment servers on IPTV CDNs can take 20-25s to respond.
           await (platform as dynamic).setProperty(
               'stream-lavf-o',
               'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1,'
-              'reconnect_delay_max=4,timeout=20000000');
-          await (platform as dynamic).setProperty('network-timeout', '20');
+              'reconnect_on_network_errors=1,reconnect_delay_max=5,timeout=30000000');
+          await (platform as dynamic).setProperty('network-timeout', '30');
           // IPTV HLS sources often need permissive playlist loading.
           try {
             await (platform as dynamic).setProperty('load-unsafe-playlists', 'yes');
           } catch (_) {}
-          // Larger byte-level stream buffer absorbs slow CDN segment starts.
+          // 16 MB stream buffer absorbs slow CDN segment starts (HD IPTV segments).
           try {
-            await (platform as dynamic).setProperty('stream-buffer-size', '4194304');
+            await (platform as dynamic).setProperty('stream-buffer-size', '16777216');
           } catch (_) {}
-          // Drop late frames at the video output instead of stalling the pipeline.
+          // Do not drop frames — IPTV relies on continuous frame delivery for A/V sync.
           try {
-            await (platform as dynamic).setProperty('framedrop', 'vo');
+            await (platform as dynamic).setProperty('framedrop', 'no');
           } catch (_) {}
           // Hardware decode where supported; auto-safe falls back to software.
           try {
             await (platform as dynamic).setProperty('hwdec', 'auto-safe');
+          } catch (_) {}
+          // Pre-fetch 5 HLS segments ahead (default 3) — eliminates micro-stalls
+          // at segment boundaries, the most common IPTV stutter source.
+          try {
+            await (platform as dynamic).setProperty('hls-segment-ahead', '5');
+          } catch (_) {}
+          // Pre-fetch the next HLS playlist window before the current one expires —
+          // prevents the 1-2s hiccup at playlist boundaries on long-running channels.
+          try {
+            await (platform as dynamic).setProperty('prefetch-playlist', 'yes');
+          } catch (_) {}
+          // Sync video output to audio clock for accurate A/V alignment on IPTV.
+          // Prevents gradual audio drift that builds over long viewing sessions.
+          try {
+            await (platform as dynamic).setProperty('video-sync', 'audio');
+          } catch (_) {}
+          // Increase audio buffer for smoother A/V sync on variable-latency streams.
+          try {
+            await (platform as dynamic).setProperty('audio-buffer', '0.5');
+          } catch (_) {}
+          // Deinterlace older SD IPTV channels (many Indian channels are still interlaced).
+          try {
+            await (platform as dynamic).setProperty('deinterlace', 'auto');
           } catch (_) {}
         }
       } catch (_) {
@@ -1073,7 +1101,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _errorGraceTimer = Timer(const Duration(seconds: 3), () {
           _playerErrorPending = false;
           _errorGraceTimer = null;
-          if (!mounted || !_isLoading) return; // already playing — ignore
+          if (!mounted) return;
+          // Act on the error if we never got to playing, or if we're currently stuck buffering.
+          // Do NOT trigger failure if video is actively playing — media_kit fires routine
+          // HLS-level errors (e.g. cache miss, non-fatal playlist retry) during normal playback.
+          final stuckBuffering = _player.state.buffering && !_player.state.playing;
+          if (!_isLoading && !stuckBuffering) return;
           _handleStreamFailure('player_error');
         });
       });
@@ -1132,8 +1165,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       });
 
       // -- Safety startup timeout (profile-based) ---------------------------
-      // Stable/DataSaver=25s, Fast=15s — avoids false errors on slow streams
-      _startupTimer = Timer(Duration(seconds: profile.startupTimeoutSecs), () {
+      // Smooth/delayed streams need more time: backend serves segments that were
+      // recorded and written to disk, so the first playlist response + first segment
+      // download is slower than a live-edge stream. Give 45s for smooth streams.
+      final int startupSecs = isDelayedStream ? 45 : profile.startupTimeoutSecs;
+      _startupTimer = Timer(Duration(seconds: startupSecs), () {
         if (mounted && _isLoading && !_hasError) {
           _handleStreamFailure('init_timeout');
         }
@@ -1201,18 +1237,19 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _bufferingEvents.add(now);
         _bufferingEvents.removeWhere((t) => now.difference(t).inSeconds > 60);
 
-        // Two stalls inside a minute already means the bitrate is too high for
-        // this connection — adapt early like YouTube instead of letting the
-        // user watch a stutter loop.
-        if (_bufferingEvents.length >= 2 && !_currentUrl.contains('/api/stream/transcode/')) {
+        // Three stalls inside a minute is strong evidence the bitrate exceeds the
+        // connection capacity — adapt like YouTube. Two was too trigger-happy: back-to-back
+        // CDN hiccups that both self-recovered counted as a capacity problem.
+        if (_bufferingEvents.length >= 3 && !_currentUrl.contains('/api/stream/transcode/')) {
           _showNetworkSlowPrompt();
           _bufferingEvents.clear();
         }
 
-        // A single stall lasting 7s means the buffer fully drained — drop one
-        // quality step right away rather than waiting for the 30s stall
-        // timeout, which tears the stream down and restarts it.
-        _qualityStallTimer ??= Timer(const Duration(seconds: 7), () {
+        // A stall lasting 15s means the buffer fully drained — drop one quality
+        // step. 7s was too aggressive: CDN hiccups (common on IPTV) often recover
+        // in 5-10s on their own, and the quality switch restarts the stream causing
+        // even more buffering. 15s matches what VLC-style players wait before reacting.
+        _qualityStallTimer ??= Timer(const Duration(seconds: 15), () {
           _qualityStallTimer = null;
           if (!mounted || _currentUrl.contains('/api/stream/transcode/')) return;
           _tryAdaptiveDowngrade();
@@ -1225,7 +1262,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         //   (a real mid-stream interruption)
         _reconnectTimer?.cancel();
         final bool hasPlayedBefore = _playStartTime != null;
-        final int reconnectDelaySecs = hasPlayedBefore ? 3 : 5;
+        // Delay is 8s for mid-stream stalls and 5s for initial load.
+        // cache-pause-wait=8 means brief CDN hiccups self-recover within 8s — setting the
+        // overlay to 8s means successful libmpv auto-recoveries never surface a spinner.
+        // For initial load, 5s is fine since cache-pause hasn't applied yet.
+        final int reconnectDelaySecs = hasPlayedBefore ? 8 : 5;
         _reconnectTimer = Timer(Duration(seconds: reconnectDelaySecs), () {
           if (mounted && alreadyStarted) {
             _playerDebugLog('showing_buffering_overlay', {
@@ -1241,8 +1282,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           }
         });
 
-        // Profile-based stall timeout - Stable/DataSaver=30s, Fast=18s.
-        // Mobile data in weak-signal areas can stall 15-20s and self-recover.
+        // Stall timeout: libmpv's cache-pause-wait=8 already holds for 8s before firing the
+        // Flutter buffering event. The timer below is the *additional* wait after that.
+        // Stable/DataSaver=20s (+8s libmpv = 28s total), Fast=10s (+8s = 18s total).
+        // This keeps total dead-stream detection under 30s while still surviving real CDN hiccups.
         _bufferTimer ??= Timer(Duration(seconds: _activeProfile.stallTimeoutSecs), () {
           if (mounted) _handleStreamFailure('buffer_timeout');
         });
@@ -2199,7 +2242,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             controller: _videoController,
             fit: _getBoxFit(),
             controls: NoVideoControls,
-            filterQuality: FilterQuality.low,
+            filterQuality: FilterQuality.medium,
           ),
         ),
       ),

@@ -224,6 +224,7 @@ exports.proxyManifest = async (req, res) => {
     const cachedManifest = manifestCache.get(manifestCacheKey);
     if (cachedManifest) {
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.setHeader('Cache-Control', 'no-cache, no-store');
       return res.send(cachedManifest.data);
     }
 
@@ -260,6 +261,17 @@ exports.proxyManifest = async (req, res) => {
     proxyRes.setEncoding('utf8');
     for await (const chunk of proxyRes) body += chunk;
 
+    // Guard: if the upstream returns HTML (captcha/redirect) instead of m3u8,
+    // do NOT cache or serve it — it would poison the manifest cache and break playback.
+    if (body.trimStart().startsWith('<')) {
+      console.warn('[proxy] Upstream manifest returned HTML — captcha or redirect for stream:', streamId);
+      return res.status(502).send('Upstream returned invalid manifest');
+    }
+    if (!body.includes('#EXTM3U')) {
+      console.warn('[proxy] Upstream manifest missing #EXTM3U for stream:', streamId);
+      return res.status(502).send('Upstream returned invalid manifest');
+    }
+
     // Rewrite URLs — encrypt each segment URL so the original source is never exposed.
     // The client only sees an opaque AES-GCM ciphertext token, not the real URL.
     const userId = manifestUserId;
@@ -279,6 +291,7 @@ exports.proxyManifest = async (req, res) => {
     manifestCache.set(manifestCacheKey, rewritten);
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache, no-store');
     res.send(rewritten);
   } catch (err) {
     console.error('proxyManifest err:', err.message);
@@ -322,10 +335,12 @@ exports.proxySegment = async (req, res) => {
     // It embeds the original URL, an expiry, and a stream binding — no Bearer needed.
     // Base64url chars [A-Za-z0-9_-] — strip any file extension suffix (.ts/.m3u8).
     let targetUrl;
+    let tokenUserId = 'anon';
     try {
       const cleanToken = segToken.replace(/\.(ts|m3u8)$/, '');
       const decrypted = decryptSegmentToken(cleanToken, streamId);
       targetUrl = decrypted.url;
+      tokenUserId = decrypted.userId || 'anon';
     } catch (tokenErr) {
       console.warn('[proxy] segment token invalid:', tokenErr.message);
       return res.status(403).send('Invalid or expired segment token');
@@ -410,11 +425,21 @@ exports.proxySegment = async (req, res) => {
       return res.status(proxyRes.statusCode).send('Upstream error');
     }
 
+    // Guard: some CDNs return 200 with an HTML captcha/redirect page when the
+    // stream has expired or geo-blocked. Serving HTML as video/mp2t causes
+    // the player to error with "invalid data" — detect it early and 502.
+    const upstreamCT = (proxyRes.headers['content-type'] || '').toLowerCase();
+    if (upstreamCT.startsWith('text/html') || upstreamCT.startsWith('application/xhtml')) {
+      console.warn('[proxy] Upstream returned HTML for segment — likely captcha/redirect:', targetUrl.slice(0, 80));
+      return res.status(502).send('Upstream returned non-video content');
+    }
+
     // Stream the data directly to the client, preserving the upstream Content-Type.
     // This is critical because some segments are actually child .m3u8 playlists,
     // and ExoPlayer will crash if a playlist is served as video/mp2t.
-    const contentType = proxyRes.headers['content-type'] || (targetUrl.includes('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp2t');
+    const contentType = upstreamCT || (targetUrl.includes('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp2t');
     res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'no-cache, no-store');
 
     const isM3u8 = targetUrl.includes('.m3u8') || (contentType && contentType.includes('mpegurl'));
 
@@ -423,7 +448,7 @@ exports.proxySegment = async (req, res) => {
       proxyRes.setEncoding('utf8');
       for await (const chunk of proxyRes) body += chunk;
 
-      const userId = payload.userId || 'anon';
+      const userId = tokenUserId;
       const lines = body.split('\n');
       const rewritten = lines.map(line => {
         const t = line.trim();
