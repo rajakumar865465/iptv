@@ -284,6 +284,19 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _wasQualityDowngraded = false;
   Timer? _qualityUpgradeTimer;
   bool _qualityUpgradeLocked = false; // locked for session after failed upgrade
+  // Number of quality downgrades this channel session. After 2 the quality is
+  // locked — prevents the downgrade→3min-upgrade→stall→downgrade oscillation
+  // where every switch is a full player re-open.
+  int _downgradeCount = 0;
+  // Probe window after a silent quality upgrade: any stall inside this window
+  // means the upgrade failed → lock quality and step back down. The previous
+  // implementation sampled _isLoading at exactly t+30s, so a stall at t+40s
+  // escaped the lock and restarted the bounce cycle.
+  DateTime? _upgradeProbeUntil;
+  // Deferred HD promotion: force the top native track only after playback has
+  // proven stable, never on open (forcing HD on open caused instant stalls on
+  // connections that cannot sustain HD bitrate).
+  Timer? _hdPromoteTimer;
 
   // Video Quality state
   List<dynamic> _qualities = [];
@@ -1030,10 +1043,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           await (platform as dynamic).setProperty(
               'demuxer-max-back-bytes', '${profile.demuxerMaxBackBytesMib}MiB');
           // Pause on buffer underrun and rebuild before resuming — VLC-style.
-          // 8s threshold: CDN hiccups on Indian IPTV networks often recover in 5-7s.
-          // Waiting 8s avoids the play→stall→play→stall micro-loop.
+          // 2s threshold: resume as soon as a small cushion exists. The previous 8s
+          // froze playback for 8 full seconds on EVERY underrun, which on borderline
+          // connections created the exact play→freeze-8s→play→freeze loop it was
+          // meant to prevent. The deep readahead cache (cache-secs) is what protects
+          // against re-stalling, not a long pause.
           await (platform as dynamic).setProperty('cache-pause', 'yes');
-          await (platform as dynamic).setProperty('cache-pause-wait', '8');
+          await (platform as dynamic).setProperty('cache-pause-wait', '2');
+          // Start playback as soon as a small initial cushion is buffered instead of
+          // waiting for the full readahead — faster channel-open on all profiles.
+          try {
+            await (platform as dynamic).setProperty('cache-pause-initial', 'yes');
+          } catch (_) {}
           // Keep the player alive at stream end (HLS live streams return EOF between
           // playlist windows). Without this, media_kit disposes the player on EOF.
           await (platform as dynamic).setProperty('keep-open', 'yes');
@@ -1064,16 +1085,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           try {
             await (platform as dynamic).setProperty('hwdec', 'auto-safe');
           } catch (_) {}
-          // Pre-fetch 5 HLS segments ahead (default 3) — eliminates micro-stalls
-          // at segment boundaries, the most common IPTV stutter source.
-          try {
-            await (platform as dynamic).setProperty('hls-segment-ahead', '5');
-          } catch (_) {}
-          // Pre-fetch the next HLS playlist window before the current one expires —
-          // prevents the 1-2s hiccup at playlist boundaries on long-running channels.
-          try {
-            await (platform as dynamic).setProperty('prefetch-playlist', 'yes');
-          } catch (_) {}
+          // NOTE: 'hls-segment-ahead' (not a real mpv property) and 'prefetch-playlist'
+          // (applies to playlist FILES, not HLS windows) were removed — they silently
+          // did nothing. Segment lookahead is governed by demuxer-readahead-secs above.
           // Sync video output to audio clock for accurate A/V alignment on IPTV.
           // Prevents gradual audio drift that builds over long viewing sessions.
           try {
@@ -1179,6 +1193,22 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             return;
           }
 
+          // Mid-stream errors while buffering: do NOT restart the player here.
+          // Every _handleStreamFailure → _initializePlayer is a full re-open that
+          // discards the entire buffered cache and re-downloads from scratch —
+          // on marginal networks this created the play→stall→restart loop.
+          // The stall watchdog (_bufferTimer, stallTimeoutSecs) already fires
+          // for streams that are truly dead; let it be the single authority
+          // for mid-stream recovery. Only act immediately when playback never
+          // started at all (a real startup failure).
+          if (_playStartTime != null) {
+            _playerDebugLog('player_error_deferred_to_stall_watchdog', {
+              'channel_id': _currentChannel.id,
+              'player_error': errorMsg,
+            });
+            return;
+          }
+
           _handleStreamFailure('player_error');
         });
       });
@@ -1195,25 +1225,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _startupTimer?.cancel();
         _startupTimer = null;
 
-          // Force HD/highest quality native track automatically to improve sharpness
-          // like a paid Live TV app, unless restricted by data saver settings.
-          // Never force HD when quality was adaptively downgraded or the network
-          // showed buffering recently — this ran on every re-init and silently
-          // undid the downgrade, restarting the buffering loop.
-          final bool networkStruggling =
-              _wasQualityDowngraded || _bufferingEvents.isNotEmpty;
-          final nativeTracks = _player.state.tracks.video;
-          if (nativeTracks.length > 2 && !_dataSaverEnabled && !networkStruggling &&
-              !(_hdOnlyWifi && _isOnMobileData)) {
-            try {
-              final bestTrack = nativeTracks
-                  .where((t) => t.id != 'auto' && t.id != 'no' && t.h != null)
-                  .reduce((a, b) => (a.h ?? 0) > (b.h ?? 0) ? a : b);
-              if (bestTrack.h != null && bestTrack.h! >= 720) {
-                _player.setVideoTrack(bestTrack);
-              }
-            } catch (_) {}
-          }
+          // Deferred HD promotion: never force the highest track on open.
+          // Forcing HD immediately pushed bitrate above capacity on slower
+          // connections, causing the first stall of the buffering loop.
+          // Instead, start on libmpv's default (auto/first) track and promote
+          // to HD only after 60s of provably stable playback (no buffering
+          // events, no downgrades). Any stall cancels the promotion.
+          _scheduleHdPromotionIfStable();
 
           setState(() {
             _isRetryingStream = false;
@@ -1252,11 +1270,55 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
   }
 
+  /// Promote to the highest native track (>=720p) only after 60s of proven
+  /// stable playback — never on open. Forcing HD at open pushed bitrate above
+  /// capacity on slower connections and caused the first stall of the loop.
+  /// Any buffering event cancels the pending promotion (see _onBufferingChanged).
+  void _scheduleHdPromotionIfStable() {
+    _hdPromoteTimer?.cancel();
+    _hdPromoteTimer = null;
+    if (_dataSaverEnabled) return;
+    if (_hdOnlyWifi && _isOnMobileData) return;
+    if (_wasQualityDowngraded || _downgradeCount > 0 || _qualityUpgradeLocked) return;
+    _hdPromoteTimer = Timer(const Duration(seconds: 60), () {
+      _hdPromoteTimer = null;
+      if (!mounted) return;
+      // Re-check stability at fire time — any stall in the last 60s aborts.
+      if (_isLoading || _bufferingEvents.isNotEmpty || _wasQualityDowngraded ||
+          _downgradeCount > 0 || _qualityUpgradeLocked) {
+        return;
+      }
+      try {
+        final nativeTracks = _player.state.tracks.video;
+        if (nativeTracks.length <= 2) return;
+        final bestTrack = nativeTracks
+            .where((t) => t.id != 'auto' && t.id != 'no' && t.h != null)
+            .reduce((a, b) => (a.h ?? 0) > (b.h ?? 0) ? a : b);
+        final currentId = _player.state.track.video.id;
+        if (bestTrack.h != null && bestTrack.h! >= 720 && bestTrack.id != currentId) {
+          // Native track switch — instant, no player re-open.
+          _player.setVideoTrack(bestTrack);
+          // Arm the probe window: a stall soon after promotion means the
+          // connection cannot sustain HD → step back down and lock.
+          _upgradeProbeUntil = DateTime.now().add(const Duration(seconds: 45));
+          _playerDebugLog('hd_promotion_applied', {
+            'channel_id': _currentChannel.id,
+            'track_height': bestTrack.h,
+          });
+        }
+      } catch (_) {}
+    });
+  }
+
   /// Start the auto quality-upgrade timer after stable playback,
   /// only when Auto mode is active and quality was previously downgraded.
   void _startAutoUpgradeTimerIfNeeded() {
     if (!_wasQualityDowngraded) return;
     if (_qualityUpgradeLocked) return;
+    // After 2 downgrades in this channel session the quality is locked —
+    // repeated up/down switches are full player re-opens and were a direct
+    // cause of the periodic buffering loop.
+    if (_downgradeCount >= 2) return;
     if (_playbackMode != PlaybackMode.auto) return;
     _qualityUpgradeTimer?.cancel();
     _qualityUpgradeTimer = Timer(const Duration(minutes: 3), _tryUpgradeQuality);
@@ -1284,16 +1346,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
     final upgradeHeight = higher['height'];
     _showPlayerToast('Trying better quality (${upgradeHeight}p)...');
-    await _autoSwitchQualityQuietly(higher);
-
-    // If buffering starts within 30 s after upgrade, lock quality for this session
-    Timer(const Duration(seconds: 30), () {
-      if (mounted && _isLoading) {
-        _qualityUpgradeLocked = true;
-        _wasQualityDowngraded = false;
-        _qualityUpgradeTimer?.cancel();
-      }
-    });
+    // Arm the probe window BEFORE switching: ANY stall inside the next 45s
+    // locks quality for the session (handled in _onBufferingChanged). The old
+    // approach sampled _isLoading at exactly t+30s — a stall at t+40s escaped
+    // the lock and the downgrade/upgrade bounce restarted.
+    _upgradeProbeUntil = DateTime.now().add(const Duration(seconds: 45));
+    await _autoSwitchQualityQuietly(higher, isUpgradeProbe: true);
   }
 
   // Fix #2: Buffering timer - only fires after sustained buffering, not on initial load.
@@ -1308,6 +1366,32 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         final now = DateTime.now();
         _bufferingEvents.add(now);
         _bufferingEvents.removeWhere((t) => now.difference(t).inSeconds > 60);
+
+        // A stall cancels any pending HD promotion — the connection just
+        // proved it can't spare headroom for a higher tier right now.
+        _hdPromoteTimer?.cancel();
+        _hdPromoteTimer = null;
+
+        // Stall inside the post-upgrade probe window ⇒ the upgrade failed.
+        // Lock quality for this session and step back down immediately.
+        // Window-based check (vs the old one-shot t+30s sample) catches a
+        // stall at ANY point after the upgrade, closing the bounce loophole.
+        if (_upgradeProbeUntil != null && now.isBefore(_upgradeProbeUntil!)) {
+          _upgradeProbeUntil = null;
+          _qualityUpgradeLocked = true;
+          _wasQualityDowngraded = false;
+          _qualityUpgradeTimer?.cancel();
+          _qualityUpgradeTimer = null;
+          _playerDebugLog('upgrade_probe_failed_locking_quality', {
+            'channel_id': _currentChannel.id,
+          });
+          // Prefer an instant native-track step-down (no re-open). Fall back
+          // to the backend variant one step lower only if no native tracks.
+          if (!_stepDownNativeTrack()) {
+            final lower = _findLowerQuality();
+            if (lower != null) _autoSwitchQualityQuietly(lower);
+          }
+        }
 
         // Three stalls inside a minute is strong evidence the bitrate exceeds the
         // connection capacity — adapt like YouTube. Two was too trigger-happy: back-to-back
@@ -1334,11 +1418,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         //   (a real mid-stream interruption)
         _reconnectTimer?.cancel();
         final bool hasPlayedBefore = _playStartTime != null;
-        // Delay is 8s for mid-stream stalls and 5s for initial load.
-        // cache-pause-wait=8 means brief CDN hiccups self-recover within 8s — setting the
-        // overlay to 8s means successful libmpv auto-recoveries never surface a spinner.
-        // For initial load, 5s is fine since cache-pause hasn't applied yet.
-        final int reconnectDelaySecs = hasPlayedBefore ? 8 : 5;
+        // Delay is 4s for mid-stream stalls and 3s for initial load.
+        // cache-pause-wait=2 means libmpv self-recovers brief CDN hiccups within ~2s.
+        // Setting the overlay to 4s gives libmpv its 2s window, then shows the spinner
+        // only for real stalls. Previously 8s lagged 6 extra seconds behind actual recovery.
+        // For initial load, 3s is fine since cache-pause hasn't applied yet.
+        final int reconnectDelaySecs = hasPlayedBefore ? 4 : 3;
         _reconnectTimer = Timer(Duration(seconds: reconnectDelaySecs), () {
           if (mounted && alreadyStarted) {
             _playerDebugLog('showing_buffering_overlay', {
@@ -1422,20 +1507,31 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (mounted) setState(() { _showSlowConnectionOverlay = false; });
   }
 
-  Future<void> _autoSwitchQualityQuietly(Map<String, dynamic> lowerQuality) async {
-    final label = lowerQuality['label'] as String? ?? 'lower quality';
+  Future<void> _autoSwitchQualityQuietly(Map<String, dynamic> quality,
+      {bool isUpgradeProbe = false}) async {
+    final label = quality['label'] as String? ?? 'lower quality';
     _showPlayerToast('Optimizing playback -> $label');
     setState(() {
-      _selectedQuality = lowerQuality;
+      _selectedQuality = quality;
       _streamOverlayMessage = 'Optimizing playback...';
       _isLoading = true;
       _hasError = false;
     });
-    _wasQualityDowngraded = true; // arm auto-upgrade timer + suppress force-HD
+    if (!isUpgradeProbe) {
+      _wasQualityDowngraded = true; // arm auto-upgrade timer + suppress force-HD
+      _downgradeCount++;
+      // Second downgrade in one session: the connection clearly cannot hold the
+      // higher tier — lock quality to stop the re-open bounce for good.
+      if (_downgradeCount >= 2) {
+        _qualityUpgradeLocked = true;
+        _qualityUpgradeTimer?.cancel();
+        _qualityUpgradeTimer = null;
+      }
+    }
     _isRetryingStream = false;
     await _initializePlayer(
-      lowerQuality['url'],
-      lowerQuality['headers'] ?? _currentStreamMeta?['headers'] ?? {},
+      quality['url'],
+      quality['headers'] ?? _currentStreamMeta?['headers'] ?? {},
     );
   }
 
@@ -1572,7 +1668,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           _hasError = false;
         });
       }
-      await Future.delayed(const Duration(milliseconds: 1500));
+      // 5s gives the network time to recover before we discard the buffer and
+      // re-open from scratch. At 1500ms the retry itself stalled immediately on
+      // borderline connections, perpetuating the load→play→load loop.
+      await Future.delayed(const Duration(milliseconds: 5000));
       // Re-initialize player with same parameters
       final headersToUse = (_selectedQuality != null && _selectedQuality!['headers'] != null)
           ? _selectedQuality!['headers']

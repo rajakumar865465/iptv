@@ -16,7 +16,10 @@ const STORAGE_BASE = process.env.BUFFER_STORAGE_PATH || path.join(__dirname, '..
 const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_RECORDERS || '5', 10);
 const POLL_INTERVAL_MS = 3000;
 const FALLBACK_POLL_INTERVAL_MS = 30000;
-const SEGMENT_FETCH_TIMEOUT_MS = 20000; // Increased from 15s to 20s for unstable networks
+// 8s per-attempt: a single bad segment with 3×20s retries could block the recorder
+// for 65s, starving the playlist and causing the player to run out of video.
+// 2 retries × 8s + backoffs ≈ 18s max — still safe for slow CDNs but much less starvation.
+const SEGMENT_FETCH_TIMEOUT_MS = 8000;
 const M3U8_FETCH_TIMEOUT_MS = 18000; // Increased from 12s to 18s for unstable networks
 const STALE_BUFFER_WINDOW_SEC = 90;
 const MAX_STALE_BUFFER_AGE_SEC = 300;
@@ -46,9 +49,12 @@ const SEG_STATUS_RECOVERED = 'recovered';
 const SEG_STATUS_BACKUP = 'backup';
 const SEG_STATUS_LOWER_QUALITY = 'lower_quality';
 
-// Max segment download retries before skipping (per work.md: 2-3 retries)
-const MAX_SEGMENT_RETRIES = 3;
-const SEGMENT_RETRY_BACKOFF_MS = [600, 1500, 3000];
+// Max segment download retries before skipping.
+// Reduced from 3→2 retries with tighter backoffs: 3×20s was blocking for 65s on bad segments.
+// 2 retries × 8s timeout + [300, 1000]ms backoffs ≈ 17.3s max — fast enough to skip dead
+// segments before the live window advances past them.
+const MAX_SEGMENT_RETRIES = 2;
+const SEGMENT_RETRY_BACKOFF_MS = [300, 1000];
 
 // channelId -> { timer, state }
 const activeRecorders = new Map();
