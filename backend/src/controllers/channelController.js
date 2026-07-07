@@ -778,10 +778,11 @@ exports.reportFailure = async (req, res) => {
     const {
       reason, stream_url, stream_id, buffer_seconds,
       device, player, message, network_type, android_version,
-      quality, has_played_once,
+      quality, has_played_once, playback_path,
     } = req.body;
 
     const failReason = reason || message || 'buffer_timeout';
+    const failDescription = [message || 'Failed to load stream', playback_path ? `path:${playback_path}` : null].filter(Boolean).join(' ');
 
     // ── Step 1: Update per-stream health (most granular) ────────────────────
     const hasStreamsTable = await checkChannelStreamsTable();
@@ -883,7 +884,7 @@ exports.reportFailure = async (req, res) => {
         resolvedStreamId,
         device || null,
         failReason,
-        message || 'Failed to load stream',
+        failDescription,
         quality || null,
         network_type || null,
         android_version || null,
@@ -897,7 +898,7 @@ exports.reportFailure = async (req, res) => {
       await db.query(`
         INSERT INTO channel_reports (channel_id, device_id, issue_type, description, status)
         VALUES ($1, $2, $3, $4, 'pending')
-      `, [id, device || null, failReason, message || 'Failed to load stream']).catch(() => {});
+      `, [id, device || null, failReason, failDescription]).catch(() => {});
     }
 
     success(res, { success: true, message: 'Failure reported' });
@@ -1159,11 +1160,11 @@ exports.getChannelPlayback = async (req, res) => {
 
 // reportPlaybackResult — called by Flutter player when stream plays (possibly after retry)
 // POST /api/channels/:id/playback-result
-// Body: { result, status, stream_url, stream_id, buffer_seconds, user_id }
+// Body: { result, status, stream_url, stream_id, buffer_seconds, user_id, playback_path }
 exports.reportPlaybackResult = async (req, res) => {
   try {
     const { id } = req.params;
-    const { result, status, stream_url, stream_id, buffer_seconds, user_id } = req.body;
+    const { result, status, stream_url, stream_id, buffer_seconds, user_id, playback_path } = req.body;
 
     // Accepted results: 'played', 'played_after_retry', 'failed'
     const validResults = ['played', 'played_after_retry', 'failed'];
@@ -1272,7 +1273,7 @@ exports.reportPlaybackResult = async (req, res) => {
           WHERE id = $1
         `, [id]);
       }
-      console.log(`[reportPlaybackResult] channel=${id} result=${result} → ${newChannelStatus}`);
+      console.log(`[reportPlaybackResult] channel=${id} result=${result} path=${playback_path || 'unknown'} → ${newChannelStatus}`);
     }
 
     // ── Step 3: Update watch stats + history (fire-and-forget) ──────────────

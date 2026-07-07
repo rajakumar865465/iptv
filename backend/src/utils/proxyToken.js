@@ -11,7 +11,7 @@
  *
  * Token format (URL-safe base64 of): iv(12) || ciphertext || authTag(16)
  * Token payload: JSON { url, streamId, userId, expiresAt }
- * Token TTL: 4 hours — sufficient for any continuous HLS session.
+ * Token TTL: 6 hours — sufficient for any continuous HLS session.
  *
  * Security properties:
  *  - Original URL is never exposed to the client
@@ -48,7 +48,7 @@ function getKey() {
 function encryptSegmentUrl(url, streamId, userId) {
   const key = getKey();
   const iv = crypto.randomBytes(IV_LENGTH);
-  const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes from now
+  const expiresAt = Date.now() + 6 * 60 * 60 * 1000; // 6 hours — covers any continuous watch session
 
   const payload = JSON.stringify({
     url,
@@ -101,8 +101,11 @@ function decryptSegmentToken(token, expectedStreamId) {
     throw new Error('Token decryption failed — tampered or wrong key');
   }
 
-  // Expiry check
-  if (payload.exp < Date.now()) {
+  // Expiry check — add a 30s grace window so segments that were buffered by the player
+  // just before a manifest refresh (new tokens issued every 8s) still serve correctly.
+  // This is belt-and-suspenders: the 6h TTL already makes rotation-boundary 403s rare.
+  const GRACE_MS = 30 * 1000;
+  if (payload.exp + GRACE_MS < Date.now()) {
     throw new Error('Token expired');
   }
 

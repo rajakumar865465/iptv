@@ -119,7 +119,10 @@ async function startRecorder(channelId) {
       channel: channel,
       bufferDir: bufferDir,
       startedAt: Date.now(),
-      firstGoodSegmentAt: null // set when the first good/backup/lower_quality segment persists
+      firstGoodSegmentAt: null, // set when the first good/backup/lower_quality segment persists
+      // Headers from the active stream — sent with every manifest + segment request.
+      // Populated from channel_streams so sources that require Referer/Origin work correctly.
+      streamHeaders: _buildStreamHeaders(stream),
     };
 
     const timer = setInterval(() => _pollChannel(state), state.currentPollInterval);
@@ -322,7 +325,7 @@ async function _selectWorkingStream(channelId, channel, excludeStreamIds = [], e
   for (const candidate of candidates) {
     if (BLOCKED_LICENSE_TYPES.has(String(candidate.license_type || '').toLowerCase())) continue;
 
-    const test = await _testStream(candidate.stream_url);
+    const test = await _testStream(candidate.stream_url, _buildStreamHeaders(candidate));
     if (test.ok) {
       if (candidate.id) await _markStreamSuccess(candidate.id);
       return candidate;
@@ -339,16 +342,25 @@ async function _selectWorkingStream(channelId, channel, excludeStreamIds = [], e
   return null;
 }
 
-async function _testStream(streamUrl) {
+function _buildStreamHeaders(stream) {
+  if (!stream) return { 'User-Agent': 'Mozilla/5.0 NivaTV/1.0' };
+  const h = { 'User-Agent': stream.user_agent || 'Mozilla/5.0 NivaTV/1.0' };
+  if (stream.referer) h['Referer'] = stream.referer;
+  if (stream.origin) h['Origin'] = stream.origin;
+  return h;
+}
+
+async function _testStream(streamUrl, streamHeaders) {
+  const hdrs = streamHeaders || { 'User-Agent': 'Mozilla/5.0 NivaTV/1.0' };
   try {
-    let text = await _fetchTextWithTimeout(streamUrl, STREAM_TEST_TIMEOUT_MS);
+    let text = await _fetchTextWithTimeout(streamUrl, STREAM_TEST_TIMEOUT_MS, hdrs);
     let resolvedUrl = streamUrl;
 
     // Resolve master playlist to a media playlist before checking segments
     if (_isMasterPlaylist(text)) {
       const variantUrl = _selectBestVariantUrl(text, streamUrl);
       if (!variantUrl) return { ok: false, reason: 'Master playlist has no variant streams' };
-      text = await _fetchTextWithTimeout(variantUrl, STREAM_TEST_TIMEOUT_MS);
+      text = await _fetchTextWithTimeout(variantUrl, STREAM_TEST_TIMEOUT_MS, hdrs);
       resolvedUrl = variantUrl;
     }
 
@@ -359,10 +371,7 @@ async function _testStream(streamUrl) {
     const timeoutId = setTimeout(() => controller.abort(), STREAM_TEST_TIMEOUT_MS);
     const response = await fetch(segments[0].url, {
       signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 NivaTV/1.0',
-        Range: 'bytes=0-2047',
-      },
+      headers: { ...hdrs, Range: 'bytes=0-2047' },
     }).finally(() => clearTimeout(timeoutId));
 
     if (!response.ok && response.status !== 206) return { ok: false, reason: `Segment HTTP ${response.status}` };
@@ -372,12 +381,13 @@ async function _testStream(streamUrl) {
   }
 }
 
-async function _fetchTextWithTimeout(url, timeoutMs) {
+async function _fetchTextWithTimeout(url, timeoutMs, headers) {
+  const hdrs = headers || { 'User-Agent': 'Mozilla/5.0 NivaTV/1.0' };
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   const response = await fetch(url, {
     signal: controller.signal,
-    headers: { 'User-Agent': 'Mozilla/5.0 NivaTV/1.0' },
+    headers: hdrs,
   }).finally(() => clearTimeout(timeoutId));
 
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -413,14 +423,14 @@ async function _pollChannel(state) {
     const m3u8Url = chData.recorder_stream_url;
     if (!m3u8Url) throw new Error('No recorder_stream_url configured');
 
-    let text = await _fetchTextWithTimeout(m3u8Url, M3U8_FETCH_TIMEOUT_MS);
+    let text = await _fetchTextWithTimeout(m3u8Url, M3U8_FETCH_TIMEOUT_MS, state.streamHeaders);
     let resolvedUrl = m3u8Url;
 
     // If this is a master playlist, follow the best-quality variant
     if (_isMasterPlaylist(text)) {
       const variantUrl = _selectBestVariantUrl(text, m3u8Url);
       if (!variantUrl) throw new Error('Master playlist has no variant streams');
-      text = await _fetchTextWithTimeout(variantUrl, M3U8_FETCH_TIMEOUT_MS);
+      text = await _fetchTextWithTimeout(variantUrl, M3U8_FETCH_TIMEOUT_MS, state.streamHeaders);
       resolvedUrl = variantUrl;
       // Persist the resolved media playlist URL so future polls use it directly
       await _updateChannelState(state.channelId, { recorder_stream_url: variantUrl });
@@ -670,6 +680,8 @@ async function _tryFallbackStream(state) {
 
       console.log(`[buffer_recorder] Channel ${channelId}: Backup stream ${candidate.id || 'channel_url'} is working. Switched successfully.`);
 
+      // Update stream headers for the new source so manifest + segment requests use correct credentials
+      state.streamHeaders = _buildStreamHeaders(candidate);
       state.currentStreamRetries = 0;
       state.currentPollInterval = POLL_INTERVAL_MS;
       _restartTimer(state);
@@ -758,7 +770,7 @@ async function _downloadSegment(state, seg) {
   // ── Attempt 1: Download from primary source with retries ────────────────────
   let primaryResult = null;
   for (let attempt = 1; attempt <= MAX_SEGMENT_RETRIES; attempt++) {
-    primaryResult = await _tryDownloadSegment(seg.url, fullPath);
+    primaryResult = await _tryDownloadSegment(seg.url, fullPath, state.streamHeaders);
     if (primaryResult.ok) break;
 
     if (attempt < MAX_SEGMENT_RETRIES) {
@@ -856,13 +868,14 @@ async function _downloadSegment(state, seg) {
 }
 
 // ── Helper: attempt a single segment download from a URL ─────────────────────
-async function _tryDownloadSegment(url, fullPath) {
+async function _tryDownloadSegment(url, fullPath, streamHeaders) {
+  const hdrs = streamHeaders || { 'User-Agent': 'Mozilla/5.0 NivaTV/1.0' };
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), SEGMENT_FETCH_TIMEOUT_MS);
     const response = await fetch(url, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 NivaTV/1.0' },
+      headers: hdrs,
     }).finally(() => clearTimeout(timeoutId));
 
     if (!response.ok) return { ok: false, reason: `HTTP ${response.status}` };

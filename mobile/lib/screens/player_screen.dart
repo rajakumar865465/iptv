@@ -149,7 +149,9 @@ const PlaybackProfile kStableProfile = PlaybackProfile(
   demuxerReadaheadSecs: 20,
   bufferSizeBytes: 64 * 1024 * 1024, // 64 MB — handles HD IPTV without stalling
   startupTimeoutSecs: 25,
-  stallTimeoutSecs: 20,
+  // 32s: must exceed cache-pause-wait(8) + reconnect_delay_max(5) + one slow segment(~10s).
+  // At 20s the app killed streams that libmpv would have recovered in 22-25s on slow CDNs.
+  stallTimeoutSecs: 32,
   preferredQuality: 'auto',
   demuxerMaxBytesMib: 96,
   demuxerMaxBackBytesMib: 32,
@@ -240,6 +242,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   String? _proxyUrl;
   bool _proxyAttempted = false;
 
+  // Tracks which path served the stream: 'direct' | 'proxy' | 'smooth' | 'transcode' | 'backup'
+  String _playbackPath = 'direct';
+
   // Smooth Playback / Delayed Live state
   bool _smoothPlaybackEnabled = false;
   bool _bufferReady = false;
@@ -251,9 +256,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _canGoLive = false;
   bool _showPreparingOverlay = false;
   // While warming a cold/channel on-demand, the player keeps playing the direct/live URL and
-  // a small warming banner is shown instead of a full-screen spinner. The poll loop swaps the
-  // player to the delayed stream once buffer_ready becomes true (only once per channel).
+  // a small warming banner is shown instead of a full-screen spinner. The poll loop marks the
+  // delayed URL as ready but does NOT swap mid-playback — the swap happens at the next natural
+  // stall or channel open so the user never sees a disruptive reload.
   bool _switchedToSmooth = false;
+  // Delayed-stream URL that is ready but not yet applied. Applied on next stall or channel open.
+  String? _pendingSmoothUrl;
   Timer? _smoothWarmTimer;
   DateTime? _warmStartedAt;
   static const int _smoothWarmTimeoutSec = 180;
@@ -624,13 +632,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             // Stop the warming poll loop — buffer is ready.
             _smoothWarmTimer?.cancel();
             _smoothWarmTimer = null;
-            // First transition to ready: swap the player from the direct URL to the
-            // delayed smooth URL so the user silently moves from live to delayed stream.
-            if (!wasReady && !_switchedToSmooth && mounted) {
-              _switchedToSmooth = true;
-              if (delayedUrl != null && delayedUrl.isNotEmpty) {
-                await _initializePlayer(delayedUrl, {});
-              }
+            // Buffer just became ready: store the delayed URL but do NOT swap now.
+            // Swapping mid-playback causes libmpv to restart the pipeline, producing a
+            // visible stutter. Instead, we apply it at the next natural stall/pause or
+            // the next time this channel is opened.
+            if (!wasReady && !_switchedToSmooth && delayedUrl != null && delayedUrl.isNotEmpty) {
+              _pendingSmoothUrl = delayedUrl;
             }
             // When buffer is ready but quality is degraded, start a refresh timer
             // so the banner clears automatically once the channel recovers.
@@ -900,6 +907,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         } else {
           throw Exception('No stream URL in playback response');
         }
+        _playbackPath = 'direct';
         await _initializePlayer(urlToPlay, headersToUse);
       } else {
         throw Exception('Playback fetch failed');
@@ -992,7 +1000,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               'stream-lavf-o',
               'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1,'
               'reconnect_on_network_errors=1,reconnect_delay_max=5,timeout=30000000');
-          await (platform as dynamic).setProperty('network-timeout', '30');
+          // network-timeout removed: timeout=30000000 in stream-lavf-o already sets 30s
+          // at the lavf layer; a conflicting network-timeout value can cause unexpected races.
           // IPTV HLS sources often need permissive playlist loading.
           try {
             await (platform as dynamic).setProperty('load-unsafe-playlists', 'yes');
@@ -1470,6 +1479,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       'is_buffering': _player.state.buffering,
     });
     if (_isRetryingStream) return;
+
+    // If the smooth buffer became ready while we were playing the direct stream,
+    // apply it now at the stall boundary — a natural, non-disruptive switch point.
+    if (_pendingSmoothUrl != null && !_switchedToSmooth) {
+      final smoothUrl = _pendingSmoothUrl!;
+      _pendingSmoothUrl = null;
+      _switchedToSmooth = true;
+      _playbackPath = 'smooth';
+      if (mounted) setState(() { _streamOverlayMessage = 'Loading...'; _isLoading = true; _hasError = false; });
+      await _initializePlayer(smoothUrl, {});
+      return;
+    }
     _bufferTimer?.cancel();
     _bufferTimer = null;
     _startupTimer?.cancel();
@@ -1506,6 +1527,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         'reason': reason,
         'stream_url': _currentUrl,
         'stream_id': _currentStreamMeta?['id'],
+        'playback_path': _playbackPath,
       });
     } catch(e) {}
 
@@ -1536,6 +1558,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _selectedQuality = lowerQuality;
         _wasQualityDowngraded = true;  // remember for auto upgrade timer
         _isRetryingStream = false;
+        _playbackPath = 'direct';
         await _initializePlayer(lowerQuality['url'], lowerQuality['headers'] ?? _currentStreamMeta?['headers'] ?? {});
         _showPlayerToast('Switched to $lowerLabel for smoother playback');
         return;
@@ -1552,6 +1575,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           final fallbackUrl = '${BackendConfig.baseUrl}${ApiEndpoints.streamTranscodePath(_currentChannel.id, quality: '360')}';
           final transcodeHeaders = {'Authorization': 'Bearer $token'};
           _currentStreamMeta = {'url': fallbackUrl, 'headers': transcodeHeaders};
+          _playbackPath = 'transcode';
           await _initializePlayer(fallbackUrl, transcodeHeaders);
           return;
         } catch (e) {
@@ -1566,6 +1590,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       final backup = _backupStreams.removeAt(0);
       _currentStreamMeta = backup;
       _isRetryingStream = false; // allow next failure cycle on the backup stream
+      _playbackPath = 'backup';
       await _initializePlayer(backup['url'], backup['headers']);
       return;
     }
@@ -1586,6 +1611,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       final proxyHeaders = {
         if (token != null) 'Authorization': 'Bearer $token',
       };
+      _playbackPath = 'proxy';
       await _initializePlayer(_proxyUrl!, proxyHeaders);
       return;
     }
@@ -1609,6 +1635,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         'stream_url': _currentUrl,
         'stream_id': _currentStreamMeta?['id'],
         'buffer_seconds': bufferSeconds,
+        'playback_path': _playbackPath,
       });
     } catch (_) {}
   }
@@ -1767,6 +1794,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _canGoLive = false;
     _showPreparingOverlay = false;
     _switchedToSmooth = false;
+    _pendingSmoothUrl = null;
     _smoothWarmTimer?.cancel();
     _smoothWarmTimer = null;
     _warmStartedAt = null;

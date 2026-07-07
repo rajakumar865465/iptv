@@ -2,8 +2,66 @@ const https = require('https');
 const http = require('http');
 const { URL } = require('url');
 const { pipeline } = require('node:stream');
+const dns = require('dns').promises;
 const db = require('../config/db');
 const { encryptSegmentUrl, decryptSegmentToken } = require('../utils/proxyToken');
+
+// SSRF protection: resolve hostname to IP and reject private/link-local/loopback ranges.
+// Called on every URL before making an outbound request, including after each redirect hop.
+// Returns true if safe, false if the resolved IP is in a blocked range.
+async function isSafeExternalUrl(urlString) {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+
+    const hostname = parsed.hostname;
+
+    // Reject numeric IPs that look like decimal-encoded private addresses
+    // (e.g. 2130706433 = 127.0.0.1) by checking the raw hostname against IP patterns first
+    const ipv4Literal = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(hostname);
+    if (ipv4Literal) {
+      // It's a literal IPv4 — validate it directly
+      return !isPrivateIp(hostname);
+    }
+
+    // For hostnames, resolve to IP(s) and validate all of them
+    let addresses;
+    try {
+      addresses = await dns.resolve4(hostname).catch(async () => {
+        const r6 = await dns.resolve6(hostname).catch(() => []);
+        return r6;
+      });
+    } catch {
+      return false; // DNS failure — refuse
+    }
+    if (!addresses || addresses.length === 0) return false;
+
+    // ALL resolved IPs must be safe (DNS rebinding: if any resolves private, reject)
+    return addresses.every(ip => !isPrivateIp(ip));
+  } catch {
+    return false;
+  }
+}
+
+function isPrivateIp(ip) {
+  // Covers: loopback, link-local (169.254.x.x), private RFC-1918,
+  // IPv6 loopback, unique-local, link-local, and the EC2 metadata endpoint.
+  const BLOCKED = [
+    /^127\./,
+    /^0\./,
+    /^10\./,
+    /^172\.(1[6-9]|2\d|3[01])\./,
+    /^192\.168\./,
+    /^169\.254\./, // EC2 metadata + link-local — this is the critical missing pattern
+    /^::1$/,
+    /^fc00:/i,
+    /^fd[0-9a-f]{2}:/i, // RFC-4193 unique-local
+    /^fe80:/i,
+    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./,  // RFC-6598 shared address space
+    /^localhost$/i,
+  ];
+  return BLOCKED.some(p => p.test(ip));
+}
 
 // Health statuses that must never be served via proxy
 // (DRM, geo-blocked, unauthorized, unlicensed paid content)
@@ -172,19 +230,27 @@ const manifestCache = new BoundedCache(200, CACHE_MANIFEST_MS);
 // Fix #8: Add depth counter to prevent infinite redirect loops
 // Fix #6: Increased timeout from 8s → 20s — live HLS sources from slow CDNs
 // frequently take 10–15s to respond, causing unnecessary stream failures at 8s.
-function makeProxyRequest(url, headers, redirectDepth = 0) {
-  return new Promise((resolve, reject) => {
-    if (redirectDepth > 5) {
-      return reject(new Error('Too many redirects'));
-    }
+async function makeProxyRequest(url, headers, redirectDepth = 0) {
+  if (redirectDepth > 5) {
+    throw new Error('Too many redirects');
+  }
 
+  // SSRF check on every hop — a redirect could point to an internal address
+  const safe = await isSafeExternalUrl(url);
+  if (!safe) {
+    const err = new Error('SSRF: target URL resolves to a blocked address');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return new Promise((resolve, reject) => {
     let parsed;
     try { parsed = new URL(url); } catch(e) { return reject(e); }
     const client = parsed.protocol === 'https:' ? https : http;
 
     const req = client.request(url, { headers, timeout: 20000 }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        // Follow redirect with incremented depth counter
+        // Follow redirect with incremented depth counter, re-checking SSRF on each hop
         const nextUrl = resolveUrl(url, res.headers.location);
         return resolve(makeProxyRequest(nextUrl, headers, redirectDepth + 1));
       }
@@ -346,30 +412,15 @@ exports.proxySegment = async (req, res) => {
       return res.status(403).send('Invalid or expired segment token');
     }
 
-    // SSRF prevention — validate decrypted URL before making request
-    try {
-      const parsed = new URL(targetUrl);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    // SSRF prevention — resolve DNS and validate the target IP before requesting.
+    // This catches 169.254.169.254 (EC2 metadata), decimal-encoded IPs, DNS rebinding,
+    // and any private range that would be missed by a hostname-only denylist.
+    {
+      const safe = await isSafeExternalUrl(targetUrl).catch(() => false);
+      if (!safe) {
+        console.warn('[proxy] SSRF blocked:', targetUrl.slice(0, 80));
         return res.status(400).send('Invalid segment URL');
       }
-      const host = parsed.hostname.toLowerCase();
-      const BLOCKED_PATTERNS = [
-        /^localhost$/,
-        /^127\./,
-        /^10\./,
-        /^172\.(1[6-9]|2\d|3[01])\./,
-        /^192\.168\./,
-        /^169\.254\./,
-        /^::1$/,
-        /^fc00:/,
-        /^fe80:/,
-        /^0\./,
-      ];
-      if (BLOCKED_PATTERNS.some(p => p.test(host))) {
-        return res.status(400).send('Invalid segment URL');
-      }
-    } catch {
-      return res.status(400).send('Invalid segment URL');
     }
 
     // Fetch the stream record for headers (needed to add UA/Referer on upstream request).
