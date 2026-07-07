@@ -948,22 +948,30 @@ exports.getChannelPlayback = async (req, res) => {
     }
 
     // ── Helper: compile safe headers for a stream row ───────────────────────
-    const compileHeaders = (stream) => ({
-      'User-Agent': stream.user_agent || stream.referer
-        ? stream.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      ...(stream.referer ? { 'Referer': stream.referer } : {}),
-      ...(stream.origin ? { 'Origin': stream.origin } : {}),
-      ...(stream.headers_json && typeof stream.headers_json === 'object' ? stream.headers_json : {}),
-    });
+    // Only include User-Agent when the stream row explicitly sets one — avoids
+    // sending a desktop Chrome UA to CDNs that expect a mobile/native UA or no UA.
+    // Only include Referer/Origin when explicitly set (non-empty) — sending an
+    // unwanted Referer to hotlink-protected CDNs causes 403s that VLC avoids by
+    // sending nothing. Null/empty = intentional omission, not a missing value.
+    const compileHeaders = (stream) => {
+      const h = {};
+      const ua = stream.user_agent && stream.user_agent.trim();
+      if (ua) h['User-Agent'] = ua;
+      const referer = stream.referer && stream.referer.trim();
+      if (referer) h['Referer'] = referer;
+      const origin = stream.origin && stream.origin.trim();
+      if (origin) h['Origin'] = origin;
+      if (stream.headers_json && typeof stream.headers_json === 'object') {
+        Object.assign(h, stream.headers_json);
+      }
+      return h;
+    };
 
     // ── Helper: resolve the play URL for a stream ────────────────────────────
-    // Never expose source URL when proxy mode is set — route via our proxy API
-    const getPlayUrl = (stream, forceId) => {
-      if (stream.playback_mode === 'proxy') {
-        const idToUse = forceId || stream.id;
-        return `${baseUrl}/api/proxy/${idToUse}/master.m3u8`;
-      }
+    // Always return the direct CDN URL so the app can play without a backend hop.
+    // proxy_url is returned as a separate fallback field — the app uses it only
+    // after the direct URL has already failed all retries.
+    const getPlayUrl = (stream) => {
       return stream.final_url || stream.stream_url;
     };
 

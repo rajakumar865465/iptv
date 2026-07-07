@@ -206,6 +206,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   List<dynamic> _backupStreams = [];
   Map<String, dynamic>? _currentStreamMeta;
+  // Cache of headers from last successful playback API response. Used in the
+  // catch-block fallback so we never rebuild headers from the stale channels table.
+  Map<String, dynamic>? _lastApiHeaders;
   bool _isRetryingStream = false;
   String _streamOverlayMessage = '';
   Timer? _bufferTimer;
@@ -241,6 +244,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // Proxy fallback state - populated from playback API response
   String? _proxyUrl;
   bool _proxyAttempted = false;
+
+  // Hardware decode fallback: retry with hwdec=no when a codec error is detected.
+  // Only attempted once per stream session to avoid loops.
+  bool _hwdecSoftwareFallbackAttempted = false;
 
   // Tracks which path served the stream: 'direct' | 'proxy' | 'smooth' | 'transcode' | 'backup'
   String _playbackPath = 'direct';
@@ -787,6 +794,38 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _showPlayerToast('Switched to Live');
   }
 
+  /// Returns true if the error message looks like a hardware-decode or codec failure.
+  bool _looksLikeCodecError(String msg) {
+    final lower = msg.toLowerCase();
+    return lower.contains('codec') ||
+        lower.contains('hevc') ||
+        lower.contains('h265') ||
+        lower.contains('h.265') ||
+        lower.contains('hardware') ||
+        lower.contains('hwdec') ||
+        lower.contains('vdpau') ||
+        lower.contains('vaapi') ||
+        lower.contains('mediacodec') ||
+        lower.contains('decoder') ||
+        lower.contains('decoding failed') ||
+        lower.contains('video output') ||
+        lower.contains('unsupported stream');
+  }
+
+  /// Retry current URL with software decode (hwdec=no) — used when hardware decode fails.
+  Future<void> _retryWithSoftwareDecode(String url, Map<String, dynamic>? rawHeaders) async {
+    if (!mounted) return;
+    setState(() { _streamOverlayMessage = 'Loading...'; _isLoading = true; _hasError = false; });
+    try {
+      final platform = _player.platform;
+      if (platform.runtimeType.toString().contains('NativePlayer') ||
+          platform.runtimeType.toString().contains('LibmpvPlayer')) {
+        await (platform as dynamic).setProperty('hwdec', 'no');
+      }
+    } catch (_) {}
+    await _initializePlayer(url, rawHeaders);
+  }
+
   /// While a gap warning is active, periodically re-fetch smooth playback status
   /// so the banner clears automatically once the channel recovers. Only runs when
   /// smooth playback is enabled and the gap warning is showing.
@@ -833,6 +872,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _proxyUrl = null;
     _proxyAttempted = false;
     _wasQualityDowngraded = false;
+    _hwdecSoftwareFallbackAttempted = false;
     _hadFailureBeforePlaying = false;
     _qualityUpgradeTimer?.cancel();
     _qualityUpgradeTimer = null;
@@ -907,6 +947,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         } else {
           throw Exception('No stream URL in playback response');
         }
+        // Cache API-returned headers so the catch fallback uses the same source of truth.
+        _lastApiHeaders = headersToUse;
         _playbackPath = 'direct';
         await _initializePlayer(urlToPlay, headersToUse);
       } else {
@@ -917,14 +959,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         'channel_id': _currentChannel.id,
         'error': e.toString(),
         'fallback_url': _currentChannel.streamUrl,
+        'has_cached_headers': _lastApiHeaders != null,
       });
-      _backupStreams = _currentChannel.backupStreamUrl?.isNotEmpty == true ? [
-        {'url': _currentChannel.backupStreamUrl, 'headers': { 'User-Agent': _currentChannel.userAgent, 'Referer': _currentChannel.referrer }}
-      ] : [];
-      await _initializePlayer(_currentChannel.streamUrl, {
+      // Use headers from the last successful playback API call rather than the stale
+      // channels-table fields. If no prior API call succeeded, fall back to channel fields.
+      final fallbackHeaders = _lastApiHeaders ?? {
         if (_currentChannel.userAgent != null) 'User-Agent': _currentChannel.userAgent!,
         if (_currentChannel.referrer != null) 'Referer': _currentChannel.referrer!,
-      });
+      };
+      _backupStreams = _currentChannel.backupStreamUrl?.isNotEmpty == true ? [
+        {'url': _currentChannel.backupStreamUrl, 'headers': fallbackHeaders}
+      ] : [];
+      await _initializePlayer(_currentChannel.streamUrl, fallbackHeaders);
     }
   }
 
@@ -1116,6 +1162,23 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           // HLS-level errors (e.g. cache miss, non-fatal playlist retry) during normal playback.
           final stuckBuffering = _player.state.buffering && !_player.state.playing;
           if (!_isLoading && !stuckBuffering) return;
+
+          // Codec / hardware-decode error: retry once with software decode (hwdec=no).
+          // Some Android devices fail to hardware-decode HEVC/H.265 or exotic TS streams
+          // that VLC handles via software decode. This closes the VLC vs app gap for those
+          // streams without touching the fallback cascade.
+          final isCodecError = _looksLikeCodecError(errorMsg);
+          if (isCodecError && !_hwdecSoftwareFallbackAttempted) {
+            _hwdecSoftwareFallbackAttempted = true;
+            _playerDebugLog('hwdec_software_fallback', {
+              'channel_id': _currentChannel.id,
+              'url': url,
+              'error': errorMsg,
+            });
+            _retryWithSoftwareDecode(url, rawHeaders);
+            return;
+          }
+
           _handleStreamFailure('player_error');
         });
       });
@@ -1783,6 +1846,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   void _onChannelChanged({bool fetchNewContext = false}) {
     _hadFailureBeforePlaying = false;
     _retryAttempt = 0;
+    _lastApiHeaders = null;
+    _hwdecSoftwareFallbackAttempted = false;
     // Reset smooth playback state for new channel
     _smoothPlaybackEnabled = false;
     _bufferReady = false;
@@ -2415,55 +2480,83 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   /// Small translucent banner shown over the live/direct video while the smooth buffer is
-  /// warming. Lets the user watch the live channel immediately ("start like TV") while the
-  /// delayed stream builds, with live progress. A "Go Live" chip escapes to direct playback.
-  /// Rendered only when _warmingOverLive is true (smooth enabled, not ready, video playing).
+  /// warming. Shows buffer progress and a prominent "Watch Live" escape button immediately
+  /// so users never feel trapped waiting for the buffer.
   Widget _buildWarmingBanner() {
     final isUnstable = _bufferStatus == 'source_timeout' ||
         _bufferStatus == 'trying_backup' ||
         _bufferStatus == 'backup_active' ||
         _bufferStatus == 'no_working_source' ||
         _bufferStatus == 'warm_timeout';
-    final Color borderColor = isUnstable
+    final Color accentColor = isUnstable
         ? const Color(0xFFFFA726)
         : const Color(0xFF42A5F5);
+    final delay = (_requiredDelaySeconds > 0 ? _requiredDelaySeconds : _delaySeconds).clamp(1, 9999);
+    final depth = _bufferDepthSeconds.clamp(0, delay);
+    final bufferProgress = depth / delay;
+
     return SafeArea(
       bottom: false,
       child: Container(
         margin: const EdgeInsets.fromLTRB(10, 6, 10, 0),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.66),
+          color: Colors.black.withOpacity(0.72),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor, width: 1),
+          border: Border.all(color: accentColor, width: 1),
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(isUnstable ? Icons.warning_amber_rounded : Icons.slow_motion_video_rounded,
-                color: borderColor, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                _warmingProgressText(),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600),
-              ),
+            Row(
+              children: [
+                Icon(isUnstable ? Icons.warning_amber_rounded : Icons.slow_motion_video_rounded,
+                    color: accentColor, size: 16),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _warmingProgressText(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                // "Watch Live" button always visible from second 1
+                if (_canGoLive && _directLiveUrl != null && _directLiveUrl!.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: _goLiveFromWarming,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: accentColor,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.live_tv_rounded, color: Colors.white, size: 12),
+                          SizedBox(width: 4),
+                          Text('Watch Live',
+                              style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-            if (_canGoLive && _directLiveUrl != null && _directLiveUrl!.isNotEmpty) ...[
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _goLiveFromWarming,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: borderColor.withOpacity(0.22),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'Go Live',
-                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
-                  ),
+            // Buffer progress bar (only shown when buffer is actively building)
+            if (!isUnstable && delay > 0) ...[
+              const SizedBox(height: 5),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                  value: bufferProgress,
+                  backgroundColor: Colors.white12,
+                  valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+                  minHeight: 3,
                 ),
               ),
             ],

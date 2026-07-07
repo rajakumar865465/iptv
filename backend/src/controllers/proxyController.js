@@ -308,18 +308,29 @@ exports.proxyManifest = async (req, res) => {
       }
     }
 
-    const headers = {
-      'User-Agent': stream.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      ...(stream.referer ? { 'Referer': stream.referer } : {}),
-      ...(stream.origin ? { 'Origin': stream.origin } : {}),
-      ...safeExtraHeaders,
-    };
+    // Only include Referer/Origin when explicitly set — sending unwanted headers to
+    // hotlink-protected CDNs causes 403s (same rule as channelController.compileHeaders).
+    const manifestHeaders = {};
+    const mua = stream.user_agent && stream.user_agent.trim();
+    if (mua) manifestHeaders['User-Agent'] = mua;
+    const mref = stream.referer && stream.referer.trim();
+    if (mref) manifestHeaders['Referer'] = mref;
+    const morigin = stream.origin && stream.origin.trim();
+    if (morigin) manifestHeaders['Origin'] = morigin;
+    Object.assign(manifestHeaders, safeExtraHeaders);
+    const headers = manifestHeaders;
 
+    const manifestFetchStart = Date.now();
     const proxyRes = await makeProxyRequest(stream_url, headers);
+    const manifestFetchMs = Date.now() - manifestFetchStart;
+    if (manifestFetchMs > 3000) {
+      console.warn(`[proxy] slow manifest upstream_fetch_ms=${manifestFetchMs} streamId=${streamId}`);
+    }
 
     // Fix #1: Also accept 206 Partial Content — many CDN/live stream servers return 206
     // for range requests. Previously this was rejected as an error, killing the stream.
     if (proxyRes.statusCode !== 200 && proxyRes.statusCode !== 206) {
+      console.warn(`[proxy] manifest upstream status=${proxyRes.statusCode} streamId=${streamId} fetchMs=${manifestFetchMs}`);
       return res.status(proxyRes.statusCode).send('Upstream error');
     }
 
@@ -456,19 +467,31 @@ exports.proxySegment = async (req, res) => {
       }
     }
 
-    const headers = {
-      'User-Agent': stream?.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      ...(stream?.referer ? { 'Referer': stream.referer } : {}),
-      ...(stream?.origin ? { 'Origin': stream.origin } : {}),
-      ...safeExtraHeaders,
-    };
+    // Same "only send when explicitly set" rule as compileHeaders and proxyManifest.
+    const segHeaders = {};
+    const sua = stream?.user_agent && stream.user_agent.trim();
+    if (sua) segHeaders['User-Agent'] = sua;
+    const sref = stream?.referer && stream.referer.trim();
+    if (sref) segHeaders['Referer'] = sref;
+    const sorigin = stream?.origin && stream.origin.trim();
+    if (sorigin) segHeaders['Origin'] = sorigin;
+    Object.assign(segHeaders, safeExtraHeaders);
+    const headers = segHeaders;
 
     // Fix #8: Use smart retry helper with exponential backoff and 4xx fast-fail
     let proxyRes;
+    const fetchStart = Date.now();
     try {
       proxyRes = await fetchSegmentWithRetry(targetUrl, headers);
     } catch (e) {
+      const fetchMs = Date.now() - fetchStart;
+      console.warn(`[proxy] segment fetch failed streamId=${streamId} fetchMs=${fetchMs}ms err=${e.message}`);
       return res.status(502).send('Upstream segment unavailable');
+    }
+    const fetchMs = Date.now() - fetchStart;
+    // Log slow upstream segment fetches (>2s) so latency issues are measurable, not guesswork
+    if (fetchMs > 2000) {
+      console.warn(`[proxy] slow segment upstream_fetch_ms=${fetchMs} streamId=${streamId} url=${targetUrl.slice(0, 60)}`);
     }
 
     // Fix #1: Also accept 206 Partial Content from upstream CDNs

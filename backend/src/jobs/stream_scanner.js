@@ -3,6 +3,9 @@ const StreamScanner = require('../utils/StreamScanner');
 
 const BATCH_SIZE = 10; // Number of streams to diagnose concurrently
 const SCAN_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+// Require this many consecutive scan failures before marking a stream offline.
+// A single transient CDN hiccup should not evict a working stream.
+const OFFLINE_FAILURE_THRESHOLD = 3;
 
 async function runHealthScan() {
   console.log(`[StreamScanner] Starting health scan at ${new Date().toISOString()}`);
@@ -13,7 +16,8 @@ async function runHealthScan() {
     // Bug fix: is_active column does not exist in channel_streams; use is_hidden instead.
     // Also guard against NULL booleans with IS NOT TRUE / IS NOT FALSE pattern.
     const { rows: streams } = await db.query(`
-      SELECT cs.id, cs.stream_url, cs.headers_json, cs.user_agent, cs.referer, cs.channel_id
+      SELECT cs.id, cs.stream_url, cs.headers_json, cs.user_agent, cs.referer, cs.channel_id,
+             cs.health_status, COALESCE(cs.consecutive_scan_failures, 0) AS consecutive_scan_failures
       FROM channel_streams cs
       JOIN channels c ON cs.channel_id = c.id
       WHERE cs.is_hidden IS NOT TRUE
@@ -50,6 +54,20 @@ async function runHealthScan() {
           if (stream.referer && !headers['Referer']) headers['Referer'] = stream.referer;
 
           const result = await StreamScanner.deepScan(stream.stream_url, headers);
+          const scanWorking = result.scanner_status === 'working';
+
+          // Consecutive failure tracking: only flip to offline after OFFLINE_FAILURE_THRESHOLD
+          // consecutive bad scans so a single transient CDN hiccup does not evict working streams.
+          const newConsecutiveFailures = scanWorking ? 0 : stream.consecutive_scan_failures + 1;
+          let resolvedHealthStatus;
+          if (scanWorking) {
+            resolvedHealthStatus = 'online';
+          } else if (newConsecutiveFailures >= OFFLINE_FAILURE_THRESHOLD) {
+            resolvedHealthStatus = result.scanner_status; // e.g. 'offline', 'geo_blocked', etc.
+          } else {
+            // Keep current status during the grace window; show 'unstable' if currently online
+            resolvedHealthStatus = stream.health_status === 'online' ? 'unstable' : stream.health_status;
+          }
 
           // Update channel_streams table with deep scan results
           await db.query(`
@@ -57,30 +75,32 @@ async function runHealthScan() {
             SET
               health_status = $1,
               health_reason = $2,
-              master_m3u8_load_success = $3,
-              media_playlist_load_success = $4,
-              playlist_refresh_success = $5,
-              segment_load_success_1 = $6,
-              segment_load_success_2 = $7,
-              segment_load_success_3 = $8,
-              segment_response_time = $9,
-              segment_content_type = $10,
-              segment_size = $11,
-              redirects_followed = $12,
-              final_url = $13,
-              required_headers = $14,
-              http_error_code = $15,
-              token_expiry_detected = $16,
-              html_error_page_detected = $17,
-              geo_blocked = $18,
-              drm_protected = $19,
-              codec_issue_detected = $20,
-              scanner_status = $21,
+              consecutive_scan_failures = $3,
+              master_m3u8_load_success = $4,
+              media_playlist_load_success = $5,
+              playlist_refresh_success = $6,
+              segment_load_success_1 = $7,
+              segment_load_success_2 = $8,
+              segment_load_success_3 = $9,
+              segment_response_time = $10,
+              segment_content_type = $11,
+              segment_size = $12,
+              redirects_followed = $13,
+              final_url = $14,
+              required_headers = $15,
+              http_error_code = $16,
+              token_expiry_detected = $17,
+              html_error_page_detected = $18,
+              geo_blocked = $19,
+              drm_protected = $20,
+              codec_issue_detected = $21,
+              scanner_status = $22,
               updated_at = NOW()
-            WHERE id = $22
+            WHERE id = $23
           `, [
-            result.scanner_status,
-            result.scanner_status === 'working' ? 'stable' : `failed_${result.scanner_status}`,
+            resolvedHealthStatus,
+            scanWorking ? 'stable' : `failed_${result.scanner_status}`,
+            newConsecutiveFailures,
             result.master_m3u8_load_success,
             result.media_playlist_load_success,
             result.playlist_refresh_success,
@@ -102,15 +122,22 @@ async function runHealthScan() {
             result.scanner_status,
             stream.id
           ]);
-          
-          console.log(`[StreamScanner] Stream ${stream.id} (${stream.stream_url.substring(0, 30)}...) -> ${result.health_status}`);
+
+          console.log(`[StreamScanner] Stream ${stream.id} (${stream.stream_url.substring(0, 30)}...) -> ${resolvedHealthStatus} (consecutive_failures=${newConsecutiveFailures})`);
         } catch (err) {
+          // Scanner crash: increment failure count but do NOT immediately mark offline —
+          // the stream may be perfectly fine and the crash was a timeout/network issue on our side.
           console.error(`[StreamScanner] Error scanning stream ${stream.id}:`, err.message);
+          const newFailures = stream.consecutive_scan_failures + 1;
+          const crashStatus = newFailures >= OFFLINE_FAILURE_THRESHOLD ? 'offline' : stream.health_status;
           await db.query(`
-            UPDATE channel_streams 
-            SET health_status = 'offline', health_reason = 'scanner_crash', updated_at = NOW()
-            WHERE id = $1
-          `, [stream.id]);
+            UPDATE channel_streams
+            SET health_status = $1,
+                health_reason = 'scanner_crash',
+                consecutive_scan_failures = $2,
+                updated_at = NOW()
+            WHERE id = $3
+          `, [crashStatus, newFailures, stream.id]);
         }
       }));
 
@@ -156,14 +183,9 @@ async function updateParentChannelHealth() {
         LIMIT 1
       )
       UPDATE channels
-      SET health_status  = COALESCE((SELECT health_status  FROM best_stream), 'unknown'),
-          health_score   = COALESCE((SELECT health_score   FROM best_stream), 0),
-          last_checked_at = NOW(),
-          is_hidden = CASE 
-             WHEN COALESCE((SELECT health_status FROM best_stream), 'unknown') = 'offline' THEN true
-             WHEN COALESCE((SELECT health_status FROM best_stream), 'unknown') IN ('online', 'unstable') THEN false
-             ELSE is_hidden
-          END
+      SET health_status   = COALESCE((SELECT health_status FROM best_stream), 'unknown'),
+          health_score    = COALESCE((SELECT health_score  FROM best_stream), 0),
+          last_checked_at = NOW()
       WHERE id = $1
     `, [c.id]);
   }
