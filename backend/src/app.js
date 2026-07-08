@@ -47,9 +47,8 @@ app.use(cors({
     // Allow requests with no origin (mobile apps, Postman, curl, server-to-server)
     if (!origin) return callback(null, true);
 
-    // Allow all localhost origins only in development
-    if (process.env.NODE_ENV !== 'production' &&
-        (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
+    // Allow localhost origins (any port) — needed for local dev/testing even in production
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
       return callback(null, true);
     }
 

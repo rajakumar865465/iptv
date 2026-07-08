@@ -88,7 +88,7 @@ class _BackendConfigErrorApp extends StatelessWidget {
                       SizedBox(height: 8),
                       Text(
                         'flutter build apk --release \\\n'
-                          '  --dart-define=BACKEND_URL=http://35.154.128.217',
+                          '  --dart-define=BACKEND_URL=http://35.154.128.217:5000',
                         style: TextStyle(color: Colors.greenAccent, fontSize: 12, fontFamily: 'monospace'),
                       ),
                     ],

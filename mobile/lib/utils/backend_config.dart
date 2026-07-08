@@ -10,7 +10,7 @@ import 'package:flutter/foundation.dart';
 ///
 /// Production build (backend server — release builds REQUIRE this and the
 /// Gradle guard in android/app/build.gradle.kts will fail without it):
-///   flutter build apk --release --dart-define=BACKEND_URL=http://35.154.128.217
+///   flutter build apk --release --dart-define=BACKEND_URL=http://35.154.128.217:5000
 ///
 /// If BACKEND_URL is not supplied, the app shows a configuration-error screen
 /// instead of running. Never hardcode a URL in source — always use --dart-define.
@@ -21,7 +21,7 @@ class BackendConfig {
     'BACKEND_URL',
     // Default to the production server so users don't get the missing URL error
     // if they forget the --dart-define flag during build.
-    defaultValue: 'http://35.154.128.217',
+    defaultValue: 'http://35.154.128.217:5000',
   );
 
   /// Validates that the backend URL is configured. Call before runApp.
