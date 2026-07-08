@@ -56,7 +56,7 @@ exports.activate = async (req, res) => {
       let currentDeviceCount = deviceCount;
       if (existingDevice.rows.length === 0) {
         if (currentDeviceCount >= maxDevices) {
-          if (req.body.forceLogoutOldest) {
+          if (req.body.forceLogoutOldest || req.body.force_logout_oldest) {
             while (currentDeviceCount >= maxDevices) {
               await db.query(`
                 DELETE FROM devices 

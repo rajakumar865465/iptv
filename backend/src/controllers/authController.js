@@ -119,7 +119,7 @@ exports.login = async (req, res) => {
           const maxDevices = license?.max_devices || 1;
           
           if (currentDeviceCount >= maxDevices) {
-            if (req.body.forceLogoutOldest) {
+            if (req.body.forceLogoutOldest || req.body.force_logout_oldest) {
               while (currentDeviceCount >= maxDevices) {
                 // Auto-remove oldest device instead of blocking login
                 await db.query(`
