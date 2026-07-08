@@ -365,7 +365,13 @@ exports.proxyManifest = async (req, res) => {
       return `/api/proxy/segment/${streamId}/${token}${ext}`;
     }).join('\n');
 
-    manifestCache.set(manifestCacheKey, rewritten);
+    // Only cache MASTER playlists. Do NOT cache MEDIA playlists.
+    // Caching a live media playlist causes the player to receive stale segments,
+    // which makes the player spam the server in an infinite loop asking for new segments
+    // until the cache expires, causing the "loading -> playing -> loading" buffering loop.
+    if (body.includes('#EXT-X-STREAM-INF')) {
+      manifestCache.set(manifestCacheKey, rewritten);
+    }
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.setHeader('Cache-Control', 'no-cache, no-store');
