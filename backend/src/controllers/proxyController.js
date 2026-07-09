@@ -424,7 +424,7 @@ exports.proxyManifest = async (req, res) => {
     // which makes the player spam the server in an infinite loop asking for new segments
     // until the cache expires, causing the "loading -> playing -> loading" buffering loop.
     if (body.includes('#EXT-X-STREAM-INF')) {
-      manifestCache.set(manifestCacheKey, { data: rewritten });
+      manifestCache.set(manifestCacheKey, rewritten);
     }
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
