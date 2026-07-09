@@ -186,9 +186,11 @@ async function runHealthScan() {
       await new Promise(r => setTimeout(r, delayMs));
     }
     
-    // After scanning streams, we need to update the parent channel's health status
-    // based on the best health status of its active streams.
-    await updateParentChannelHealth();
+    // After scanning, update only the channels whose streams were actually scanned.
+    // Updating all channels would overwrite user-playback-reported health with stale
+    // stream data for channels that weren't touched this cycle.
+    const scannedChannelIds = [...new Set(streamsToScan.map(s => s.channel_id))];
+    await updateParentChannelHealth(scannedChannelIds);
 
     console.log(`[StreamScanner] Health scan completed at ${new Date().toISOString()}`);
   } catch (err) {
@@ -196,17 +198,12 @@ async function runHealthScan() {
   }
 }
 
-async function updateParentChannelHealth() {
-  console.log('[StreamScanner] Updating parent channels aggregate health...');
-  
-  const { rows: channels } = await db.query(`
-    SELECT id FROM channels WHERE is_removed IS NOT TRUE
-  `);
+async function updateParentChannelHealth(channelIds) {
+  if (!channelIds || channelIds.length === 0) return;
 
-  for (const c of channels) {
-    // Bug fix: was setting channels.status = health_status (e.g. 'online', 'offline'),
-    // but channels.status must remain 'active'/'inactive' for getChannels WHERE c.status='active'.
-    // Now correctly updates health_status and health_score only, never touches status.
+  console.log(`[StreamScanner] Updating parent channels aggregate health for ${channelIds.length} channel(s)...`);
+
+  for (const channelId of channelIds) {
     await db.query(`
       WITH best_stream AS (
         SELECT health_status, health_score
@@ -228,9 +225,9 @@ async function updateParentChannelHealth() {
           health_score    = COALESCE((SELECT health_score  FROM best_stream), 0),
           last_checked_at = NOW()
       WHERE id = $1
-    `, [c.id]);
+    `, [channelId]);
   }
-  
+
   console.log('[StreamScanner] Parent channel health updated.');
 }
 
