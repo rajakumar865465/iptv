@@ -43,6 +43,7 @@ async function checkChannelStreamsTable() {
       `SELECT 1 FROM information_schema.tables WHERE table_name = 'channel_streams'`
     );
     channelStreamsTableExists = result.rows.length > 0;
+    return channelStreamsTableExists;
   } catch (err) {
     // DB unavailable — don't cache, retry on the next call once it recovers
     return false;
