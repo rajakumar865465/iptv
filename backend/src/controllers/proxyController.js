@@ -237,10 +237,6 @@ const CACHE_MANIFEST_MS = 8000;
 // Note: Segment caching has been removed to prevent massive memory leaks and GC pauses
 const manifestCache = new BoundedCache(200, CACHE_MANIFEST_MS);
 
-// Reusable agents with keepAlive enabled to prevent expensive TLS handshakes on every segment
-const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 1000, maxFreeSockets: 100 });
-const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 1000, maxFreeSockets: 100 });
-
 // Fix #8: Add depth counter to prevent infinite redirect loops
 // Fix #6: Increased timeout from 8s → 20s — live HLS sources from slow CDNs
 // frequently take 10–15s to respond, causing unnecessary stream failures at 8s.
@@ -260,11 +256,9 @@ async function makeProxyRequest(url, headers, redirectDepth = 0) {
   return new Promise((resolve, reject) => {
     let parsed;
     try { parsed = new URL(url); } catch(e) { return reject(e); }
-    const isHttps = parsed.protocol === 'https:';
-    const client = isHttps ? https : http;
-    const agent = isHttps ? httpsAgent : httpAgent;
+    const client = parsed.protocol === 'https:' ? https : http;
 
-    const req = client.request(url, { headers, timeout: 20000, agent }, (res) => {
+    const req = client.request(url, { headers, timeout: 20000 }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         // Follow redirect with incremented depth counter, re-checking SSRF on each hop
         const nextUrl = resolveUrl(url, res.headers.location);
