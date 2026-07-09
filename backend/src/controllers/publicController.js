@@ -165,6 +165,7 @@ const WEBSITE_KEYS = [
   'upi_id', 'payment_qr_url', 'telegram_url', 'apk_download_url',
   'stats_channels_count', 'stats_categories_count', 'stats_users_count',
   'app_name', 'support_phone',
+  'support_telegram', 'privacy_policy_url', 'terms_url',
 ];
 
 exports.getSettings = async (req, res) => {

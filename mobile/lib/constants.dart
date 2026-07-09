@@ -10,23 +10,46 @@ class AppConstants {
 }
 
 class AppColors {
-  // Dark theme colors (JioTV-like)
-  static const int primary = 0xFF1A56DB;
-  static const int background = 0xFF121212;
-  static const int surface = 0xFF1E1E1E;
-  static const int surfaceLight = 0xFF2C2C2C;
-  static const int textPrimary = 0xFFFFFFFF;
-  static const int textSecondary = 0xFFB3B3B3;
-  static const int textMuted = 0xFF757575;
+  // ── NivaTV Premium Dark Theme ──────────────────────────────────────────────
+  // Core: Deep navy-black base inspired by JioTV/Airtel Xstream premium OTT look
+  static const int primary = 0xFF1A56DB;         // NivaTV Blue (primary brand)
+  static const int brandRed = 0xFFE5091A;        // NivaTV Red accent (secondary brand)
+  static const int premiumGold = 0xFFFFB300;     // Premium / PRO badge color
+
+  // Backgrounds — deep black with slight warm navy tint
+  static const int background = 0xFF0A0A12;      // Deep navy-black
+  static const int backgroundAlt = 0xFF0F0F1A;   // Slightly lighter navy-black
+  static const int surface = 0xFF16161F;         // Card surface
+  static const int surfaceElevated = 0xFF1E1E2E; // Elevated cards/sheets
+  static const int surfaceLight = 0xFF252535;    // Input backgrounds, chips
+  static const int divider = 0xFF252535;         // Subtle dividers
+
+  // Text hierarchy
+  static const int textPrimary = 0xFFFFFFFF;     // Headings
+  static const int textSecondary = 0xFFB8BCC8;   // Subheadings / labels
+  static const int textMuted = 0xFF6B7080;       // Disabled / hint text
+  static const int textOnBrand = 0xFFFFFFFF;     // Text on colored buttons
+
+  // Legacy alias (accent = primary for backwards compat)
   static const int accent = 0xFF1A56DB;
-  static const int liveRed = 0xFFFF0000;
-  static const int success = 0xFF4CAF50;
-  static const int warning = 0xFFFF9800;
-  static const int error = 0xFFF44336;
-  static const int cardGradientStart = 0xFF2A2A2A;
-  static const int cardGradientEnd = 0xFF1A1A1A;
-  static const int shimmerBase = 0xFF2C2C2C;
-  static const int shimmerHighlight = 0xFF3C3C3C;
+
+  // Semantic colors
+  static const int liveRed = 0xFFE5091A;
+  static const int success = 0xFF22C55E;
+  static const int warning = 0xFFF59E0B;
+  static const int error = 0xFFEF4444;
+
+  // Cards / gradients
+  static const int cardGradientStart = 0xFF1E1E2E;
+  static const int cardGradientEnd = 0xFF16161F;
+
+  // Shimmer (slightly brighter than background for subtlety)
+  static const int shimmerBase = 0xFF1E1E2E;
+  static const int shimmerHighlight = 0xFF2A2A3E;
+
+  // Bottom nav
+  static const int navBackground = 0xFF0A0A12;
+  static const int navIndicator = 0xFF1A56DB;   // Blue indicator pill
 }
 
 class ApiEndpoints {
@@ -94,6 +117,7 @@ class ApiEndpoints {
   static const String favorites = '$user/favorites';
   static const String watchHistory = '$user/watch-history';
   static const String devices = '$user/devices';
+  static const String userFeedback = '$user/feedback';
 
   // Payments
   static const String plans = '$payments/plans';

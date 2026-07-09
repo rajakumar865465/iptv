@@ -46,5 +46,8 @@ class AppConfigCubit extends Cubit<AppConfigState> {
   bool get isTrialEnabled => _config['trial_enabled'] != 'false';
   String get supportWhatsapp => _config['support_whatsapp'] ?? '';
   String get supportEmail => _config['support_email'] ?? '';
+  String get supportTelegram => _config['support_telegram'] ?? '';
+  String get privacyPolicyUrl => _config['privacy_policy_url'] ?? '';
+  String get termsUrl => _config['terms_url'] ?? '';
   String get minAppVersion => _config['minimum_app_version'] ?? '1.0.0';
 }

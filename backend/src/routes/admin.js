@@ -49,6 +49,10 @@ router.get('/users', adminController.getUsers);
 router.get('/users/:id', adminController.getUser);
 router.put('/users/:id/status', adminController.updateUserStatus);
 
+// ─── User Feedback ────────────────────────────────
+const userFeedbackController = require('../controllers/userFeedbackController');
+router.get('/feedback', userFeedbackController.getFeedback);
+
 // ─── Devices ──────────────────────────────────────
 router.get('/devices', deviceController.getAllDevices);
 router.delete('/devices/:id', deviceController.deleteDevice);
