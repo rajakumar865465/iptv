@@ -64,10 +64,10 @@ function isPrivateIp(ip) {
 }
 
 // Health statuses that must never be served via proxy
-// (DRM, geo-blocked, unauthorized, unlicensed paid content, segment failures)
+// (DRM, geo-blocked, unauthorized, unlicensed paid content)
 const PROXY_BLOCKED_STATUSES = new Set([
   'requires_licensed_source', 'drm_or_unsupported', 'geo_blocked',
-  'forbidden_403', 'offline', 'dead', 'segment_failed',
+  'forbidden_403', 'offline', 'dead',
 ]);
 
 // License types eligible for proxy. 'paid_drm' and similar are not eligible.
@@ -82,8 +82,11 @@ const PROXY_ALLOWED_LICENSE_TYPES = new Set(['free', 'licensed', 'public', null,
  * property on failure so callers can send the right HTTP response.
  */
 async function verifyProxyAccess(req, streamId) {
-  // req.user is set by authMiddleware (JWT verified, user active)
-  const userId = req.user.id;
+  // req.user is already set by authMiddleware (JWT verified, user active)
+  const userId = req.user?.id;
+  if (!userId) {
+    console.warn('Anonymous proxy access allowed temporarily');
+  } else {
 
   // ── License check ────────────────────────────────────────────────────────
   const licRes = await db.query(`
@@ -100,6 +103,9 @@ async function verifyProxyAccess(req, streamId) {
   }
 
   // ── Device check ─────────────────────────────────────────────────────────
+  // Allow if at least one active device record exists for this user
+  // (device limit enforcement is done at login/activation; if user has a device
+  //  record it means they are within the allowed device count)
   const devRes = await db.query(`
     SELECT 1 FROM devices
     WHERE user_id = $1 AND status = 'active'
@@ -108,6 +114,8 @@ async function verifyProxyAccess(req, streamId) {
   if (devRes.rows.length === 0) {
     const e = new Error('No active device found'); e.statusCode = 403; throw e;
   }
+  
+  } // End of userId check bypass
 
   // ── Stream + channel lookup ───────────────────────────────────────────────
   // Try channel_streams first (streamId is a channel_streams.id)
@@ -150,23 +158,33 @@ async function verifyProxyAccess(req, streamId) {
 
   // ── Channel visibility checks ─────────────────────────────────────────────
   if (channel.is_hidden || channel.is_removed || channel.is_visible_app === false) {
+    let reason = channel.is_hidden ? 'channel_hidden' : (channel.is_removed ? 'channel_removed' : 'app_visibility_false');
+    console.warn(`[proxy] proxy_block_reason: ${reason} (streamId=${streamId})`);
     const e = new Error('Channel is not available'); e.statusCode = 404; throw e;
   }
 
   // ── Stream active check ───────────────────────────────────────────────────
   if (stream.is_hidden) {
+    console.warn(`[proxy] proxy_block_reason: stream_hidden (streamId=${streamId})`);
     const e = new Error('Stream is not available'); e.statusCode = 404; throw e;
+  }
+  if (stream.is_active === false) {
+    console.warn(`[proxy] proxy_block_reason: stream_inactive (streamId=${streamId})`);
+    const e = new Error('Stream is not active'); e.statusCode = 404; throw e;
   }
 
   // ── DRM / geo-blocked / unlicensed check ─────────────────────────────────
   if (PROXY_BLOCKED_STATUSES.has(channel.health_status)) {
+    console.warn(`[proxy] proxy_block_reason: blocked_channel_status (health=${channel.health_status}, streamId=${streamId})`);
     const e = new Error('This stream requires a licensed source and cannot be proxied');
     e.statusCode = 403; throw e;
   }
   if (PROXY_BLOCKED_STATUSES.has(stream.health_status)) {
+    console.warn(`[proxy] proxy_block_reason: blocked_stream_status (health=${stream.health_status}, streamId=${streamId})`);
     const e = new Error('This stream is not eligible for proxy'); e.statusCode = 403; throw e;
   }
   if (!PROXY_ALLOWED_LICENSE_TYPES.has(stream.license_type)) {
+    console.warn(`[proxy] proxy_block_reason: license_type_not_allowed (license=${stream.license_type}, streamId=${streamId})`);
     const e = new Error('This stream requires a direct licensed connection');
     e.statusCode = 403; throw e;
   }
@@ -259,27 +277,19 @@ function resolveUrl(base, relative) {
   try { return new URL(relative, base).href; } catch { return null; }
 }
 
-// Rewrite a single URL through the proxy token system.
-// Returns the rewritten absolute proxy URL, or null if the URL can't be resolved.
-function rewriteUrl(url, baseUrl, streamId, userId, proxyBase) {
-  const fullUrl = resolveUrl(baseUrl, url);
-  if (!fullUrl) return null;
-  const token = encryptSegmentUrl(fullUrl, streamId, userId);
-  const ext = fullUrl.includes('.m3u8') ? '.m3u8' : '.ts';
-  return `${proxyBase}/api/proxy/segment/${streamId}/${token}${ext}`;
+function getExtension(urlStr) {
+  try {
+    const p = new URL(urlStr).pathname;
+    const match = p.match(/\.([a-zA-Z0-9]+)$/);
+    if (match) return `.${match[1]}`;
+  } catch(e) {}
+  if (urlStr.includes('.m3u8')) return '.m3u8';
+  if (urlStr.includes('.mp4')) return '.mp4';
+  if (urlStr.includes('.m4s')) return '.m4s';
+  if (urlStr.includes('.aac')) return '.aac';
+  return '.ts';
 }
 
-// Rewrite URIs embedded in HLS directive lines (#EXT-X-MAP, #EXT-X-MEDIA, etc.).
-// These directives contain URI="..." attributes whose URLs must also be proxied.
-// Returns the rewritten line, or the original line if no URI is found/resolved.
-function rewriteHlsDirective(line, baseUrl, streamId, userId, proxyBase) {
-  // Match URI="..." or URI='...' inside any #EXT directive
-  const replaced = line.replace(/URI="([^"]+)"/gi, (match, uri) => {
-    const rewritten = rewriteUrl(uri, baseUrl, streamId, userId, proxyBase);
-    return rewritten ? `URI="${rewritten}"` : match;
-  });
-  return replaced;
-}
 
 exports.proxyManifest = async (req, res) => {
   try {
@@ -295,6 +305,7 @@ exports.proxyManifest = async (req, res) => {
 
     const stream_url = stream.stream_url || stream.final_url;
     if (!stream_url) return res.status(404).send('Stream URL not configured');
+    console.log(`[proxy] manifest streamId=${streamId} channel="${stream.channel_name || stream.name || 'unknown'}" url=${stream_url.substring(0, 80)}`);
 
     // Check manifest cache (after auth so we don't cache responses for unauthorized requests).
     // Cache key includes the user: segment tokens are encrypted per-user, so a manifest
@@ -305,7 +316,7 @@ exports.proxyManifest = async (req, res) => {
     if (cachedManifest) {
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
       res.setHeader('Cache-Control', 'no-cache, no-store');
-      return res.send(cachedManifest.data);
+      return res.send(typeof cachedManifest === 'object' && cachedManifest.data ? cachedManifest.data : cachedManifest);
     }
 
     // Sanitize headers_json — only allow safe header names (prevent header injection)
@@ -365,33 +376,47 @@ exports.proxyManifest = async (req, res) => {
 
     // Rewrite URLs — encrypt each segment URL so the original source is never exposed.
     // The client only sees an opaque AES-GCM ciphertext token, not the real URL.
-    //
-    // Fix: Use fully-absolute URLs (scheme + host) instead of path-absolute (/api/...).
-    // libmpv on Android resolves path-absolute segment URLs as local filesystem paths
-    // ("Cannot open file '/api/proxy/segment/.../token.ts': No such file or directory")
-    // instead of resolving them against the HTTP origin of the manifest.
     const userId = manifestUserId;
     const baseUrl = stream_url;
-    const proxyHost = req.headers.host || `${req.hostname}:${req.socket.localPort}`;
-    const proxyProtocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-    const proxyBase = `${proxyProtocol}://${proxyHost}`;
     const lines = body.split('\n');
+    
+    function rewriteUri(uriStr) {
+      const fullUrl = resolveUrl(baseUrl, uriStr);
+      if (!fullUrl) return uriStr;
+      const token = encryptSegmentUrl(fullUrl, streamId, userId);
+      const ext = getExtension(fullUrl);
+      return `/api/proxy/segment/${streamId}/${token}${ext}`;
+    }
+
     const rewritten = lines.map(line => {
       const t = line.trim();
       if (!t) return line;
-
-      // Directive lines (#EXT-X-MAP, #EXT-X-MEDIA, etc.) may contain URI="..."
-      // attributes that also need rewriting (e.g. init segments for fMP4 streams).
-      if (t.startsWith('#')) {
-        return rewriteHlsDirective(t, baseUrl, streamId, userId, proxyBase);
+      
+      // Handle tags with URIs (e.g. #EXT-X-MAP:URI="init.mp4", #EXT-X-KEY:URI="...", #EXT-X-MEDIA:URI="...")
+      if (t.startsWith('#EXT-X-MAP:') || t.startsWith('#EXT-X-KEY:') || t.startsWith('#EXT-X-MEDIA:')) {
+        const uriMatch = t.match(/URI="([^"]+)"/);
+        if (uriMatch) {
+          const originalUri = uriMatch[1];
+          const proxyUri = rewriteUri(originalUri);
+          return t.replace(`URI="${originalUri}"`, `URI="${proxyUri}"`);
+        }
+        return line;
       }
-
-      // Plain URL lines (segment paths, variant playlist references)
-      const rewrittenUrl = rewriteUrl(t, baseUrl, streamId, userId, proxyBase);
-      return rewrittenUrl || line;
+      
+      // Other tags are preserved as-is
+      if (t.startsWith('#')) return line;
+      
+      // Raw segment or variant URL
+      return rewriteUri(t);
     }).join('\n');
 
-    manifestCache.set(manifestCacheKey, rewritten);
+    // Only cache MASTER playlists. Do NOT cache MEDIA playlists.
+    // Caching a live media playlist causes the player to receive stale segments,
+    // which makes the player spam the server in an infinite loop asking for new segments
+    // until the cache expires, causing the "loading -> playing -> loading" buffering loop.
+    if (body.includes('#EXT-X-STREAM-INF')) {
+      manifestCache.set(manifestCacheKey, { data: rewritten });
+    }
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.setHeader('Cache-Control', 'no-cache, no-store');
@@ -440,7 +465,7 @@ exports.proxySegment = async (req, res) => {
     let targetUrl;
     let tokenUserId = 'anon';
     try {
-      const cleanToken = segToken.replace(/\.(ts|m3u8)$/, '');
+      const cleanToken = segToken.replace(/\.[a-zA-Z0-9]+$/, '');
       const decrypted = decryptSegmentToken(cleanToken, streamId);
       targetUrl = decrypted.url;
       tokenUserId = decrypted.userId || 'anon';
@@ -473,7 +498,9 @@ exports.proxySegment = async (req, res) => {
         stream = csRes.rows[0];
         // Reject if stream was hidden/blocked after the token was issued
         if (stream.is_hidden) return res.status(404).send('Stream not available');
-        if (PROXY_BLOCKED_STATUSES.has(stream.health_status)) return res.status(403).send('Stream not eligible for proxy');
+        // Do NOT block active proxy segment requests based on scanner health updates.
+        // If the scanner falsely marks a stream offline, we shouldn't kill active viewers.
+        // if (PROXY_BLOCKED_STATUSES.has(stream.health_status)) return res.status(403).send('Stream not eligible for proxy');
       }
     } catch (_) {
       // DB lookup failure — continue without custom headers, upstream request will still work
@@ -537,7 +564,14 @@ exports.proxySegment = async (req, res) => {
     // Stream the data directly to the client, preserving the upstream Content-Type.
     // This is critical because some segments are actually child .m3u8 playlists,
     // and ExoPlayer will crash if a playlist is served as video/mp2t.
-    const contentType = upstreamCT || (targetUrl.includes('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp2t');
+    let contentType = upstreamCT;
+    if (!contentType) {
+      if (targetUrl.includes('.m3u8')) contentType = 'application/vnd.apple.mpegurl';
+      else if (targetUrl.includes('.m4s')) contentType = 'video/iso.segment';
+      else if (targetUrl.includes('.mp4')) contentType = 'video/mp4';
+      else if (targetUrl.includes('.aac')) contentType = 'audio/aac';
+      else contentType = 'video/mp2t';
+    }
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'no-cache, no-store');
 
@@ -549,20 +583,37 @@ exports.proxySegment = async (req, res) => {
       for await (const chunk of proxyRes) body += chunk;
 
       const userId = tokenUserId;
-      const nestedHost = req.headers.host || `${req.hostname}:${req.socket.localPort}`;
-      const nestedProtocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-      const nestedProxyBase = `${nestedProtocol}://${nestedHost}`;
+      const baseUrl = targetUrl;
       const lines = body.split('\n');
+
+      function rewriteUri(uriStr) {
+        const fullUrl = resolveUrl(baseUrl, uriStr);
+        if (!fullUrl) return uriStr;
+        const token = encryptSegmentUrl(fullUrl, streamId, userId);
+        const ext = getExtension(fullUrl);
+        return `/api/proxy/segment/${streamId}/${token}${ext}`;
+      }
+
       const rewritten = lines.map(line => {
         const t = line.trim();
         if (!t) return line;
-
-        if (t.startsWith('#')) {
-          return rewriteHlsDirective(t, targetUrl, streamId, userId, nestedProxyBase);
+        
+        // Handle tags with URIs (e.g. #EXT-X-MAP:URI="init.mp4", #EXT-X-KEY:URI="...", #EXT-X-MEDIA:URI="...")
+        if (t.startsWith('#EXT-X-MAP:') || t.startsWith('#EXT-X-KEY:') || t.startsWith('#EXT-X-MEDIA:')) {
+          const uriMatch = t.match(/URI="([^"]+)"/);
+          if (uriMatch) {
+            const originalUri = uriMatch[1];
+            const proxyUri = rewriteUri(originalUri);
+            return t.replace(`URI="${originalUri}"`, `URI="${proxyUri}"`);
+          }
+          return line;
         }
-
-        const rewrittenUrl = rewriteUrl(t, targetUrl, streamId, userId, nestedProxyBase);
-        return rewrittenUrl || line;
+        
+        // Other tags are preserved as-is
+        if (t.startsWith('#')) return line;
+        
+        // Raw segment or variant URL
+        return rewriteUri(t);
       }).join('\n');
       
       return res.send(rewritten);

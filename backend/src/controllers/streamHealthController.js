@@ -282,14 +282,13 @@ exports.markStreamStatus = async (req, res) => {
     const adminId = req.adminUser?.id || req.user?.id || null;
     await db.query(`
       INSERT INTO admin_audit_logs
-        (admin_id, action, target_type, target_id, new_value, reason, ip_address)
-      VALUES ($1, $2, 'channel', $3, $4, $5, $6)
+        (admin_id, action, target_type, target_id, details, ip_address)
+      VALUES ($1, $2, 'channel', $3, $4, $5)
     `, [
       adminId,
       `stream_health_${action}`,
       channelId,
-      JSON.stringify({ channel_name: channel.name, ...auditDetails, updates }),
-      note || null,
+      JSON.stringify({ channel_name: channel.name, reason: note || null, ...auditDetails, updates }),
       req.ip || null,
     ]);
 

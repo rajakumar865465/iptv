@@ -43,6 +43,7 @@ async function checkChannelStreamsTable() {
       `SELECT 1 FROM information_schema.tables WHERE table_name = 'channel_streams'`
     );
     channelStreamsTableExists = result.rows.length > 0;
+    return channelStreamsTableExists;
   } catch (err) {
     // DB unavailable — don't cache, retry on the next call once it recovers
     return false;
@@ -128,11 +129,9 @@ function normalizeLanguage(raw) {
 }
 
 // PLAYABLE health statuses — shown when workingOnly=true
-// 'segment_failed' is intentionally excluded: the scanner proved the stream's segments
-// cannot be fetched, so the channel must not appear as playable.
 const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable', 'unknown'];
 // Hidden health statuses — always hidden from normal users
-const DEAD_STATUSES = ['offline', 'dead', 'forbidden_403', 'drm_or_unsupported', 'geo_blocked', 'requires_licensed_source'];
+const DEAD_STATUSES = ['offline', 'dead', 'forbidden_403', 'drm_or_unsupported', 'geo_blocked', 'requires_licensed_source', 'segment_failed', 'timeout'];
 // Allow unknown streams (channels not yet checked) when ALLOW_UNKNOWN_STREAMS=true in .env
 const ALLOW_UNKNOWN = process.env.ALLOW_UNKNOWN_STREAMS === 'true';
 
@@ -214,7 +213,7 @@ exports.getChannels = async (req, res) => {
       // Health filter now applies equally to all channels regardless of premium status.
       if (hasHealthStatus) {
         const deadList = DEAD_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
-        conditions.push(`(c.health_status IS NULL OR c.health_status NOT IN (${deadList}))`);
+        conditions.push(`(c.health_status IS NULL OR c.health_status NOT IN (${deadList}) OR c.is_premium = true OR c.is_popular = true OR c.is_featured = true)`);
         params.push(...DEAD_STATUSES);
         paramIndex += DEAD_STATUSES.length;
       }
@@ -433,7 +432,7 @@ exports.getChannelsByCategory = async (req, res) => {
     // including offline/dead/geo-blocked ones, causing broken streams in category view.
     // Mirrors the default-mode filter in getChannels (excludes clearly dead, shows unknown).
     const healthClause = hasHealthStatus
-      ? `AND (c.health_status IS NULL OR c.health_status NOT IN (${DEAD_STATUSES.map((_, i) => `$${i + 2}`).join(', ')}))`
+      ? `AND (c.health_status IS NULL OR c.health_status NOT IN (${DEAD_STATUSES.map((_, i) => `$${i + 2}`).join(', ')}) OR c.is_premium = true OR c.is_popular = true OR c.is_featured = true)`
       : '';
     const params = hasHealthStatus ? [categoryId, ...DEAD_STATUSES] : [categoryId];
     const result = await db.query(
@@ -477,7 +476,7 @@ exports.getCategories = async (req, res) => {
       paramIndex += WORKING_STATUSES.length;
     } else if (workingOnly !== 'false' && req.query.showOffline !== 'true' && hasHealthStatus) {
       const deadList = DEAD_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
-      channelFilter += ` AND (ch.health_status IS NULL OR ch.health_status NOT IN (${deadList}))`;
+      channelFilter += ` AND (ch.health_status IS NULL OR ch.health_status NOT IN (${deadList}) OR ch.is_premium = true OR ch.is_popular = true OR ch.is_featured = true)`;
       params.push(...DEAD_STATUSES);
       paramIndex += DEAD_STATUSES.length;
     }
@@ -814,7 +813,7 @@ exports.reportFailure = async (req, res) => {
           const { fail_count: fc, health_score: hs } = upd.rows[0];
           if (fc >= 4 || hs <= 0) {
             await db.query(
-              `UPDATE channel_streams SET health_status = 'offline' WHERE id = $1`,
+              `UPDATE channel_streams SET health_status = 'unstable' WHERE id = $1`,
               [resolvedStreamId]
             );
           } else if (fc >= 2 || hs <= 40) {
@@ -913,7 +912,7 @@ exports.reportFailure = async (req, res) => {
 // Health statuses that make a channel ineligible for proxy (DRM, geo-block, unlicensed)
 const PROXY_BLOCKED_STATUSES = new Set([
   'requires_licensed_source', 'drm_or_unsupported', 'geo_blocked',
-  'forbidden_403', 'offline', 'dead', 'segment_failed',
+  'forbidden_403', 'offline', 'dead',
 ]);
 
 exports.getChannelPlayback = async (req, res) => {
@@ -1018,45 +1017,75 @@ exports.getChannelPlayback = async (req, res) => {
       FROM channel_streams cs
       WHERE cs.channel_id = $1
         AND cs.is_hidden IS NOT TRUE
-        AND (
-          cs.health_status IS NULL
-          OR cs.health_status IN ('online', 'unstable', 'unknown', 'pending_check')
-        )
+        /* Removed strict IN ('online', ...) filter so that offline/dead streams 
+           can still act as a fallback if no healthy streams exist. They will be 
+           sorted to the bottom by the ORDER BY clause. */
       ORDER BY
         cs.priority ASC,
         CASE cs.health_status
-          WHEN 'online'   THEN 3
-          WHEN 'unstable' THEN 2
-          WHEN 'unknown'  THEN 1
-          ELSE 0
+          WHEN 'online'   THEN 5
+          WHEN 'unstable' THEN 4
+          WHEN 'unknown'  THEN 3
+          WHEN 'pending_check' THEN 2
+          ELSE 1 -- offline, dead, likely_broken fall to the bottom
         END DESC,
         COALESCE(cs.health_score, 50) DESC
     `, [id]);
 
     if (result.rows.length === 0) {
-      // All streams offline — try including them so we can return 503 with explanation
-      result = await db.query(
-        'SELECT cs.* FROM channel_streams cs WHERE cs.channel_id = $1 ORDER BY cs.priority ASC',
-        [id]
-      );
-      if (result.rows.length === 0) {
-        return error(res, 'No streams available for this channel', 404);
-      }
-      const allOffline = result.rows.every(r => r.health_status === 'offline');
-      const anyScanned = result.rows.some(r => r.last_checked_at !== null);
-      if (allOffline && anyScanned) {
-        return res.status(503).json({
-          success: false,
-          message: 'Channel is temporarily offline. Please try again later.',
-          error_code: 'CHANNEL_OFFLINE',
-        });
-      }
+      return res.status(200).json({
+        success: false,
+        code: 'no_working_source',
+        message: 'No stable source is available right now',
+      });
     }
 
     // ── Identify primary stream (no parent = standalone / master playlist) ──
-    let primary = result.rows.find(r => r.is_primary === true);
-    if (!primary) primary = result.rows.find(r => r.parent_stream_id == null);
+    // Helper: detect audio-only sub-track URLs (e.g. tracks-v1a1/mono.m3u8).
+    // These are HLS rendition sub-playlists — playing them as primary gives
+    // audio-only output, causing the video player to show black screen and
+    // then fall back to whatever was previously playing (wrong channel content).
+    const isAudioOnlyTrack = (r) => {
+      const url = (r.stream_url || r.final_url || '').toLowerCase();
+      return (
+        url.includes('/tracks-v') ||
+        url.includes('/mono.m3u8') ||
+        url.includes('/stereo.m3u8') ||
+        url.includes('audio_only') ||
+        url.includes('audio-only') ||
+        (url.includes('audio') && url.includes('/tracks'))
+      );
+    };
+
+    // Priority 1: explicitly marked primary that is NOT audio-only
+    let primary = result.rows.find(r => r.is_primary === true && !isAudioOnlyTrack(r));
+    // Priority 2: any top-level stream (no parent) that is NOT audio-only
+    if (!primary) primary = result.rows.find(r => r.parent_stream_id == null && !isAudioOnlyTrack(r));
+    // Priority 3: is_primary even if it looks like audio (safety net)
+    if (!primary) primary = result.rows.find(r => r.is_primary === true);
+    // Last resort: first stream returned
     if (!primary) primary = result.rows[0];
+
+    // Log when audio-only fallback happens so we can fix the DB
+    if (primary && isAudioOnlyTrack(primary)) {
+      console.warn(`[playback] WARNING: channel ${id} primary stream ${primary.id} looks audio-only: ${(primary.stream_url || '').substring(0, 80)}`);
+      
+      // Auto-correct standard HLS audio sub-tracks back to their master playlist
+      // e.g. https://domain.com/path/tracks-v1a1/mono.m3u8 -> https://domain.com/path/index.m3u8
+      const fixUrl = (url) => {
+        if (!url) return url;
+        // Fix standard Mux/Amagi/generic tracks structure
+        if (url.match(/\/tracks-[^/]+\/[^/]+\.m3u8$/i)) {
+          return url.replace(/\/tracks-[^/]+\/[^/]+\.m3u8$/i, '/index.m3u8');
+        }
+        return url;
+      };
+
+      if (primary.stream_url) primary.stream_url = fixUrl(primary.stream_url);
+      if (primary.final_url) primary.final_url = fixUrl(primary.final_url);
+      
+      console.log(`[playback] Auto-corrected audio track to master playlist: ${primary.stream_url}`);
+    }
 
     // ── Build quality variants list ──────────────────────────────────────────
     // REAL variants only: child rows (parent_stream_id = primary.id) with known height.
