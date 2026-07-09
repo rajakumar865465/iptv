@@ -1059,6 +1059,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   Future<void> _initializePlayer(String url, [Map<String, dynamic>? rawHeaders, Duration? startPosition]) async {
     _currentUrl = url;
+    try {
+      // Prevent rapid-switch crashes on Web: wait for the previous stream to completely stop 
+      // before destroying its subscriptions and opening a new one.
+      await _player.stop();
+    } catch (_) {}
+    
     _playerSubscription?.cancel();
     _playerSubscription = null;
     _playerErrorSubscription?.cancel();
