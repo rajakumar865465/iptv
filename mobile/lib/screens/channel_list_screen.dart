@@ -55,15 +55,31 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedCategoryId = widget.initialCategoryId;
-    _selectedCategoryName = widget.initialCategoryName;
-    _selectedLanguage = widget.initialLanguage;
     _scrollController.addListener(_onScroll);
-
-    // Make sure favorites are loaded so heart icons reflect the current state.
     context.read<FavoriteCubit>().loadFavorites();
 
-    context.read<ChannelCubit>().loadChannels(
+    final cubit = context.read<ChannelCubit>();
+
+    // Widget constructor params take priority (e.g. deep-link into a category).
+    // Otherwise restore from the cubit's in-memory state (survives tab switches,
+    // resets on app restart — no persistence to disk).
+    if (widget.initialCategoryId != null ||
+        widget.initialCategoryName != null ||
+        widget.initialLanguage != null) {
+      _selectedCategoryId = widget.initialCategoryId;
+      _selectedCategoryName = widget.initialCategoryName;
+      _selectedLanguage = widget.initialLanguage;
+    } else {
+      _selectedCategoryId = cubit.filterCategoryId;
+      _selectedCategoryName = cubit.filterCategoryName;
+      // Restore language only when no category is active. If both were set, the
+      // category takes priority and language resets so the chips reload correctly.
+      _selectedLanguage = cubit.filterCategoryId == null ? cubit.filterLanguage : null;
+      _workingOnly = cubit.workingOnly;
+      _selectedSort = cubit.sortBy;
+    }
+
+    cubit.loadChannels(
       isRefresh: true,
       workingOnly: _workingOnly,
       categoryId: _selectedCategoryId ?? 0,
@@ -114,23 +130,25 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   }
 
   void _onCategorySelected(int? catId) {
-    final name = catId == null
-        ? null
-        : _categoryNameForId(catId);
+    final name = catId == null ? null : _categoryNameForId(catId);
+    // Changing category resets language — the language chips will reload filtered
+    // by the new category, so the user picks a valid language from the fresh list.
     setState(() {
       _selectedCategoryId = catId;
       _selectedCategoryName = name;
+      _selectedLanguage = null;
     });
     context.read<ChannelCubit>().loadChannels(
       isRefresh: true,
       workingOnly: _workingOnly,
       categoryId: catId ?? 0,
-      language: _selectedLanguage ?? '',
+      language: '',
       sortBy: _selectedSort,
     );
   }
 
   void _onLanguageSelected(String? lang) {
+    // Language selection keeps the active category so you can refine within it.
     setState(() => _selectedLanguage = lang);
     context.read<ChannelCubit>().loadChannels(
       isRefresh: true,
@@ -271,7 +289,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
                   ),
                   ...categories.map((cat) => FilterChipItem<int>(
                         value: cat.id,
-                        label: cat.name,
+                        label: cat.name.replaceFirst('Hindi ', ''),
                         count: cat.channelCount,
                         selected: _selectedCategoryId == cat.id,
                       )),

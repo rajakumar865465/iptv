@@ -61,6 +61,10 @@ class ChannelCubit extends Cubit<ChannelState> {
   String _sortBy = 'recommended'; // recommended | popular | premium | az | recent | quality | stable
   String _premiumFilter = 'all'; // all | true | false
 
+  // Track what filter was active when chips were last loaded so we know when to reload them
+  int? _chipsLoadedForCategoryId;  // category used when language chips were last fetched
+  String? _chipsLoadedForLanguage; // language used when category chips were last fetched
+
   // Getters for UI
   int? get filterCategoryId => _filterCategoryId;
   String? get filterCategoryName => _filterCategoryName;
@@ -127,6 +131,15 @@ class ChannelCubit extends Cubit<ChannelState> {
     if (sortBy != null) _sortBy = sortBy;
     if (premiumFilter != null) _premiumFilter = premiumFilter;
 
+    // When category filter changes, language chip counts must be reloaded for that category.
+    // When language filter changes, category chip counts must be reloaded for that language.
+    if (isRefresh && _filterCategoryId != _chipsLoadedForCategoryId) {
+      _allLanguages.clear();
+    }
+    if (isRefresh && _filterLanguage != _chipsLoadedForLanguage) {
+      _allCategories.clear();
+    }
+
     // Debug log
     developer.log(
       '[ChannelCubit] loadChannels\n'
@@ -169,16 +182,14 @@ class ChannelCubit extends Cubit<ChannelState> {
       Future<Map<String, dynamic>>? langFuture;
 
       if (_allCategories.isEmpty) {
-        catFuture = _api.get(
-          ApiEndpoints.categoryList,
-          queryParameters: {'workingOnly': _workingOnly ? 'true' : 'false'},
-        );
+        final catParams = <String, dynamic>{'workingOnly': _workingOnly ? 'true' : 'false'};
+        if (_filterLanguage != null) catParams['language'] = _filterLanguage!;
+        catFuture = _api.get(ApiEndpoints.categoryList, queryParameters: catParams);
       }
       if (_allLanguages.isEmpty) {
-        langFuture = _api.get(
-          ApiEndpoints.languageList,
-          queryParameters: {'workingOnly': _workingOnly ? 'true' : 'false'},
-        );
+        final langParams = <String, dynamic>{'workingOnly': _workingOnly ? 'true' : 'false'};
+        if (_filterCategoryId != null) langParams['categoryId'] = _filterCategoryId.toString();
+        langFuture = _api.get(ApiEndpoints.languageList, queryParameters: langParams);
       }
 
       final channelRes = await channelFuture;
@@ -189,6 +200,7 @@ class ChannelCubit extends Cubit<ChannelState> {
             _allCategories = (catRes['data'] as List)
                 .map((c) => CategoryModel.fromJson(c))
                 .toList();
+            _chipsLoadedForLanguage = _filterLanguage;
           }
         } catch (e) {
           developer.log('[ChannelCubit] Error loading categories: $e', name: 'ChannelCubit');
@@ -201,6 +213,7 @@ class ChannelCubit extends Cubit<ChannelState> {
             _allLanguages = (langRes['data'] as List)
                 .map((l) => LanguageModel.fromJson(l))
                 .toList();
+            _chipsLoadedForCategoryId = _filterCategoryId;
           }
         } catch (e) {
           developer.log('[ChannelCubit] Error loading languages: $e', name: 'ChannelCubit');

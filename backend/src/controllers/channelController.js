@@ -457,7 +457,7 @@ exports.getChannelsByCategory = async (req, res) => {
 
 exports.getCategories = async (req, res) => {
   try {
-    const { workingOnly } = req.query;
+    const { workingOnly, language } = req.query;
     const hasHealthStatus = await checkHealthStatusColumn();
 
     let channelFilter = `ch.status = 'active' AND ch.stream_url IS NOT NULL AND ch.stream_url != '' AND ch.is_hidden IS NOT TRUE AND ch.is_removed IS NOT TRUE AND ch.is_visible_app IS NOT FALSE`;
@@ -481,6 +481,12 @@ exports.getCategories = async (req, res) => {
       paramIndex += DEAD_STATUSES.length;
     }
 
+    if (language && language.trim()) {
+      channelFilter += ` AND LOWER(TRIM(ch.language)) = LOWER($${paramIndex})`;
+      params.push(language.trim());
+      paramIndex++;
+    }
+
     const result = await db.query(
       `SELECT cat.id, cat.name, cat.icon_url, cat.status, cat.sort_order,
               COUNT(ch.id)::int as channel_count
@@ -501,10 +507,10 @@ exports.getCategories = async (req, res) => {
 
 exports.getLanguages = async (req, res) => {
   try {
-    const { workingOnly } = req.query;
+    const { workingOnly, categoryId } = req.query;
     const hasHealthStatus = await checkHealthStatusColumn();
 
-    let channelFilter = `c.status = 'active' AND c.stream_url IS NOT NULL AND c.stream_url != '' AND c.language IS NOT NULL AND c.language != ''`;
+    let channelFilter = `c.status = 'active' AND c.stream_url IS NOT NULL AND c.stream_url != '' AND c.language IS NOT NULL AND c.language != '' AND c.is_hidden IS NOT TRUE AND c.is_removed IS NOT TRUE AND c.is_visible_app IS NOT FALSE`;
     const params = [];
     let paramIndex = 1;
 
@@ -521,6 +527,14 @@ exports.getLanguages = async (req, res) => {
       const deadList = DEAD_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
       channelFilter += ` AND (c.health_status IS NULL OR c.health_status NOT IN (${deadList}))`;
       params.push(...DEAD_STATUSES);
+      paramIndex += DEAD_STATUSES.length;
+    }
+
+    const catIdInt = categoryId ? parseInt(categoryId, 10) : NaN;
+    if (!isNaN(catIdInt) && catIdInt > 0) {
+      channelFilter += ` AND c.category_id = $${paramIndex}`;
+      params.push(catIdInt);
+      paramIndex++;
     }
 
     const result = await db.query(
