@@ -813,7 +813,7 @@ exports.reportFailure = async (req, res) => {
           const { fail_count: fc, health_score: hs } = upd.rows[0];
           if (fc >= 4 || hs <= 0) {
             await db.query(
-              `UPDATE channel_streams SET health_status = 'offline' WHERE id = $1`,
+              `UPDATE channel_streams SET health_status = 'unstable' WHERE id = $1`,
               [resolvedStreamId]
             );
           } else if (fc >= 2 || hs <= 40) {
@@ -1017,17 +1017,17 @@ exports.getChannelPlayback = async (req, res) => {
       FROM channel_streams cs
       WHERE cs.channel_id = $1
         AND cs.is_hidden IS NOT TRUE
-        AND (
-          cs.health_status IS NULL
-          OR cs.health_status IN ('online', 'unstable', 'unknown', 'pending_check')
-        )
+        /* Removed strict IN ('online', ...) filter so that offline/dead streams 
+           can still act as a fallback if no healthy streams exist. They will be 
+           sorted to the bottom by the ORDER BY clause. */
       ORDER BY
         cs.priority ASC,
         CASE cs.health_status
-          WHEN 'online'   THEN 3
-          WHEN 'unstable' THEN 2
-          WHEN 'unknown'  THEN 1
-          ELSE 0
+          WHEN 'online'   THEN 5
+          WHEN 'unstable' THEN 4
+          WHEN 'unknown'  THEN 3
+          WHEN 'pending_check' THEN 2
+          ELSE 1 -- offline, dead, likely_broken fall to the bottom
         END DESC,
         COALESCE(cs.health_score, 50) DESC
     `, [id]);
