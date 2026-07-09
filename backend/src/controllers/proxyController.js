@@ -158,23 +158,33 @@ async function verifyProxyAccess(req, streamId) {
 
   // ── Channel visibility checks ─────────────────────────────────────────────
   if (channel.is_hidden || channel.is_removed || channel.is_visible_app === false) {
+    let reason = channel.is_hidden ? 'channel_hidden' : (channel.is_removed ? 'channel_removed' : 'app_visibility_false');
+    console.warn(`[proxy] proxy_block_reason: ${reason} (streamId=${streamId})`);
     const e = new Error('Channel is not available'); e.statusCode = 404; throw e;
   }
 
   // ── Stream active check ───────────────────────────────────────────────────
   if (stream.is_hidden) {
+    console.warn(`[proxy] proxy_block_reason: stream_hidden (streamId=${streamId})`);
     const e = new Error('Stream is not available'); e.statusCode = 404; throw e;
+  }
+  if (stream.is_active === false) {
+    console.warn(`[proxy] proxy_block_reason: stream_inactive (streamId=${streamId})`);
+    const e = new Error('Stream is not active'); e.statusCode = 404; throw e;
   }
 
   // ── DRM / geo-blocked / unlicensed check ─────────────────────────────────
   if (PROXY_BLOCKED_STATUSES.has(channel.health_status)) {
+    console.warn(`[proxy] proxy_block_reason: blocked_channel_status (health=${channel.health_status}, streamId=${streamId})`);
     const e = new Error('This stream requires a licensed source and cannot be proxied');
     e.statusCode = 403; throw e;
   }
   if (PROXY_BLOCKED_STATUSES.has(stream.health_status)) {
+    console.warn(`[proxy] proxy_block_reason: blocked_stream_status (health=${stream.health_status}, streamId=${streamId})`);
     const e = new Error('This stream is not eligible for proxy'); e.statusCode = 403; throw e;
   }
   if (!PROXY_ALLOWED_LICENSE_TYPES.has(stream.license_type)) {
+    console.warn(`[proxy] proxy_block_reason: license_type_not_allowed (license=${stream.license_type}, streamId=${streamId})`);
     const e = new Error('This stream requires a direct licensed connection');
     e.statusCode = 403; throw e;
   }
@@ -267,6 +277,20 @@ function resolveUrl(base, relative) {
   try { return new URL(relative, base).href; } catch { return null; }
 }
 
+function getExtension(urlStr) {
+  try {
+    const p = new URL(urlStr).pathname;
+    const match = p.match(/\.([a-zA-Z0-9]+)$/);
+    if (match) return `.${match[1]}`;
+  } catch(e) {}
+  if (urlStr.includes('.m3u8')) return '.m3u8';
+  if (urlStr.includes('.mp4')) return '.mp4';
+  if (urlStr.includes('.m4s')) return '.m4s';
+  if (urlStr.includes('.aac')) return '.aac';
+  return '.ts';
+}
+
+
 exports.proxyManifest = async (req, res) => {
   try {
     const { streamId } = req.params;
@@ -354,15 +378,35 @@ exports.proxyManifest = async (req, res) => {
     const userId = manifestUserId;
     const baseUrl = stream_url;
     const lines = body.split('\n');
+    
+    function rewriteUri(uriStr) {
+      const fullUrl = resolveUrl(baseUrl, uriStr);
+      if (!fullUrl) return uriStr;
+      const token = encryptSegmentUrl(fullUrl, streamId, userId);
+      const ext = getExtension(fullUrl);
+      return `/api/proxy/segment/${streamId}/${token}${ext}`;
+    }
+
     const rewritten = lines.map(line => {
       const t = line.trim();
-      if (!t || t.startsWith('#')) return line;
-      const fullUrl = resolveUrl(baseUrl, t);
-      if (!fullUrl) return line;
-      // AES-256-GCM encrypted token — original URL is never visible to the client
-      const token = encryptSegmentUrl(fullUrl, streamId, userId);
-      const ext = fullUrl.includes('.m3u8') ? '.m3u8' : '.ts';
-      return `/api/proxy/segment/${streamId}/${token}${ext}`;
+      if (!t) return line;
+      
+      // Handle tags with URIs (e.g. #EXT-X-MAP:URI="init.mp4", #EXT-X-KEY:URI="...", #EXT-X-MEDIA:URI="...")
+      if (t.startsWith('#EXT-X-MAP:') || t.startsWith('#EXT-X-KEY:') || t.startsWith('#EXT-X-MEDIA:')) {
+        const uriMatch = t.match(/URI="([^"]+)"/);
+        if (uriMatch) {
+          const originalUri = uriMatch[1];
+          const proxyUri = rewriteUri(originalUri);
+          return t.replace(`URI="${originalUri}"`, `URI="${proxyUri}"`);
+        }
+        return line;
+      }
+      
+      // Other tags are preserved as-is
+      if (t.startsWith('#')) return line;
+      
+      // Raw segment or variant URL
+      return rewriteUri(t);
     }).join('\n');
 
     // Only cache MASTER playlists. Do NOT cache MEDIA playlists.
@@ -420,7 +464,7 @@ exports.proxySegment = async (req, res) => {
     let targetUrl;
     let tokenUserId = 'anon';
     try {
-      const cleanToken = segToken.replace(/\.(ts|m3u8)$/, '');
+      const cleanToken = segToken.replace(/\.[a-zA-Z0-9]+$/, '');
       const decrypted = decryptSegmentToken(cleanToken, streamId);
       targetUrl = decrypted.url;
       tokenUserId = decrypted.userId || 'anon';
@@ -517,7 +561,14 @@ exports.proxySegment = async (req, res) => {
     // Stream the data directly to the client, preserving the upstream Content-Type.
     // This is critical because some segments are actually child .m3u8 playlists,
     // and ExoPlayer will crash if a playlist is served as video/mp2t.
-    const contentType = upstreamCT || (targetUrl.includes('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp2t');
+    let contentType = upstreamCT;
+    if (!contentType) {
+      if (targetUrl.includes('.m3u8')) contentType = 'application/vnd.apple.mpegurl';
+      else if (targetUrl.includes('.m4s')) contentType = 'video/iso.segment';
+      else if (targetUrl.includes('.mp4')) contentType = 'video/mp4';
+      else if (targetUrl.includes('.aac')) contentType = 'audio/aac';
+      else contentType = 'video/mp2t';
+    }
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'no-cache, no-store');
 
@@ -529,15 +580,37 @@ exports.proxySegment = async (req, res) => {
       for await (const chunk of proxyRes) body += chunk;
 
       const userId = tokenUserId;
+      const baseUrl = targetUrl;
       const lines = body.split('\n');
+
+      function rewriteUri(uriStr) {
+        const fullUrl = resolveUrl(baseUrl, uriStr);
+        if (!fullUrl) return uriStr;
+        const token = encryptSegmentUrl(fullUrl, streamId, userId);
+        const ext = getExtension(fullUrl);
+        return `/api/proxy/segment/${streamId}/${token}${ext}`;
+      }
+
       const rewritten = lines.map(line => {
         const t = line.trim();
-        if (!t || t.startsWith('#')) return line;
-        const fullUrl = resolveUrl(targetUrl, t);
-        if (!fullUrl) return line;
-        const token = encryptSegmentUrl(fullUrl, streamId, userId);
-        const ext = fullUrl.includes('.m3u8') ? '.m3u8' : '.ts';
-        return `/api/proxy/segment/${streamId}/${token}${ext}`;
+        if (!t) return line;
+        
+        // Handle tags with URIs (e.g. #EXT-X-MAP:URI="init.mp4", #EXT-X-KEY:URI="...", #EXT-X-MEDIA:URI="...")
+        if (t.startsWith('#EXT-X-MAP:') || t.startsWith('#EXT-X-KEY:') || t.startsWith('#EXT-X-MEDIA:')) {
+          const uriMatch = t.match(/URI="([^"]+)"/);
+          if (uriMatch) {
+            const originalUri = uriMatch[1];
+            const proxyUri = rewriteUri(originalUri);
+            return t.replace(`URI="${originalUri}"`, `URI="${proxyUri}"`);
+          }
+          return line;
+        }
+        
+        // Other tags are preserved as-is
+        if (t.startsWith('#')) return line;
+        
+        // Raw segment or variant URL
+        return rewriteUri(t);
       }).join('\n');
       
       return res.send(rewritten);
