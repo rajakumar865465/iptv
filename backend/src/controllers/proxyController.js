@@ -305,6 +305,7 @@ exports.proxyManifest = async (req, res) => {
 
     const stream_url = stream.stream_url || stream.final_url;
     if (!stream_url) return res.status(404).send('Stream URL not configured');
+    console.log(`[proxy] manifest streamId=${streamId} channel="${stream.channel_name || stream.name || 'unknown'}" url=${stream_url.substring(0, 80)}`);
 
     // Check manifest cache (after auth so we don't cache responses for unauthorized requests).
     // Cache key includes the user: segment tokens are encrypted per-user, so a manifest
@@ -315,7 +316,7 @@ exports.proxyManifest = async (req, res) => {
     if (cachedManifest) {
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
       res.setHeader('Cache-Control', 'no-cache, no-store');
-      return res.send(cachedManifest.data);
+      return res.send(typeof cachedManifest === 'object' && cachedManifest.data ? cachedManifest.data : cachedManifest);
     }
 
     // Sanitize headers_json — only allow safe header names (prevent header injection)
@@ -414,7 +415,7 @@ exports.proxyManifest = async (req, res) => {
     // which makes the player spam the server in an infinite loop asking for new segments
     // until the cache expires, causing the "loading -> playing -> loading" buffering loop.
     if (body.includes('#EXT-X-STREAM-INF')) {
-      manifestCache.set(manifestCacheKey, rewritten);
+      manifestCache.set(manifestCacheKey, { data: rewritten });
     }
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
