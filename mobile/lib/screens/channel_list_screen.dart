@@ -227,10 +227,34 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
     );
   }
 
+  // Canonical language chip order (per product spec). Any language not listed
+  // keeps its backend order after these; 'Unknown' always sorts last.
+  static const List<String> _languageOrder = [
+    'hindi', 'english', 'bengali', 'tamil', 'telugu', 'kannada', 'malayalam',
+    'marathi', 'punjabi', 'gujarati', 'odia', 'assamese', 'urdu', 'bhojpuri',
+    'sanskrit', 'nepali',
+  ];
+
+  List<LanguageModel> _orderLanguages(List<LanguageModel> langs) {
+    int rank(String name) {
+      final n = name.toLowerCase().trim();
+      if (n == 'unknown') return 9999; // always last
+      final i = _languageOrder.indexOf(n);
+      return i >= 0 ? i : 500; // unlisted languages sit before Unknown
+    }
+    final sorted = List<LanguageModel>.from(langs);
+    sorted.sort((a, b) {
+      final ra = rank(a.name), rb = rank(b.name);
+      if (ra != rb) return ra.compareTo(rb);
+      return b.channelCount.compareTo(a.channelCount);
+    });
+    return sorted;
+  }
+
   Widget _buildContent(ChannelLoaded state) {
     final channels = state.channels;
     final categories = state.categories;
-    final languages = state.languages;
+    final languages = _orderLanguages(state.languages);
     final hasFilters = _selectedCategoryId != null ||
         _selectedLanguage != null ||
         _searchController.text.isNotEmpty;
@@ -289,7 +313,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
                   ),
                   ...categories.map((cat) => FilterChipItem<int>(
                         value: cat.id,
-                        label: cat.name.replaceFirst('Hindi ', ''),
+                        label: cat.name,
                         count: cat.channelCount,
                         selected: _selectedCategoryId == cat.id,
                       )),

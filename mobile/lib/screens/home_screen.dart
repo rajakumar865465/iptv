@@ -555,7 +555,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
   List<HomeCategorySection> _orderSections(List<HomeCategorySection> sections) {
     const order = <String, int>{
       'doordarshan': 0,
-      'hindi entertainment': 1,
+      'entertainment': 1,
       'movies': 2,
       'news': 3,
       'regional': 4,
@@ -576,7 +576,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
   ) {
     const order = <String, int>{
       'doordarshan': 0,
-      'hindi entertainment': 1,
+      'entertainment': 1,
       'movies': 2,
       'news': 3,
       'regional': 4,

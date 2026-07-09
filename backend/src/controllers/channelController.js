@@ -545,7 +545,8 @@ exports.getLanguages = async (req, res) => {
        WHERE ${channelFilter}
        GROUP BY LOWER(TRIM(c.language))
        HAVING COUNT(*) > 0
-       ORDER BY COUNT(*) DESC, LOWER(TRIM(c.language)) ASC`,
+       -- 'Unknown' is a real bucket but always sorts to the very end of the chips
+       ORDER BY (LOWER(TRIM(c.language)) = 'unknown') ASC, COUNT(*) DESC, LOWER(TRIM(c.language)) ASC`,
       params
     );
     success(res, result.rows);
@@ -581,21 +582,24 @@ exports.getChannelEPGNow = async (req, res) => {
       const catRes = await db.query('SELECT name FROM categories WHERE id = $1', [channel.category_id]);
       const categoryName = catRes.rows[0]?.name?.toLowerCase() || '';
 
+      // Fallback description keyed on the GLOBAL content category (language-agnostic).
       let fallbackDesc = 'Schedule information is not available.';
-      if (categoryName.includes('hindi news')) {
-        fallbackDesc = 'Watch live Hindi news, breaking updates, politics, business and current affairs.';
-      } else if (categoryName.includes('english news')) {
-        fallbackDesc = 'Watch live English news, national updates, global headlines and business coverage.';
+      if (categoryName.includes('news')) {
+        fallbackDesc = 'Watch live news, breaking updates, politics, business and current affairs.';
       } else if (categoryName.includes('movies')) {
-        fallbackDesc = 'Watch live Hindi movies and entertainment.';
-      } else if (categoryName.includes('bengali')) {
-        fallbackDesc = 'Watch live Bengali TV, news, music and entertainment.';
+        fallbackDesc = 'Watch live movies and premieres.';
       } else if (categoryName.includes('sports')) {
         fallbackDesc = 'Watch live sports coverage and sports updates.';
       } else if (categoryName.includes('music')) {
         fallbackDesc = 'Watch live music, songs and entertainment.';
+      } else if (categoryName.includes('devotional')) {
+        fallbackDesc = 'Watch live devotional and spiritual programming.';
+      } else if (categoryName.includes('kids')) {
+        fallbackDesc = 'Watch live kids shows, cartoons and animation.';
       } else if (categoryName.includes('doordarshan')) {
         fallbackDesc = 'Watch live Doordarshan broadcast.';
+      } else if (categoryName.includes('entertainment') || categoryName.includes('regional')) {
+        fallbackDesc = 'Watch live entertainment, shows and serials.';
       }
 
       return success(res, {
@@ -670,40 +674,24 @@ exports.getRelatedChannels = async (req, res) => {
     }
 
     const currentChannel = channelRes.rows[0];
-    let { category_id, language, name, category_name } = currentChannel;
+    const { category_id, name } = currentChannel;
 
-    // Derive language from category name if not set
-    if (!language || language.trim().length === 0) {
-      const catName = (category_name || '').toLowerCase();
-      if (catName.includes('hindi')) language = 'Hindi';
-      else if (catName.includes('english')) language = 'English';
-      else if (catName.includes('bengali')) language = 'Bengali';
-      else if (catName.includes('tamil')) language = 'Tamil';
-      else if (catName.includes('telugu')) language = 'Telugu';
-      else if (catName.includes('malayalam')) language = 'Malayalam';
-      else if (catName.includes('kannada')) language = 'Kannada';
-      else if (catName.includes('marathi')) language = 'Marathi';
-      else if (catName.includes('punjabi')) language = 'Punjabi';
-      else if (catName.includes('gujarati')) language = 'Gujarati';
-      else if (catName.includes('odia')) language = 'Odia';
-      else if (catName.includes('assamese')) language = 'Assamese';
-      else if (catName.includes('urdu')) language = 'Urdu';
-      else if (catName.includes('doordarshan')) language = 'Hindi';
-      else language = 'Hindi'; // Default for Indian channels
-    }
+    // Use the channel's normalized language as-is. Do NOT derive from the category
+    // name and do NOT default to Hindi — 'Unknown'/empty simply means the
+    // language tiers are skipped (category + popularity carry the ranking).
+    const rawLang = (currentChannel.language || '').trim();
+    const hasLanguage = rawLang.length > 0 && rawLang.toLowerCase() !== 'unknown';
 
-    let sameCategoryChannels = [];
-    let sameLanguageChannels = [];
-    let fallbackChannels = [];
     const seenIds = new Set([currentChannel.id]);
+    const LIMIT = 20;
 
     // Check if health_status column exists for filtering
     const hasHealthStatus = await checkHealthStatusColumn();
+    // Exclude clearly-dead streams from related suggestions (mirrors listing filter)
     const healthFilter = hasHealthStatus
-      ? "AND (c.health_status = 'online' OR c.health_status IS NULL)"
+      ? `AND (c.health_status IS NULL OR c.health_status NOT IN (${DEAD_STATUSES.map((_, i) => `'${DEAD_STATUSES[i]}'`).join(', ')}))`
       : '';
 
-    // Fix #25: Run category and language queries in parallel instead of sequentially
     const baseSelect = `SELECT c.*, cat.name as category_name
        FROM channels c
        LEFT JOIN categories cat ON c.category_id = cat.id
@@ -711,75 +699,71 @@ exports.getRelatedChannels = async (req, res) => {
        AND c.status = 'active'
        AND c.is_hidden IS NOT TRUE
        AND c.is_removed IS NOT TRUE
-       AND c.stream_url IS NOT NULL AND c.stream_url != ''`;
+       AND c.is_visible_app IS NOT FALSE
+       AND c.stream_url IS NOT NULL AND c.stream_url != ''
+       ${healthFilter}`;
+    const orderBy = `ORDER BY c.is_featured DESC NULLS LAST,
+                     COALESCE(c.popularity_score,0) DESC NULLS LAST,
+                     COALESCE(c.watch_count,0) DESC NULLS LAST,
+                     COALESCE(c.sort_order,999) ASC, c.name ASC`;
 
-    const [categoryRes, langRes] = await Promise.all([
+    // Fetch the four priority tiers in parallel, then merge in strict priority order.
+    const noRows = Promise.resolve({ rows: [] });
+    const [tier1, tier2, tier3, tier4] = await Promise.all([
+      // Tier 1 — same category AND same language
+      (category_id && hasLanguage) ? db.query(
+        `${baseSelect} AND c.category_id = $2 AND LOWER(TRIM(c.language)) = LOWER($3) ${orderBy} LIMIT ${LIMIT}`,
+        [id, category_id, rawLang]
+      ) : noRows,
+      // Tier 2 — same category, any language
       category_id ? db.query(
-        `${baseSelect} AND c.category_id = $2 ${healthFilter}
-         ORDER BY c.is_featured DESC, c.sort_order ASC, c.name ASC LIMIT 20`,
+        `${baseSelect} AND c.category_id = $2 ${orderBy} LIMIT ${LIMIT}`,
         [id, category_id]
-      ) : Promise.resolve({ rows: [] }),
-      (language && language.trim().length > 0) ? db.query(
-        `${baseSelect} AND LOWER(c.language) = LOWER($2) ${healthFilter}
-         ORDER BY c.is_featured DESC, c.sort_order ASC, c.name ASC LIMIT 20`,
-        [id, language.trim()]
-      ) : Promise.resolve({ rows: [] }),
+      ) : noRows,
+      // Tier 3 — same language, any category
+      hasLanguage ? db.query(
+        `${baseSelect} AND LOWER(TRIM(c.language)) = LOWER($2) ${orderBy} LIMIT ${LIMIT}`,
+        [id, rawLang]
+      ) : noRows,
+      // Tier 4 — popular / featured fallback
+      db.query(`${baseSelect} ${orderBy} LIMIT ${LIMIT}`, [id]),
     ]);
 
-    // 1. Same category
-    for (const row of categoryRes.rows) {
-      if (!seenIds.has(row.id)) {
+    const picked = [];
+    let sameCatSameLang = 0, sameCategory = 0, sameLanguage = 0, fallback = 0;
+    const addTier = (rows, kind) => {
+      for (const row of rows) {
+        if (picked.length >= LIMIT) break;
+        if (seenIds.has(row.id)) continue;
         seenIds.add(row.id);
-        sameCategoryChannels.push({ ...row, source_type: 'same_category' });
+        picked.push({ ...row, source_type: kind });
+        if (kind === 'same_category_language') sameCatSameLang++;
+        else if (kind === 'same_category') sameCategory++;
+        else if (kind === 'same_language') sameLanguage++;
+        else fallback++;
       }
-    }
+    };
 
-    // 2. Same language (supplement if category results are sparse)
-    for (const row of langRes.rows) {
-      if (!seenIds.has(row.id)) {
-        seenIds.add(row.id);
-        sameLanguageChannels.push({ ...row, source_type: 'same_language' });
-        if (sameCategoryChannels.length + sameLanguageChannels.length >= 20) break;
-      }
-    }
+    addTier(tier1.rows, 'same_category_language'); // 1. same category + same language
+    addTier(tier2.rows, 'same_category');          // 2. same category, other languages
+    addTier(tier3.rows, 'same_language');           // 3. same language, other categories
+    addTier(tier4.rows, 'fallback_popular');        // 4. popular fallback
 
-    // 3. Fallback: popular/featured if still sparse
-    const totalSoFar = sameCategoryChannels.length + sameLanguageChannels.length;
-    if (totalSoFar < 6) {
-      const fallbackRes = await db.query(
-        `${baseSelect} ${healthFilter}
-         ORDER BY c.is_featured DESC, c.sort_order ASC, c.name ASC LIMIT 20`,
-        [id]
-      );
-      for (const row of fallbackRes.rows) {
-        if (!seenIds.has(row.id)) {
-          seenIds.add(row.id);
-          fallbackChannels.push({ ...row, source_type: 'fallback_popular' });
-          if (sameCategoryChannels.length + sameLanguageChannels.length + fallbackChannels.length >= 20) break;
-        }
-      }
-    }
-
-    // Combine all
-    const allRelated = [...sameCategoryChannels, ...sameLanguageChannels, ...fallbackChannels];
-
-    // Determine overall source_type for the response
+    // Overall source_type reflects the strongest tier that produced results
     let responseSourceType = 'fallback_popular';
-    if (sameCategoryChannels.length > 0) {
-      responseSourceType = 'same_category';
-    } else if (sameLanguageChannels.length > 0) {
-      responseSourceType = 'same_language';
-    }
+    if (sameCatSameLang > 0) responseSourceType = 'same_category_language';
+    else if (sameCategory > 0) responseSourceType = 'same_category';
+    else if (sameLanguage > 0) responseSourceType = 'same_language';
 
-    // Format and return
-    const formatted = allRelated.slice(0, 20).map(row => formatChannelRow(req, row));
+    const formatted = picked.slice(0, LIMIT).map(row => formatChannelRow(req, row));
 
     success(res, {
       channels: formatted,
       source_type: responseSourceType,
-      same_category_count: sameCategoryChannels.length,
-      same_language_count: sameLanguageChannels.length,
-      fallback_count: fallbackChannels.length
+      same_category_language_count: sameCatSameLang,
+      same_category_count: sameCatSameLang + sameCategory,
+      same_language_count: sameLanguage,
+      fallback_count: fallback,
     });
   } catch (err) {
     console.error('getRelatedChannels error:', err);

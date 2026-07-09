@@ -4234,10 +4234,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   String _fallbackDesc() {
     final cat = _currentChannel.categoryName?.toLowerCase().trim() ?? '';
-    if (cat.contains('hindi news')) return 'Watch live Hindi news, breaking updates, politics, business and current affairs.';
-    if (cat.contains('english news')) return 'Watch live English news, national updates, global headlines and business coverage.';
-    if (cat.contains('movie')) return 'Watch live Hindi movies and entertainment.';
-    if (cat.contains('bengali')) return 'Watch live Bengali TV, news, music and entertainment.';
+    if (cat.contains('news')) return 'Watch live news, breaking updates, politics, business and current affairs.';
+    if (cat.contains('movie')) return 'Watch live movies and premieres.';
+    if (cat.contains('business')) return 'Watch live business, markets and money news.';
     if (cat.contains('sport')) return 'Watch live sports coverage and updates.';
     if (cat.contains('music')) return 'Watch live music, songs and entertainment.';
     if (cat.contains('doordarshan')) return 'Watch live Doordarshan broadcast.';
