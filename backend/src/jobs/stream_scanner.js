@@ -1,7 +1,8 @@
 const db = require('../config/db');
 const StreamScanner = require('../utils/StreamScanner');
+const os = require('os');
 
-const BATCH_SIZE = 10; // Number of streams to diagnose concurrently
+const BATCH_SIZE = 4; // Number of streams to diagnose concurrently
 const SCAN_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 // Require this many consecutive scan failures before marking a stream offline.
 // A single transient CDN hiccup should not evict a working stream.
@@ -33,10 +34,50 @@ async function runHealthScan() {
         cs.updated_at ASC
     `);
 
-    console.log(`[StreamScanner] Found ${streams.length} active streams to scan.`);
+    const streamsToScan = [];
+    for (const stream of streams) {
+      const failures = stream.consecutive_scan_failures;
+      if (failures >= 46) {
+        // Mark offline and requires manual verification permanently until admin resets
+        await db.query(`
+          UPDATE channel_streams
+          SET health_status = 'offline', health_reason = 'requires_manual_verification', updated_at = NOW()
+          WHERE id = $1
+        `, [stream.id]);
+        continue;
+      }
+      
+      const updatedAtMs = new Date(stream.updated_at).getTime();
+      const nowMs = Date.now();
+      
+      if (failures >= 30) {
+        const sixHoursMs = 6 * 60 * 60 * 1000;
+        if (nowMs - updatedAtMs < sixHoursMs) continue; // Skip scan for 6 hours
+      } else if (failures >= 10) {
+        const thirtyMinsMs = 30 * 60 * 1000;
+        if (nowMs - updatedAtMs < thirtyMinsMs) continue; // Skip scan for 30 mins
+      }
+      
+      streamsToScan.push(stream);
+    }
 
-    for (let i = 0; i < streams.length; i += BATCH_SIZE) {
-      const batch = streams.slice(i, i + BATCH_SIZE);
+    console.log(`[StreamScanner] Found ${streamsToScan.length} streams to scan after filtering out cooldowns.`);
+
+    for (let i = 0; i < streamsToScan.length; i += BATCH_SIZE) {
+      // Dynamic throttling based on CPU load
+      const cpus = os.cpus().length;
+      const load1m = os.loadavg()[0];
+      const loadPercentage = load1m / cpus;
+      
+      let delayMs = 2000;
+      if (loadPercentage > 0.8) {
+        console.log(`[StreamScanner] High CPU load detected (${(loadPercentage * 100).toFixed(0)}%). Throttling scanner...`);
+        delayMs = 10000; // 10 seconds between batches if CPU is > 80%
+      } else if (loadPercentage > 0.6) {
+        delayMs = 5000; // 5 seconds if CPU is > 60%
+      }
+
+      const batch = streamsToScan.slice(i, i + BATCH_SIZE);
       
       await Promise.all(batch.map(async (stream) => {
         try {
@@ -141,8 +182,8 @@ async function runHealthScan() {
         }
       }));
 
-      // Small delay between batches to avoid overloading the network/CPU
-      await new Promise(r => setTimeout(r, 2000));
+      // Delay between batches based on CPU load calculated above
+      await new Promise(r => setTimeout(r, delayMs));
     }
     
     // After scanning streams, we need to update the parent channel's health status

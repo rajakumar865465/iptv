@@ -128,9 +128,9 @@ function normalizeLanguage(raw) {
 }
 
 // PLAYABLE health statuses — shown when workingOnly=true
-const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable', 'segment_failed', 'unknown'];
+const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable', 'unknown'];
 // Hidden health statuses — always hidden from normal users
-const DEAD_STATUSES = ['offline', 'dead', 'forbidden_403', 'drm_or_unsupported', 'geo_blocked', 'requires_licensed_source'];
+const DEAD_STATUSES = ['offline', 'dead', 'forbidden_403', 'drm_or_unsupported', 'geo_blocked', 'requires_licensed_source', 'segment_failed', 'timeout'];
 // Allow unknown streams (channels not yet checked) when ALLOW_UNKNOWN_STREAMS=true in .env
 const ALLOW_UNKNOWN = process.env.ALLOW_UNKNOWN_STREAMS === 'true';
 
@@ -1020,6 +1020,8 @@ exports.getChannelPlayback = async (req, res) => {
           cs.health_status IS NULL
           OR cs.health_status IN ('online', 'unstable', 'unknown', 'pending_check')
         )
+        AND COALESCE(cs.consecutive_scan_failures, 0) < 3
+        AND COALESCE(cs.health_score, 50) >= 30
       ORDER BY
         cs.priority ASC,
         CASE cs.health_status
@@ -1032,23 +1034,11 @@ exports.getChannelPlayback = async (req, res) => {
     `, [id]);
 
     if (result.rows.length === 0) {
-      // All streams offline — try including them so we can return 503 with explanation
-      result = await db.query(
-        'SELECT cs.* FROM channel_streams cs WHERE cs.channel_id = $1 ORDER BY cs.priority ASC',
-        [id]
-      );
-      if (result.rows.length === 0) {
-        return error(res, 'No streams available for this channel', 404);
-      }
-      const allOffline = result.rows.every(r => r.health_status === 'offline');
-      const anyScanned = result.rows.some(r => r.last_checked_at !== null);
-      if (allOffline && anyScanned) {
-        return res.status(503).json({
-          success: false,
-          message: 'Channel is temporarily offline. Please try again later.',
-          error_code: 'CHANNEL_OFFLINE',
-        });
-      }
+      return res.status(503).json({
+        success: false,
+        message: 'No stable source is available right now.',
+        error_code: 'CHANNEL_OFFLINE',
+      });
     }
 
     // ── Identify primary stream (no parent = standalone / master playlist) ──
