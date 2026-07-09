@@ -1021,8 +1021,6 @@ exports.getChannelPlayback = async (req, res) => {
           cs.health_status IS NULL
           OR cs.health_status IN ('online', 'unstable', 'unknown', 'pending_check')
         )
-        AND COALESCE(cs.consecutive_scan_failures, 0) < 3
-        AND COALESCE(cs.health_score, 50) >= 30
       ORDER BY
         cs.priority ASC,
         CASE cs.health_status
