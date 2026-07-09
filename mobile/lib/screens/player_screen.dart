@@ -968,22 +968,19 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         throw Exception('Playback fetch failed');
       }
     } catch(e) {
-      _playerDebugLog('playback_api_failed_fallback_to_cached', {
+      _playerDebugLog('playback_api_failed', {
         'channel_id': _currentChannel.id,
         'error': e.toString(),
-        'fallback_url': _currentChannel.streamUrl,
-        'has_cached_headers': _lastApiHeaders != null,
       });
-      // Use headers from the last successful playback API call rather than the stale
-      // channels-table fields. If no prior API call succeeded, fall back to channel fields.
-      final fallbackHeaders = _lastApiHeaders ?? {
-        if (_currentChannel.userAgent != null) 'User-Agent': _currentChannel.userAgent!,
-        if (_currentChannel.referrer != null) 'Referer': _currentChannel.referrer!,
-      };
-      _backupStreams = _currentChannel.backupStreamUrl?.isNotEmpty == true ? [
-        {'url': _currentChannel.backupStreamUrl, 'headers': fallbackHeaders}
-      ] : [];
-      await _initializePlayer(_currentChannel.streamUrl, fallbackHeaders);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+          _showPreparingOverlay = false;
+          _streamOverlayMessage = 'Playback service unavailable.\nPlease try again later.';
+        });
+      }
+      return;
     }
   }
 
