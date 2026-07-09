@@ -3,12 +3,16 @@ const db = require('../config/db');
 
 const authMiddleware = async (req, res, next) => {
   try {
+    let token;
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (req.query && req.query.token) {
+      token = req.query.token;
+    } else {
       return res.status(401).json({ success: false, message: 'No token provided' });
     }
 
-    const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
 
     // Check if user still exists and is active
@@ -40,11 +44,15 @@ const authMiddleware = async (req, res, next) => {
  */
 const optionalAuth = async (req, res, next) => {
   try {
+    let token;
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (req.query && req.query.token) {
+      token = req.query.token;
+    } else {
       return next(); // No token — anonymous request, continue
     }
-    const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     const result = await db.query(
       'SELECT id, full_name, email, mobile, status, role FROM users WHERE id = $1',

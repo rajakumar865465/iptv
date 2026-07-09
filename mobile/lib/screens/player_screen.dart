@@ -961,6 +961,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         if (_proxyUrl != null) {
           final prefs = await SharedPreferences.getInstance();
           final token = prefs.getString(StorageKeys.token);
+          if (token != null) {
+            _proxyUrl = '$_proxyUrl?token=$token';
+          }
           webPreferredUrl = _proxyUrl;
           webPreferredHeaders = {
             if (token != null) 'Authorization': 'Bearer $token',
