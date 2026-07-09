@@ -9,8 +9,8 @@ async function run() {
     const res = await db.query('SELECT id FROM channel_streams WHERE stream_url = $1', [url]);
     if (res.rows.length === 0) {
       await db.query(`
-        INSERT INTO channel_streams (channel_id, stream_url, health_status, priority, is_active, playback_mode)
-        VALUES (31, $1, 'online', 99, true, 'direct')
+        INSERT INTO channel_streams (channel_id, stream_url, health_status, priority, playback_mode)
+        VALUES (31, $1, 'online', 99, 'direct')
       `, [url]);
       console.log('Mux stream added to channel 31');
     } else {
