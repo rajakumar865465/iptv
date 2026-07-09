@@ -82,10 +82,18 @@ const PROXY_ALLOWED_LICENSE_TYPES = new Set(['free', 'licensed', 'public', null,
  * property on failure so callers can send the right HTTP response.
  */
 async function verifyProxyAccess(req, streamId) {
-  // req.user is already set by authMiddleware (JWT verified, user active)
+  // req.user is already set by authMiddleware (if JWT provided and valid)
   const userId = req.user?.id;
+  const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+  const cacheKey = `${ip}:${streamId}`;
+
   if (!userId) {
-    console.warn('Anonymous proxy access allowed temporarily');
+    if (ipAuthCache.get(cacheKey)) {
+      console.warn(`[proxy] Anonymous proxy access allowed via IP cache (HLS reload) for streamId=${streamId}, IP=${ip}`);
+      ipAuthCache.set(cacheKey, true); // Refresh TTL
+    } else {
+      const e = new Error('Active license required (No token provided)'); e.statusCode = 401; throw e;
+    }
   } else {
 
   // ── License check ────────────────────────────────────────────────────────
@@ -156,13 +164,6 @@ async function verifyProxyAccess(req, streamId) {
     channel = row;
   }
 
-  // ── Channel visibility checks ─────────────────────────────────────────────
-  if (channel.is_hidden || channel.is_removed || channel.is_visible_app === false) {
-    let reason = channel.is_hidden ? 'channel_hidden' : (channel.is_removed ? 'channel_removed' : 'app_visibility_false');
-    console.warn(`[proxy] proxy_block_reason: ${reason} (streamId=${streamId})`);
-    const e = new Error('Channel is not available'); e.statusCode = 404; throw e;
-  }
-
   // ── Stream active check ───────────────────────────────────────────────────
   if (stream.is_hidden) {
     console.warn(`[proxy] proxy_block_reason: stream_hidden (streamId=${streamId})`);
@@ -187,6 +188,11 @@ async function verifyProxyAccess(req, streamId) {
     console.warn(`[proxy] proxy_block_reason: license_type_not_allowed (license=${stream.license_type}, streamId=${streamId})`);
     const e = new Error('This stream requires a direct licensed connection');
     e.statusCode = 403; throw e;
+  }
+
+  // Success! Record IP in cache so subsequent HLS reloads without headers succeed.
+  if (userId) {
+    ipAuthCache.set(cacheKey, true);
   }
 
   return { stream, channel };
@@ -236,6 +242,9 @@ const CACHE_MANIFEST_MS = 8000;
 
 // Note: Segment caching has been removed to prevent massive memory leaks and GC pauses
 const manifestCache = new BoundedCache(200, CACHE_MANIFEST_MS);
+
+// Cache authorized IPs for 15 minutes to allow HLS live reloads where players drop headers
+const ipAuthCache = new BoundedCache(10000, 1000 * 60 * 15);
 
 // Fix #8: Add depth counter to prevent infinite redirect loops
 // Fix #6: Increased timeout from 8s → 20s — live HLS sources from slow CDNs
