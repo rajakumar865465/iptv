@@ -1041,9 +1041,35 @@ exports.getChannelPlayback = async (req, res) => {
     }
 
     // ── Identify primary stream (no parent = standalone / master playlist) ──
-    let primary = result.rows.find(r => r.is_primary === true);
-    if (!primary) primary = result.rows.find(r => r.parent_stream_id == null);
+    // Helper: detect audio-only sub-track URLs (e.g. tracks-v1a1/mono.m3u8).
+    // These are HLS rendition sub-playlists — playing them as primary gives
+    // audio-only output, causing the video player to show black screen and
+    // then fall back to whatever was previously playing (wrong channel content).
+    const isAudioOnlyTrack = (r) => {
+      const url = (r.stream_url || r.final_url || '').toLowerCase();
+      return (
+        url.includes('/tracks-v') ||
+        url.includes('/mono.m3u8') ||
+        url.includes('/stereo.m3u8') ||
+        url.includes('audio_only') ||
+        url.includes('audio-only') ||
+        (url.includes('audio') && url.includes('/tracks'))
+      );
+    };
+
+    // Priority 1: explicitly marked primary that is NOT audio-only
+    let primary = result.rows.find(r => r.is_primary === true && !isAudioOnlyTrack(r));
+    // Priority 2: any top-level stream (no parent) that is NOT audio-only
+    if (!primary) primary = result.rows.find(r => r.parent_stream_id == null && !isAudioOnlyTrack(r));
+    // Priority 3: is_primary even if it looks like audio (safety net)
+    if (!primary) primary = result.rows.find(r => r.is_primary === true);
+    // Last resort: first stream returned
     if (!primary) primary = result.rows[0];
+
+    // Log when audio-only fallback happens so we can fix the DB
+    if (primary && isAudioOnlyTrack(primary)) {
+      console.warn(`[playback] WARNING: channel ${id} primary stream ${primary.id} looks audio-only: ${(primary.stream_url || '').substring(0, 80)}`);
+    }
 
     // ── Build quality variants list ──────────────────────────────────────────
     // REAL variants only: child rows (parent_stream_id = primary.id) with known height.
