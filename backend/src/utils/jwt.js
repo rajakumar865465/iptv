@@ -14,8 +14,11 @@ const REFRESH_SECRET = process.env.REFRESH_JWT_SECRET || JWT_SECRET + '-refresh'
 // Secret for short-lived smooth-playback stream tokens (kept separate from auth tokens)
 const SMOOTH_SECRET = process.env.SMOOTH_JWT_SECRET || JWT_SECRET + '-smooth';
 
-// Access token: short-lived (15 min)
-const generateToken = (payload, expiresIn = '15m') => {
+// Access token: 7-day lifetime — mobile users open/close the app throughout the
+// day; a 15-min expiry caused forced re-login on every cold start once the token
+// aged past 15m, even with a working refresh-token flow. Refresh tokens are still
+// rotated (30d) for long-term session hygiene.
+const generateToken = (payload, expiresIn = '7d') => {
   return jwt.sign(payload, JWT_SECRET, { expiresIn });
 };
 

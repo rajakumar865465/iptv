@@ -188,8 +188,19 @@ class AuthCubit extends Cubit<AuthState> {
   /// Called during app startup so a user whose 15-minute access token has
   /// expired can still resume their session without re-entering credentials.
   /// Returns true on success.
+  ///
+  /// IMPORTANT: After TokenRefreshService saves the new token to SharedPreferences,
+  /// we must also update _authService._token in-memory, because AuthService.me()
+  /// uses its own Dio instance with an in-memory token (not SharedPreferences).
+  /// Without this, the retry /me call after refresh would still send the old
+  /// expired token and force the user to re-login every time the token ages past 15m.
   Future<bool> tryRefresh() async {
-    return TokenRefreshService.instance.refresh();
+    final success = await TokenRefreshService.instance.refresh();
+    if (success) {
+      final newToken = await _storage.getToken();
+      if (newToken != null) _authService.setToken(newToken);
+    }
+    return success;
   }
 
   Future<Map<String, dynamic>?> me({bool throwOnError = false}) async {
