@@ -503,7 +503,9 @@ exports.proxySegment = async (req, res) => {
         stream = csRes.rows[0];
         // Reject if stream was hidden/blocked after the token was issued
         if (stream.is_hidden) return res.status(404).send('Stream not available');
-        if (PROXY_BLOCKED_STATUSES.has(stream.health_status)) return res.status(403).send('Stream not eligible for proxy');
+        // Do NOT block active proxy segment requests based on scanner health updates.
+        // If the scanner falsely marks a stream offline, we shouldn't kill active viewers.
+        // if (PROXY_BLOCKED_STATUSES.has(stream.health_status)) return res.status(403).send('Stream not eligible for proxy');
       }
     } catch (_) {
       // DB lookup failure — continue without custom headers, upstream request will still work
