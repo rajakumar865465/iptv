@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:http/http.dart' as http;
 import '../constants.dart';
 import '../utils/backend_config.dart';
 
@@ -232,15 +233,42 @@ class _SvgLogoWidget extends StatefulWidget {
 
 class _SvgLogoWidgetState extends State<_SvgLogoWidget> {
   bool _svgFailed = false;
+  bool _isLoading = true;
+  String? _svgString;
   Timer? _timeoutTimer;
 
   @override
   void initState() {
     super.initState();
+    _fetchSvg();
     // If the SVG hasn't loaded within 8 seconds, show the fallback.
     _timeoutTimer = Timer(const Duration(seconds: 8), () {
-      if (mounted) setState(() => _svgFailed = true);
+      if (mounted && _isLoading) setState(() { _svgFailed = true; _isLoading = false; });
     });
+  }
+
+  Future<void> _fetchSvg() async {
+    try {
+      final response = await http.get(
+        Uri.parse(widget.url),
+        headers: {
+          'Referer': 'https://www.google.com',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36',
+        },
+      );
+      if (response.statusCode == 200) {
+        if (mounted) {
+          setState(() {
+            _svgString = response.body;
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() { _svgFailed = true; _isLoading = false; });
+      }
+    } catch (e) {
+      if (mounted) setState(() { _svgFailed = true; _isLoading = false; });
+    }
   }
 
   @override
@@ -252,30 +280,25 @@ class _SvgLogoWidgetState extends State<_SvgLogoWidget> {
   @override
   Widget build(BuildContext context) {
     if (_svgFailed) return widget.fallback;
+    if (_isLoading || _svgString == null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(widget.borderRadius),
+        child: SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: widget.shimmer,
+        ),
+      );
+    }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(widget.borderRadius),
       child: SizedBox(
         width: widget.size,
         height: widget.size,
-        child: Builder(
-          builder: (context) {
-            try {
-              return SvgPicture.network(
-                widget.url,
-                fit: BoxFit.contain,
-                headers: const {
-                  'Referer': 'https://www.google.com',
-                  'User-Agent':
-                      'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36',
-                },
-                placeholderBuilder: (context) => widget.shimmer,
-              );
-            } catch (_) {
-              // Defensive: never let SVG rendering crash the app.
-              return widget.fallback;
-            }
-          },
+        child: SvgPicture.string(
+          _svgString!,
+          fit: BoxFit.contain,
         ),
       ),
     );

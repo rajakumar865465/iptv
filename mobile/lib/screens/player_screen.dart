@@ -1234,6 +1234,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // Fix: Use open(play: true) — removes redundant play() call
       // IMPORTANT: Do NOT seek() for live stream recovery — it can jump to the beginning
       // or fail outright. Let libmpv start from the live edge via reconnect=1.
+      await _player.stop();
       await _player.open(media, play: true);
       _playerInitialized = true;
 
