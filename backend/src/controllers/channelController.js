@@ -1069,6 +1069,22 @@ exports.getChannelPlayback = async (req, res) => {
     // Log when audio-only fallback happens so we can fix the DB
     if (primary && isAudioOnlyTrack(primary)) {
       console.warn(`[playback] WARNING: channel ${id} primary stream ${primary.id} looks audio-only: ${(primary.stream_url || '').substring(0, 80)}`);
+      
+      // Auto-correct standard HLS audio sub-tracks back to their master playlist
+      // e.g. https://domain.com/path/tracks-v1a1/mono.m3u8 -> https://domain.com/path/index.m3u8
+      const fixUrl = (url) => {
+        if (!url) return url;
+        // Fix standard Mux/Amagi/generic tracks structure
+        if (url.match(/\/tracks-[^/]+\/[^/]+\.m3u8$/i)) {
+          return url.replace(/\/tracks-[^/]+\/[^/]+\.m3u8$/i, '/index.m3u8');
+        }
+        return url;
+      };
+
+      if (primary.stream_url) primary.stream_url = fixUrl(primary.stream_url);
+      if (primary.final_url) primary.final_url = fixUrl(primary.final_url);
+      
+      console.log(`[playback] Auto-corrected audio track to master playlist: ${primary.stream_url}`);
     }
 
     // ── Build quality variants list ──────────────────────────────────────────
