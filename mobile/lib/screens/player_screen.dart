@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -16,11 +17,18 @@ import '../models/channel_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/channel_logo.dart';
+import '../widgets/premium_channel_card.dart';
 import '../cubits/license_cubit.dart';
 import '../utils/backend_config.dart';
 
 // Temporary diagnostic logging for the "all channels reconnecting" investigation
 // (work.md). Redacts token/auth values. Safe to remove once root cause is confirmed.
+//
+// _globalDiagLog keeps the most recent diagnostic lines in memory so the on-screen
+// error overlay (Option C: no-PC-needed debugging) can show them directly on the
+// phone without adb/flutter logs.
+final List<String> _globalDiagLog = [];
+
 void _playerDebugLog(String tag, Map<String, dynamic> fields) {
   final redacted = fields.map((k, v) {
     if (k.toLowerCase().contains('token') || k.toLowerCase().contains('authorization')) {
@@ -28,7 +36,12 @@ void _playerDebugLog(String tag, Map<String, dynamic> fields) {
     }
     return MapEntry(k, v);
   });
-  debugPrint('[PlayerDiag][$tag] $redacted');
+  final line = '[PlayerDiag][$tag] $redacted';
+  debugPrint(line);
+  _globalDiagLog.add(line);
+  if (_globalDiagLog.length > 80) {
+    _globalDiagLog.removeRange(0, _globalDiagLog.length - 80);
+  }
 }
 
 enum PlayerSourceType {
@@ -146,15 +159,13 @@ class PlaybackProfile {
 /// Larger buffer keeps player well behind live edge - avoids 404 on fresh segments.
 const PlaybackProfile kStableProfile = PlaybackProfile(
   name: 'stable',
-  demuxerReadaheadSecs: 20,
-  bufferSizeBytes: 64 * 1024 * 1024, // 64 MB — handles HD IPTV without stalling
-  startupTimeoutSecs: 25,
-  // 32s: must exceed cache-pause-wait(8) + reconnect_delay_max(5) + one slow segment(~10s).
-  // At 20s the app killed streams that libmpv would have recovered in 22-25s on slow CDNs.
-  stallTimeoutSecs: 32,
+  demuxerReadaheadSecs: 30,
+  bufferSizeBytes: 80 * 1024 * 1024, // 80 MB — handles HD IPTV without stalling
+  startupTimeoutSecs: 30,
+  stallTimeoutSecs: 40,
   preferredQuality: 'auto',
-  demuxerMaxBytesMib: 96,
-  demuxerMaxBackBytesMib: 32,
+  demuxerMaxBytesMib: 128,
+  demuxerMaxBackBytesMib: 48,
 );
 
 /// Fast: lower latency, for known-stable channels only.
@@ -174,10 +185,23 @@ const PlaybackProfile kDataSaverProfile = PlaybackProfile(
   name: 'data_saver',
   demuxerReadaheadSecs: 6,
   bufferSizeBytes: 16 * 1024 * 1024, // 16 MB
-  startupTimeoutSecs: 25,
+  startupTimeoutSecs: 15,
   stallTimeoutSecs: 20,
   preferredQuality: '360p',
   demuxerMaxBytesMib: 32,
+  demuxerMaxBackBytesMib: 16,
+);
+
+/// Mobile (auto on Android/iOS): lighter buffer for variable mobile data connections.
+/// 8s readahead = faster channel open; 32MB cap avoids RAM pressure on phones.
+const PlaybackProfile kMobileProfile = PlaybackProfile(
+  name: 'mobile',
+  demuxerReadaheadSecs: 8,
+  bufferSizeBytes: 32 * 1024 * 1024, // 32 MB
+  startupTimeoutSecs: 15,
+  stallTimeoutSecs: 20,
+  preferredQuality: 'auto',
+  demuxerMaxBytesMib: 48,
   demuxerMaxBackBytesMib: 16,
 );
 
@@ -211,6 +235,19 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Map<String, dynamic>? _lastApiHeaders;
   bool _isRetryingStream = false;
   String _streamOverlayMessage = '';
+  /// Last libmpv/player error description, surfaced in the error overlay so the
+  /// user sees WHY a stream failed instead of an infinite "Loading..." spinner.
+  String _lastErrorDescription = '';
+  /// Last failure reason code (init_timeout / buffer_timeout / player_error / ...).
+  String _lastErrorReason = '';
+  /// Last raw error string from media_kit's error stream (PlayerState has no
+  /// `error` field in media_kit 1.2.x), used for on-screen diagnostics.
+  String _lastPlayerError = '';
+  /// Whether the underlying player native backend has been initialized/opened.
+  /// PlayerState/Player expose no `isInitialized` in media_kit 1.2.x, so we track it.
+  bool _playerInitialized = false;
+  /// Toggles the on-screen diagnostics detail view in the error overlay (Option C).
+  bool _showDiagDetails = false;
   Timer? _bufferTimer;
   Timer? _startupTimer;
   Timer? _reconnectTimer;
@@ -233,10 +270,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // ---- Playback Profile (Phase 4) ----
   PlaybackMode _playbackMode = PlaybackMode.auto;
   PlaybackProfile get _activeProfile {
+    final bool isMobile = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+         defaultTargetPlatform == TargetPlatform.iOS);
     switch (_playbackMode) {
       case PlaybackMode.fast:      return kFastProfile;
       case PlaybackMode.dataSaver: return kDataSaverProfile;
       case PlaybackMode.auto:
+        return isMobile ? kMobileProfile : kStableProfile;
       case PlaybackMode.stable:    return kStableProfile;
     }
   }
@@ -244,6 +285,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // Proxy fallback state - populated from playback API response
   String? _proxyUrl;
   bool _proxyAttempted = false;
+  Map<String, dynamic>? _proxyHeaders;
 
   // Hardware decode fallback: retry with hwdec=no when a codec error is detected.
   // Only attempted once per stream session to avoid loops.
@@ -884,6 +926,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     // Reset proxy + upgrade state for new channel
     _proxyUrl = null;
     _proxyAttempted = false;
+    _proxyHeaders = null;
     _wasQualityDowngraded = false;
     _hwdecSoftwareFallbackAttempted = false;
     _hadFailureBeforePlaying = false;
@@ -908,6 +951,29 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         // Parse new fields from enhanced playback API
         // proxy_url is null when DRM/geo-blocked/hidden/unlicensed — never try proxy then
         _proxyUrl = data['proxy_url'] as String?;
+
+        // Prefer the backend proxy on all platforms:
+        // - Web: browser CORS blocks direct CDN segment fetches
+        // - Android/iOS: backend (AWS datacenter) has a stable connection to IPTV
+        //   CDNs; going direct from mobile data causes lag and throttling
+        String? webPreferredUrl;
+        Map<String, dynamic>? webPreferredHeaders;
+        if (_proxyUrl != null) {
+          final prefs = await SharedPreferences.getInstance();
+          final token = prefs.getString(StorageKeys.token);
+          webPreferredUrl = _proxyUrl;
+          webPreferredHeaders = {
+            if (token != null) 'Authorization': 'Bearer $token',
+          };
+          _proxyHeaders = webPreferredHeaders;
+          _playerDebugLog('proxy_preferred', {
+            'channel_id': _currentChannel.id,
+            'proxy_url': _proxyUrl,
+            'has_token': token != null,
+            'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
+          });
+        }
+
         _playerDebugLog('playback_api_response', {
           'channel_id': _currentChannel.id,
           'playback_mode': data['primary_stream']?['playback_mode'],
@@ -951,7 +1017,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         // Fix #3: Guard against null _currentStreamMeta before accessing with !.
         final String urlToPlay;
         final Map<String, dynamic>? headersToUse;
-        if (_selectedQuality != null && _selectedQuality!['url'] != null) {
+        if (webPreferredUrl != null) {
+          urlToPlay = webPreferredUrl;
+          headersToUse = webPreferredHeaders;
+          _playbackPath = 'proxy';
+        } else if (_selectedQuality != null && _selectedQuality!['url'] != null) {
           urlToPlay = _selectedQuality!['url'];
           headersToUse = _selectedQuality!['headers'];
         } else if (_currentStreamMeta != null && _currentStreamMeta!['url'] != null) {
@@ -1009,7 +1079,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _errorGraceTimer = null;
     _playerErrorPending = false;
     _playStartTime = null;
-    if (mounted) setState(() { _isLoading = true; _hasError = false; if (_streamOverlayMessage.isEmpty) _streamOverlayMessage = 'Loading...'; });
+    if (mounted) setState(() { _isLoading = true; _hasError = false; _lastErrorDescription = ''; _lastErrorReason = ''; _lastPlayerError = ''; _showDiagDetails = false; _playerInitialized = false; if (_streamOverlayMessage.isEmpty) _streamOverlayMessage = 'Loading...'; });
 
     try {
       // -- Apply profile-based libmpv tuning --------------------------------
@@ -1049,7 +1119,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           // meant to prevent. The deep readahead cache (cache-secs) is what protects
           // against re-stalling, not a long pause.
           await (platform as dynamic).setProperty('cache-pause', 'yes');
-          await (platform as dynamic).setProperty('cache-pause-wait', '2');
+          // 1s on mobile: shorter pause means faster recovery from micro-stalls on mobile data.
+          // 3s on web/desktop: stable connections benefit from a longer cushion before resuming.
+          final bool _isMobilePlatform = !kIsWeb &&
+              (defaultTargetPlatform == TargetPlatform.android ||
+               defaultTargetPlatform == TargetPlatform.iOS);
+          await (platform as dynamic).setProperty(
+              'cache-pause-wait', _isMobilePlatform ? '1' : '3');
           // Start playback as soon as a small initial cushion is buffered instead of
           // waiting for the full readahead — faster channel-open on all profiles.
           try {
@@ -1063,19 +1139,30 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           // reconnect_on_network_errors=1 reconnects on TCP-level drops, not just EOF.
           // reconnect_delay_max=5: Indian CDNs may need up to 5s between reconnects.
           // timeout=30s: segment servers on IPTV CDNs can take 20-25s to respond.
+          // tls_verify=no: libmpv on Android does NOT share Chrome's system CA store,
+          //   so HTTPS HLS/ts streams fail with a silent TLS error and the player
+          //   hangs on buffering forever. Disabling verification lets the same HTTPS
+          //   streams that work in Flutter Web play on Android too. (Debug/testing.)
+          // user_agent: many IPTV origins (and the backend proxy) 403 requests that
+          //   lack a browser-like User-Agent. Web sends one automatically; libmpv
+          //   does not, so we set a sensible default here as a backstop. The
+          //   per-stream httpHeaders (if any) override this at the Media level.
           await (platform as dynamic).setProperty(
               'stream-lavf-o',
               'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1,'
-              'reconnect_on_network_errors=1,reconnect_delay_max=5,timeout=30000000');
+              'reconnect_on_network_errors=1,reconnect_delay_max=5,'
+              'timeout=30000000,tls_verify=no,'
+              'user_agent=Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 '
+              '(KHTML, like Gecko) NivaTV/1.2.1 Chrome/120.0 Mobile Safari/537.36');
           // network-timeout removed: timeout=30000000 in stream-lavf-o already sets 30s
           // at the lavf layer; a conflicting network-timeout value can cause unexpected races.
           // IPTV HLS sources often need permissive playlist loading.
           try {
             await (platform as dynamic).setProperty('load-unsafe-playlists', 'yes');
           } catch (_) {}
-          // 16 MB stream buffer absorbs slow CDN segment starts (HD IPTV segments).
+          // 32 MB stream buffer absorbs slow CDN segment starts (HD IPTV segments).
           try {
-            await (platform as dynamic).setProperty('stream-buffer-size', '16777216');
+            await (platform as dynamic).setProperty('stream-buffer-size', '33554432');
           } catch (_) {}
           // Do not drop frames — IPTV relies on continuous frame delivery for A/V sync.
           try {
@@ -1113,6 +1200,30 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         });
       }
 
+      // Backstop headers for IPTV origins that reject requests without them.
+      // Web/Chrome sends these automatically; libmpv does not, so on Android
+      // streams can return 403 (stuck buffering) unless we supply them.
+      // Per-stream headers above take precedence for User-Agent/Referer.
+      const defaultRequestHeaders = {
+        'User-Agent':
+            'Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) NivaTV/1.2.1 Chrome/120.0 Mobile Safari/537.36',
+        'Accept': '*/*',
+        'Connection': 'keep-alive',
+      };
+      defaultRequestHeaders.forEach((k, v) {
+        headers.putIfAbsent(k, () => v);
+      });
+
+      _playerDebugLog('request_headers_resolved', {
+        'channel_id': _currentChannel.id,
+        'header_keys': headers.keys.toList(),
+        'had_user_agent': headers.containsKey('User-Agent'),
+        'had_referer': headers.containsKey('Referer'),
+        'had_accept': headers.containsKey('Accept'),
+        'had_connection': headers.containsKey('Connection'),
+      });
+
       final media = Media(url, httpHeaders: headers.isNotEmpty ? headers : null);
 
       _playerDebugLog('initialize_player', {
@@ -1127,23 +1238,58 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // IMPORTANT: Do NOT seek() for live stream recovery — it can jump to the beginning
       // or fail outright. Let libmpv start from the live edge via reconnect=1.
       await _player.open(media, play: true);
+      _playerInitialized = true;
+
+      // Detailed post-open diagnostics for the "stuck on buffering" investigation.
+      _playerDebugLog('initialization_end', {
+        'channel_id': _currentChannel.id,
+        'url': url,
+            'is_initialized': _playerInitialized,
+        'is_loading': _isLoading,
+        'is_buffering': _player.state.buffering,
+        'is_playing': _player.state.playing,
+        'has_error': _lastPlayerError.isNotEmpty,
+        'error_description': _lastPlayerError,
+        'position_ms': _player.state.position.inMilliseconds,
+        'duration_ms': _player.state.duration.inMilliseconds,
+        'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
+      });
 
       // -- Listen for buffering changes ----------------------------------
       _playerSubscription = _player.stream.buffering.listen(_onBufferingChanged);
 
-      // -- Clear the loading overlay as soon as frames start playing --------
-      // videoParams (w/h) can take 2–5s on live-edge HLS, leaving a frozen black
-      // spinner even though libmpv is already producing frames. 'playing' asserts
-      // the decoder pipeline is outputting frames — use it to drop the spinner
-      // immediately so the first frame is visible. Aspect-ratio / track selection
-      // still waits on videoParams below.
+      // -- Clear the loading overlay when video starts playing --
+      // On native (Android/libmpv) the 'playing' event fires as soon as libmpv
+      // starts buffering — often several seconds before any frames are decoded.
+      // Clearing the overlay here causes a black screen gap until real frames arrive.
+      // videoParams fires only when the first frame is decoded, so it is the
+      // authoritative "show the video" signal on native. We let the startup timer
+      // keep running until videoParams cancels it; that way a stream that gets
+      // 'playing' but never produces frames still triggers init_timeout recovery.
+      // On web, videoParams may never fire (Chrome MSE), so 'playing' + a short
+      // delay is the only available first-frame proxy. Guard the overlay-clear
+      // behind kIsWeb so it only applies there.
       _playerPlayingSubscription = _player.stream.playing.listen((isPlaying) {
         if (!isPlaying || !mounted) return;
+        if (!kIsWeb) {
+          // Native: do NOT cancel startup timer or clear overlay here.
+          // videoParams handles both when the first real frame is ready.
+          return;
+        }
+        // Web only: videoParams may never fire — cancel timeout and clear overlay.
+        _startupTimer?.cancel();
+        _startupTimer = null;
         if (_isLoading && !_hasError) {
-          setState(() {
-            _isLoading = false;
-            _isRetryingStream = false;
-            _streamOverlayMessage = '';
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted && _isLoading && !_hasError) {
+              setState(() {
+                _isLoading = false;
+                _isRetryingStream = false;
+                _streamOverlayMessage = '';
+              });
+              _playStartTime ??= DateTime.now();
+              _showControlsWithTimer();
+            }
           });
         }
       });
@@ -1157,7 +1303,21 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // events rapidly. Without this, each spawns a separate delayed failure call that
       // can race with each other and exhaust backup streams in one burst.
       _playerErrorSubscription = _player.stream.error.listen((errorMsg) {
-        if (errorMsg.isEmpty || !mounted) return;
+        if (errorMsg.isEmpty) return;
+        // Track the latest raw error for on-screen diagnostics (PlayerState has
+        // no `error` field in media_kit 1.2.x — it only arrives via this stream).
+        _lastPlayerError = errorMsg;
+        if (!mounted) return;
+        // Chrome fires "media was removed from the document" when switching channels —
+        // this is a normal browser behavior, not a real playback error.
+        if (errorMsg.contains('media was removed from the document') ||
+            errorMsg.contains('play() request was interrupted')) {
+          _playerDebugLog('player_error_suppressed_web_switch', {
+            'channel_id': _currentChannel.id,
+            'player_error': errorMsg,
+          });
+          return;
+        }
         _playerDebugLog('player_error', {
           'channel_id': _currentChannel.id,
           'selected_stream_url': url,
@@ -1235,6 +1395,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
           setState(() {
             _isRetryingStream = false;
+            _isLoading = false;
+            _hasError = false;
+            _streamOverlayMessage = '';
           });
           // Fix #18: Record when the video actually starts so we can compute accurate watch_duration
           _playStartTime ??= DateTime.now();
@@ -1261,6 +1424,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       final int startupSecs = isDelayedStream ? 45 : profile.startupTimeoutSecs;
       _startupTimer = Timer(Duration(seconds: startupSecs), () {
         if (mounted && _isLoading && !_hasError) {
+          _playerDebugLog('startup_timeout', {
+            'channel_id': _currentChannel.id,
+            'url': url,
+            'waited_secs': startupSecs,
+        'is_initialized': _playerInitialized,
+            'is_buffering': _player.state.buffering,
+            'is_playing': _player.state.playing,
+            'has_error': _lastPlayerError.isNotEmpty,
+            'error_description': _lastPlayerError,
+            'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
+            'retry_attempt': _retryAttempt,
+          });
           _handleStreamFailure('init_timeout');
         }
       });
@@ -1455,7 +1630,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _reconnectTimer = null;
       _qualityStallTimer?.cancel();
       _qualityStallTimer = null;
-      if (mounted && _isLoading) {
+      // Only clear loading here for mid-stream recovery (videoParams hasn't fired yet
+      // during initial load — let videoParams handle the initial loading overlay).
+      if (mounted && _isLoading && _playStartTime != null) {
         setState(() {
           _isLoading = false;
           _isRetryingStream = false;
@@ -1673,9 +1850,16 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // borderline connections, perpetuating the load→play→load loop.
       await Future.delayed(const Duration(milliseconds: 5000));
       // Re-initialize player with same parameters
-      final headersToUse = (_selectedQuality != null && _selectedQuality!['headers'] != null)
-          ? _selectedQuality!['headers']
-          : _currentStreamMeta?['headers'];
+      // When retrying a proxy URL, use proxy headers (with Authorization) —
+      // stream meta headers don't contain the Bearer token the proxy route requires.
+      final headersToUse;
+      if (_proxyAttempted && _proxyUrl != null && _currentUrl == _proxyUrl) {
+        headersToUse = _proxyHeaders;
+      } else if (_selectedQuality != null && _selectedQuality!['headers'] != null) {
+        headersToUse = _selectedQuality!['headers'];
+      } else {
+        headersToUse = _currentStreamMeta?['headers'];
+      }
       await _initializePlayer(_currentUrl, headersToUse);
       return;
     }
@@ -1767,18 +1951,27 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _isLoading = true;
         _hasError = false;
       });
-      // Proxy URL requires Bearer token via headers
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString(StorageKeys.token);
-      final proxyHeaders = {
-        if (token != null) 'Authorization': 'Bearer $token',
-      };
-      _playbackPath = 'proxy';
-      await _initializePlayer(_proxyUrl!, proxyHeaders);
-      return;
-    }
+        // Proxy URL requires Bearer token via headers
+        final prefs = await SharedPreferences.getInstance();
+        final token = prefs.getString(StorageKeys.token);
+        final proxyHeaders = {
+          if (token != null) 'Authorization': 'Bearer $token',
+        };
+        _proxyHeaders = proxyHeaders;
+        _playbackPath = 'proxy';
+        await _initializePlayer(_proxyUrl!, proxyHeaders);
+        return;
+      }
 
-    if (mounted) setState(() { _isLoading = false; _hasError = true; _streamOverlayMessage = ''; });
+    if (mounted) {
+      _lastErrorReason = reason;
+      _lastErrorDescription = _lastPlayerError.isNotEmpty
+          ? _lastPlayerError
+          : 'Playback could not start. The stream may be offline, require a '
+              'specific User-Agent/Referer, or use a codec/container unsupported '
+              'on Android.';
+      setState(() { _isLoading = false; _hasError = true; _streamOverlayMessage = ''; });
+    }
   }
 
   /// Reports successful playback to backend.
@@ -2264,6 +2457,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _slowOverlayTimer?.cancel();
     _playerToastTimer?.cancel();
     _qualityUpgradeTimer?.cancel();
+    _hdPromoteTimer?.cancel();
     _gapWarningRefreshTimer?.cancel();
     _smoothWarmTimer?.cancel();
     _playerSubscription?.cancel();
@@ -2539,41 +2733,155 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Widget _buildErrorOverlay() {
+    // Show a short, human-readable cause derived from the failure reason/description.
+    String causeSummary;
+    final desc = _lastErrorDescription.toLowerCase();
+    if (_lastErrorReason == 'init_timeout' || _lastErrorReason == 'buffer_timeout') {
+      causeSummary = 'Playback did not start within the time limit (timeout).';
+    } else if (desc.contains('tls') || desc.contains('ssl') || desc.contains('certificate')) {
+      causeSummary = 'Secure connection (HTTPS/TLS) failed on this device.';
+    } else if (desc.contains('403') || desc.contains('401') || desc.contains('forbidden')) {
+      causeSummary = 'Stream rejected the request (auth/headers: 403/401).';
+    } else if (desc.contains('codec') || desc.contains('decoder') || desc.contains('unsupported')) {
+      causeSummary = 'Unsupported codec/container for Android.';
+    } else if (desc.contains('404') || desc.contains('not found')) {
+      causeSummary = 'Stream source returned 404 (not found).';
+    } else if (_lastErrorDescription.isNotEmpty) {
+      causeSummary = _lastErrorDescription;
+    } else {
+      causeSummary = 'No stable source is available right now.';
+    }
+
+    final recentLogs = _globalDiagLog.reversed.take(18).toList().reversed.toList();
+
     return Container(
       color: Colors.black,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.signal_cellular_off_rounded, size: 56, color: Colors.white38),
-              const SizedBox(height: 16),
-              const Text(
-                'Stream unavailable',
-                style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'No stable source is available right now.',
-                style: TextStyle(color: Colors.white54, fontSize: 12),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _actionButton(Icons.refresh_rounded, 'Retry', _retry),
-                  if (_contextChannels.length > 1) ...[
-                    const SizedBox(width: 12),
-                    _actionButton(Icons.skip_next_rounded, 'Next', _playNextChannel, outlined: true),
+      child: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.signal_cellular_off_rounded, size: 56, color: Colors.white38),
+                const SizedBox(height: 16),
+                const Text(
+                  'Stream unavailable',
+                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        causeSummary,
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                        textAlign: TextAlign.left,
+                      ),
+                      const SizedBox(height: 8),
+                      _diagRow('Reason', _lastErrorReason.isNotEmpty ? _lastErrorReason : 'unknown'),
+                      _diagRow('Path', _playbackPath),
+                      _diagRow('Platform', kIsWeb ? 'web' : defaultTargetPlatform.name),
+                      _diagRow('Stream', _currentUrl),
+                      if (_lastErrorDescription.isNotEmpty)
+                        _diagRow('Player error', _lastErrorDescription),
+                    ],
+                  ),
+                ),
+                // Collapsible recent on-screen diagnostic log (Option C: no PC needed)
+                TextButton(
+                  onPressed: () => setState(() => _showDiagDetails = !_showDiagDetails),
+                  child: Text(
+                    _showDiagDetails ? 'Hide diagnostics' : 'Show diagnostics (last logs)',
+                    style: const TextStyle(color: Colors.blueAccent, fontSize: 12),
+                  ),
+                ),
+                if (_showDiagDetails)
+                  Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(maxHeight: 220),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: SingleChildScrollView(
+                      child: SelectableText(
+                        recentLogs.join('\n'),
+                        style: const TextStyle(
+                          color: Colors.greenAccent,
+                          fontSize: 10,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_showDiagDetails)
+                  TextButton.icon(
+                    onPressed: () {
+                      final buf = StringBuffer();
+                      buf.writeln('Channel: ${_currentChannel.name} (id=${_currentChannel.id})');
+                      buf.writeln('Reason: $_lastErrorReason');
+                      buf.writeln('Path: $_playbackPath');
+                      buf.writeln('Platform: ${kIsWeb ? 'web' : defaultTargetPlatform.name}');
+                      buf.writeln('Stream: $_currentUrl');
+                      buf.writeln('Player error: $_lastErrorDescription');
+                      buf.writeln('--- recent diagnostics ---');
+                      buf.writeln(recentLogs.join('\n'));
+                      Share.share(buf.toString(), subject: 'NivaTV playback diagnostics');
+                    },
+                    icon: const Icon(Icons.share, size: 14, color: Colors.blueAccent),
+                    label: const Text('Share diagnostics', style: TextStyle(color: Colors.blueAccent, fontSize: 12)),
+                  ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _actionButton(Icons.refresh_rounded, 'Retry', _retry),
+                    if (_contextChannels.length > 1) ...[
+                      const SizedBox(width: 12),
+                      _actionButton(Icons.skip_next_rounded, 'Next', _playNextChannel, outlined: true),
+                    ],
                   ],
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _diagRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 92,
+            child: Text(
+              '$label:',
+              style: const TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ),
+          Expanded(
+            child: SelectableText(
+              value,
+              style: const TextStyle(color: Colors.white70, fontSize: 11),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -4057,52 +4365,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Widget _buildRelatedCard(ChannelModel ch) {
-    final sub = [ch.categoryName, ch.language]
-        .whereType<String>()
-        .where((e) => e.trim().isNotEmpty && e.toLowerCase() != 'unknown')
-        .join(' - ');
-
-    return GestureDetector(
+    return PremiumChannelCard(
+      channel: ch,
+      variant: PremiumChannelCardVariant.related,
       onTap: () => _playChannel(ch),
-      child: Container(
-        width: 108,
-        margin: const EdgeInsets.only(right: 10),
-        decoration: BoxDecoration(
-          color: const Color(AppColors.surface),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              top: 5,
-              right: 5,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(3)),
-                child: const Text('LIVE', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w800, color: Colors.white)),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ChannelLogo(logoUrl: ch.logoUrl, localLogoUrl: ch.localLogoUrl, channelName: ch.name, size: 44, borderRadius: 8),
-                  const SizedBox(height: 7),
-                  Text(ch.name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
-                  if (sub.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 9, color: Colors.white38)),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -4213,84 +4479,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Widget _buildMoreLiveCard(ChannelModel ch) {
-    final sub = [ch.categoryName, ch.language]
-        .whereType<String>()
-        .where((e) => e.trim().isNotEmpty && e.toLowerCase() != 'unknown')
-        .join(' - ');
-
-    return GestureDetector(
+    return PremiumChannelCard(
+      channel: ch,
+      variant: PremiumChannelCardVariant.list,
+      margin: EdgeInsets.zero,
       onTap: () => _playChannel(ch),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(AppColors.surface),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              top: 6,
-              right: 6,
-              child: Row(
-                children: [
-                  if (ch.isPremium) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFD700),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      child: const Text('PREMIUM', style: TextStyle(fontSize: 6, fontWeight: FontWeight.w900, color: Colors.black)),
-                    ),
-                    const SizedBox(width: 4),
-                  ],
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(3)),
-                    child: const Text('LIVE', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w800, color: Colors.white)),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Row(
-                children: [
-                  ChannelLogo(logoUrl: ch.logoUrl, localLogoUrl: ch.localLogoUrl, channelName: ch.name, size: 40, borderRadius: 8),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(ch.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
-                        if (sub.isNotEmpty) ...[
-                          const SizedBox(height: 3),
-                          Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 9, color: Colors.white38)),
-                        ],
-                        const SizedBox(height: 3),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: Colors.white10,
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: Text(
-                            ch.qualityLabel,
-                            style: const TextStyle(fontSize: 8, color: Colors.white70, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

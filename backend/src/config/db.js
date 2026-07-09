@@ -3,14 +3,19 @@ require('dotenv').config();
 
 const isRender = process.env.RENDER === 'true' || process.env.DATABASE_URL;
 
-const poolConfig = process.env.DATABASE_URL
+// Disable SSL for local/development connections — remote EC2/Render URLs need SSL.
+const dbUrl = process.env.DATABASE_URL || '';
+const isLocalDb = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
+const sslDisabled = dbUrl.includes('sslmode=disable');
+
+const poolConfig = dbUrl
   ? {
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
+      connectionString: dbUrl,
+      ssl: (isLocalDb || sslDisabled) ? false : { rejectUnauthorized: false },
       connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 30000,
       // DB-02 FIX: Increased to 20 for production load; keep at 10 for dev/free-tier.
-      max: parseInt(process.env.DB_POOL_MAX || '20', 10),
+      max: parseInt(process.env.DB_POOL_MAX || (isLocalDb ? '10' : '20'), 10),
     }
   : {
       host: process.env.DB_HOST || 'localhost',

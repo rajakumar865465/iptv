@@ -128,7 +128,9 @@ function normalizeLanguage(raw) {
 }
 
 // PLAYABLE health statuses — shown when workingOnly=true
-const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable', 'segment_failed', 'unknown'];
+// 'segment_failed' is intentionally excluded: the scanner proved the stream's segments
+// cannot be fetched, so the channel must not appear as playable.
+const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable', 'unknown'];
 // Hidden health statuses — always hidden from normal users
 const DEAD_STATUSES = ['offline', 'dead', 'forbidden_403', 'drm_or_unsupported', 'geo_blocked', 'requires_licensed_source'];
 // Allow unknown streams (channels not yet checked) when ALLOW_UNKNOWN_STREAMS=true in .env
@@ -911,7 +913,7 @@ exports.reportFailure = async (req, res) => {
 // Health statuses that make a channel ineligible for proxy (DRM, geo-block, unlicensed)
 const PROXY_BLOCKED_STATUSES = new Set([
   'requires_licensed_source', 'drm_or_unsupported', 'geo_blocked',
-  'forbidden_403', 'offline', 'dead',
+  'forbidden_403', 'offline', 'dead', 'segment_failed',
 ]);
 
 exports.getChannelPlayback = async (req, res) => {

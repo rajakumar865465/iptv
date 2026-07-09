@@ -5,6 +5,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shimmer/shimmer.dart';
 import '../constants.dart';
 import '../utils/backend_config.dart';
+
+/// Premium channel logo with shimmer loading, cached network image,
+/// SVG support, error safety, and a gradient initials fallback.
 class ChannelLogo extends StatelessWidget {
   final String? logoUrl;
   final String? localLogoUrl;
@@ -13,6 +16,9 @@ class ChannelLogo extends StatelessWidget {
   final double borderRadius;
   final BoxFit fit;
   final String? cacheKey;
+  final Color? backgroundColor;
+  final Color? borderColor;
+  final String? semanticLabel;
 
   const ChannelLogo({
     super.key,
@@ -23,6 +29,9 @@ class ChannelLogo extends StatelessWidget {
     this.borderRadius = 8,
     this.fit = BoxFit.contain,
     this.cacheKey,
+    this.backgroundColor,
+    this.borderColor,
+    this.semanticLabel,
   });
 
   String? get _imageUrl {
@@ -44,11 +53,16 @@ class ChannelLogo extends StatelessWidget {
   String get _initials {
     final trimmed = channelName.trim();
     if (trimmed.isEmpty) return '?';
-    final words = trimmed.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final words = trimmed
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
     if (words.length >= 2) {
       return (words[0][0] + words[1][0]).toUpperCase();
     }
-    return trimmed.length >= 2 ? trimmed.substring(0, 2).toUpperCase() : trimmed[0].toUpperCase();
+    return trimmed.length >= 2
+        ? trimmed.substring(0, 2).toUpperCase()
+        : trimmed[0].toUpperCase();
   }
 
   bool get _isSvg {
@@ -61,57 +75,74 @@ class ChannelLogo extends StatelessWidget {
     return url != null && url.trim().isNotEmpty;
   }
 
-  // Gradient colors pairs for fallback avatar
-  static const List<List<Color>> _gradients = [
-    [Color(0xFF1565C0), Color(0xFF42A5F5)],
-    [Color(0xFF6A1B9A), Color(0xFFAB47BC)],
-    [Color(0xFF2E7D32), Color(0xFF66BB6A)],
-    [Color(0xFFE65100), Color(0xFFFFA726)],
-    [Color(0xFF00695C), Color(0xFF26A69A)],
-    [Color(0xFF37474F), Color(0xFF78909C)],
-    [Color(0xFF880E4F), Color(0xFFEC407A)],
-    [Color(0xFF4527A0), Color(0xFF7E57C2)],
-    [Color(0xFFC62828), Color(0xFFEF5350)],
-    [Color(0xFF0277BD), Color(0xFF29B6F6)],
+  String get _effectiveCacheKey {
+    if (cacheKey != null) return cacheKey!;
+    final url = _imageUrl ?? channelName;
+    return 'logo_${url.hashCode}';
+  }
+
+  /// Premium gradient pairs used for the initials fallback. These are
+  /// dark, subtle, and consistent with the app theme so the fallback
+  /// never looks like a broken image.
+  static const List<List<Color>> _fallbackGradients = [
+    [Color(0xFF1E1E2E), Color(0xFF2A2A3E)], // slate
+    [Color(0xFF0F1A40), Color(0xFF1A1040)], // navy
+    [Color(0xFF1A0F3A), Color(0xFF0D1026)], // deep purple
+    [Color(0xFF0A2E1F), Color(0xFF0A1F18)], // deep teal
+    [Color(0xFF2A1508), Color(0xFF3A240A)], // deep amber
+    [Color(0xFF2A0A15), Color(0xFF3A0F0F)], // deep red
   ];
 
-  List<Color> get _gradientColors {
-    final idx = channelName.isNotEmpty ? channelName.codeUnitAt(0) % _gradients.length : 0;
-    return _gradients[idx];
+  List<Color> get _fallbackColors {
+    final idx = channelName.isEmpty
+        ? 0
+        : channelName.codeUnitAt(0) % _fallbackGradients.length;
+    return _fallbackGradients[idx];
   }
 
   @override
   Widget build(BuildContext context) {
-    final urlToLoad = _imageUrl;
-    if (!_hasValidUrl || urlToLoad == null) {
-      return _buildFallback();
+    Widget child;
+    try {
+      if (!_hasValidUrl) {
+        child = _buildFallback();
+      } else if (_isSvg) {
+        child = _SvgLogoWidget(
+          url: _imageUrl!,
+          size: size,
+          borderRadius: borderRadius,
+          fallback: _buildFallback(),
+          shimmer: _buildShimmer(),
+        );
+      } else {
+        child = ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: CachedNetworkImage(
+            imageUrl: _imageUrl!,
+            cacheKey: _effectiveCacheKey,
+            width: size,
+            height: size,
+            fit: fit,
+            fadeInDuration: const Duration(milliseconds: 150),
+            httpHeaders: const {
+              'Referer': 'https://www.google.com',
+              'User-Agent':
+                  'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36',
+            },
+            placeholder: (context, url) => _buildShimmer(),
+            errorWidget: (context, url, error) => _buildFallback(),
+          ),
+        );
+      }
+    } catch (_) {
+      // Defensive: never let logo rendering crash the app.
+      child = _buildFallback();
     }
 
-    if (_isSvg) {
-      return _SvgLogoWidget(
-        url: urlToLoad,
-        size: size,
-        borderRadius: borderRadius,
-        fallback: _buildFallback(),
-        shimmer: _buildShimmer(),
-      );
-    }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: CachedNetworkImage(
-        imageUrl: urlToLoad,
-        cacheKey: cacheKey != null ? '${cacheKey}_${urlToLoad.hashCode}' : null,
-        width: size,
-        height: size,
-        fit: fit,
-        httpHeaders: const {
-          'Referer': 'https://www.google.com',
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36',
-        },
-        placeholder: (context, url) => _buildShimmer(),
-        errorWidget: (context, url, error) => _buildFallback(),
-      ),
+    return Semantics(
+      label: semanticLabel ?? 'Logo of $channelName',
+      image: true,
+      child: child,
     );
   }
 
@@ -135,7 +166,9 @@ class ChannelLogo extends StatelessWidget {
   }
 
   Widget _buildFallback() {
-    final colors = _gradientColors;
+    final bg = backgroundColor ?? const Color(AppColors.surfaceElevated);
+    final border = borderColor ?? const Color(AppColors.divider);
+    final colors = _fallbackColors;
     return Container(
       width: size,
       height: size,
@@ -146,26 +179,38 @@ class ChannelLogo extends StatelessWidget {
           colors: colors,
         ),
         borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(color: border, width: 0.8),
       ),
       alignment: Alignment.center,
-      child: Text(
-        _initials,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: size * 0.32,
-          fontWeight: FontWeight.bold,
-          shadows: const [
-            Shadow(blurRadius: 4, color: Colors.black45),
-          ],
+      child: Padding(
+        padding: EdgeInsets.all(size * 0.12),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            _initials,
+            maxLines: 1,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: size * 0.34,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+              shadows: const [
+                Shadow(
+                  blurRadius: 6,
+                  color: Colors.black54,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-/// Handles SVG loading with a proper error fallback via timeout.
-/// SvgPicture.network lacks an errorBuilder, so we use a Timer to detect
-/// stalled loads and fall back to the initials avatar. (Fix #10, #34)
+/// Handles SVG loading with error safety. `flutter_svg` has no
+/// `errorBuilder`, so we combine a timeout with a defensive try/catch
+/// around the build to guarantee a fallback is always rendered.
 class _SvgLogoWidget extends StatefulWidget {
   final String url;
   final double size;
@@ -193,8 +238,6 @@ class _SvgLogoWidgetState extends State<_SvgLogoWidget> {
   void initState() {
     super.initState();
     // If the SVG hasn't loaded within 8 seconds, show the fallback.
-    // SvgPicture.network has no errorBuilder, so this is our only reliable way
-    // to handle failed/stalled SVG loads.
     _timeoutTimer = Timer(const Duration(seconds: 8), () {
       if (mounted) setState(() => _svgFailed = true);
     });
@@ -212,18 +255,28 @@ class _SvgLogoWidgetState extends State<_SvgLogoWidget> {
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(widget.borderRadius),
-      child: SvgPicture.network(
-        widget.url,
+      child: SizedBox(
         width: widget.size,
         height: widget.size,
-        fit: BoxFit.contain,
-        headers: const {
-          'Referer': 'https://www.google.com',
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36',
-        },
-        placeholderBuilder: (context) => widget.shimmer,
-        // When SVG loads successfully, cancel the timeout timer
-        // by using a Builder to detect the rendered state.
+        child: Builder(
+          builder: (context) {
+            try {
+              return SvgPicture.network(
+                widget.url,
+                fit: BoxFit.contain,
+                headers: const {
+                  'Referer': 'https://www.google.com',
+                  'User-Agent':
+                      'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36',
+                },
+                placeholderBuilder: (context) => widget.shimmer,
+              );
+            } catch (_) {
+              // Defensive: never let SVG rendering crash the app.
+              return widget.fallback;
+            }
+          },
+        ),
       ),
     );
   }
@@ -235,6 +288,7 @@ class ChannelLogoCircle extends StatelessWidget {
   final String? localLogoUrl;
   final String channelName;
   final double radius;
+  final String? semanticLabel;
 
   const ChannelLogoCircle({
     super.key,
@@ -242,6 +296,7 @@ class ChannelLogoCircle extends StatelessWidget {
     this.localLogoUrl,
     required this.channelName,
     this.radius = 28,
+    this.semanticLabel,
   });
 
   @override
@@ -257,6 +312,7 @@ class ChannelLogoCircle extends StatelessWidget {
           size: radius * 2,
           borderRadius: radius,
           fit: BoxFit.contain,
+          semanticLabel: semanticLabel,
         ),
       ),
     );

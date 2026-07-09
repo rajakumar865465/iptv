@@ -31,16 +31,86 @@
 
   <title>NivaTV</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- hls.js: Chrome cannot play HLS (.m3u8) natively; only Safari can.
+       media_kit on web sets video.src directly, so we intercept the src setter
+       and route any .m3u8 URL through hls.js instead. -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
+  <script>
+    (function () {
+      if (typeof Hls === 'undefined' || !Hls.isSupported()) return;
+
+      var originalDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+      if (!originalDescriptor) return;
+
+      Object.defineProperty(HTMLMediaElement.prototype, 'src', {
+        get: originalDescriptor.get,
+        set: function (url) {
+          if (this.tagName !== 'VIDEO') {
+            originalDescriptor.set.call(this, url);
+            return;
+          }
+
+          // Destroy existing hls instance on this element before doing anything.
+          if (this._hls) {
+            this._hls.destroy();
+            this._hls = null;
+          }
+
+          if (!url || (!url.includes('.m3u8') && !url.includes('/proxy/'))) {
+            // Not an HLS URL — use browser default.
+            originalDescriptor.set.call(this, url);
+            return;
+          }
+
+          // HLS URL: load via hls.js (MSE) so Chrome can decode it.
+          var video = this;
+          // Read JWT from Flutter's SharedPreferences (stored in localStorage with
+          // the "flutter." prefix and JSON-encoded value, e.g. "flutter.auth_token" -> '"eyJ..."').
+          function _getAuthToken() {
+            try {
+              var raw = localStorage.getItem('flutter.auth_token');
+              return raw ? JSON.parse(raw) : null;
+            } catch(e) { return null; }
+          }
+
+          var hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            liveSyncDurationCount: 3,
+            liveMaxLatencyDurationCount: 10,
+            maxBufferLength: 30,
+            maxMaxBufferLength: 60,
+            xhrSetup: function(xhr, url) {
+              // Attach Bearer token for backend proxy segments (same-origin requests
+              // to localhost:5000 need auth; external CDN requests ignore the header).
+              var token = _getAuthToken();
+              if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+            },
+          });
+
+          hls.on(Hls.Events.ERROR, function (event, data) {
+            if (!data.fatal) return;
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              hls.startLoad();
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hls.recoverMediaError();
+            } else {
+              hls.destroy();
+              video._hls = null;
+            }
+          });
+
+          hls.loadSource(url);
+          hls.attachMedia(video);
+          video._hls = hls;
+        },
+        configurable: true,
+      });
+    })();
+  </script>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

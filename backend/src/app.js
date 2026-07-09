@@ -5,6 +5,12 @@ const morgan = require('morgan');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+// .env.local overrides .env — use it for local dev to point at a local DB
+// without touching the production .env (which holds EC2 credentials).
+const _localEnvPath = require('path').join(__dirname, '../.env.local');
+if (require('fs').existsSync(_localEnvPath)) {
+  require('dotenv').config({ path: _localEnvPath, override: true });
+}
 
 // NivaTV Backend Application
 

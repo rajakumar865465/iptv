@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network security configuration for NivaTV (Android).
+  - Base config permits cleartext (http://) traffic so IPTV streams that are
+    served over plain HTTP still play on Android 9+ (API 28+) where cleartext
+    is disabled by default.
+  - User-installed CAs are trusted so the app can be inspected with a proxy
+    tool (Charles/Fiddler) while debugging playback issues.
+  NOTE: Keep cleartextTrafficPermitted="true" only while broad IPTV provider
+  streams are HTTP. Revisit for production hardening later.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

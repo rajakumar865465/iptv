@@ -278,10 +278,13 @@ exports.forgotPassword = async (req, res) => {
     // Use cryptographically secure OTP
     const otp = crypto.randomInt(100000, 999999).toString();
 
-    // Purge used/expired OTP rows so the table doesn't grow unboundedly
+    // Purge used/expired OTP rows globally to keep the table small
     await db.query('DELETE FROM password_reset_otps WHERE used = true OR expires_at < NOW()');
 
-    // Invalidate old OTPs and store new one
+    // Invalidate any still-valid OTPs for this email before issuing a new one
+    // so an attacker holding an intercepted OTP cannot use it after a new request.
+    await db.query('DELETE FROM password_reset_otps WHERE email = $1', [user.email]);
+
     const expiresAt = new Date(Date.now() + OTP_LIFETIME_MINUTES * 60 * 1000);
     await db.query(
       `INSERT INTO password_reset_otps (email, otp, expires_at)

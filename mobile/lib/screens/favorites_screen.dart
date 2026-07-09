@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
 import '../cubits/favorite_cubit.dart';
+import '../models/channel_model.dart';
+import '../widgets/favorites/favorites_empty_state.dart';
+import '../widgets/premium_channel_card.dart';
+import '../widgets/favorites/favorites_header.dart';
+import '../widgets/favorites/favorites_skeleton.dart';
+import 'channel_list_screen.dart';
 import 'player_screen.dart';
 
 class FavoritesScreen extends StatefulWidget {
@@ -18,81 +24,170 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     context.read<FavoriteCubit>().loadFavorites();
   }
 
+  void _exploreChannels() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const ChannelListScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(AppColors.background),
-      appBar: AppBar(
-        backgroundColor: const Color(AppColors.background),
-        elevation: 0,
-        title: const Text('Favorites', style: TextStyle(color: Colors.white)),
+      body: SafeArea(
+        child: BlocBuilder<FavoriteCubit, FavoriteState>(
+          builder: (context, state) {
+            if (state is FavoriteLoading) return const FavoritesSkeleton();
+            if (state is FavoriteError) return _buildError(state.message);
+            if (state is FavoriteLoaded) return _buildContent(state.favorites);
+            return const FavoritesSkeleton();
+          },
+        ),
       ),
-      body: BlocBuilder<FavoriteCubit, FavoriteState>(
-        builder: (context, state) {
-          if (state is FavoriteLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (state is FavoriteLoaded) {
-            if (state.favorites.isEmpty) {
-              return const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.favorite_outline, size: 64, color: Colors.white54),
-                    SizedBox(height: 16),
-                    Text('No favorites yet', style: TextStyle(color: Colors.white54)),
-                    SizedBox(height: 8),
-                    Text('Tap the heart icon on any channel to add it here',
-                        style: TextStyle(color: Colors.white38, fontSize: 12)),
-                  ],
+    );
+  }
+
+  Widget _buildContent(List<ChannelModel> favorites) {
+    if (favorites.isEmpty) {
+      return Column(
+        children: [
+          const FavoritesHeader(count: 0),
+          Expanded(
+            child: FavoritesEmptyState(onExploreChannels: _exploreChannels),
+          ),
+        ],
+      );
+    }
+
+    return RefreshIndicator(
+      color: const Color(AppColors.primary),
+      backgroundColor: const Color(AppColors.surface),
+      onRefresh: () => context.read<FavoriteCubit>().loadFavorites(),
+      displacement: 16,
+      strokeWidth: 2.5,
+      child: CustomScrollView(
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        slivers: [
+          SliverToBoxAdapter(
+            child: FavoritesHeader(count: favorites.length),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(14, 4, 14, 24),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.78,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final channel = favorites[index];
+                  return PremiumChannelCard(
+                    channel: channel,
+                    variant: PremiumChannelCardVariant.grid,
+                    showFavorite: true,
+                    onTap: () => _openPlayer(channel, favorites, index),
+                  );
+                },
+                childCount: favorites.length,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildError(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 48),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(AppColors.error).withOpacity(0.08),
+                border: Border.all(
+                  color: const Color(AppColors.error).withOpacity(0.15),
+                  width: 1,
                 ),
-              );
-            }
-            return ListView.builder(
-              itemCount: state.favorites.length,
-              itemBuilder: (context, index) {
-                final channel = state.favorites[index];
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: const Color(AppColors.surfaceLight),
-                    child: Text(channel.name.substring(0, 1), style: const TextStyle(color: Colors.white)),
+              ),
+              child: const Icon(
+                Icons.error_outline_rounded,
+                size: 36,
+                color: Color(AppColors.error),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Couldn’t load favorites',
+              style: TextStyle(
+                color: Color(AppColors.textPrimary),
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message.isNotEmpty ? message : 'Please try again.',
+              style: const TextStyle(
+                color: Color(AppColors.textMuted),
+                fontSize: 13,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: 160,
+              child: ElevatedButton.icon(
+                onPressed: () => context.read<FavoriteCubit>().loadFavorites(),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Retry'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(AppColors.primary),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  title: Text(channel.name, style: const TextStyle(color: Colors.white)),
-                  subtitle: Text(channel.categoryName ?? '', style: const TextStyle(color: Colors.white54)),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.favorite, color: Color(AppColors.primary)),
-                        onPressed: () {
-                          context.read<FavoriteCubit>().toggleFavorite(channel.id, isFavorite: true);
-                        },
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(4)),
-                        child: const Text('LIVE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
-                      ),
-                    ],
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
                   ),
-                  onTap: () {
-                    // Pass favorites list for prev/next navigation within favorites
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => PlayerScreen(
-                        channel: channel,
-                        channels: state.favorites,
-                        initialIndex: index,
-                        sourceType: PlayerSourceType.favorites,
-                        sourceFilters: const ChannelSourceFilters(),
-                      )),
-                    );
-                  },
-                );
-              },
-            );
-          }
-          return const Center(child: Text('Error loading favorites', style: TextStyle(color: Colors.white54)));
-        },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openPlayer(ChannelModel channel, List<ChannelModel> list, int index) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (_, anim, __) => PlayerScreen(
+          channel: channel,
+          channels: list,
+          initialIndex: index,
+          sourceType: PlayerSourceType.favorites,
+          sourceFilters: const ChannelSourceFilters(),
+        ),
+        transitionsBuilder: (_, anim, __, child) =>
+            FadeTransition(opacity: anim, child: child),
+        transitionDuration: const Duration(milliseconds: 220),
       ),
     );
   }

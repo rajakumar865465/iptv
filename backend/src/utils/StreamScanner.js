@@ -162,7 +162,7 @@ class StreamScanner {
   }
 
   _extractBestVariant(body, baseUrl) {
-    const lines = body.split('\\n');
+    const lines = body.split('\n');
     let bestBw = -1;
     let bestUrl = null;
     for (let i = 0; i < lines.length; i++) {
@@ -183,7 +183,7 @@ class StreamScanner {
 
   _extractSegments(body, baseUrl) {
     const segments = [];
-    const lines = body.split('\\n');
+    const lines = body.split('\n');
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i].trim();
       if (!l.startsWith('#') && l) {

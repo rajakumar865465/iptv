@@ -1,8 +1,8 @@
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
 
-// PLAYABLE health statuses (mirrors channelController)
-const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable'];
+// PLAYABLE health statuses — must match channelController.js
+const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable', 'unknown'];
 const ALLOW_UNKNOWN = process.env.ALLOW_UNKNOWN_STREAMS === 'true';
 
 const formatChannelRow = (req, row) => {
@@ -54,10 +54,8 @@ async function checkHealthStatusColumn() {
  */
 function buildHealthFilter(paramIndex) {
   const statusList = WORKING_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
-  let fragment = `c.health_status IN (${statusList})`;
-  if (ALLOW_UNKNOWN) {
-    fragment = `(${fragment} OR c.health_status IS NULL OR c.health_status = 'unknown')`;
-  }
+  // Always allow NULL (unscanned) and 'unknown'; ALLOW_UNKNOWN kept for backwards compat
+  let fragment = `(c.health_status IS NULL OR c.health_status IN (${statusList}))`;
   return { fragment, params: [...WORKING_STATUSES], nextIndex: paramIndex + WORKING_STATUSES.length };
 }
 
@@ -200,9 +198,9 @@ exports.getHome = async (req, res) => {
         `SELECT c.*, cat.name AS category_name
          FROM channels c ${JOIN}
          ${BASE_WHERE}
-           AND (c.is_popular = true OR c.is_featured = true OR COALESCE(c.popularity_score, 0) > 0)
          ORDER BY
            CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
+           CASE WHEN c.is_popular = true THEN 0 ELSE 1 END,
            COALESCE(c.popularity_score, 0) DESC,
            COALESCE(c.watch_count, 0) DESC,
            COALESCE(c.sort_order, 999) ASC,

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../services/auth_service.dart';
@@ -52,11 +53,18 @@ class AuthCubit extends Cubit<AuthState> {
     } catch (e) {
       if (e is DioException) {
         final statusCode = e.response?.statusCode;
-        final data = e.response?.data;
+        // On Flutter web, Dio returns error response bodies as raw String instead of
+        // a parsed Map. Parse manually so DEVICE_LIMIT_REACHED is always detected.
+        var raw = e.response?.data;
+        Map<String, dynamic>? data;
+        if (raw is Map<String, dynamic>) {
+          data = raw;
+        } else if (raw is String) {
+          try { data = jsonDecode(raw) as Map<String, dynamic>?; } catch (_) {}
+        }
         String message = 'Login failed. Please check your credentials.';
 
-        // First try to extract message from JSON response body
-        if (data is Map<String, dynamic> && data['message'] != null) {
+        if (data != null && data['message'] != null) {
           if (data['error'] == 'DEVICE_LIMIT_REACHED') {
             emit(AuthDeviceLimitReached(email, password, data['message'].toString()));
             return;
@@ -102,9 +110,15 @@ class AuthCubit extends Cubit<AuthState> {
     } catch (e) {
       if (e is DioException) {
         final statusCode = e.response?.statusCode;
-        final data = e.response?.data;
+        var rawS = e.response?.data;
+        Map<String, dynamic>? data;
+        if (rawS is Map<String, dynamic>) {
+          data = rawS;
+        } else if (rawS is String) {
+          try { data = jsonDecode(rawS) as Map<String, dynamic>?; } catch (_) {}
+        }
         String message = 'Signup failed. Please try again.';
-        if (data is Map<String, dynamic> && data['message'] != null) {
+        if (data != null && data['message'] != null) {
           message = data['message'].toString();
         } else if (statusCode == 409) {
           message = 'Email or mobile number already registered.';
