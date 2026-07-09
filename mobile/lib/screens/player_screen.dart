@@ -227,6 +227,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   int _nextPage = 1;
   Timer? _controlsTimer;
   final GlobalKey _videoKey = GlobalKey();
+  int _initId = 0; // Tracks initialization sequences to prevent concurrent media_kit worker overlaps
 
   List<dynamic> _backupStreams = [];
   Map<String, dynamic>? _currentStreamMeta;
@@ -1059,12 +1060,17 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   Future<void> _initializePlayer(String url, [Map<String, dynamic>? rawHeaders, Duration? startPosition]) async {
     _currentUrl = url;
+    final int myInitId = ++_initId;
+    
     try {
       // Prevent rapid-switch crashes on Web: wait for the previous stream to completely stop 
       // before destroying its subscriptions and opening a new one.
       await _player.stop();
     } catch (_) {}
     
+    // If another initialize request started while we were stopping, abort this one silently
+    if (_initId != myInitId) return;
+
     _playerSubscription?.cancel();
     _playerSubscription = null;
     _playerErrorSubscription?.cancel();
@@ -1243,6 +1249,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // Fix: Use open(play: true) — removes redundant play() call
       // IMPORTANT: Do NOT seek() for live stream recovery — it can jump to the beginning
       // or fail outright. Let libmpv start from the live edge via reconnect=1.
+      
+      // Final concurrency check before we officially bind this media to the player instance
+      if (_initId != myInitId) return;
+
       await _player.stop();
       await _player.open(media, play: true);
       _playerInitialized = true;
