@@ -111,45 +111,26 @@ exports.getSmoothPlayback = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Channel not available', error_code: 'CHANNEL_NOT_AVAILABLE' });
     }
 
-    // Channel has DRM/geo-block/unlicensed status — never buffer
-    if (BLOCKED_STATUSES.has(ch.health_status)) {
-      return success(res, {
-        playback_mode: 'requires_licensed_source',
-        delay_seconds: 0,
-        delayed_stream_url: null,
-        buffer_ready: false,
-        buffer_depth_seconds: 0,
-        primary_stream_id: parseInt(id),
-        health_status: ch.health_status,
-        buffer_quality_status: 'requires_licensed_source',
-        gap_warning: false,
-        can_go_live: false,
-        direct_live_url: null,
-        message: 'This channel requires a licensed source and cannot be buffered.',
-      });
-    }
-
     // Determine whether Go Live (direct live) is allowed for this channel
     const directLiveUrl = ch.stream_url || null;
     const canGoLive = !!directLiveUrl && !BLOCKED_STATUSES.has(ch.health_status);
 
-    // Smooth playback not enabled — return direct mode
-    if (!ch.smooth_playback_enabled || ch.restream_mode === 'direct') {
-      return success(res, {
-        playback_mode: 'direct',
-        delay_seconds: 0,
-        delayed_stream_url: null,
-        buffer_ready: false,
-        buffer_depth_seconds: 0,
-        primary_stream_id: parseInt(id),
-        health_status: ch.health_status || 'unknown',
-        buffer_quality_status: ch.buffer_quality_status || 'clean_buffer',
-        gap_warning: false,
-        smooth_playback_enabled: false,
-        direct_live_url: directLiveUrl,
-        can_go_live: canGoLive,
-      });
-    }
+    // Smooth playback is disabled globally per user request. Always fallback to direct live video.
+    return success(res, {
+      playback_mode: 'direct',
+      delay_seconds: 0,
+      delayed_stream_url: null,
+      buffer_ready: false,
+      buffer_depth_seconds: 0,
+      primary_stream_id: parseInt(id),
+      health_status: ch.health_status || 'unknown',
+      buffer_quality_status: 'clean_buffer',
+      gap_warning: false,
+      smooth_playback_enabled: false,
+      direct_live_url: directLiveUrl,
+      can_go_live: canGoLive,
+      message: 'Smooth playback is disabled. Playing direct live video.',
+    });
 
     const smoothToken = generateSmoothToken(id, req.user?.id || null);
     const delayedUrl = `${baseUrl}/api/smooth/${id}/playlist.m3u8?t=${smoothToken}`;

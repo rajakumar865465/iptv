@@ -17,13 +17,10 @@ import 'package:flutter/foundation.dart';
 class BackendConfig {
   static const bool isDev = !kReleaseMode;
 
-  static const String baseUrl = String.fromEnvironment(
-    'BACKEND_URL',
-    // Default to the production server so users don't get the missing URL error
-    // if they forget the --dart-define flag during build.
-    defaultValue: 'http://35.154.128.217:5000',
-  );
-
-  /// Validates that the backend URL is configured. Call before runApp.
+  /// Default backend URL used for the IPTV app
+  /// Update this whenever you redeploy your Node.js backend.
+  static const String baseUrl = 'http://35.174.78.33:5000';
+  
+  /// Base URL to fetch channel data (if not using the backend API directly)
   static bool get isConfigured => baseUrl.isNotEmpty;
 }

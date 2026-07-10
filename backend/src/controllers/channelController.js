@@ -1163,23 +1163,8 @@ exports.getChannelPlayback = async (req, res) => {
       gap_handling_mode: channel.gap_handling_mode || 'skip_missing_chunks',
       allow_skip_missing_segments: channel.allow_skip_missing_segments !== false,
       // gap_warning = true tells the Flutter app to show the small unstable-source overlay
-      gap_warning: (
-        channel.buffer_quality_status === 'skipping_missing_segments' ||
-        channel.buffer_quality_status === 'minor_gaps' ||
-        channel.buffer_quality_status === 'gap_repaired' ||
-        channel.buffer_quality_status === 'using_backup_segments' ||
-        channel.buffer_quality_status === 'using_lower_quality_segments'
-      ),
-      gap_warning_message: (
-        channel.buffer_quality_status === 'skipping_missing_segments'
-          ? 'Channel source is unstable. Skipping unavailable part...'
-          : (channel.buffer_quality_status === 'skipping_missing_segments' ||
-             channel.buffer_quality_status === 'minor_gaps' ||
-             channel.buffer_quality_status === 'gap_repaired' ||
-             channel.buffer_quality_status === 'using_backup_segments' ||
-             channel.buffer_quality_status === 'using_lower_quality_segments')
-            ? 'Channel source is unstable. Continuing playback...' : null
-      ),
+      gap_warning: false,
+      gap_warning_message: null,
       // Go Live — only available when there is a direct live URL and channel is not blocked
       direct_live_url: channel.stream_url || null,
       can_go_live: !!(channel.stream_url) && !channel.is_hidden && !channel.is_removed &&
