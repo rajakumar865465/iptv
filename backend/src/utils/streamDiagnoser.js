@@ -349,21 +349,21 @@ async function diagnoseStream(streamUrl, inputHeaders = {}) {
     }
   }
 
-  // Find first segment URL
+  // Find safest segment URL (the last one in the playlist for live streams to avoid 404 on rotation)
   let segRelUrl = null;
   const lines = mediaBody.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i].trim();
     if (l.startsWith('#EXTINF') && lines[i + 1]) {
       const next = lines[i + 1].trim();
-      if (next && !next.startsWith('#')) { segRelUrl = next; break; }
+      if (next && !next.startsWith('#')) { segRelUrl = next; }
     }
   }
   if (!segRelUrl) {
     for (const l of lines) {
       const t = l.trim();
       if (t && !t.startsWith('#') && (t.endsWith('.ts') || t.endsWith('.mp4') || t.endsWith('.aac') || t.startsWith('http') || t.includes('segment'))) {
-        segRelUrl = t; break;
+        segRelUrl = t;
       }
     }
   }

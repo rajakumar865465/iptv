@@ -342,16 +342,21 @@ exports.recheckStream = async (req, res) => {
       diagResult = await streamDiagnoser.diagnoseStream(urlToCheck, headers);
     } catch (diagErr) {
       diagResult = {
-        status: 'unknown',
+        health_status: 'unknown',
         healthScore: 50,
-        healthReason: `Diagnoser error: ${diagErr.message}`,
+        health_reason: `Diagnoser error: ${diagErr.message}`,
       };
     }
 
-    const newStatus    = diagResult.status      || 'unknown';
-    const newScore     = diagResult.healthScore ?? 50;
-    const newReason    = diagResult.healthReason || null;
-    const now          = new Date();
+    let newStatus = diagResult.health_status || diagResult.status || 'unknown';
+    if (newStatus === 'online') newStatus = 'working';
+    
+    let newScore = diagResult.healthScore ?? 50;
+    if (newStatus === 'working') newScore = Math.max(newScore, 80);
+    else if (newStatus === 'offline') newScore = Math.min(newScore, 20);
+
+    const newReason = diagResult.health_reason || diagResult.healthReason || null;
+    const now = new Date();
 
     // Update channel_streams if we have a primary stream record
     if (row.cs_id) {
