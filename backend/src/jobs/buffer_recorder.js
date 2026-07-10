@@ -63,6 +63,7 @@ const pendingRecorders = new Set();
 // ── Public API ────────────────────────────────────────────────────────────────
 
 async function startRecorder(channelId) {
+  return; // Disabled per user request
   if (activeRecorders.has(channelId)) return;
   if (pendingRecorders.has(channelId)) return;
 
