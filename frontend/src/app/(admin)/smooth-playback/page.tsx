@@ -474,36 +474,7 @@ export default function SmoothPlaybackPage() {
                         <div className="text-xs text-gray-400 mt-1">{ch.recorder_status_detail.replace(/_/g, ' ')}</div>
                       )}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="text-xs text-gray-300 space-y-1">
-                        {ch.needs_manual_verification && (
-                          <div className="text-amber-300">Needs manual verification</div>
-                        )}
-                        {ch.recorder_stream_id && (
-                          <div>Stream: #{ch.recorder_stream_id}</div>
-                        )}
-                        {ch.recorder_stream_url && (
-                          <div className="truncate max-w-xs" title={ch.recorder_stream_url}>Current: {ch.recorder_stream_url}</div>
-                        )}
-                        {ch.recorder_failed_stream_url && (
-                          <div className="text-red-300 truncate max-w-xs" title={ch.recorder_failed_stream_url}>Failed: {ch.recorder_failed_stream_url}</div>
-                        )}
-                        {ch.recorder_backup_stream_url && (
-                          <div className="text-cyan-300 truncate max-w-xs" title={ch.recorder_backup_stream_url}>Backup: {ch.recorder_backup_stream_url}</div>
-                        )}
-                        {ch.recorder_fail_count > 0 && (
-                          <div className="text-orange-400">Fails: {ch.recorder_fail_count}</div>
-                        )}
-                        {ch.recorder_backup_attempts > 0 && (
-                          <div className="text-cyan-400">Backups: {ch.recorder_backup_attempts}</div>
-                        )}
-                        {ch.recorder_last_failure_at && (
-                          <div className="text-red-400 truncate max-w-xs" title={ch.recorder_last_failure_reason || ''}>
-                            Last fail: {new Date(ch.recorder_last_failure_at).toLocaleTimeString()}
-                          </div>
-                        )}
-                      </div>
-                    </td>
+
                     <td className="px-4 py-3">
                       <div>
                         <StatusBadge status={ch.buffer_quality_status || 'clean_buffer'} />
