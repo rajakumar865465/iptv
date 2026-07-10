@@ -1,0 +1,137 @@
+9X Jalwa (1080p) | https://b.jsrdn.com/strm/channels/9xjalwa/master.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_9X_JALWA/images/LOGO_HD/image.png | HTTP 200
+9XM (1080p) | https://9xjio.wiseplayout.com/9XM/master.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_9XM/images/LOGO_HD/image.png | HTTP 200
+22Scope News (1080p) | https://thelegitpro.in/HDlive/22scope/index.fmp4.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/22Scope_News.png | HTTP 200
+&TV International (1080p) | https://amg01117-amg01117c1-amgplt0029.playout.now3.amagi.tv/playlist/amg01117-amg01117c1-amgplt0029/playlist.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_SYMANDTV/images/LOGO_HD/LOGO_HD_image.png | HTTP 200
+Aaj Tak HD (1080p) | https://feeds.intoday.in/aajtak/api/aajtakhd/master.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_AAJ_TAK/images/LOGO_HD/image.png | HTTP 200
+Aastha Bhajan (576p) | https://mumt05.tangotv.in/87NeALx2AASTHABHAJAN/index.m3u8 | logo=https://dtil.tmsimg.com/assets/s142514_ld_h15_aa.png?lock=720x540 | HTTP 200
+Aastha Prime 1 (720p) | https://aasthaott.akamaized.net/110923/smil:aasthaprime1.smil/master.m3u8 | logo=https://i.imgur.com/LyWSMJS.png | HTTP 200
+ABN TV India (540p) | https://mediaserver.abnvideos.com/streams/abntvindia.m3u8 | logo=https://i.imgur.com/VcZn60X.png | HTTP 200
+ABP Ganga (1080p) | https://d2l4ar6y3mrs4k.cloudfront.net/live-streaming/ganga-livetv/master.m3u8 | logo=https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/ABP_Ganga.svg/500px-ABP_Ganga.svg.png | HTTP 200
+ABP News (1080p) | https://d1rc86nwwc9fag.cloudfront.net/vglive-sk-472500/abpnews/master.m3u8 | logo=https://dtil.tmsimg.com/assets/s158138_ld_h15_aa.png?lock=720x540 | HTTP 200
+Adhyatm TV (720p) | https://mumbai-edge.smartplaytv.in/AdhyatmTV/index.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/Adhyatam_TV.png | HTTP 200
+All Time Movies (576p) | https://mumt03.tangotv.in/Dsly5z3HALLTIMEMOVIES/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_ALL_TIME_MOVIES/images/LOGO_HD/image.png | HTTP 200
+AmarUjala (1080p) | https://amarujala.ottlive.co.in/amarujala/index.m3u8 | logo=https://i.imgur.com/ndQ8LZp.png | HTTP 200
+Anand TV (1080p) | https://live.legitpro.co.in/anandtv/index.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/Anand_TV.png | HTTP 200
+ANB News (720p) | https://server.livelegitpro.in:9899/anbnews/anbnews/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_ANB_NEWS/images/LOGO_HD/image.png | HTTP 200
+Andy Haryana (576p) | https://mumt03.tangotv.in/Dsly5z3HANDYHARYANA/index.m3u8 | logo=https://i.imgur.com/rmCBD3e.png | HTTP 200
+Anjan TV (720p) | https://anjan.vstream.online/anjanorg/ngrp:anjan_hdall/playlist.m3u8 | logo=https://i.imgur.com/sh0yFSf.png | HTTP 200
+like Gecko) Chrome/147.0.0.0 Safari/537.36" group-title="Movies",Anmol Cinema (576p) | http://103.175.73.12:8080/live/271/271_0.m3u8 | logo=https://dtil.tmsimg.com/assets/GNLZZGG00260YG8.png?lock=720x540 | HTTP 200
+like Gecko) Chrome/147.0.0.0 Safari/537.36" group-title="Movies",Anmol Cinema 2 (576p) | http://103.175.73.12:8080/live/257/257_0.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_ZEE_ANMOL_CINEMA_2/images/LOGO_HD/LOGO_HD_image.png | HTTP 200
+like Gecko) Chrome/147.0.0.0 Safari/537.36" group-title="Entertainment",Anmol TV (576p) | http://103.175.73.12:8080/live/256/256_0.m3u8 | logo=https://dtil.tmsimg.com/assets/GNLZZGG00260HWS.png?lock=720x540 | HTTP 200
+Apna Punjab TV (720p) | https://plus.gigabitcdn.net/live-stream/apna-punjab-H3sE/playlist.m3u8 | logo=https://i.imgur.com/IM4D8Wz.png | HTTP 200
+Aradana TV (576p) | https://cdn-1.pishow.tv/live/961/master.m3u8 | logo=https://dtil.tmsimg.com/assets/s142649_ld_h9_aa.png?lock=720x540 | HTTP 200
+Aryan TV National (576p) | https://mumt04.tangotv.in/m18aqlK4ARYANTVNATIONAL/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_ARYAN_TV_NATIONAL/images/LOGO_HD/image.png | HTTP 200
+Awaaz India TV (720p) [Not 24/7] | https://awaazindia.livebox.co.in/AwaazIndaTVhls/Live.m3u8 | logo=https://i.imgur.com/eKQs51V.png | HTTP 200
+B4U Movies (1080p) [Geo-blocked] | https://amg00877-b4unew-amg00877c2-lg-in-5260.playouts.now.amagi.tv/playlist.m3u8 | logo=https://i.imgur.com/M9kMFJl.png | HTTP 200
+B4U Music (576p) | https://cdn-2.pishow.tv/live/415/master.m3u8 | logo=https://dtil.tmsimg.com/assets/s158141_ld_h15_aa.png?lock=720x540 | HTTP 200
+Bansal News (720p) | https://8yzmq2gbdvax-hls-live.wmncdn.net/bansalnewstv1/live1.stream/playlist.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_BANSAL_NEWS/images/LOGO_HD/image.png | HTTP 200
+like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0" group-title="News",Bharat24 (1080p) | https://cdn.ottlive.co.in/bharat24/index.fmp4.m3u8 | logo=https://dtil.tmsimg.com/assets/s142710_ld_h15_aa.png?lock=720x540 | HTTP 200
+Big Magic (576p) | https://mumt05.tangotv.in/87NeALx2BIGMAGIC/index.m3u8 | logo=https://dtil.tmsimg.com/assets/GNLZZGG002YJ850.png?lock=720x540 | HTTP 200
+Bollywood HD Russia (576p) | https://xykt-fix.github.io/cinerama_edge01/hls/BOLLYWOOD_RU/Movie009.m3u8 | logo=https://i.imgur.com/scDKOLS.png | HTTP 200
+Channel Divya (1080p) | https://vg-pitaaratvlive.akamaized.net/v1/vglive-sk-906482/playlist.m3u8 | logo=https://dtil.tmsimg.com/assets/s143010_ld_h15_aa.png?lock=720x540 | HTTP 200
+Channel Y (720p) [Not 24/7] | http://cdn19.live247stream.com/channely/tv/playlist.m3u8 | logo=https://i.imgur.com/OqSl2Qf.png | HTTP 200
+CNBC Awaaz (1080p) | https://n18syndication.akamaized.net/bpk-tv/CNBC_Awaaz_NW18_MOB/output01/master.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/CNBCAwaaz.png | HTTP 200
+Cnews Bharat (720p) | https://legitpro.co.in/cnews/cnews/index.fmp4.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/C_News_Bharat.png | HTTP 200
+DD Arun Prabha (360p) | https://d2lk5u59tns74c.cloudfront.net/out/v1/308556d9fd1246adb479ef012a39bbfe/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_DD_ARUNPRABHA/images/LOGO_HD/image.png | HTTP 200
+DD Bihar (720p) | https://cdn-4.pishow.tv/live/35/master.m3u8 | logo=https://i.imgur.com/C7KQiZI.png | HTTP 200
+DD Chhattisgarh (720p) | https://cdn-1.pishow.tv/live/15/master.m3u8 | logo=https://i.imgur.com/zBg6Iuv.png | HTTP 200
+DD Haryana (504p) | https://d2lk5u59tns74c.cloudfront.net/out/v1/950fc69666474351bde0a32b9600c804/index.m3u8 | logo=https://ltsk-cdn.s3.eu-west-1.amazonaws.com/jumpstart/Temp_Live/cdn/HLS/Channel/transparentImages/DD-Haryana-Logo_2000_X_1125_Transpharent.png | HTTP 200
+DD Himachal Pradesh (504p) | https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/afd2e335b0ba40eb9bdf1096118c6ede/index.m3u8 | logo=https://dtil.tmsimg.com/assets/s142785_ld_h9_aa.png?lock=720x540 | HTTP 200
+DD Jharkhand (504p) | https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/e8c3741f8c154d3185831f4e31777fb2/index.m3u8 | logo=https://dtil.tmsimg.com/assets/s142787_ld_h15_aa.png?lock=720x540 | HTTP 200
+DD Kisan (720p) | https://cdn-6.pishow.tv/live/9/master.m3u8 | logo=https://i.imgur.com/x56WJEa.png | HTTP 200
+DD Madhya Pradesh (720p) | https://cdn-1.pishow.tv/live/31/master.m3u8 | logo=https://dtil.tmsimg.com/assets/s142790_ld_h15_aa.png?lock=720x540 | HTTP 200
+DD Manipur (504p) | https://d2lk5u59tns74c.cloudfront.net/out/v1/8b75afc6576f450e8f554b6c877681d2/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_DD_IMPHAL/images/LOGO_HD/image.png | HTTP 200
+DD National HD (1080p) | https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/40492a64c1db4a1385ba1a397d357d3a/index.m3u8 | logo=https://ltsk-cdn.s3.eu-west-1.amazonaws.com/jumpstart/Temp_Live/cdn/HLS/Channel/transparentImages/DD%20National.png | HTTP 200
+DD National SD (576p) | https://cdn-1.pishow.tv/live/11/master.m3u8 | logo=https://ltsk-cdn.s3.eu-west-1.amazonaws.com/jumpstart/Temp_Live/cdn/HLS/Channel/transparentImages/DD%20National.png | HTTP 200
+DD News HD (1080p) | https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/0811cd8c37ca4c409d5385a6cd2fa18b/index.m3u8 | logo=https://ltsk-cdn.s3.eu-west-1.amazonaws.com/jumpstart/Temp_Live/cdn/HLS/Channel/transparentImages/DD%20News%20HD.png | HTTP 200
+DD Rajasthan (720p) | https://cdn-1.pishow.tv/live/34/master.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_DD_RAJASTHAN/images/LOGO_HD/image.png | HTTP 200
+DD Sports SD (1080p) | https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/b17adfe543354fdd8d189b110617cddd/index.m3u8 | logo=https://dtil.tmsimg.com/assets/s158255_ld_h15_aa.png?lock=720x540 | HTTP 200
+DD Urdu (720p) | https://cdn-4.pishow.tv/live/8/master.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_DD_URDU/images/LOGO_HD/image.png | HTTP 200
+DD Uttar Pradesh (720p) | https://cdn-1.pishow.tv/live/36/master.m3u8 | logo=https://dtil.tmsimg.com/assets/s142807_ld_h9_ab.png?lock=720x540 | HTTP 200
+DD Uttarakhand (720p) | https://cdn-1.pishow.tv/live/17/master.m3u8 | logo=https://dtil.tmsimg.com/assets/s142809_ld_h15_aa.png?lock=720x540 | HTTP 200
+Dheeran TV (576p) | https://live.we2live.in/dheerantv/dheerantv/playlist.m3u8 | logo=https://i.imgur.com/jSedjXf.png | HTTP 200
+Dish Buzz (720p) | http://217.20.112.199:8080/animalplanet/index.m3u8 | logo=https://dtil.tmsimg.com/assets/GNLZZGG002C5PXK.png?lock=720x540 | HTTP 200
+Fateh TV (1080p) [Not 24/7] | https://ott.livelegitpro.in/fatehtv/fatehtv/index.m3u8 | logo=https://i.imgur.com/c4ItNkB.png | HTTP 200
+Food Food (576p) | https://mumt03.tangotv.in/Dsly5z3HFOODFOOD/index.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/Food_Food.png | HTTP 200
+Gangaur TV (1080p) | https://pbgangaur.wiseplayout.com/Gangaur/master.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/Gangaur.png | HTTP 200
+God Stands TV Hindi | https://online.godstands.tv:5443/WebRTCApp/streams/HindiStreaming.m3u8 | logo=https://i.imgur.com/EO6cYUI.png | HTTP 200
+Goldmines 2 (576p) | https://cdn-2.pishow.tv/live/1460/master.m3u8 | logo= | HTTP 200
+like Gecko) Chrome/147.0.0.0 Safari/537.36" group-title="Movies",Goldmines Bollywood (576p) | http://103.175.73.12:8080/live/52/52_0.m3u8 | logo=https://i.imgur.com/6mNQ9mM.png | HTTP 200
+GurSikh Sabha TV (720p) [Not 24/7] | http://cdn12.henico.net:8080/live/gsctv/index.m3u8 | logo=https://i.imgur.com/2EKCtQm.png | HTTP 200
+Gyandarshan (720p) | https://cdn-6.pishow.tv/live/14/master.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_GYANDARSHAN/images/LOGO_HD/image.png | HTTP 200
+Hare Krsna TV (1080p) | https://hktv.harekrsnatv.com/HKTV/HKWebApp/manifest.mpd | logo=https://dtil.tmsimg.com/assets/s143102_ld_h15_aa.png?lock=720x540 | HTTP 200
+HNN 24x7 (576p) | https://ott.livelegitpro.in:9899/hnnnews/hnnnews/tracks-v1/index.fmp4.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/HNN24x7.png | HTTP 200
+IBC 24 (720p) | https://cdn-3.pishow.tv/live/220/master.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_IBC24/images/LOGO_HD/image.png | HTTP 200
+India Daily Live (1080p) | https://indiadaily.ottlive.co.in/indiadailylive/index.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/India_Daily_24x7.png | HTTP 200
+India TV (720p) | https://pl-indiatvnews.akamaized.net/out/v1/db79179b608641ceaa5a4d0dd0dca8da/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_INDIA_TV/images/LOGO_HD/image.png | HTTP 200
+India TV Aap Ki Adalat (1080p) [Geo-blocked] | https://amg01550-amg01550c6-samsung-in-4679.playouts.now.amagi.tv/playlist/amg01550-indiatvfast-indiatvakasamsung-samsungin/playlist.m3u8 | logo=https://play-lh.googleusercontent.com/2IlBX3IQHna8g4g-56vwGWb14K38spcviIh3i7uJCJ32ydfhcKZdOsacgijPkPeerEA | HTTP 200
+Ishwar Bhakti TV (720p) | https://6n3yow8pl9ok-hls-live.5centscdn.com/ishwartvlive/tv.stream/playlist.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_ISHWAR_TV/images/LOGO_HD/image.png | HTTP 200
+Jan TV (576p) | https://cdn-6.pishow.tv/live/10004/master.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_JAN_TV/images/LOGO_HD/image.png | HTTP 200
+Janta TV (1080p) | https://live.jswk.online/IK_RTPM/live/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_JANTA_TV/images/LOGO_HD/image.png | HTTP 200
+Jinvani Channel (720p) | https://cdn-2.pishow.tv/live/989/master.m3u8 | logo=https://dtil.tmsimg.com/assets/s143230_ld_h15_aa.png?lock=720x540 | HTTP 200
+K News India (576p) | https://mumt02.tangotv.in/KNEWSINDIA/index.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/K_News_India.png | HTTP 200
+Kanshi TV (720p) [Not 24/7] | https://live.kanshitv.co.uk/mobile/kanshitvkey.m3u8 | logo=https://i.imgur.com/w6uXMrK.png | HTTP 200
+Kashish News (720p) | https://server.thelegitpro.in/kashishnews/kashishnews/index.m3u8 | logo=https://i.imgur.com/qfINs2r.png | HTTP 200
+Kaumudy TV (720p) | https://oqgdrkxby4rm-hls-live.5centscdn.com/kaumudytv/live.stream/playlist.m3u8 | logo=https://dtil.tmsimg.com/assets/s143259_ld_h15_aa.png?lock=720x540 | HTTP 200
+Lighting Lives Blessing Nations TV South Asia (LLBN) (480p) | https://brightstar-southasia-pull-secure.akamaized.net/brightstarsouthasia/stream.m3u8 | logo=https://i.imgur.com/WsOfy19.png | HTTP 200
+Maha Movie (576p) | https://cdn-6.pishow.tv/live/10007/master.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/Maha_Movies.png | HTTP 200
+Manoranjan Grand (720p) | https://cdn-1.pishow.tv/live/1011/master.m3u8 | logo=https://dtil.tmsimg.com/assets/s143302_ld_h15_aa.png?lock=720x540 | HTTP 200
+MBC Bollywood (1080p) [Geo-blocked] | https://shd-gcp-live.edgenextcdn.net/live/bitmovin-mbc-bollywood/546eb40d7dcf9a209255dd2496903764/index.m3u8 | logo=https://i.imgur.com/TTAGFHG.png | HTTP 200
+Mercy TV (1080p) | https://5dd3981940faa.streamlock.net/mercytv/mercytv/playlist.m3u8 | logo=https://i.imgur.com/klNH4tV.png | HTTP 200
+MoviePlex (576p) | https://mumt04.tangotv.in/m18aqlK4MOVIEPLEX/index.m3u8 | logo=https://i.imgur.com/THJEAqJ.png | HTTP 200
+MTA2 Europe (720p) | https://chlivemta1.akamaized.net/hls/live/2008145/mta2/playlist.m3u8 | logo=https://i.imgur.com/aVts0sz.png | HTTP 200
+MTA7 Asia (1080p) | https://livemtaasia.akamaized.net/hls/live/2039224/mtaasia2/playlist.m3u8 | logo=https://i.imgur.com/3Nl8Tpu.png | HTTP 200
+Music India (720p) [Not 24/7] | https://cdn-2.pishow.tv/live/226/master.m3u8 | logo=https://dtil.tmsimg.com/assets/s143563_ld_h15_aa.png?lock=720x540 | HTTP 200
+NDTV Good Times (1080p) | https://amg01448-samsungin-ndtvgoodtimes-samsungin-ad-gp.amagi.tv/playlist/amg01448-samsungin-ndtvgoodtimes-samsungin/playlist.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_GOOD_TIMES/images/LOGO_HD/image.png | HTTP 200 (m3u8 ok)
+News18 Madhya Pradesh/Chhattisgarh (1080p) | https://n18syndication.akamaized.net/bpk-tv/News18_MP_Chhattisgarh_NW18_MOB/output01/master.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_NEWS18_MADHYA_PRADESH_CHHATTISGARH/images/LOGO_HD/image.png | HTTP 200 (m3u8 ok)
+News Daily 24 (576p) | https://cdn-6.pishow.tv/live/10009/master.m3u8 | logo=https://i.imgur.com/lT8rihP.png | HTTP 200 (m3u8 ok)
+News Nation (1080p) | https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/6cd2f649739a45ca9de1daf81cc7d0f2/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_NEWS_NATION/images/LOGO_HD/image.png | HTTP 200 (m3u8 ok)
+Republic Bharat (1080p) | https://raw.githubusercontent.com/amazeyourself/adaptive-streams/refs/heads/main/streams/in/YuppTV/RepublicBharat.m3u8 | logo=https://dtil.tmsimg.com/assets/s143724_ld_h15_aa.png?lock=720x540 | HTTP 200 (m3u8 ok)
+Sansad TV 1 HD (1080p) | https://d2lk5u59tns74c.cloudfront.net/out/v1/fff8f20221d5456e8922e689d71dedc3/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_SANSAD_TV_SYMHYP_1_HD/images/LOGO_HD/LOGO_HD_image.png | HTTP 200
+Sansad TV 2 (1080p) | https://d2lk5u59tns74c.cloudfront.net/out/v1/e4182054dce340da9e0ff38b6b3658a4/index.m3u8 | logo=https://dtil.tmsimg.com/assets/s143761_ld_h15_aa.png?lock=720x540 | HTTP 200
+Sanskar TV (1080p) | https://d26idhjf0y1p2g.cloudfront.net/out/v1/cd66dd25b9774cb29943bab54bbf3e2f/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_SANSKAR/images/LOGO_HD/image.png | HTTP 200
+Sanskar UK (1080p) | https://d34z4embz0hjf6.cloudfront.net/out/v1/7ac2789ff9a544a49337d1ffc54ce61c/index.m3u8 | logo=https://i.imgur.com/AU5vSPF.png | HTTP 200
+Sanskar USA (1080p) | https://d2netiedy8cz3x.cloudfront.net/out/v1/9bf6fa4ac8d6432cb98da13b121ba3c2/index.m3u8 | logo=https://i.imgur.com/5WBWruX.png | HTTP 200
+Sanskar Web TV (1080p) | https://deatfcv3xdvi3.cloudfront.net/out/v1/7a43dd2f64e34ec28da1b4bd6923251a/index.m3u8 | logo=https://i.imgur.com/mu2B6hw.png | HTTP 200
+Santvani Channel (576p) | https://cdn-2.pishow.tv/live/475/master.m3u8 | logo=https://dtil.tmsimg.com/assets/s143763_ld_h15_aa.png?lock=720x540 | HTTP 200 (m3u8 ok)
+Satsang TV (1080p) | https://d2vfwvjxwtwq1t.cloudfront.net/out/v1/6b24239d5517495b986e7705490c6e65/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_SATSANG/images/LOGO_HD/image.png | HTTP 200
+Satsang Web TV (1080p) | https://d1ji7e9jbzm5g8.cloudfront.net/out/v1/769f22f64d80442889306b9c4abea63c/index.m3u8 | logo=https://i.imgur.com/40kNu1w.png | HTTP 200
+Shubh TV (1080p) | https://d2g1vdc6ozl2o8.cloudfront.net/out/v1/0a0dc7d7911b4fddbb4dfc963fdd4b9e/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_SHUBH_TV/images/LOGO_HD/image.png | HTTP 200
+Shubhsandesh TV (720p) [Not 24/7] | https://6284rn2xr7xv-hls-live.wmncdn.net/shubhsandeshtv1/live123.stream/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_SHUBHSANDESH_TV/images/LOGO_HD/image.png | HTTP 200
+Sony KAL Hindi (1080p) | https://wurlsonypicturestv.global.transmit.live/hls/68deeb1c0238cda82df543dd/v1/spt_sonykal_1/lg_us/latest/main/hls/playlist.m3u8 | logo=https://i.imgur.com/9Qq8DKh.png | HTTP 200
+Sony Wah (1080p) [Geo-blocked] | https://sl.vodep39240327.workers.dev/channel/SONY+WAH.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_SONY_WAH/images/LOGO_HD/image.png | HTTP 200 (m3u8 ok)
+Star Sports 1 Hindi (576p) | http://103.253.18.58:8000/play/a03o | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_STAR_SPORTS_1_HINDI/images/LOGO_HD/image.png | HTTP 200
+Steelbird Music (720p) [Not 24/7] | https://cdn2.in/SteelbirdMusicTVhls/live.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/Steelbird_Music.png | HTTP 200
+Sudarshan News (1080p) | https://ott.livelegitpro.in/sudarshannews/sudarshannews/tracks-v1/index.fmp4.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_SUDARSHAN_NEWS/images/LOGO_HD/image.png | HTTP 200
+Superhitz (720p) | https://live-evg5.tv360.bitel.com.pe/bitel/fillka/playlist.m3u8 | logo=https://i.imgur.com/aRNBvTU.png | HTTP 200
+SVBC 4 (1080p) | https://player.mslivestream.net/mslive/13a2927187b9700ae7ea82d7841d5b68.sdp/playlist.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/SVBC4.png | HTTP 200 (m3u8 ok)
+Swadesh News (720p) | https://cdn-2.pishow.tv/live/465/master.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/Swadesh_News.png | HTTP 200
+Swaraj Express SMBC (720p) [Not 24/7] | https://cdn-2.pishow.tv/live/477/master.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/SMBC_TV.png | HTTP 200
+Taaza TV (720p) | https://live.we2live.in/taazatv/live/playlist.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/Taaza_TV.png | HTTP 200 (m3u8 ok)
+The Movie Club +2 (1080p) | https://d3gnyty2vddhsg.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/pb-ytipwjqub3kf8/TMC2_IN.m3u8?ads.ads_cdn=cf&ads.cdn=cf | logo=https://tvpnlogopus.samsungcloud.tv/platform/image/sourcelogo/vc/00/02/34/IN40000100Y_20260204T004058SQUARE.png | HTTP 200 (m3u8 ok)
+Times Now Navbharat (1080p) | https://raw.githubusercontent.com/amazeyourself/adaptive-streams/refs/heads/main/streams/in/YuppTV/TimesNowNavbharat.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_TIMES_NOW_NAVBHARAT_HD/images/LOGO_HD/image.png | HTTP 200 (m3u8 ok)
+Total Bhakti (1080p) | https://d34z4embz0hjf6.cloudfront.net/out/v1/d55b3323a9f142638f897378f0b526fe/index.m3u8 | logo=https://i.imgur.com/LPwRdmF.png | HTTP 200
+Travelxp 4K HDR (2160p) [Geo-blocked] | https://deltatesttatasky.akamaized.net/out/i/968284.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_TRAVELXP/images/LOGO_HD/image.png | HTTP 200
+Travelxp HD (1080p) [Geo-blocked] | https://amg00416-amg00416c9-samsung-in-4882.playouts.now.amagi.tv/playlist/amg00416-travelxp-travelxphd-samsungin/playlist.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_TRAVELXP/images/LOGO_HD/image.png | HTTP 200
+TV9 Bharatvarsh (720p) | https://dyjmyiv3bp2ez.cloudfront.net/pub-iotv9hinjzgtpe/liveabr/playlist.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_TV9_BHARATVARSH/images/LOGO_HD/image.png | HTTP 200 (m3u8 ok)
+Unique TV (576p) | https://mumt05.tangotv.in/87NeALx2UNIQUETV/index.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/Unique_Tv.png | HTTP 200
+Vedic (480p) | https://aasthaott.akamaized.net/110923/smil:vedic.smil/playlist.m3u8 | logo=https://dtil.tmsimg.com/assets/s144069_ld_h15_aa.png?lock=720x540 | HTTP 200 (m3u8 ok)
+VIP News (360p) | https://live.vipnews24x7.co.in/vipnews24x7/d0dbe915091d400bd8ee7f27f0791303.sdp/playlist.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_VIP_NEWS/images/LOGO_HD/image.png | HTTP 200
+VTU (1080p) | https://lbgo.bozztv.com/ssh101/ssh101/afghantheatretv/playlist.m3u8 | logo=https://i.imgur.com/zMwZRGJ.png | HTTP 200
+Weatherspy | https://jukin-weatherspy-2-in.samsung.wurl.tv/playlist.m3u8 | logo=https://i.imgur.com/KIEKOt1.png | HTTP 200
+YRF Music (1080p) | https://cdn-uw2-prod.tsv2.amagi.tv/linear/amg01412-xiaomiasia-yrfmusic-xiaomi/playlist.m3u8 | logo=https://jiotvimages.cdn.jio.com/dare_images/images/YRF_Music.png | HTTP 200
+Zee Bharat (720p) | https://vg-zeefta.akamaized.net/ptnr-yupptv/title-zeehindustan/v1/master/611d79b11b77e2f571934fd80ca1413453772ac7/96bbab12-582e-4540-af70-510ab6824581/main.m3u8 | logo=https://dtil.tmsimg.com/assets/GNLZZGG00230QBL.png?lock=720x540 | HTTP 200
+Zee Business (720p) | https://dwby15d04agvq.cloudfront.net/index_5.m3u8 | logo=https://dtil.tmsimg.com/assets/GNLZZGG00230YYJ.png?lock=720x540 | HTTP 200
+Zee Cine Classic (1080p) | https://amg00862-amg00862c8-amgplt0173.playout.now3.amagi.tv/playlist/amg00862-amg00862c8-amgplt0173/playlist.m3u8 | logo=https://i.imgur.com/QCRhS1n.png | HTTP 200
+Zee Cinema ME (720p) | http://41.205.77.102/ZEE-CINEMA/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_ZEE_CINEMA/images/LOGO_HD/LOGO_HD_image.png | HTTP 200
+Zee Cinema UK (576p) | http://41.223.30.230/ZEECINEMA/index.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_ZEE_CINEMA/images/LOGO_HD/LOGO_HD_image.png | HTTP 200
+Zee Comedy Nation (1080p) | https://amg00862-amg00862c5-amgplt0173.playout.now3.amagi.tv/playlist/amg00862-amg00862c5-amgplt0173/playlist.m3u8 | logo=https://tvpnlogopus.samsungcloud.tv/platform/image/sourcelogo/vc/00/02/34/IN2100002GD_20260325T012327SQUARE.png | HTTP 200
+Zee Delhi NCR Haryana (720p) | https://vg-zeefta.akamaized.net/ptnr-yupptv/title-zeedelhincr/v1/master/611d79b11b77e2f571934fd80ca1413453772ac7/cc483a15-1b39-4642-872d-5d08d362ed01/main.m3u8 | logo=https://dtil.tmsimg.com/assets/GNLZZGG0023166M.png?lock=720x540 | HTTP 200
+Zee Dil Se (1080p) | https://amg00862-amg00862c6-amgplt0173.playout.now3.amagi.tv/playlist/amg00862-amg00862c6-amgplt0173/playlist.m3u8 | logo=https://d2mxb63djushzm.cloudfront.net/images/Zee_Dil_Se.png | HTTP 200
+Zee Horror Nights (1080p) | https://amg00862-amg00862c7-amgplt0173.playout.now3.amagi.tv/playlist/amg00862-amg00862c7-amgplt0173/playlist.m3u8 | logo=https://d3bd0tgyk368z1.cloudfront.net/zeelg/LG%20logo%20artwork/400x200/zhornights.png | HTTP 200
+Zee Madhya Pradesh Chhattisgarh (720p) | https://vg-zeefta.akamaized.net/ptnr-yupptv/title-zeemadhyachhattisgarh/v1/master/611d79b11b77e2f571934fd80ca1413453772ac7/2ab17056-6187-4f0e-a34d-f436ac479d6c/main.m3u8 | logo=https://dtil.tmsimg.com/assets/GNLZZGG002316X5.png?lock=720x540 | HTTP 200
+Zee News (1080p) | https://dknttpxmr0dwf.cloudfront.net/index_57.m3u8 | logo=https://dtil.tmsimg.com/assets/GNLZZGG0023VWYC.png?lock=720x540 | HTTP 200
+Zee Rajasthan (720p) | https://vg-zeefta.akamaized.net/ptnr-yupptv/title-zeerajashthannews/v1/master/611d79b11b77e2f571934fd80ca1413453772ac7/8e864b9a-1681-41a0-99a6-387490bc5b24/main.m3u8 | logo=https://dtil.tmsimg.com/assets/GNLZZGG00231732.png?lock=720x540 | HTTP 200
+Zee South Flix (1080p) | https://amg00862-amg00862c9-amgplt0173.playout.now3.amagi.tv/playlist/amg00862-amg00862c9-amgplt0173/playlist.m3u8 | logo=https://d3bd0tgyk368z1.cloudfront.net/zeelg/LG%20logo%20artwork/400x200/zsouthflix.png | HTTP 200
+Zee Uttar Pradesh/Uttarakhand (720p) | https://duw35ict5q7th.cloudfront.net/index_3.m3u8 | logo=https://dtil.tmsimg.com/assets/GNLZZGG002317GQ.png?lock=720x540 | HTTP 200
+Zoom (720p) | https://dai.google.com/linear/hls/event/JCAm25qkRXiKcK1AJMlvKQ/master.m3u8 | logo=https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_ZOOM/images/LOGO_HD/image.png | HTTP 200 (m3u8 ok)
