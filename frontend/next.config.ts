@@ -29,6 +29,7 @@ const CSP = [
 ].join('; ');
 
 const nextConfig: NextConfig = {
+  compress: false,
   // Required for nginx to proxy correctly on EC2
   async rewrites() {
     return [
