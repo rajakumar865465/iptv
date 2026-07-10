@@ -559,6 +559,31 @@ exports.adminListChannels = async (req, res) => {
 
 // ── Admin: update smooth playback settings for a channel ─────────────────────
 
+exports.adminDisableAllChannels = async (req, res) => {
+  try {
+    const result = await db.query(
+      `UPDATE channels 
+       SET smooth_playback_enabled = false, 
+           restream_mode = 'direct', 
+           buffer_status = 'stopped', 
+           is_buffer_ready = false, 
+           buffer_depth_seconds = 0 
+       WHERE smooth_playback_enabled = true
+       RETURNING id`
+    );
+    
+    // Stop any active recorders for the disabled channels
+    for (const row of result.rows) {
+      await bufferRecorder.stopRecorder(row.id);
+    }
+
+    success(res, { message: `Disabled smooth playback for ${result.rows.length} channels`, disabledCount: result.rows.length });
+  } catch (err) {
+    console.error('adminDisableAllChannels error:', err);
+    error(res, 'Failed to disable smooth playback for all channels', 500);
+  }
+};
+
 exports.adminUpdateChannel = async (req, res) => {
   try {
     const { id } = req.params;

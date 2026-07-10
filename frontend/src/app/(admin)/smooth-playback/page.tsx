@@ -10,6 +10,7 @@ import {
   testSmoothPlaybackSegment,
   promoteSmoothPlaybackBackup,
   resetSmoothPlaybackCounters,
+  disableAllSmoothPlaybackChannels,
   getErrorMessage,
 } from '@/lib/api';
 
@@ -204,6 +205,20 @@ export default function SmoothPlaybackPage() {
       load();
     } catch (err) {
       showToast(getErrorMessage(err, 'Update failed'));
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function handleDisableAll() {
+    if (!confirm('Are you sure you want to disable smooth playback for ALL channels?')) return;
+    setSaving(-1); // Use -1 to indicate global saving state
+    try {
+      const res = await disableAllSmoothPlaybackChannels();
+      showToast(`Success: ${res?.message || 'All channels disabled'}`);
+      load();
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Disable all failed'));
     } finally {
       setSaving(null);
     }
@@ -417,7 +432,14 @@ export default function SmoothPlaybackPage() {
         >
           Refresh
         </button>
-        <span className="text-gray-500 text-sm self-center">{total} channels</span>
+        <button
+          onClick={handleDisableAll}
+          disabled={saving === -1}
+          className="bg-red-900/50 hover:bg-red-800/60 text-red-200 border border-red-800 px-4 py-2 rounded-lg text-sm ml-auto disabled:opacity-50"
+        >
+          {saving === -1 ? 'Disabling...' : 'Turn Off All'}
+        </button>
+        <span className="text-gray-500 text-sm self-center ml-4">{total} channels</span>
       </div>
 
       {/* Table */}

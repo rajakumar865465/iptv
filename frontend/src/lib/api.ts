@@ -305,6 +305,9 @@ export const getSmoothPlaybackChannels = (params?: Record<string, string>) =>
 export const updateSmoothPlaybackChannel = (id: number, data: Record<string, unknown>) =>
   api.put(`/smooth-playback/channels/${id}`, data).then((r) => r.data.data);
 
+export const disableAllSmoothPlaybackChannels = () =>
+  api.post(`/smooth-playback/channels/disable-all`).then((r) => r.data.data);
+
 export const restartSmoothPlaybackRecorder = (id: number) =>
   api.post(`/smooth-playback/channels/${id}/restart`).then((r) => r.data.data);
 

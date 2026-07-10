@@ -269,6 +269,7 @@ const streamHealthController = require('../controllers/streamHealthController');
 const smoothPlaybackController = require('../controllers/smoothPlaybackController');
 router.get('/smooth-playback/health', smoothPlaybackController.adminBufferHealth);
 router.get('/smooth-playback/channels', smoothPlaybackController.adminListChannels);
+router.post('/smooth-playback/channels/disable-all', smoothPlaybackController.adminDisableAllChannels);
 router.put('/smooth-playback/channels/:id', smoothPlaybackController.adminUpdateChannel);
 router.post('/smooth-playback/channels/:id/restart', smoothPlaybackController.adminRestartRecorder);
 router.get('/smooth-playback/channels/:channelId/fallback-logs', smoothPlaybackController.adminGetFallbackLogs);
