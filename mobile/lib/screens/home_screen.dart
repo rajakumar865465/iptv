@@ -16,6 +16,7 @@ import '../widgets/home/home_section_header.dart';
 import '../widgets/home/home_skeleton.dart';
 import '../widgets/navigation/app_bottom_nav.dart';
 import '../widgets/navigation/keep_alive_page.dart';
+import '../widgets/home/notifications_sheet.dart';
 import 'channel_list_screen.dart';
 import 'search_screen.dart';
 import 'favorites_screen.dart';
@@ -241,7 +242,12 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                 userName: _userName,
                 isPremium: ls is LicenseActive,
                 onNotificationTap: () {
-                  // TODO: open notifications
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => const NotificationsSheet(),
+                  );
                 },
                 onPremiumTap: () => _seeAll(),
               ),

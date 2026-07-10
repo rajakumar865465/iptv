@@ -111,6 +111,24 @@ async function sendNotification(notification) {
   }
 }
 
+// GET /api/user/notifications  (authenticated user)
+exports.getUserNotifications = async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT id, title, body, image_url, action_url, created_at
+       FROM notifications
+       WHERE is_active = true
+         AND (scheduled_at IS NULL OR scheduled_at <= NOW())
+       ORDER BY created_at DESC
+       LIMIT 30`
+    );
+    success(res, result.rows);
+  } catch (err) {
+    console.error('getUserNotifications error:', err.message);
+    error(res, 'Failed to fetch notifications', 500);
+  }
+};
+
 // Scheduled job to send pending notifications
 exports.processScheduledNotifications = async () => {
   try {

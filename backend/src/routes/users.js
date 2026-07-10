@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
 const userFeedbackController = require('../controllers/userFeedbackController');
+const notificationController = require('../controllers/notificationController');
 const authMiddleware = require('../middleware/auth');
 
 router.get('/profile', authMiddleware, userController.getProfile);
@@ -12,5 +13,6 @@ router.delete('/favorites/:channelId', authMiddleware, userController.removeFavo
 router.get('/watch-history', authMiddleware, userController.getWatchHistory);
 router.get('/devices', authMiddleware, userController.getDevices);
 router.post('/feedback', authMiddleware, userFeedbackController.submitFeedback);
+router.get('/notifications', authMiddleware, notificationController.getUserNotifications);
 
 module.exports = router;

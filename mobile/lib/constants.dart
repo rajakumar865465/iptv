@@ -118,6 +118,7 @@ class ApiEndpoints {
   static const String watchHistory = '$user/watch-history';
   static const String devices = '$user/devices';
   static const String userFeedback = '$user/feedback';
+  static const String userNotifications = '$user/notifications';
 
   // Payments
   static const String plans = '$payments/plans';
