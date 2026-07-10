@@ -60,6 +60,9 @@ const SEGMENT_RETRY_BACKOFF_MS = [300, 1000];
 const activeRecorders = new Map();
 const pendingRecorders = new Set();
 
+// ── DISABLED: Buffer recorder is fully disabled per user request ──────────────
+// All functions below are no-ops. No background HLS recording or polling runs.
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 async function startRecorder(channelId) {
@@ -169,42 +172,13 @@ function getActiveRecorders() {
 }
 
 async function startAllEnabledRecorders() {
-  try {
-    // Order by popularity/featured so the MAX_CONCURRENT cap favors the most-watched
-    // channels first (pre-warm mode). Lower-ranked channels fall back to on-demand start
-    // when a user opens them (see smoothPlaybackController.getSmoothPlayback).
-    const res = await db.query(
-      `SELECT id FROM channels
-       WHERE smooth_playback_enabled = true
-         AND status = 'active'
-         AND is_hidden IS NOT TRUE
-         AND is_removed IS NOT TRUE
-         AND (health_status IS NULL OR health_status NOT IN (
-           'requires_licensed_source','drm_or_unsupported','geo_blocked',
-           'forbidden_403','offline','dead'
-         ))
-       ORDER BY is_featured DESC NULLS LAST,
-                is_popular DESC NULLS LAST,
-                popularity_score DESC NULLS LAST,
-                name ASC`
-    );
-    let started = 0;
-    for (const row of res.rows) {
-      const before = activeRecorders.size;
-      await startRecorder(row.id);
-      if (activeRecorders.size > before) started++;
-    }
-    console.log(`[buffer_recorder] Auto-started ${started} recorders (of ${res.rows.length} eligible, cap ${MAX_CONCURRENT})`);
-  } catch (err) {
-    console.error('[buffer_recorder] startAllEnabledRecorders error:', err.message);
-  }
+  // Disabled per user request — buffer recording is fully off
+  console.log('[buffer_recorder] startAllEnabledRecorders called but disabled — skipping');
 }
 
 async function cleanupOldSegments() {
-  try {
-    const channels = await db.query(
-      `SELECT id, playback_delay_seconds, max_buffer_segments FROM channels WHERE smooth_playback_enabled = true`
-    );
+  // Disabled per user request — buffer recording is fully off
+  return;
 
     for (const ch of channels.rows) {
       const maxSecs = Math.min(ch.playback_delay_seconds * 2, 600);
@@ -1138,6 +1112,16 @@ function _resolveUrl(base, relative) {
     return baseDir + relative;
   }
 }
+
+// Stop any recorders that may have been running before this module was reloaded
+// (handles the case where pm2 restarts with old in-memory recorders — clears timers)
+for (const [id, rec] of activeRecorders.entries()) {
+  try { clearInterval(rec.timer); } catch (_) {}
+  console.log(`[buffer_recorder] Cleared residual recorder for channel ${id} on module load`);
+}
+activeRecorders.clear();
+pendingRecorders.clear();
+console.log('[buffer_recorder] Buffer recorder is DISABLED. All functions are no-ops.');
 
 module.exports = {
   startRecorder,
