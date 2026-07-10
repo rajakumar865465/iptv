@@ -328,17 +328,17 @@ initDatabase().then(() => {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT} (WebSocket: ws://0.0.0.0:${PORT}/ws)`);
     
-    // Start Smooth Playback buffer recorders
-    const bufferRecorder = require('./jobs/buffer_recorder');
-    bufferRecorder.startAllEnabledRecorders().catch(err =>
-      console.error('Buffer recorder startup error:', err)
-    );
-    // Cleanup old segments every 2 minutes
-    setInterval(() => {
-      bufferRecorder.cleanupOldSegments().catch(err =>
-        console.error('Buffer cleanup error:', err)
-      );
-    }, 2 * 60 * 1000);
+    // Start Smooth Playback buffer recorders (Disabled per user request)
+    // const bufferRecorder = require('./jobs/buffer_recorder');
+    // bufferRecorder.startAllEnabledRecorders().catch(err =>
+    //   console.error('Buffer recorder startup error:', err)
+    // );
+    // Cleanup old segments every 2 minutes (Disabled)
+    // setInterval(() => {
+    //   bufferRecorder.cleanupOldSegments().catch(err =>
+    //     console.error('Buffer cleanup error:', err)
+    //   );
+    // }, 2 * 60 * 1000);
 
     // Start automated stream health scanner in the background (runs every hour)
     const { runHealthScan } = require('./jobs/stream_scanner');

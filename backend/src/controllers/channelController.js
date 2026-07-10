@@ -1150,10 +1150,8 @@ exports.getChannelPlayback = async (req, res) => {
       health_status: channel.health_status || 'unknown',
       health_score: channel.health_score ?? 50,
       // ── Smooth Playback / Gap Warning fields (per work.md) ──
-      smooth_playback_enabled: channel.smooth_playback_enabled === true,
-      smooth_stream_url: channel.smooth_playback_enabled === true
-        ? `${req.protocol}://${req.get('host')}/api/channels/${id}/smooth-playback`
-        : null,
+      smooth_playback_enabled: false, // Disabled per user request
+      smooth_stream_url: null, // Disabled
       delay_seconds: channel.playback_delay_seconds || 300,
       buffer_ready: channel.is_buffer_ready === true,
       buffer_depth_seconds: channel.buffer_depth_seconds || 0,
