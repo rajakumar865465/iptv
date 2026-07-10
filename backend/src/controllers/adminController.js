@@ -277,10 +277,27 @@ exports.getChannelsAdmin = async (req, res) => {
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
     const offset = (page - 1) * limit;
 
+    const search = req.query.search ? req.query.search.trim() : '';
+    const categoryId = req.query.category_id ? parseInt(req.query.category_id) : null;
+
+    let baseConditions = 'is_hidden = false AND is_removed = false';
+    const params = [];
+    let pi = 1;
+
+    if (search) {
+      baseConditions += ` AND name ILIKE $${pi++}`;
+      params.push(`%${search}%`);
+    }
+
+    if (categoryId && !isNaN(categoryId)) {
+      baseConditions += ` AND category_id = $${pi++}`;
+      params.push(categoryId);
+    }
+
     const [countResult, activeCountResult, dataResult] = await Promise.all([
-      db.query('SELECT COUNT(*) FROM channels WHERE is_hidden = false AND is_removed = false'),
-      db.query("SELECT COUNT(*) FROM channels WHERE status = 'active' AND is_hidden = false AND is_removed = false"),
-      db.query('SELECT * FROM channels WHERE is_hidden = false AND is_removed = false ORDER BY sort_order ASC LIMIT $1 OFFSET $2', [limit, offset]),
+      db.query(`SELECT COUNT(*) FROM channels WHERE ${baseConditions}`, params),
+      db.query(`SELECT COUNT(*) FROM channels WHERE status = 'active' AND ${baseConditions}`, params),
+      db.query(`SELECT * FROM channels WHERE ${baseConditions} ORDER BY sort_order ASC LIMIT $${pi++} OFFSET $${pi++}`, [...params, limit, offset]),
     ]);
 
     const total = parseInt(countResult.rows[0].count, 10);
