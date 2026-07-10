@@ -758,37 +758,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
   }
 
-  /// While the smooth buffer is warming, poll the smooth-playback endpoint every few seconds
-  /// so the progress banner updates and the player silently switches to the delayed stream
-  /// the moment `buffer_ready` becomes true. Stops on ready, terminal failure, or a
-  /// configurable timeout (after which it surfaces a clear source-issue message).
+  /// Smooth playback warm poll is DISABLED — buffer recording is off.
   void _startSmoothWarmPoll() {
-    if (!_smoothPlaybackEnabled) return;
-    _smoothWarmTimer?.cancel();
-    _smoothWarmTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      if (!mounted) {
-        _smoothWarmTimer?.cancel();
-        _smoothWarmTimer = null;
-        return;
-      }
-      // Timeout: if warming has been going longer than _smoothWarmTimeoutSec and the buffer
-      // is still not ready, stop polling and surface a clear source-issue message + Direct Live.
-      final started = _warmStartedAt;
-      if (started != null && DateTime.now().difference(started).inSeconds >= _smoothWarmTimeoutSec) {
-        _smoothWarmTimer?.cancel();
-        _smoothWarmTimer = null;
-        if (mounted) {
-          setState(() {
-            _bufferStatus = 'warm_timeout';
-            _streamOverlayMessage = 'Channel source is unstable. Trying another source...';
-          });
-        }
-        return;
-      }
-      await _fetchSmoothPlayback();
-      if (mounted) setState(() {});
-      // _fetchSmoothPlayback cancels this timer once buffer_ready becomes true.
-    });
+    // No-op: smooth playback is disabled, nothing to poll.
+    return;
   }
 
   /// Compact, human-readable warming progress string for the banner / fallback spinner.
@@ -877,30 +850,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     await _initializePlayer(url, rawHeaders);
   }
 
-  /// While a gap warning is active, periodically re-fetch smooth playback status
-  /// so the banner clears automatically once the channel recovers. Only runs when
-  /// smooth playback is enabled and the gap warning is showing.
+  /// Gap warning refresh is DISABLED — smooth playback is off, no polling needed.
   void _startGapWarningRefreshIfNeeded() {
-    if (!_smoothPlaybackEnabled || !_gapWarning) {
-      _gapWarningRefreshTimer?.cancel();
-      _gapWarningRefreshTimer = null;
-      return;
-    }
+    // No-op: smooth playback is disabled.
     _gapWarningRefreshTimer?.cancel();
-    _gapWarningRefreshTimer = Timer.periodic(const Duration(seconds: 12), (_) async {
-      if (!mounted) {
-        _gapWarningRefreshTimer?.cancel();
-        _gapWarningRefreshTimer = null;
-        return;
-      }
-      await _fetchSmoothPlayback();
-      if (mounted) setState(() {});
-      // Stop refreshing once the warning clears
-      if (!_gapWarning) {
-        _gapWarningRefreshTimer?.cancel();
-        _gapWarningRefreshTimer = null;
-      }
-    });
+    _gapWarningRefreshTimer = null;
   }
 
   Future<void> _fetchPlaybackAndInitialize() async {
@@ -986,20 +940,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           'buffer_depth_seconds': data['buffer_depth_seconds'],
         });
 
-        // Fetch smooth playback info and override URL if delayed buffer is ready
-        await _fetchSmoothPlayback();
-        if (_smoothPlaybackEnabled &&
-            (_bufferStatus == 'no_working_source' || _bufferStatus == 'requires_licensed_source')) {
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-              _hasError = true;
-              _showPreparingOverlay = false;
-              _streamOverlayMessage = 'No stable source is available right now.';
-            });
-          }
-          return;
-        }
+        // Smooth playback is disabled — skip the smooth-playback endpoint poll entirely.
+        // The server always returns 'direct' mode, so there is nothing to fetch.
+        // (Previously: await _fetchSmoothPlayback();)
 
         // Backend may recommend 'fast' profile for known-stable high-health streams
         final serverProfile = data['recommended_buffer_profile'] as String? ?? 'stable';
