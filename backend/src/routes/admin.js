@@ -152,6 +152,7 @@ router.get('/system/health', systemController.getSystemHealth);
 // ─── Logs ─────────────────────────────────────────
 router.get('/logs/api-errors', logController.getApiErrors);
 router.get('/logs/admin-actions', logController.getAdminActions);
+router.get('/logs/system', logController.getSystemLogs);
 
 // ─── Admin Users ──────────────────────────────────
 router.get('/admin-users', adminUserController.getAdminUsers);

@@ -255,6 +255,9 @@ export const getApiErrors = (params?: Record<string, unknown>) =>
 export const getAdminActions = (params?: Record<string, unknown>) =>
   api.get('/logs/admin-actions', { params }).then((r) => r.data.data);
 
+export const getSystemLogs = (params?: Record<string, unknown>) =>
+  api.get('/logs/system', { params }).then((r) => r.data);
+
 export const getAdminUsers = () =>
   api.get('/admin-users').then((r) => r.data.data);
 
