@@ -902,13 +902,16 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         // proxy_url is null when DRM/geo-blocked/hidden/unlicensed — never try proxy then
         _proxyUrl = data['proxy_url'] as String?;
 
-        // Prefer the backend proxy on all platforms:
-        // - Web: browser CORS blocks direct CDN segment fetches
-        // - Android/iOS: backend (AWS datacenter) has a stable connection to IPTV
-        //   CDNs; going direct from mobile data causes lag and throttling
+        // Proxy strategy:
+        // - Web: use proxy as primary to avoid browser CORS blocks on CDN segment fetches.
+        // - Mobile/native: go DIRECT first (CDN → phone is faster than CDN → server → phone).
+        //   The proxy is available as a last-resort fallback in _handleStreamFailure for
+        //   mobile users whose ISP throttles/blocks certain CDNs.
+        // Using proxy as primary for mobile was causing widespread buffering because every
+        // segment was routed through the backend server, overloading it under normal load.
         String? webPreferredUrl;
         Map<String, dynamic>? webPreferredHeaders;
-        if (_proxyUrl != null) {
+        if (kIsWeb && _proxyUrl != null) {
           final prefs = await SharedPreferences.getInstance();
           final token = prefs.getString(StorageKeys.token);
           if (token != null) {
@@ -919,12 +922,22 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             if (token != null) 'Authorization': 'Bearer $token',
           };
           _proxyHeaders = webPreferredHeaders;
-          _playerDebugLog('proxy_preferred', {
+          _playerDebugLog('proxy_preferred_web', {
             'channel_id': _currentChannel.id,
             'proxy_url': _proxyUrl,
             'has_token': token != null,
-            'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
           });
+        } else if (!kIsWeb && _proxyUrl != null) {
+          // Pre-compute proxy headers for the fallback cascade on mobile.
+          // The proxy itself is NOT used now; headers are ready if _handleStreamFailure uses it.
+          final prefs = await SharedPreferences.getInstance();
+          final token = prefs.getString(StorageKeys.token);
+          if (token != null) {
+            _proxyUrl = '$_proxyUrl?token=$token';
+          }
+          _proxyHeaders = {
+            if (token != null) 'Authorization': 'Bearer $token',
+          };
         }
 
         _playerDebugLog('playback_api_response', {
@@ -966,15 +979,16 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         } else if (_selectedQuality != null && _selectedQuality!['url'] != null) {
           urlToPlay = _selectedQuality!['url'];
           headersToUse = _selectedQuality!['headers'];
+          _playbackPath = 'direct';
         } else if (_currentStreamMeta != null && _currentStreamMeta!['url'] != null) {
           urlToPlay = _currentStreamMeta!['url'];
           headersToUse = _currentStreamMeta!['headers'];
+          _playbackPath = 'direct';
         } else {
           throw Exception('No stream URL in playback response');
         }
         // Cache API-returned headers so the catch fallback uses the same source of truth.
         _lastApiHeaders = headersToUse;
-        _playbackPath = 'direct';
         await _initializePlayer(urlToPlay, headersToUse);
       } else {
         throw Exception('Playback fetch failed');
@@ -1410,8 +1424,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (_hdOnlyWifi && _isOnMobileData) return;
     if (_wasQualityDowngraded || _downgradeCount > 0 || _qualityUpgradeLocked) return;
 
-    // Use 2s if user explicitly wants HD, otherwise 8s for auto
-    final int delaySecs = (_defaultQualityPref == '1080p' || _defaultQualityPref == '720p') ? 2 : 8;
+    // 15s for explicit HD pref, 25s for auto — give the stream time to prove the
+    // connection is stable before pushing to a higher bitrate track.
+    // 2s was too aggressive: CDN jitter in the first seconds caused immediate stalls
+    // right after channel open, triggering the downgrade→lock cycle unnecessarily.
+    final int delaySecs = (_defaultQualityPref == '1080p' || _defaultQualityPref == '720p') ? 15 : 25;
 
     _hdPromoteTimer = Timer(Duration(seconds: delaySecs), () {
       _hdPromoteTimer = null;
@@ -1584,10 +1601,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           }
         });
 
-        // Stall timeout: libmpv's cache-pause-wait=8 already holds for 8s before firing the
-        // Flutter buffering event. The timer below is the *additional* wait after that.
-        // Stable/DataSaver=20s (+8s libmpv = 28s total), Fast=10s (+8s = 18s total).
-        // This keeps total dead-stream detection under 30s while still surviving real CDN hiccups.
+        // Stall timeout: libmpv pauses on underrun and waits cache-pause-wait (1s mobile, 3s desktop)
+        // before emitting a Flutter buffering event. The timer below is the *additional* wait
+        // after that before triggering the failure cascade.
+        // Mobile/Stable=40s, Fast=10s. This keeps detection under ~45s while surviving CDN hiccups.
         _bufferTimer ??= Timer(Duration(seconds: _activeProfile.stallTimeoutSecs), () {
           if (mounted) _handleStreamFailure('buffer_timeout');
         });

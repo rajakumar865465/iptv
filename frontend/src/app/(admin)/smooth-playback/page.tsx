@@ -554,8 +554,8 @@ export default function SmoothPlaybackPage() {
                         </div>
                         
                         <div className="flex flex-col gap-0.5">
-                          <label className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide flex items-center justify-between">
-                            Gap Mode
+                          <div className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide flex items-center justify-between">
+                            <span>Gap Mode</span>
                             <label className="flex items-center gap-1 font-normal text-gray-400 cursor-pointer hover:text-gray-300">
                               <input
                                 type="checkbox"
@@ -566,7 +566,7 @@ export default function SmoothPlaybackPage() {
                               />
                               <span className="text-[9px]">Allow skipping</span>
                             </label>
-                          </label>
+                          </div>
                           <select
                             disabled={saving === ch.id || !ch.smooth_playback_enabled}
                             value={ch.gap_handling_mode || 'skip_missing_chunks'}
