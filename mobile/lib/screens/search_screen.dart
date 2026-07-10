@@ -25,6 +25,7 @@ class _SearchScreenState extends State<SearchScreen>
   @override
   void initState() {
     super.initState();
+    _searchController.text = context.read<ChannelCubit>().currentQuery;
     _focusNode.addListener(() {
       setState(() => _hasFocus = _focusNode.hasFocus);
     });

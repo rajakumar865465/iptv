@@ -1,0 +1,17 @@
+==== WORKING CHANNELS BY CATEGORY ====
+Total Working Channels: 478
+
+Bengali: 1
+Business: 19
+Devotional: 49
+Doordarshan: 26
+Education: 1
+Entertainment: 22
+General: 74
+Kids: 15
+Lifestyle: 19
+Movies: 21
+Music: 37
+News: 110
+Regional: 80
+Sports: 4

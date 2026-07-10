@@ -72,6 +72,7 @@ class ChannelCubit extends Cubit<ChannelState> {
   String get sortBy => _sortBy;
   String get premiumFilter => _premiumFilter;
   bool get workingOnly => _workingOnly;
+  String get currentQuery => _currentQuery;
 
   Future<void> loadChannels({
     bool isRefresh = false,

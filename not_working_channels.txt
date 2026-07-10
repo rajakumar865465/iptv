@@ -1,0 +1,15 @@
+==== NOT WORKING CHANNELS BY CATEGORY ====
+Total Not Working Channels: 63
+(Includes streams marked as offline, unstable, or unknown)
+
+Devotional: 2
+Education: 1
+Entertainment: 5
+General: 11
+Kids: 2
+Lifestyle: 7
+Movies: 8
+Music: 4
+News: 14
+Regional: 5
+Sports: 4

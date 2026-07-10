@@ -69,6 +69,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
       _selectedCategoryId = widget.initialCategoryId;
       _selectedCategoryName = widget.initialCategoryName;
       _selectedLanguage = widget.initialLanguage;
+      _searchController.text = ''; // Clear search when opening specific category
     } else {
       _selectedCategoryId = cubit.filterCategoryId;
       _selectedCategoryName = cubit.filterCategoryName;
@@ -77,10 +78,12 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
       _selectedLanguage = cubit.filterCategoryId == null ? cubit.filterLanguage : null;
       _workingOnly = cubit.workingOnly;
       _selectedSort = cubit.sortBy;
+      _searchController.text = cubit.currentQuery; // Restore search text
     }
 
     cubit.loadChannels(
       isRefresh: true,
+      query: _searchController.text,
       workingOnly: _workingOnly,
       categoryId: _selectedCategoryId ?? 0,
       language: _selectedLanguage ?? '',

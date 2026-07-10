@@ -1462,9 +1462,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
   }
 
-  /// Promote to the highest native track (>=720p) only after 60s of proven
-  /// stable playback — never on open. Forcing HD at open pushed bitrate above
-  /// capacity on slower connections and caused the first stall of the loop.
+  /// Promote to the highest native track (>=720p) shortly after playback starts.
+  /// Previously this waited 60s, which caused users to see 360p for a full minute.
   /// Any buffering event cancels the pending promotion (see _onBufferingChanged).
   void _scheduleHdPromotionIfStable() {
     _hdPromoteTimer?.cancel();
@@ -1472,10 +1471,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (_dataSaverEnabled) return;
     if (_hdOnlyWifi && _isOnMobileData) return;
     if (_wasQualityDowngraded || _downgradeCount > 0 || _qualityUpgradeLocked) return;
-    _hdPromoteTimer = Timer(const Duration(seconds: 60), () {
+
+    // Use 2s if user explicitly wants HD, otherwise 8s for auto
+    final int delaySecs = (_defaultQualityPref == '1080p' || _defaultQualityPref == '720p') ? 2 : 8;
+
+    _hdPromoteTimer = Timer(Duration(seconds: delaySecs), () {
       _hdPromoteTimer = null;
       if (!mounted) return;
-      // Re-check stability at fire time — any stall in the last 60s aborts.
+      // Re-check stability at fire time — any stall aborts.
       if (_isLoading || _bufferingEvents.isNotEmpty || _wasQualityDowngraded ||
           _downgradeCount > 0 || _qualityUpgradeLocked) {
         return;
@@ -1483,9 +1486,21 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       try {
         final nativeTracks = _player.state.tracks.video;
         if (nativeTracks.length <= 2) return;
-        final bestTrack = nativeTracks
-            .where((t) => t.id != 'auto' && t.id != 'no' && t.h != null)
-            .reduce((a, b) => (a.h ?? 0) > (b.h ?? 0) ? a : b);
+        
+        VideoTrack bestTrack;
+        if (_defaultQualityPref == '720p') {
+          // Try to find exactly 720p, else highest
+          final t720 = nativeTracks.where((t) => t.h == 720).firstOrNull;
+          bestTrack = t720 ?? nativeTracks
+              .where((t) => t.id != 'auto' && t.id != 'no' && t.h != null)
+              .reduce((a, b) => (a.h ?? 0) > (b.h ?? 0) ? a : b);
+        } else {
+          // 1080p or auto -> highest
+          bestTrack = nativeTracks
+              .where((t) => t.id != 'auto' && t.id != 'no' && t.h != null)
+              .reduce((a, b) => (a.h ?? 0) > (b.h ?? 0) ? a : b);
+        }
+
         final currentId = _player.state.track.video.id;
         if (bestTrack.h != null && bestTrack.h! >= 720 && bestTrack.id != currentId) {
           // Native track switch — instant, no player re-open.
