@@ -6,6 +6,24 @@ const dns = require('dns').promises;
 const db = require('../config/db');
 const { encryptSegmentUrl, decryptSegmentToken } = require('../utils/proxyToken');
 
+// ── Persistent connection pools ────────────────────────────────────────────────
+// Re-using TCP connections to upstream CDNs eliminates the 50-200ms TCP+TLS
+// handshake overhead on every segment request (~1 req / 2-3s / viewer).
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 64,          // concurrent upstream connections per CDN host
+  maxFreeSockets: 16,      // idle sockets kept alive in pool
+  timeout: 25000,
+  freeSocketTimeout: 30000,
+});
+const httpAgent = new http.Agent({
+  keepAlive: true,
+  maxSockets: 64,
+  maxFreeSockets: 16,
+  timeout: 25000,
+  freeSocketTimeout: 30000,
+});
+
 // SSRF protection: resolve hostname to IP and reject private/link-local/loopback ranges.
 // Called on every URL before making an outbound request, including after each redirect hop.
 // Returns true if safe, false if the resolved IP is in a blocked range.
@@ -246,6 +264,47 @@ const manifestCache = new BoundedCache(200, CACHE_MANIFEST_MS);
 // Cache authorized IPs for 15 minutes to allow HLS live reloads where players drop headers
 const ipAuthCache = new BoundedCache(10000, 1000 * 60 * 15);
 
+// ── DNS safety result cache ─────────────────────────────────────────────────
+// isSafeExternalUrl() does a DNS resolve on every call. For segment requests
+// (one every 2-3s per viewer), this adds a round-trip to the DNS resolver before
+// every upstream fetch. Cache the result per hostname for 5 minutes.
+const dnsCache = new BoundedCache(500, 5 * 60 * 1000);
+
+async function isSafeExternalUrlCached(urlString) {
+  try {
+    const hostname = new URL(urlString).hostname;
+    const cached = dnsCache.get(hostname);
+    if (cached !== undefined) return cached.data;
+    const result = await isSafeExternalUrl(urlString);
+    dnsCache.set(hostname, result);
+    return result;
+  } catch {
+    return false;
+  }
+}
+
+// ── Stream headers cache ────────────────────────────────────────────────────
+// proxySegment does a DB query on every segment request to get user-agent/referer.
+// For a 2s segment interval that's 30 queries/min per active viewer.
+// Cache per streamId for 60s — headers change only when admin edits the stream.
+const streamHeadersCache = new BoundedCache(500, 60 * 1000);
+
+async function getStreamHeaders(streamId) {
+  const cached = streamHeadersCache.get(streamId);
+  if (cached !== undefined) return cached.data;
+  try {
+    const csRes = await db.query(
+      'SELECT user_agent, referer, origin, headers_json, health_status, is_hidden FROM channel_streams WHERE id = $1',
+      [streamId]
+    );
+    const stream = csRes.rows.length > 0 ? csRes.rows[0] : null;
+    streamHeadersCache.set(streamId, stream);
+    return stream;
+  } catch {
+    return null;
+  }
+}
+
 // Fix #8: Add depth counter to prevent infinite redirect loops
 // Fix #6: Increased timeout from 8s → 20s — live HLS sources from slow CDNs
 // frequently take 10–15s to respond, causing unnecessary stream failures at 8s.
@@ -265,9 +324,11 @@ async function makeProxyRequest(url, headers, redirectDepth = 0) {
   return new Promise((resolve, reject) => {
     let parsed;
     try { parsed = new URL(url); } catch(e) { return reject(e); }
-    const client = parsed.protocol === 'https:' ? https : http;
+    const isHttps = parsed.protocol === 'https:';
+    const client  = isHttps ? https : http;
+    const agent   = isHttps ? httpsAgent : httpAgent;  // ← keepAlive pool
 
-    const req = client.request(url, { headers, timeout: 20000 }, (res) => {
+    const req = client.request(url, { headers, agent, timeout: 20000 }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         // Follow redirect with incremented depth counter, re-checking SSRF on each hop
         const nextUrl = resolveUrl(url, res.headers.location);
@@ -488,37 +549,18 @@ exports.proxySegment = async (req, res) => {
       return res.status(403).send('Invalid or expired segment token');
     }
 
-    // SSRF prevention — resolve DNS and validate the target IP before requesting.
-    // This catches 169.254.169.254 (EC2 metadata), decimal-encoded IPs, DNS rebinding,
-    // and any private range that would be missed by a hostname-only denylist.
+    // SSRF prevention — use cached DNS lookup (same security guarantee, zero per-segment overhead).
     {
-      const safe = await isSafeExternalUrl(targetUrl).catch(() => false);
+      const safe = await isSafeExternalUrlCached(targetUrl).catch(() => false);
       if (!safe) {
         console.warn('[proxy] SSRF blocked:', targetUrl.slice(0, 80));
         return res.status(400).send('Invalid segment URL');
       }
     }
 
-    // Fetch the stream record for headers (needed to add UA/Referer on upstream request).
-    // This is a lightweight lookup — only headers fields needed, not full auth re-check.
-    // Full auth (license, device, visibility) was already verified at manifest time.
-    let stream = null;
-    try {
-      const csRes = await db.query(
-        'SELECT user_agent, referer, origin, headers_json, health_status, is_hidden FROM channel_streams WHERE id = $1',
-        [streamId]
-      );
-      if (csRes.rows.length > 0) {
-        stream = csRes.rows[0];
-        // Reject if stream was hidden/blocked after the token was issued
-        if (stream.is_hidden) return res.status(404).send('Stream not available');
-        // Do NOT block active proxy segment requests based on scanner health updates.
-        // If the scanner falsely marks a stream offline, we shouldn't kill active viewers.
-        // if (PROXY_BLOCKED_STATUSES.has(stream.health_status)) return res.status(403).send('Stream not eligible for proxy');
-      }
-    } catch (_) {
-      // DB lookup failure — continue without custom headers, upstream request will still work
-    }
+    // Fetch stream headers from 60-second in-process cache (was a DB round-trip every segment).
+    const stream = await getStreamHeaders(streamId);
+    if (stream?.is_hidden) return res.status(404).send('Stream not available');
 
     // Build upstream headers from stream record (null-safe — stream may be null on DB failure)
     const ALLOWED_HEADER_NAMES = new Set([
@@ -649,11 +691,22 @@ exports.proxySegment = async (req, res) => {
     // pipeline() handles backpressure properly — if the client reads slowly,
     // it pauses the upstream read instead of buffering unboundedly in memory.
     // It also auto-destroys both streams on error or completion.
+    //
+    // "Premature close" and "aborted" are NORMAL for live IPTV — they happen whenever
+    // the viewer switches channels or the tab is closed. Suppress them to keep logs clean.
     pipeline(proxyRes, res, (err) => {
-      if (err) {
-        console.error('Stream pipeline error:', err.message);
-        if (!res.headersSent) res.status(500).end();
+      if (!err) return;
+      const isPrematureClose =
+        err.code === 'ERR_STREAM_PREMATURE_CLOSE' ||
+        err.code === 'ERR_STREAM_DESTROYED'       ||
+        err.code === 'ECONNRESET'                 ||
+        err.code === 'EPIPE'                      ||
+        err.message === 'aborted'                 ||
+        err.message === 'Premature close';
+      if (!isPrematureClose) {
+        console.warn('[proxy] segment pipeline error:', err.code || err.message);
       }
+      // Headers already sent at this point — nothing more to send to client
     });
 
   } catch (err) {

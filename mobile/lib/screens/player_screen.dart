@@ -2536,18 +2536,21 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Widget _buildPortrait() {
     return Column(
       children: [
-        AspectRatio(
-          aspectRatio: 16 / 9,
-          child: Container(
-            color: Colors.black,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                _buildVideoSurface(),
-                Positioned.fill(
-                  child: GestureDetector(
-                    onTap: _toggleControls,
-                    onDoubleTap: _onDoubleTapFitToggle,
+        Flexible(
+          flex: 0,
+          fit: FlexFit.loose,
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Container(
+              color: Colors.black,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _buildVideoSurface(),
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onTap: _toggleControls,
+                      onDoubleTap: _onDoubleTapFitToggle,
                     behavior: HitTestBehavior.translucent,
                     child: const SizedBox.expand(),
                   ),
@@ -3148,14 +3151,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           ),
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,   // ← fix: children fill full width
           children: [
             // Top bar: back | NivaTV branding | Premium + ⋮
             _buildControlsTopBar(fullscreen: fullscreen, safeTop: fullscreen ? safe.top : 0),
-            // Secondary row: LIVE badge (left) + Cast/CC/Fullscreen icons (right)
+            // Secondary row: LIVE badge (left) + icons (right)
             _buildSecondaryBar(fullscreen: fullscreen),
             const Spacer(),
-            // Center: ↺10 | ⏸ | ↻10
-            _buildCenterControls(),
+            // Center: ⏮ ch prev | ⏸ | ⏭ ch next   (full-width → truly centered)
+            SizedBox(
+              width: double.infinity,
+              child: _buildCenterControls(),
+            ),
             const Spacer(),
             // Bottom: 15:30 ════●═════════════════════ 30:00
             _buildLiveProgressBar(fullscreen: fullscreen, safeBottom: fullscreen ? safe.bottom : 0),
@@ -3381,30 +3388,33 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       stream: _player.stream.playing,
       builder: (context, snapshot) {
         final isPlaying = snapshot.data ?? false;
+        // Row is inside a SizedBox(width: infinity) → mainAxisAlignment.center
+        // reliably places the play button at the true horizontal midpoint.
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // ── Previous channel (styled as ↺10 rewind) ──────────────────
+            // ── Previous channel ─────────────────────────────────────────
             _centerSkipBtn(
-              icon: Icons.replay_10_rounded,
+              icon: Icons.skip_previous_rounded,
               onTap: _playPreviousChannel,
             ),
-            const SizedBox(width: 36),
-            // ── Play / Pause ──────────────────────────────────────────────
+            const SizedBox(width: 32),
+            // ── Play / Pause (large, centred) ────────────────────────────
             GestureDetector(
               onTap: () {
                 _player.playOrPause();
                 _showControlsWithTimer();
               },
               child: Container(
-                width: 68,
-                height: 68,
+                width: 70,
+                height: 70,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.22),
+                  color: Colors.white.withOpacity(0.20),
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withOpacity(0.5), width: 2),
+                  border: Border.all(color: Colors.white.withOpacity(0.55), width: 2),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 16, spreadRadius: 0),
+                    BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 20),
                   ],
                 ),
                 child: Icon(
@@ -3414,10 +3424,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                 ),
               ),
             ),
-            const SizedBox(width: 36),
-            // ── Next channel (styled as ↻10 forward) ─────────────────────
+            const SizedBox(width: 32),
+            // ── Next channel ─────────────────────────────────────────────
             _centerSkipBtn(
-              icon: Icons.forward_10_rounded,
+              icon: Icons.skip_next_rounded,
               onTap: _playNextChannel,
             ),
           ],
@@ -3436,15 +3446,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         width: 52,
         height: 52,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.10),
+          color: Colors.white.withOpacity(0.12),
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: Colors.white, size: 36),
+        child: Icon(icon, color: Colors.white, size: 34),
       ),
     );
   }
 
-  // Keep for legacy call sites; delegates to _centerSkipBtn
+  // Legacy alias — kept so any other call sites compile
   Widget _controlIconButton({required IconData icon, required double size, required VoidCallback onTap}) {
     return _centerSkipBtn(icon: icon, onTap: onTap);
   }
