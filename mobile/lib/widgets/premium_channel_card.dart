@@ -489,43 +489,104 @@ class _GridCard extends StatelessWidget {
 
     return Container(
       margin: margin ?? EdgeInsets.zero,
-      decoration: _cardDecoration(offline: offline),
+      decoration: BoxDecoration(
+        color: const Color(AppColors.surfaceElevated),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: offline
+              ? const Color(AppColors.error).withOpacity(0.35)
+              : const Color(AppColors.divider).withOpacity(0.6),
+          width: 0.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.32),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         child: Stack(
+          fit: StackFit.expand,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  _logoContainer(
-                    channel: channel,
-                    containerSize: 72,
-                    logoSize: 56,
+            // Faint watermark from channel logo
+            if (channel.logoUrl != null && channel.logoUrl!.isNotEmpty)
+              Positioned.fill(
+                child: Opacity(
+                  opacity: 0.05,
+                  child: ChannelLogo(
+                    logoUrl: channel.logoUrl,
+                    localLogoUrl: channel.localLogoUrl,
+                    channelName: channel.name,
+                    size: 300,
+                    borderRadius: 0,
+                    fit: BoxFit.cover,
                   ),
-                  const SizedBox(height: 10),
+                ),
+              ),
+
+            // Logo centered in upper area
+            Positioned(
+              top: 16,
+              left: 0,
+              right: 0,
+              bottom: 72,
+              child: Center(
+                child: _logoContainer(
+                  channel: channel,
+                  containerSize: 86,
+                  logoSize: 70,
+                ),
+              ),
+            ),
+
+            // Gradient overlay at bottom
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 92,
+              child: const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Color(0xEE000008)],
+                    stops: [0.0, 1.0],
+                  ),
+                ),
+              ),
+            ),
+
+            // Channel name + detail
+            Positioned(
+              left: 11,
+              right: showFavorite ? 38 : 11,
+              bottom: 11,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   Text(
                     channel.name,
-                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Color(AppColors.textPrimary),
                       fontSize: 12.5,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.2,
-                      height: 1.15,
+                      height: 1.2,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (detail.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+                  if (detail.isNotEmpty && !offline) ...[
+                    const SizedBox(height: 3),
                     Text(
                       detail,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Color(AppColors.textMuted),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
                         fontSize: 10,
                         fontWeight: FontWeight.w500,
                         height: 1.2,
@@ -537,16 +598,22 @@ class _GridCard extends StatelessWidget {
                 ],
               ),
             ),
+
+            // LIVE badge — top right
             const Positioned(
               top: 10,
               right: 10,
               child: LiveBadge(small: true),
             ),
+
+            // Quality / premium / unstable badge — top left
             Positioned(
               top: 10,
               left: 10,
               child: _topLeftBadge(channel),
             ),
+
+            // Offline banner
             if (offline)
               Positioned(
                 bottom: 0,
@@ -554,10 +621,12 @@ class _GridCard extends StatelessWidget {
                 right: 0,
                 child: _offlineBanner(),
               ),
+
+            // Favorite button
             if (showFavorite)
               Positioned(
-                bottom: 6,
-                right: 6,
+                bottom: 8,
+                right: 8,
                 child: _FavoriteButton(
                   channel: channel,
                   isFavorite: isFavorite,

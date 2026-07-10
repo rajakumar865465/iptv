@@ -95,6 +95,18 @@ class StorageService {
     return prefs.getBool(StorageKeys.hasSeenOnboarding) ?? false;
   }
 
+  // --- Notifications ---
+  Future<void> setNotificationsClearedAt(DateTime dt) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(StorageKeys.notificationsClearedAt, dt.toIso8601String());
+  }
+
+  Future<DateTime?> getNotificationsClearedAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final val = prefs.getString(StorageKeys.notificationsClearedAt);
+    return val != null ? DateTime.tryParse(val) : null;
+  }
+
   // --- Playback Settings ---
   Future<void> setVideoFitMode(String mode) async {
     final prefs = await SharedPreferences.getInstance();
@@ -180,6 +192,13 @@ class StorageService {
   /// Does NOT touch onboarding flags, device ID, or app settings so the user
   /// doesn't have to redo onboarding or re-pair their device on next login.
   /// Use this for session expiry / invalid token cases.
+  /// Clears only cached channel/category data. Leaves auth token and user intact.
+  Future<void> clearChannelCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(StorageKeys.cachedChannels);
+    await prefs.remove(StorageKeys.cachedCategories);
+  }
+
   Future<void> clearAuthData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(StorageKeys.token);

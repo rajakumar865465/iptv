@@ -369,7 +369,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
               sliver: SliverGrid(
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
-                  childAspectRatio: 0.78,
+                  childAspectRatio: 0.72,
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
                 ),

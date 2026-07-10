@@ -5,6 +5,7 @@ import '../cubits/home_cubit.dart';
 import '../cubits/channel_cubit.dart';
 import '../cubits/license_cubit.dart';
 import '../models/channel_model.dart';
+import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/premium_widgets.dart';
 import '../widgets/home/home_empty_state.dart';
@@ -113,11 +114,13 @@ class HomeContentScreen extends StatefulWidget {
 class _HomeContentScreenState extends State<HomeContentScreen> {
   String _userName = '';
   String _greeting = '';
+  bool _hasUnreadNotifications = false;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _checkUnreadNotifications();
     final homeState = context.read<HomeCubit>().state;
     if (homeState is! HomeLoaded) {
       context.read<HomeCubit>().loadHome(isRefresh: true);
@@ -130,6 +133,22 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
         sortBy: 'popular',
       );
     }
+  }
+
+  Future<void> _checkUnreadNotifications() async {
+    try {
+      final storage = StorageService();
+      final clearedAt = await storage.getNotificationsClearedAt();
+      final api = ApiService();
+      final res = await api.get(ApiEndpoints.userNotifications);
+      final raw = res['data'] as List;
+      final hasUnread = raw.any((e) {
+        final created = DateTime.tryParse(e['created_at'] ?? '');
+        if (created == null) return false;
+        return clearedAt == null || created.isAfter(clearedAt);
+      });
+      if (mounted) setState(() => _hasUnreadNotifications = hasUnread);
+    } catch (_) {}
   }
 
   Future<void> _loadUserData() async {
@@ -247,8 +266,9 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                     isScrollControlled: true,
                     backgroundColor: Colors.transparent,
                     builder: (_) => const NotificationsSheet(),
-                  );
+                  ).then((_) => _checkUnreadNotifications());
                 },
+                hasUnreadNotifications: _hasUnreadNotifications,
                 onPremiumTap: () => _seeAll(),
               ),
             ),

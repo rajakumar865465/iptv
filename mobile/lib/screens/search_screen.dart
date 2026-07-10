@@ -235,35 +235,6 @@ class _SearchScreenState extends State<SearchScreen>
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 36),
-            // Quick suggestions row
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Popular Searches',
-                style: TextStyle(
-                  color: Color(AppColors.textSecondary),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                'Star Plus', 'Zee TV', 'News18', 'Sony Live',
-                'Sun TV', 'DD National', 'Aaj Tak', 'Republic TV',
-              ].map((s) => _QuickSearchChip(
-                label: s,
-                onTap: () {
-                  _searchController.text = s;
-                  _onSearchChanged(s);
-                  _focusNode.unfocus();
-                },
-              )).toList(),
-            ),
           ],
         ),
       ),

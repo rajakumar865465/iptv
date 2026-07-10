@@ -9,6 +9,7 @@ class HomeHeader extends StatelessWidget {
   final bool isPremium;
   final VoidCallback? onNotificationTap;
   final VoidCallback? onPremiumTap;
+  final bool hasUnreadNotifications;
 
   const HomeHeader({
     super.key,
@@ -17,6 +18,7 @@ class HomeHeader extends StatelessWidget {
     required this.isPremium,
     this.onNotificationTap,
     this.onPremiumTap,
+    this.hasUnreadNotifications = false,
   });
 
   String get _displayGreeting {
@@ -79,7 +81,10 @@ class HomeHeader extends StatelessWidget {
             _UpgradeButton(onTap: onPremiumTap),
           const SizedBox(width: 10),
           // Notification
-          _NotificationButton(onTap: onNotificationTap),
+          _NotificationButton(
+            onTap: onNotificationTap,
+            hasUnread: hasUnreadNotifications,
+          ),
         ],
       ),
     );
@@ -222,7 +227,8 @@ class _UpgradeButton extends StatelessWidget {
 
 class _NotificationButton extends StatelessWidget {
   final VoidCallback? onTap;
-  const _NotificationButton({this.onTap});
+  final bool hasUnread;
+  const _NotificationButton({this.onTap, this.hasUnread = false});
 
   @override
   Widget build(BuildContext context) {
@@ -254,29 +260,30 @@ class _NotificationButton extends StatelessWidget {
               color: Color(AppColors.textSecondary),
               size: 21,
             ),
-            Positioned(
-              top: 9,
-              right: 9,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: const Color(AppColors.brandRed),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color(AppColors.surfaceLight),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(AppColors.brandRed).withOpacity(0.5),
-                      blurRadius: 5,
-                      spreadRadius: 0,
+            if (hasUnread)
+              Positioned(
+                top: 9,
+                right: 9,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: const Color(AppColors.brandRed),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(AppColors.surfaceLight),
+                      width: 1.5,
                     ),
-                  ],
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(AppColors.brandRed).withOpacity(0.5),
+                        blurRadius: 5,
+                        spreadRadius: 0,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),

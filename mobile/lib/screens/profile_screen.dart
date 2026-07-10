@@ -130,7 +130,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (confirmed != true) return;
-    await StorageService().clearAuthData();
+    await StorageService().clearChannelCache();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -496,9 +496,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: BlocBuilder<LicenseCubit, LicenseState>(
           builder: (context, licenseState) {
             final account = _accountInfo(licenseState);
-            return SingleChildScrollView(
+            return LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              child: Column(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Header
@@ -675,6 +678,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   const SizedBox(height: 32),
                 ],
+              ),
+              ),
               ),
             );
           },
