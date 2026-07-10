@@ -816,12 +816,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   /// Whether the player is currently showing the direct/live URL underneath the warming
   /// banner (the "start like TV" mode). True only when smooth is enabled, not ready, and
   /// the direct stream is actually playing — so we render the small banner, not a spinner.
-  bool get _warmingOverLive =>
-      _smoothPlaybackEnabled &&
-      _showPreparingOverlay &&
-      !_bufferReady &&
-      !_hasError &&
-      !_isLoading;
+  bool get _warmingOverLive => false;
 
   /// Whether a normal direct/live stream is available to play immediately while warming,
   /// so we show a small banner over live video instead of a full-screen "Preparing" spinner.

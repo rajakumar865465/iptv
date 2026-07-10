@@ -340,14 +340,14 @@ initDatabase().then(() => {
     //   );
     // }, 2 * 60 * 1000);
 
-    // Start automated stream health scanner in the background (runs every hour)
-    const { runHealthScan } = require('./jobs/stream_scanner');
-    setInterval(() => {
-      runHealthScan().catch(err => console.error('Scheduled health scan failed:', err));
-    }, 60 * 60 * 1000);
-    // Optionally trigger a scan a few minutes after startup
-    setTimeout(() => {
-      runHealthScan().catch(err => console.error('Initial health scan failed:', err));
-    }, 5 * 60 * 1000);
+    // Start automated stream health scanner in the background (Disabled per user request to fix 100% CPU)
+    // const { runHealthScan } = require('./jobs/stream_scanner');
+    // setInterval(() => {
+    //   runHealthScan().catch(err => console.error('Scheduled health scan failed:', err));
+    // }, 60 * 60 * 1000);
+    // Optionally trigger a scan a few minutes after startup (Disabled)
+    // setTimeout(() => {
+    //   runHealthScan().catch(err => console.error('Initial health scan failed:', err));
+    // }, 2 * 60 * 1000);
   });
 });
