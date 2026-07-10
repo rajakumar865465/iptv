@@ -447,223 +447,199 @@ export default function SmoothPlaybackPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-700 text-gray-400 text-xs uppercase">
-                <th className="text-left px-4 py-3">Channel</th>
-                <th className="text-left px-4 py-3">Health</th>
-                <th className="text-left px-4 py-3">Buffer Status</th>
-                <th className="text-left px-4 py-3">Buffer Quality</th>
-                <th className="text-left px-4 py-3">Clean %</th>
-                <th className="text-left px-4 py-3">Segments</th>
-                <th className="text-left px-4 py-3">Recorder Info</th>
-                <th className="text-left px-4 py-3">Delay Setting</th>
-                <th className="text-left px-4 py-3">Gap Mode</th>
-                <th className="text-left px-4 py-3">Enabled</th>
-                <th className="text-left px-4 py-3">Actions</th>
+              <tr className="border-b border-gray-700 text-gray-400 text-[11px] uppercase tracking-wider bg-gray-800/80">
+                <th className="text-left px-3 py-2 font-medium">Channel</th>
+                <th className="text-left px-3 py-2 font-medium">Status</th>
+                <th className="text-left px-3 py-2 font-medium">Buffer Health</th>
+                <th className="text-left px-3 py-2 font-medium">Recorder Info</th>
+                <th className="text-left px-3 py-2 font-medium">Settings</th>
+                <th className="text-center px-3 py-2 font-medium">Enabled</th>
+                <th className="text-right px-3 py-2 font-medium">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-700/50">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="text-center py-12 text-gray-500">Loading...</td>
+                  <td colSpan={7} className="text-center py-12 text-gray-500">Loading...</td>
                 </tr>
               ) : channels.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="text-center py-12 text-gray-500">No channels found</td>
+                  <td colSpan={7} className="text-center py-12 text-gray-500">No channels found</td>
                 </tr>
               ) : (
                 channels.map((ch) => (
-                  <tr key={ch.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-white">{ch.name}</div>
-                      <div className="text-gray-500 text-xs">#{ch.id}</div>
+                  <tr key={ch.id} className="hover:bg-gray-700/30 transition-colors">
+                    {/* Channel */}
+                    <td className="px-3 py-2 align-top w-48">
+                      <div className="font-semibold text-gray-100">{ch.name}</div>
+                      <div className="text-gray-500 text-[11px]">#{ch.id}</div>
                       {ch.last_buffer_error && (
-                        <div className="text-red-400 text-xs mt-1 max-w-xs truncate" title={ch.last_buffer_error}>
+                        <div className="text-red-400 text-[10px] mt-1 line-clamp-2 leading-tight" title={ch.last_buffer_error}>
                           ⚠ {ch.last_buffer_error}
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={ch.health_status || 'unknown'} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+
+                    {/* Status */}
+                    <td className="px-3 py-2 align-top w-32 space-y-1">
+                      <div><StatusBadge status={ch.health_status || 'unknown'} /></div>
+                      <div className="flex items-center gap-1.5">
                         <StatusBadge status={ch.buffer_status || 'stopped'} />
                         {ch.recorder_active && (
-                          <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse" title="Recorder active" />
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" title="Recorder active" />
                         )}
                       </div>
-                      {ch.recorder_status_detail && ch.recorder_status_detail !== ch.buffer_status && (
-                        <div className="text-xs text-gray-400 mt-1">{ch.recorder_status_detail.replace(/_/g, ' ')}</div>
+                    </td>
+
+                    {/* Buffer Health */}
+                    <td className="px-3 py-2 align-top w-64">
+                      {ch.buffer_quality_status ? (
+                        <>
+                          <div className="flex items-center gap-2 mb-1">
+                            <StatusBadge status={ch.buffer_quality_status} />
+                            <span className={`font-bold text-xs ${cleanBufferColor(ch.clean_buffer_percentage)}`}>
+                              {ch.clean_buffer_percentage !== undefined && ch.clean_buffer_percentage !== null
+                                ? `${Math.round(ch.clean_buffer_percentage)}%` : '—'}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-gray-400 flex flex-wrap gap-x-2 gap-y-0.5">
+                            <span>DL: {ch.downloaded_segments ?? 0}/{ch.total_expected_segments ?? 0}</span>
+                            {ch.missing_segment_count > 0 && <span className="text-red-400">✗ {ch.missing_segment_count}</span>}
+                            {ch.skipped_segment_count > 0 && <span className="text-orange-400">⤳ {ch.skipped_segment_count}</span>}
+                            {ch.recovered_segment_count > 0 && <span className="text-cyan-400">✓ {ch.recovered_segment_count}</span>}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-gray-600 text-[11px] italic">No buffer</span>
                       )}
                     </td>
 
-                    <td className="px-4 py-3">
-                      <div>
-                        <StatusBadge status={ch.buffer_quality_status || 'clean_buffer'} />
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        DL: {ch.downloaded_segments ?? 0} / {ch.total_expected_segments ?? 0}
+                    {/* Recorder Info */}
+                    <td className="px-3 py-2 align-top w-40">
+                      {ch.segment_count > 0 || ch.recorder_fail_count > 0 ? (
+                        <div className="text-[10px] text-gray-400 space-y-0.5 leading-tight">
+                          <div>Segments: {ch.segment_count}</div>
+                          {ch.backup_segment_count > 0 && <div>Backup: {ch.backup_segment_count}</div>}
+                          {ch.lower_quality_segment_count > 0 && <div>Lower-Q: {ch.lower_quality_segment_count}</div>}
+                          {ch.recorder_fail_count > 0 && <div className="text-orange-400 font-medium">Fails: {ch.recorder_fail_count}</div>}
+                          {ch.recorder_backup_attempts > 0 && <div className="text-cyan-400">Backups: {ch.recorder_backup_attempts}</div>}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-gray-600 italic">No segments yet</div>
+                      )}
+                    </td>
+
+                    {/* Settings */}
+                    <td className="px-3 py-2 align-top w-56">
+                      <div className="space-y-1.5">
+                        <div className="flex flex-col gap-0.5">
+                          <label className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide">Delay</label>
+                          <select
+                            disabled={saving === ch.id}
+                            value={
+                              !ch.smooth_playback_enabled && ch.restream_mode === 'disabled' ? -1
+                              : !ch.smooth_playback_enabled ? 0
+                              : ch.playback_delay_seconds
+                            }
+                            onChange={(e) => {
+                              const opt = DELAY_OPTIONS.find((o) => o.value === parseInt(e.target.value));
+                              if (opt) handleDelayChange(ch, opt.value, opt.mode);
+                            }}
+                            className="bg-gray-800 border border-gray-600 text-gray-200 rounded px-1.5 py-1 text-[11px] focus:outline-none focus:border-blue-500 w-full disabled:opacity-50"
+                          >
+                            {DELAY_OPTIONS.map((o) => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                        <div className="flex flex-col gap-0.5">
+                          <label className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide flex items-center justify-between">
+                            Gap Mode
+                            <label className="flex items-center gap-1 font-normal text-gray-400 cursor-pointer hover:text-gray-300">
+                              <input
+                                type="checkbox"
+                                className="w-2.5 h-2.5 rounded border-gray-600 text-blue-500 bg-gray-800"
+                                disabled={saving === ch.id || !ch.smooth_playback_enabled}
+                                checked={ch.allow_skip_missing_segments !== false}
+                                onChange={(e) => handleToggleSkip(ch, e.target.checked)}
+                              />
+                              <span className="text-[9px]">Allow skipping</span>
+                            </label>
+                          </label>
+                          <select
+                            disabled={saving === ch.id || !ch.smooth_playback_enabled}
+                            value={ch.gap_handling_mode || 'skip_missing_chunks'}
+                            onChange={(e) => handleGapModeChange(ch, e.target.value)}
+                            className="bg-gray-800 border border-gray-600 text-gray-200 rounded px-1.5 py-1 text-[11px] focus:outline-none focus:border-blue-500 w-full disabled:opacity-50"
+                          >
+                            {GAP_MODES.map((m) => (
+                              <option key={m} value={m}>{m.replace(/_/g, ' ')}</option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     </td>
-                    <td className={`px-4 py-3 font-bold ${cleanBufferColor(ch.clean_buffer_percentage)}`}>
-                      {ch.clean_buffer_percentage !== undefined && ch.clean_buffer_percentage !== null
-                        ? `${Math.round(ch.clean_buffer_percentage)}%` : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-400 space-y-0.5">
-                      <div className="text-gray-300">{ch.segment_count} total</div>
-                      <div className={ch.missing_segment_count ? 'text-red-400' : 'text-gray-500'}>
-                        ✗ missing: {ch.missing_segment_count ?? 0}
-                      </div>
-                      <div className={ch.skipped_segment_count ? 'text-orange-400' : 'text-gray-500'}>
-                        ⤳ skipped: {ch.skipped_segment_count ?? 0}
-                      </div>
-                      <div className={ch.recovered_segment_count ? 'text-cyan-400' : 'text-gray-500'}>
-                        ✓ recovered: {ch.recovered_segment_count ?? 0}
-                      </div>
-                      <div className={ch.backup_segment_count ? 'text-blue-400' : 'text-gray-500'}>
-                        backup: {ch.backup_segment_count ?? 0}
-                      </div>
-                      <div className={ch.lower_quality_segment_count ? 'text-purple-400' : 'text-gray-500'}>
-                        lower-q: {ch.lower_quality_segment_count ?? 0}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="text-xs text-gray-300 space-y-1">
-                        {ch.needs_manual_verification && (
-                          <div className="text-amber-300">Needs manual verification</div>
-                        )}
-                        {ch.recorder_stream_id && (
-                          <div>Stream: #{ch.recorder_stream_id}</div>
-                        )}
-                        {ch.recorder_stream_url && (
-                          <div className="truncate max-w-xs" title={ch.recorder_stream_url}>Current: {ch.recorder_stream_url}</div>
-                        )}
-                        {ch.recorder_failed_stream_url && (
-                          <div className="text-red-300 truncate max-w-xs" title={ch.recorder_failed_stream_url}>Failed: {ch.recorder_failed_stream_url}</div>
-                        )}
-                        {ch.recorder_backup_stream_url && (
-                          <div className="text-cyan-300 truncate max-w-xs" title={ch.recorder_backup_stream_url}>Backup: {ch.recorder_backup_stream_url}</div>
-                        )}
-                        {ch.recorder_fail_count > 0 && (
-                          <div className="text-orange-400">Fails: {ch.recorder_fail_count}</div>
-                        )}
-                        {ch.recorder_backup_attempts > 0 && (
-                          <div className="text-cyan-400">Backup switches: {ch.recorder_backup_attempts}</div>
-                        )}
-                        {ch.last_source_error && (
-                          <div className="text-red-400 truncate max-w-xs" title={ch.last_source_error}>
-                            Error: {ch.last_source_error}
-                          </div>
-                        )}
-                        {ch.last_successful_segment_at && (
-                          <div className="text-green-500 text-[10px]">
-                            Last good: {new Date(ch.last_successful_segment_at).toLocaleTimeString()}
-                          </div>
-                        )}
-                        {ch.last_missing_segment_at && (
-                          <div className="text-orange-500 text-[10px]">
-                            Last missing: {new Date(ch.last_missing_segment_at).toLocaleTimeString()}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        disabled={saving === ch.id}
-                        value={
-                          !ch.smooth_playback_enabled && ch.restream_mode === 'disabled' ? -1
-                          : !ch.smooth_playback_enabled ? 0
-                          : ch.playback_delay_seconds
-                        }
-                        onChange={(e) => {
-                          const opt = DELAY_OPTIONS.find((o) => o.value === parseInt(e.target.value));
-                          if (opt) handleDelayChange(ch, opt.value, opt.mode);
-                        }}
-                        className="bg-gray-700 border border-gray-600 text-white rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500 disabled:opacity-50"
-                      >
-                        {DELAY_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
-                      <div className="text-[10px] text-gray-500 mt-1">
-                        {ch.buffer_depth_seconds > 0 ? `${ch.buffer_depth_seconds}s buffered` : 'no buffer'}
-                        {ch.is_buffer_ready && <span className="ml-1 text-green-400">✓</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        disabled={saving === ch.id || !ch.smooth_playback_enabled}
-                        value={ch.gap_handling_mode || 'skip_missing_chunks'}
-                        onChange={(e) => handleGapModeChange(ch, e.target.value)}
-                        className="bg-gray-700 border border-gray-600 text-white rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500 disabled:opacity-50"
-                      >
-                        {GAP_MODES.map((m) => (
-                          <option key={m} value={m}>{m.replace(/_/g, ' ')}</option>
-                        ))}
-                      </select>
-                      <label className="flex items-center gap-1 text-[10px] text-gray-400 mt-1">
-                        <input
-                          type="checkbox"
-                          disabled={saving === ch.id || !ch.smooth_playback_enabled}
-                          checked={ch.allow_skip_missing_segments !== false}
-                          onChange={(e) => handleToggleSkip(ch, e.target.checked)}
-                        />
-                        Skip missing
-                      </label>
-                    </td>
-                    <td className="px-4 py-3">
+
+                    {/* Enabled Toggle */}
+                    <td className="px-3 py-2 align-middle text-center w-24">
                       <button
                         disabled={saving === ch.id}
                         onClick={() => handleToggle(ch, !ch.smooth_playback_enabled)}
-                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
+                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 disabled:opacity-50 disabled:cursor-not-allowed ${
                           ch.smooth_playback_enabled ? 'bg-blue-600' : 'bg-gray-600'
                         }`}
                       >
-                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                          ch.smooth_playback_enabled ? 'translate-x-4' : 'translate-x-1'
-                        }`} />
+                        <span
+                          className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                            ch.smooth_playback_enabled ? 'translate-x-4' : 'translate-x-1'
+                          }`}
+                        />
                       </button>
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1">
+
+                    {/* Actions */}
+                    <td className="px-3 py-2 align-top w-40 text-right">
+                      <div className="flex flex-wrap justify-end gap-1.5">
                         {ch.smooth_playback_enabled && (
                           <>
                             <button
                               disabled={saving === ch.id}
                               onClick={() => handleRestart(ch)}
-                              className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded disabled:opacity-50"
+                              className="text-[10px] font-medium bg-gray-700/50 hover:bg-gray-600 border border-gray-600 text-gray-200 px-2 py-1 rounded transition-colors disabled:opacity-50"
                             >
                               Restart
                             </button>
                             <button
                               disabled={saving === ch.id}
                               onClick={() => handleTestSegment(ch)}
-                              className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded disabled:opacity-50"
+                              className="text-[10px] font-medium bg-gray-700/50 hover:bg-gray-600 border border-gray-600 text-gray-200 px-2 py-1 rounded transition-colors disabled:opacity-50"
                             >
-                              Test Seg
+                              Test
                             </button>
                             <button
                               disabled={saving === ch.id || !ch.recorder_backup_stream_url}
                               onClick={() => handlePromoteBackup(ch)}
-                              className="text-xs bg-cyan-700 hover:bg-cyan-600 text-white px-2 py-1 rounded disabled:opacity-50"
+                              className="text-[10px] font-medium bg-cyan-900/40 hover:bg-cyan-800/60 border border-cyan-800 text-cyan-200 px-2 py-1 rounded transition-colors disabled:opacity-50"
+                              title="Promote backup stream to primary"
                             >
-                              Promote Backup
+                              Promote
                             </button>
                           </>
                         )}
                         <button
                           disabled={saving === ch.id}
                           onClick={() => handleResetCounters(ch)}
-                          className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded disabled:opacity-50"
+                          className="text-[10px] font-medium bg-gray-700/50 hover:bg-gray-600 border border-gray-600 text-gray-200 px-2 py-1 rounded transition-colors disabled:opacity-50"
                         >
-                          Reset Counts
+                          Reset
                         </button>
                         <button
                           disabled={saving === ch.id}
                           onClick={() => handleClearStale(ch)}
-                          className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded disabled:opacity-50"
+                          className="text-[10px] font-medium bg-gray-700/50 hover:bg-gray-600 border border-gray-600 text-gray-200 px-2 py-1 rounded transition-colors disabled:opacity-50"
                         >
-                          Clear Stale
+                          Clear
                         </button>
                       </div>
                     </td>
