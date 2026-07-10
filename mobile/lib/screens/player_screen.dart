@@ -192,6 +192,19 @@ const PlaybackProfile kDataSaverProfile = PlaybackProfile(
   demuxerMaxBackBytesMib: 16,
 );
 
+/// Web: browser-native HLS playback via media_kit MSE. Proxy delivers segments fast
+/// so stall detection can be much quicker than native libmpv.
+const PlaybackProfile kWebProfile = PlaybackProfile(
+  name: 'web',
+  demuxerReadaheadSecs: 8,
+  bufferSizeBytes: 32 * 1024 * 1024, // 32 MB
+  startupTimeoutSecs: 20, // web loads fast via proxy
+  stallTimeoutSecs: 15,   // 15s = fast retry on buffering stalls
+  preferredQuality: 'auto',
+  demuxerMaxBytesMib: 64,
+  demuxerMaxBackBytesMib: 16,
+);
+
 /// Mobile (auto on Android/iOS): lighter buffer for variable mobile data connections.
 /// 8s readahead = faster channel open; 32MB cap avoids RAM pressure on phones.
 const PlaybackProfile kMobileProfile = PlaybackProfile(
@@ -278,6 +291,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       case PlaybackMode.fast:      return kFastProfile;
       case PlaybackMode.dataSaver: return kDataSaverProfile;
       case PlaybackMode.auto:
+        if (kIsWeb) return kWebProfile;
         return isMobile ? kMobileProfile : kStableProfile;
       case PlaybackMode.stable:    return kStableProfile;
     }
@@ -1848,8 +1862,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // Re-initialize player with same parameters
       // When retrying a proxy URL, use proxy headers (with Authorization) —
       // stream meta headers don't contain the Bearer token the proxy route requires.
+      // On web, proxy is used as primary (_playbackPath='proxy') but _proxyAttempted
+      // is only set in the mobile fallback path. Check _playbackPath too so web
+      // retries correctly carry the Authorization header.
       final headersToUse;
-      if (_proxyAttempted && _proxyUrl != null && _currentUrl == _proxyUrl) {
+      if (_proxyHeaders != null &&
+          (_playbackPath == 'proxy' ||
+              (_proxyAttempted && _proxyUrl != null && _currentUrl == _proxyUrl))) {
         headersToUse = _proxyHeaders;
       } else if (_selectedQuality != null && _selectedQuality!['headers'] != null) {
         headersToUse = _selectedQuality!['headers'];
