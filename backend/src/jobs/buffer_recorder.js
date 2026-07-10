@@ -179,30 +179,6 @@ async function startAllEnabledRecorders() {
 async function cleanupOldSegments() {
   // Disabled per user request — buffer recording is fully off
   return;
-
-    for (const ch of channels.rows) {
-      const maxSecs = Math.min(ch.playback_delay_seconds * 2, 600);
-      const cutoff = new Date(Date.now() - maxSecs * 1000).toISOString();
-
-      const toDelete = await db.query(
-        `SELECT file_path FROM delayed_buffer_segments
-         WHERE channel_id = $1 AND created_at < $2`,
-        [ch.id, cutoff]
-      );
-
-      for (const seg of toDelete.rows) {
-        const fullPath = path.join(STORAGE_BASE, seg.file_path);
-        fs.unlink(fullPath, () => {});
-      }
-
-      await db.query(
-        `DELETE FROM delayed_buffer_segments WHERE channel_id = $1 AND created_at < $2`,
-        [ch.id, cutoff]
-      );
-    }
-  } catch (err) {
-    console.error('[buffer_recorder] cleanupOldSegments error:', err.message);
-  }
 }
 
 async function forceFallback(channelId) {
