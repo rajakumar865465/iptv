@@ -429,6 +429,11 @@ exports.proxyManifest = async (req, res) => {
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.setHeader('Cache-Control', 'no-cache, no-store');
+    // Allow browser HLS players to read the manifest from any origin (needed for
+    // HLS.js ABR probing which may fetch from the JS execution origin).
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
     res.send(rewritten);
   } catch (err) {
     console.error('proxyManifest err:', err.message);
@@ -583,6 +588,18 @@ exports.proxySegment = async (req, res) => {
     }
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'no-cache, no-store');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    // Forward Content-Length so the browser ABR algorithm can measure segment download
+    // speed accurately. Without this, the browser treats each segment as unknown-size
+    // chunked data and underestimates bandwidth, causing unnecessary quality drops.
+    if (proxyRes.headers['content-length']) {
+      res.setHeader('Content-Length', proxyRes.headers['content-length']);
+    }
+    // Forward byte-range info for CDNs that return partial content (206)
+    if (proxyRes.statusCode === 206 && proxyRes.headers['content-range']) {
+      res.setHeader('Content-Range', proxyRes.headers['content-range']);
+    }
 
     const isM3u8 = targetUrl.includes('.m3u8') || (contentType && contentType.includes('mpegurl'));
 

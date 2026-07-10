@@ -504,9 +504,9 @@ export default function SmoothPlaybackPage() {
                           </div>
                           <div className="text-[10px] text-gray-400 flex flex-wrap gap-x-2 gap-y-0.5">
                             <span>DL: {ch.downloaded_segments ?? 0}/{ch.total_expected_segments ?? 0}</span>
-                            {ch.missing_segment_count > 0 && <span className="text-red-400">✗ {ch.missing_segment_count}</span>}
-                            {ch.skipped_segment_count > 0 && <span className="text-orange-400">⤳ {ch.skipped_segment_count}</span>}
-                            {ch.recovered_segment_count > 0 && <span className="text-cyan-400">✓ {ch.recovered_segment_count}</span>}
+                            { (ch.missing_segment_count ?? 0) > 0 && <span className="text-red-400">✗ {ch.missing_segment_count}</span>}
+                            { (ch.skipped_segment_count ?? 0) > 0 && <span className="text-orange-400">⤳ {ch.skipped_segment_count}</span>}
+                            { (ch.recovered_segment_count ?? 0) > 0 && <span className="text-cyan-400">✓ {ch.recovered_segment_count}</span>}
                           </div>
                         </>
                       ) : (
@@ -516,13 +516,13 @@ export default function SmoothPlaybackPage() {
 
                     {/* Recorder Info */}
                     <td className="px-3 py-2 align-top w-40">
-                      {ch.segment_count > 0 || ch.recorder_fail_count > 0 ? (
+                      { (ch.segment_count ?? 0) > 0 || (ch.recorder_fail_count ?? 0) > 0 ? (
                         <div className="text-[10px] text-gray-400 space-y-0.5 leading-tight">
                           <div>Segments: {ch.segment_count}</div>
-                          {ch.backup_segment_count > 0 && <div>Backup: {ch.backup_segment_count}</div>}
-                          {ch.lower_quality_segment_count > 0 && <div>Lower-Q: {ch.lower_quality_segment_count}</div>}
-                          {ch.recorder_fail_count > 0 && <div className="text-orange-400 font-medium">Fails: {ch.recorder_fail_count}</div>}
-                          {ch.recorder_backup_attempts > 0 && <div className="text-cyan-400">Backups: {ch.recorder_backup_attempts}</div>}
+                          { (ch.backup_segment_count ?? 0) > 0 && <div>Backup: {ch.backup_segment_count}</div>}
+                          { (ch.lower_quality_segment_count ?? 0) > 0 && <div>Lower-Q: {ch.lower_quality_segment_count}</div>}
+                          { (ch.recorder_fail_count ?? 0) > 0 && <div className="text-orange-400 font-medium">Fails: {ch.recorder_fail_count}</div>}
+                          { (ch.recorder_backup_attempts ?? 0) > 0 && <div className="text-cyan-400">Backups: {ch.recorder_backup_attempts}</div>}
                         </div>
                       ) : (
                         <div className="text-[10px] text-gray-600 italic">No segments yet</div>
