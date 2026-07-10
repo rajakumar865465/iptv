@@ -100,39 +100,56 @@ class StreamScanner {
         return result;
       }
 
+      const captureMetrics = (res, duration) => {
+        if (result.segment_response_time === 0) {
+          result.segment_response_time = duration;
+          result.segment_content_type = res.ct || '';
+          result.segment_size = res.body ? res.body.length : 0;
+        }
+      };
+
       // Segment 1
       const seg1Start = Date.now();
       const seg1Res = await httpGet(segments[0], headers, true);
       const seg1Duration = Date.now() - seg1Start;
       if (seg1Res.ok) {
         result.segment_load_success_1 = true;
-        result.segment_response_time = seg1Duration;
-        result.segment_content_type = seg1Res.ct || '';
-        result.segment_size = seg1Res.body ? seg1Res.body.length : 0;
+        captureMetrics(seg1Res, seg1Duration);
       }
 
       // Segment 2
+      const seg2Start = Date.now();
       const seg2Res = await httpGet(segments[1] || segments[0], headers, true);
+      const seg2Duration = Date.now() - seg2Start;
       if (seg2Res.ok) {
         result.segment_load_success_2 = true;
+        captureMetrics(seg2Res, seg2Duration);
       }
 
-      // Segment 3 (Wait for target duration to test stability/expiry)
-      // Normally HLS segments are 2-10s. We wait a bit.
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      // Segment 3
+      const seg3Start = Date.now();
       const seg3Res = await httpGet(segments[2] || segments[0], headers, true);
+      const seg3Duration = Date.now() - seg3Start;
       if (seg3Res.ok) {
         result.segment_load_success_3 = true;
-      } else if (result.segment_load_success_1 && !seg3Res.ok) {
-        // If 1 worked but 3 failed after a wait, it might be a token expiry
-        result.token_expiry_detected = true;
-        result.scanner_status = 'expired_url';
+        captureMetrics(seg3Res, seg3Duration);
       }
 
       // Final Status Determination
-      if (result.segment_load_success_1 && result.segment_load_success_2 && result.segment_load_success_3) {
+      const successCount = [
+        result.segment_load_success_1,
+        result.segment_load_success_2,
+        result.segment_load_success_3
+      ].filter(Boolean).length;
+
+      // Token expiry heuristic: if no segments load but playlist loaded fine, it might be an IP/Token block.
+      if (successCount === 0 && result.media_playlist_load_success) {
+        result.token_expiry_detected = true;
+      }
+
+      if (successCount >= 2) {
         result.scanner_status = 'working';
-      } else if (result.segment_load_success_1) {
+      } else if (successCount === 1) {
         result.scanner_status = 'unstable';
       } else {
         result.scanner_status = 'segment_failed';
