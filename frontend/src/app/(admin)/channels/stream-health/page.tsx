@@ -209,7 +209,7 @@ export default function StreamHealthPage() {
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="p-6 space-y-6 text-sm text-gray-100 min-h-screen bg-gray-950">
+    <div className="space-y-6 text-sm text-gray-100 pb-10">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
