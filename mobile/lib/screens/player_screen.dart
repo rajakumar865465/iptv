@@ -396,6 +396,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   String _playerToast = '';
   Timer? _playerToastTimer;
 
+  // LIVE badge pulse animation state (red dot blinks every ~1s)
+  bool _livePulseVisible = true;
+  Timer? _livePulseTimer;
+
   @override
   void initState() {
     super.initState();
@@ -450,6 +454,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _loadQualitySettingsAndFetch();
     _loadChannelData();
     _updateMoreChannelsFromContext();
+
+    // Start LIVE badge red-dot pulse (alternates every 900ms)
+    _livePulseTimer = Timer.periodic(const Duration(milliseconds: 900), (_) {
+      if (mounted) setState(() { _livePulseVisible = !_livePulseVisible; });
+    });
   }
 
   // ------------------------ Player ------------------------
@@ -2443,6 +2452,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _controlsTimer?.cancel();
     _slowOverlayTimer?.cancel();
     _playerToastTimer?.cancel();
+    _livePulseTimer?.cancel();
     _qualityUpgradeTimer?.cancel();
     _hdPromoteTimer?.cancel();
     _gapWarningRefreshTimer?.cancel();
@@ -3128,22 +3138,27 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            stops: [0.0, 0.25, 0.70, 1.0],
+            stops: [0.0, 0.28, 0.65, 1.0],
             colors: [
-              Color(0xDD000000),
-              Color(0x55000000),
-              Color(0x33000000),
-              Color(0xDD000000),
+              Color(0xDD000000), // dark top
+              Color(0x00000000), // transparent mid
+              Color(0x00000000), // transparent mid
+              Color(0xCC000000), // dark bottom
             ],
           ),
         ),
         child: Column(
           children: [
+            // Top bar: back | NivaTV branding | Premium + ⋮
             _buildControlsTopBar(fullscreen: fullscreen, safeTop: fullscreen ? safe.top : 0),
+            // Secondary row: LIVE badge (left) + Cast/CC/Fullscreen icons (right)
+            _buildSecondaryBar(fullscreen: fullscreen),
             const Spacer(),
+            // Center: ↺10 | ⏸ | ↻10
             _buildCenterControls(),
             const Spacer(),
-            _buildControlsBottomBar(fullscreen: fullscreen, safeBottom: fullscreen ? safe.bottom : 0),
+            // Bottom: 15:30 ════●═════════════════════ 30:00
+            _buildLiveProgressBar(fullscreen: fullscreen, safeBottom: fullscreen ? safe.bottom : 0),
           ],
         ),
       ),
@@ -3151,174 +3166,212 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Widget _buildControlsTopBar({bool fullscreen = false, double safeTop = 0}) {
-    final logoSize = fullscreen ? 48.0 : 36.0;
     return Padding(
-      padding: EdgeInsets.fromLTRB(4, 4 + safeTop, 8, 0),
+      padding: EdgeInsets.fromLTRB(4, 4 + safeTop, 4, 0),
       child: Row(
         children: [
+          // ── Back button ──────────────────────────────────────────────────────
           IconButton(
             icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
             onPressed: _isFullScreen ? _toggleFullScreen : () => Navigator.of(context).pop(),
           ),
-          // Channel logo + title with dark backdrop for visibility
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0x99000000), Color(0x44000000)],
-              ),
-              borderRadius: BorderRadius.circular(10),
-            ),
+          // ── App branding centered ────────────────────────────────────────────
+          Expanded(
             child: Row(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.max,
               children: [
-                Container(
-                  width: logoSize,
-                  height: logoSize,
-                  margin: const EdgeInsets.only(right: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.black45,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: ChannelLogo(
-                      key: ValueKey(_currentChannel.id),
-                      logoUrl: _currentChannel.logoUrl,
-                      localLogoUrl: _currentChannel.localLogoUrl,
-                      channelName: _currentChannel.name,
-                      cacheKey: 'player_${_currentChannel.id}',
-                      size: logoSize,
-                      borderRadius: 8,
-                    ),
-                  ),
+                Image.asset(
+                  'assets/images/logo.png',
+                  width: 26,
+                  height: 26,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.tv_rounded, color: Colors.white, size: 22),
                 ),
-                Flexible(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _currentChannel.name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (_currentChannel.categoryName != null)
-                        Text(
-                          _currentChannel.categoryName!,
-                          style: const TextStyle(color: Colors.white70, fontSize: 11),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                    ],
+                const SizedBox(width: 7),
+                const Text(
+                  'NivaTV',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
                   ),
                 ),
               ],
             ),
           ),
-          const Spacer(),
-          // LIVE / Smooth Live indicator
+          // ── Right side: Smooth-live GO LIVE button (if applicable) ───────────
+          if (_smoothPlaybackEnabled &&
+              (_bufferReady || _showPreparingOverlay) &&
+              _canGoLive &&
+              (_directLiveUrl != null && _directLiveUrl!.isNotEmpty))
+            TextButton(
+              onPressed: () async {
+                try {
+                  _smoothWarmTimer?.cancel();
+                  _smoothWarmTimer = null;
+                  await _player.stop();
+                  await _initializePlayer(_directLiveUrl!, {});
+                  if (mounted) {
+                    setState(() {
+                      _smoothPlaybackEnabled = false;
+                      _bufferReady = false;
+                      _showPreparingOverlay = false;
+                    });
+                  }
+                  _showPlayerToast('Switched to Live');
+                } catch (e) {
+                  _showPlayerToast('Failed to go live');
+                }
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.red.withOpacity(0.9),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                minimumSize: const Size(0, 24),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              ),
+              child: const Text('GO LIVE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+            ),
+          // ── Premium badge ────────────────────────────────────────────────────
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A2000),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFFFFCC00).withOpacity(0.6), width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Icons.workspace_premium_rounded, color: Color(0xFFFFCC00), size: 13),
+                SizedBox(width: 3),
+                Text('Premium', style: TextStyle(color: Color(0xFFFFCC00), fontSize: 10, fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+          // ── Three-dot overflow menu (Quality + Fit + Channel counter) ────────
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded, color: Colors.white, size: 22),
+            color: const Color(0xFF1A1A2E),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            onSelected: (value) {
+              if (value == 'quality') _showQualitySelector();
+              if (value == 'fit') _showFitSelector();
+            },
+            itemBuilder: (_) {
+              // Build quality label for display
+              String qualityLabel = 'Auto';
+              if (_player.state.track.video.id != 'auto' && _player.state.track.video.h != null) {
+                qualityLabel = '${_player.state.track.video.h}p';
+              } else if (_selectedQuality != null) {
+                qualityLabel = _selectedQuality!['label'];
+              }
+              return [
+                PopupMenuItem(
+                  value: 'quality',
+                  child: Row(children: [
+                    const Icon(Icons.settings_suggest, color: Colors.white70, size: 18),
+                    const SizedBox(width: 10),
+                    Text('Quality: $qualityLabel', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  ]),
+                ),
+                PopupMenuItem(
+                  value: 'fit',
+                  child: Row(children: [
+                    const Icon(Icons.aspect_ratio_rounded, color: Colors.white70, size: 18),
+                    const SizedBox(width: 10),
+                    Text('Fit: ${_getFitSubtitle()}', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  ]),
+                ),
+                if (_contextChannels.length > 1)
+                  PopupMenuItem(
+                    enabled: false,
+                    child: Text(
+                      'Channel ${_currentIndex + 1} of ${_contextChannels.length}',
+                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
+                  ),
+              ];
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Secondary bar: LIVE badge (left) + action icons (right — cast placeholder, CC, fullscreen)
+  Widget _buildSecondaryBar({bool fullscreen = false}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
+      child: Row(
+        children: [
+          // ── LIVE / Smooth-live badge (top-left) ───────────────────────────
           if (_smoothPlaybackEnabled && _bufferReady)
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 6),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: const Color(0xFF1565C0),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(5),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('SMOOTH LIVE', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
-                  Text(
-                    '${(_delaySeconds ~/ 60)} min delay',
-                    style: const TextStyle(color: Colors.white70, fontSize: 7),
-                  ),
+                  const Text('SMOOTH', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+                  Text('${(_delaySeconds ~/ 60)}m delay', style: const TextStyle(color: Colors.white70, fontSize: 7)),
                 ],
               ),
             )
           else
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.circular(4),
+                color: Colors.red.shade700,
+                borderRadius: BorderRadius.circular(5),
+                boxShadow: [BoxShadow(color: Colors.red.withOpacity(0.5), blurRadius: 8, spreadRadius: 0)],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 5,
-                    height: 5,
-                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  AnimatedOpacity(
+                    opacity: _livePulseVisible ? 1.0 : 0.2,
+                    duration: const Duration(milliseconds: 400),
+                    child: Container(
+                      width: 6, height: 6,
+                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    ),
                   ),
-                  const SizedBox(width: 4),
-                  const Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.8)),
+                  const SizedBox(width: 5),
+                  const Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
                 ],
               ),
             ),
-          // Go Live button — shown both while warming (offer direct live escape) and after
-          // the delayed stream is playing, whenever a direct URL is available.
-          if (_smoothPlaybackEnabled &&
-              (_bufferReady || _showPreparingOverlay) &&
-              _canGoLive &&
-              (_directLiveUrl != null && _directLiveUrl!.isNotEmpty))
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: TextButton(
-                onPressed: () async {
-                  try {
-                    _smoothWarmTimer?.cancel();
-                    _smoothWarmTimer = null;
-                    await _player.stop();
-                    await _initializePlayer(_directLiveUrl!, {});
-                    if (mounted) {
-                      setState(() {
-                        _smoothPlaybackEnabled = false;
-                        _bufferReady = false;
-                        _showPreparingOverlay = false;
-                      });
-                    }
-                    _showPlayerToast('Switched to Live');
-                  } catch (e) {
-                    _showPlayerToast('Failed to go live');
-                  }
-                },
-                style: TextButton.styleFrom(
-                  backgroundColor: Colors.red.withOpacity(0.9),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  minimumSize: const Size(0, 28),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 5,
-                      height: 5,
-                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                    ),
-                    const SizedBox(width: 4),
-                    const Text('GO LIVE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
-                  ],
-                ),
-              ),
-            ),
-          IconButton(
-            icon: Icon(
-              _isFullScreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
-              color: Colors.white,
-              size: 26,
-            ),
-            onPressed: _toggleFullScreen,
+          const Spacer(),
+          // ── Right-side icon buttons: fullscreen ───────────────────────────
+          // (cast/CC icons can be added when functionality is available)
+          _overlayIconBtn(
+            icon: _isFullScreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+            onTap: _toggleFullScreen,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _overlayIconBtn({required IconData icon, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: () {
+        onTap();
+        _showControlsWithTimer();
+      },
+      child: Container(
+        width: 36, height: 36,
+        margin: const EdgeInsets.only(left: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.35),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.white, size: 20),
       ),
     );
   }
@@ -3331,39 +3384,40 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Previous
-            _controlIconButton(
-              icon: Icons.skip_previous_rounded,
-              size: 34,
+            // ── Previous channel (styled as ↺10 rewind) ──────────────────
+            _centerSkipBtn(
+              icon: Icons.replay_10_rounded,
               onTap: _playPreviousChannel,
             ),
-            const SizedBox(width: 28),
-            // Play / Pause - large circle button
+            const SizedBox(width: 36),
+            // ── Play / Pause ──────────────────────────────────────────────
             GestureDetector(
               onTap: () {
                 _player.playOrPause();
                 _showControlsWithTimer();
               },
               child: Container(
-                width: 62,
-                height: 62,
+                width: 68,
+                height: 68,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withOpacity(0.22),
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white.withOpacity(0.5), width: 2),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 16, spreadRadius: 0),
+                  ],
                 ),
                 child: Icon(
                   isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                   color: Colors.white,
-                  size: 38,
+                  size: 42,
                 ),
               ),
             ),
-            const SizedBox(width: 28),
-            // Next
-            _controlIconButton(
-              icon: Icons.skip_next_rounded,
-              size: 34,
+            const SizedBox(width: 36),
+            // ── Next channel (styled as ↻10 forward) ─────────────────────
+            _centerSkipBtn(
+              icon: Icons.forward_10_rounded,
               onTap: _playNextChannel,
             ),
           ],
@@ -3372,98 +3426,151 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _controlIconButton({required IconData icon, required double size, required VoidCallback onTap}) {
+  Widget _centerSkipBtn({required IconData icon, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: () {
         onTap();
         _showControlsWithTimer();
       },
       child: Container(
-        width: 44,
-        height: 44,
+        width: 52,
+        height: 52,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.12),
+          color: Colors.white.withOpacity(0.10),
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: Colors.white, size: size),
+        child: Icon(icon, color: Colors.white, size: 36),
       ),
     );
   }
 
-  Widget _buildControlsBottomBar({bool fullscreen = false, double safeBottom = 0}) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + safeBottom),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          // Quality selector
-          Builder(builder: (context) {
-            String buttonLabel = 'Auto';
-            if (_player.state.track.video.id != 'auto' && _player.state.track.video.h != null) {
-              buttonLabel = '${_player.state.track.video.h}p';
-            } else if (_selectedQuality != null) {
-              buttonLabel = _selectedQuality!['label'];
-            } else if (_player.state.height != null && _player.state.height! > 0) {
-              buttonLabel = '${_player.state.height}p Auto';
-            }
+  // Keep for legacy call sites; delegates to _centerSkipBtn
+  Widget _controlIconButton({required IconData icon, required double size, required VoidCallback onTap}) {
+    return _centerSkipBtn(icon: icon, onTap: onTap);
+  }
 
-            return GestureDetector(
-              onTap: _showQualitySelector,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.settings_suggest, size: 14, color: Colors.white),
-                    const SizedBox(width: 4),
-                    Text(
-                      buttonLabel,
-                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
+  // Bottom bar removed — quality/fit now live in the ⋮ overflow menu in the top bar.
+  // This stub is kept so any remaining call sites don't break.
+  Widget _buildControlsBottomBar({bool fullscreen = false, double safeBottom = 0}) =>
+      const SizedBox.shrink();
+
+  // ─── Live Progress Bar ─────────────────────────────────────────────────────
+  // Shown just above the bottom control bar.
+  // Mode A (EPG): coloured fill bar with program name + start/end times.
+  // Mode B (no EPG): animated LIVE pulse bar with current time.
+  // ─── Bottom progress bar — reference design ────────────────────────────────
+  // Matches image #5: [15:30]  ════════●═══════════════  [30:00]
+  // Mode A (EPG): red fill + red dot shows elapsed programme progress.
+  //               Left label = programme start time, Right label = end time.
+  // Mode B (no EPG): full red bar at live-edge, left = current time, right hidden.
+  Widget _buildLiveProgressBar({bool fullscreen = false, double safeBottom = 0}) {
+    final now = DateTime.now();
+    final prog = _nowPlaying;
+
+    double pct;
+    String leftLabel;
+    String rightLabel;
+    String? programTitle;
+
+    if (prog != null && prog.startTime != null && prog.endTime != null) {
+      final total   = prog.endTime!.difference(prog.startTime!).inSeconds;
+      final elapsed = now.difference(prog.startTime!).inSeconds;
+      pct          = (total > 0 ? (elapsed / total).clamp(0.0, 1.0) : 1.0);
+      leftLabel    = DateFormat('h:mm a').format(prog.startTime!.toLocal());
+      rightLabel   = DateFormat('h:mm a').format(prog.endTime!.toLocal());
+      programTitle = prog.title;
+    } else {
+      pct        = 1.0;  // at live edge
+      leftLabel  = DateFormat('h:mm a').format(now);
+      rightLabel = '';
+    }
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 14 + safeBottom),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Programme title (EPG only) — sits just above the scrubber
+          if (programTitle != null) ...[
+            Text(
+              programTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.1,
               ),
-            );
-          }),
-          const SizedBox(width: 10),
-          // Video size / fit mode selector
-          GestureDetector(
-            onTap: _showFitSelector,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: Row(
+            ),
+            const SizedBox(height: 8),
+          ],
+          // ── Scrubber track ──────────────────────────────────────────────────
+          LayoutBuilder(builder: (ctx, constraints) {
+            final trackW  = constraints.maxWidth;
+            final dotX    = (trackW * pct).clamp(0.0, trackW);
+            const dotR    = 6.0;   // dot radius
+            const trackH  = 3.0;
+
+            return SizedBox(
+              height: dotR * 2,
+              child: Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  const Icon(Icons.aspect_ratio_rounded, size: 14, color: Colors.white),
-                  const SizedBox(width: 4),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 132),
-                    child: Text(
-                      _getFitSubtitle(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                  // Grey track
+                  Positioned(
+                    left: 0,
+                    top: dotR - trackH / 2,
+                    child: Container(
+                      width: trackW,
+                      height: trackH,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(trackH / 2),
+                      ),
+                    ),
+                  ),
+                  // Red fill
+                  Positioned(
+                    left: 0,
+                    top: dotR - trackH / 2,
+                    child: Container(
+                      width: dotX,
+                      height: trackH,
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(trackH / 2),
+                      ),
+                    ),
+                  ),
+                  // Red dot at live-edge
+                  Positioned(
+                    left: (dotX - dotR).clamp(0.0, trackW - dotR * 2),
+                    top: 0,
+                    child: Container(
+                      width: dotR * 2,
+                      height: dotR * 2,
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
+            );
+          }),
+          const SizedBox(height: 6),
+          // ── Time labels under track ─────────────────────────────────────────
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(leftLabel,  style: const TextStyle(color: Colors.white70, fontSize: 11)),
+              if (rightLabel.isNotEmpty)
+                Text(rightLabel, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+            ],
           ),
-          if (_contextChannels.length > 1) ...[
-            const SizedBox(width: 10),
-            Text(
-              '${_currentIndex + 1} / ${_contextChannels.length}',
-              style: const TextStyle(color: Colors.white60, fontSize: 11),
-            ),
-          ],
         ],
       ),
     );

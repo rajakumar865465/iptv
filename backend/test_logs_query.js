@@ -23,10 +23,10 @@ async function testQuery() {
           'admin' as source,
           'Admin action: ' || action as message,
           NULL::int as "statusCode",
-          CASE WHEN target_type = 'channel' THEN target_id ELSE NULL END as "channelId",
+          NULL::int as "channelId",
           admin_id as "userId",
           NULL::varchar as "requestPath",
-          jsonb_build_object('old', old_value, 'new', new_value, 'reason', reason) as "errorDetails"
+          details as "errorDetails"
         FROM admin_audit_logs
         
         UNION ALL
