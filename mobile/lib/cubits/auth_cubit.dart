@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
 import '../services/token_refresh_service.dart';
@@ -45,6 +46,9 @@ class AuthCubit extends Cubit<AuthState> {
         await _storage.saveToken(result.token);
         if (result.refreshToken != null && result.refreshToken!.isNotEmpty) {
           await _storage.saveRefreshToken(result.refreshToken!);
+        }
+        if (result.user != null) {
+          await _storage.saveUser(result.user!);
         }
         emit(AuthAuthenticated());
       } else {
@@ -103,6 +107,9 @@ class AuthCubit extends Cubit<AuthState> {
         if (result.refreshToken != null && result.refreshToken!.isNotEmpty) {
           await _storage.saveRefreshToken(result.refreshToken!);
         }
+        if (result.user != null) {
+          await _storage.saveUser(result.user!);
+        }
         emit(AuthAuthenticated());
       } else {
         emit(AuthError('Signup failed'));
@@ -144,6 +151,10 @@ class AuthCubit extends Cubit<AuthState> {
       try {
         final meResult = await _authService.me();
         if (meResult != null) {
+          try {
+            final user = UserModel.fromJson(meResult);
+            await _storage.saveUser(user);
+          } catch (_) {}
           emit(AuthAuthenticated());
         } else {
           // /me returned 200 but success=false — session is explicitly invalid.

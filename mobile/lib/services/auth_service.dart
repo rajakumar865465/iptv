@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../constants.dart';
+import '../models/user_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/backend_config.dart';
@@ -11,6 +12,7 @@ class AuthUserResult {
   final String userStatus;
   final String licenseStatus;
   final Map<String, dynamic>? license;
+  final UserModel? user;
 
   AuthUserResult({
     required this.userId,
@@ -19,6 +21,7 @@ class AuthUserResult {
     required this.userStatus,
     required this.licenseStatus,
     this.license,
+    this.user,
   });
 }
 
@@ -86,6 +89,22 @@ class AuthService {
   AuthUserResult? _parseAuthResponse(Map<String, dynamic> data) {
     if (data['success'] == true && data['data'] != null) {
       final d = data['data'];
+      UserModel? parsedUser;
+      try {
+        final u = d['user'] as Map<String, dynamic>?;
+        if (u != null) {
+          parsedUser = UserModel.fromJson({
+            'id': u['id'],
+            'full_name': u['full_name'] ?? '',
+            'email': u['email'] ?? '',
+            'mobile': u['mobile'] ?? '',
+            'status': u['status'] ?? 'active',
+            'role': u['role'] ?? 'user',
+            'created_at': u['created_at'] ?? DateTime.now().toIso8601String(),
+            'last_login_at': u['last_login_at'],
+          });
+        }
+      } catch (_) {}
       return AuthUserResult(
         userId: d['user']['id'],
         token: d['token'],
@@ -93,6 +112,7 @@ class AuthService {
         userStatus: d['user_status'] ?? 'active',
         licenseStatus: d['license_status'] ?? 'none',
         license: d['license'],
+        user: parsedUser,
       );
     }
     return null;

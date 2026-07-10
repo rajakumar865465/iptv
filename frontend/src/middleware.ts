@@ -28,6 +28,7 @@ const PROTECTED_PREFIXES = [
   '/dashboard',
   '/devices',
   '/duplicate-channels',
+  '/feedback',
   '/hidden-channels',
   '/import/iptv',
   '/languages',

@@ -38,6 +38,31 @@ exports.submitFeedback = async (req, res) => {
   }
 };
 
+// PATCH /api/internal/feedback/:id  (admin)
+exports.updateFeedback = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, admin_note } = req.body;
+    const VALID_STATUSES = ['pending', 'reviewed', 'resolved'];
+    if (status && !VALID_STATUSES.includes(status)) {
+      return error(res, `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`, 400);
+    }
+    const result = await db.query(
+      `UPDATE user_feedback
+       SET status = COALESCE($1, status),
+           admin_note = COALESCE($2, admin_note)
+       WHERE id = $3
+       RETURNING id, status, admin_note`,
+      [status || null, admin_note ?? null, id]
+    );
+    if (result.rows.length === 0) return error(res, 'Feedback not found', 404);
+    return success(res, result.rows[0], 'Feedback updated');
+  } catch (err) {
+    console.error('updateFeedback error:', err.message);
+    return error(res, 'Failed to update feedback', 500);
+  }
+};
+
 // GET /api/internal/feedback  (admin)
 exports.getFeedback = async (req, res) => {
   try {

@@ -319,3 +319,10 @@ export const promoteSmoothPlaybackBackup = (id: number) =>
 
 export const resetSmoothPlaybackCounters = (id: number) =>
   api.post(`/smooth-playback/channels/${id}/reset-counters`).then((r) => r.data.data);
+
+// User Feedback
+export const getFeedback = (params?: Record<string, string>) =>
+  api.get('/feedback', { params }).then((r) => r.data.data);
+
+export const updateFeedback = (id: number, data: { status?: string; admin_note?: string }) =>
+  api.patch(`/feedback/${id}`, data).then((r) => r.data.data);

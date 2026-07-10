@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, MonitorSmartphone, KeyRound, CreditCard, Globe, Zap,
   AlertTriangle, FileStack, Settings, Bell, BarChart3, ScrollText, Activity, Shield,
-  Package, Globe2, HeartPulse, Radio,
+  Package, Globe2, HeartPulse, Radio, MessageSquareWarning,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -38,6 +38,7 @@ const navSections: NavSection[] = [
       { href: '/devices', label: 'Devices', icon: MonitorSmartphone },
       { href: '/licenses', label: 'Licenses', icon: KeyRound },
       { href: '/payments', label: 'Payments', icon: CreditCard },
+      { href: '/feedback', label: 'User Feedback', icon: MessageSquareWarning },
     ],
   },
   {

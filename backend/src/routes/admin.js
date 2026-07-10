@@ -52,6 +52,7 @@ router.put('/users/:id/status', adminController.updateUserStatus);
 // ─── User Feedback ────────────────────────────────
 const userFeedbackController = require('../controllers/userFeedbackController');
 router.get('/feedback', userFeedbackController.getFeedback);
+router.patch('/feedback/:id', userFeedbackController.updateFeedback);
 
 // ─── Devices ──────────────────────────────────────
 router.get('/devices', deviceController.getAllDevices);

@@ -82,13 +82,17 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
+      flex: isSelected ? 2 : 1,
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: EdgeInsets.symmetric(
+            vertical: 6,
+            horizontal: isSelected ? 10 : 0,
+          ),
           decoration: isSelected
               ? BoxDecoration(
                   gradient: const LinearGradient(
@@ -127,18 +131,15 @@ class _NavItem extends StatelessWidget {
                         size: 20,
                       ),
                       const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          item.label,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.2,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                      Text(
+                        item.label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.2,
                         ),
+                        maxLines: 1,
                       ),
                     ],
                   )

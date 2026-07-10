@@ -57,7 +57,16 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
         'mobile': _mobileCtrl.text.trim(),
       });
       if (response['success'] == true) {
-        final updatedUser = UserModel.fromJson(response['data']);
+        final updatedUser = UserModel(
+          id: widget.user.id,
+          fullName: _nameCtrl.text.trim(),
+          email: _emailCtrl.text.trim(),
+          mobile: _mobileCtrl.text.trim(),
+          status: widget.user.status,
+          role: widget.user.role,
+          createdAt: widget.user.createdAt,
+          lastLoginAt: widget.user.lastLoginAt,
+        );
         await StorageService().saveUser(updatedUser);
         if (mounted) Navigator.pop(context);
         widget.onSaved();

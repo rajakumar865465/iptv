@@ -16,7 +16,6 @@ class HomeHero extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
-        height: 172,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           gradient: const LinearGradient(
@@ -100,7 +99,7 @@ class HomeHero extends StatelessWidget {
                           'Watch Live TV Instantly',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 22,
+                            fontSize: 20,
                             fontWeight: FontWeight.w900,
                             letterSpacing: -0.5,
                             height: 1.15,
