@@ -96,18 +96,13 @@ async function buildBaseConditions() {
 async function fetchSection(req, extraConditions, extraParams, orderSQL, limit, baseConditions, baseParams, baseParamIndex) {
   const allConditions = [...baseConditions, ...extraConditions];
   const allParams = [...baseParams, ...extraParams];
-  let idx = baseParamIndex;
-
-  // Remap extra param placeholders to correct indices
-  const remappedOrder = orderSQL;
-  const limitParam = idx + extraParams.length;
 
   const sql = `
     SELECT c.*, cat.name AS category_name
     FROM channels c
     LEFT JOIN categories cat ON c.category_id = cat.id
     WHERE ${allConditions.join(' AND ')}
-    ${remappedOrder}
+    ${orderSQL}
     LIMIT $${allParams.length + 1}
   `;
 
@@ -133,17 +128,6 @@ exports.getHome = async (req, res) => {
     const JOIN = `LEFT JOIN categories cat ON c.category_id = cat.id`;
     const BASE_WHERE = `WHERE ${bc.join(' AND ')}`;
 
-    const RECOMMENDED_ORDER = `
-      ORDER BY
-        CASE WHEN c.is_premium = true THEN 0 ELSE 1 END,
-        CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
-        COALESCE(c.popularity_score, 0) DESC,
-        COALESCE(c.watch_count, 0) DESC,
-        COALESCE(c.health_score, 0) DESC,
-        COALESCE(c.sort_order, 999) ASC,
-        c.name ASC
-    `;
-
     // ── 1. Continue Watching ──────────────────────────────────────────────
     let continueWatching = [];
     if (userId) {
@@ -162,7 +146,6 @@ exports.getHome = async (req, res) => {
            LIMIT 10`,
           [userId]
         );
-        // Sort by most-recently-watched
         const sorted = cwRes.rows.sort((a, b) => new Date(b.watched_at) - new Date(a.watched_at));
         continueWatching = sorted.slice(0, 5).map(row => formatChannelRow(req, row));
       } catch (e) {
@@ -170,10 +153,11 @@ exports.getHome = async (req, res) => {
       }
     }
 
-    // ── 2. Premium Channels ───────────────────────────────────────────────
-    let premiumChannels = [];
-    try {
-      const pres = await db.query(
+    // ── 2-5. Run all four sections in parallel for faster response ─────────
+    const [premiumResult, popularResult, featuredResult, catChannelsRes] = await Promise.all([
+
+      // 2. Premium Channels
+      db.query(
         `SELECT c.*, cat.name AS category_name
          FROM channels c ${JOIN}
          ${BASE_WHERE}
@@ -185,16 +169,10 @@ exports.getHome = async (req, res) => {
            c.name ASC
          LIMIT 20`,
         bp
-      );
-      premiumChannels = pres.rows.map(row => formatChannelRow(req, row));
-    } catch (e) {
-      console.error('[home] premium_channels error:', e.message);
-    }
+      ).catch(e => { console.error('[home] premium_channels error:', e.message); return { rows: [] }; }),
 
-    // ── 3. Popular Channels ───────────────────────────────────────────────
-    let popularChannels = [];
-    try {
-      const popRes = await db.query(
+      // 3. Popular Channels
+      db.query(
         `SELECT c.*, cat.name AS category_name
          FROM channels c ${JOIN}
          ${BASE_WHERE}
@@ -207,16 +185,10 @@ exports.getHome = async (req, res) => {
            c.name ASC
          LIMIT 20`,
         bp
-      );
-      popularChannels = popRes.rows.map(row => formatChannelRow(req, row));
-    } catch (e) {
-      console.error('[home] popular_channels error:', e.message);
-    }
+      ).catch(e => { console.error('[home] popular_channels error:', e.message); return { rows: [] }; }),
 
-    // ── 4. Featured Channels ──────────────────────────────────────────────
-    let featuredChannels = [];
-    try {
-      const fRes = await db.query(
+      // 4. Featured Channels
+      db.query(
         `SELECT c.*, cat.name AS category_name
          FROM channels c ${JOIN}
          ${BASE_WHERE}
@@ -227,26 +199,19 @@ exports.getHome = async (req, res) => {
            c.name ASC
          LIMIT 15`,
         bp
-      );
-      featuredChannels = fRes.rows.map(row => formatChannelRow(req, row));
-    } catch (e) {
-      console.error('[home] featured_channels error:', e.message);
-    }
+      ).catch(e => { console.error('[home] featured_channels error:', e.message); return { rows: [] }; }),
 
-    // ── 5. Category Sections ──────────────────────────────────────────────
-    // A-2 FIX: Use single query with JSON_AGG instead of N+1 parallel queries
-    let categories = [];
-    try {
-      const catChannelsRes = await db.query(
+      // 5. Category Sections — single CTE query with all required fields for logo formatting
+      db.query(
         `WITH ranked_channels AS (
-           SELECT 
+           SELECT
              c.*,
              cat.name AS category_name,
              cat.icon_url,
              cat.sort_order AS cat_sort_order,
              ROW_NUMBER() OVER (
-               PARTITION BY c.category_id 
-               ORDER BY 
+               PARTITION BY c.category_id
+               ORDER BY
                  CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
                  COALESCE(c.popularity_score, 0) DESC,
                  COALESCE(c.watch_count, 0) DESC,
@@ -259,7 +224,7 @@ exports.getHome = async (req, res) => {
              AND cat.status = 'active'
              AND c.category_id IS NOT NULL
          )
-         SELECT 
+         SELECT
            cat.id,
            cat.name,
            cat.icon_url,
@@ -269,15 +234,23 @@ exports.getHome = async (req, res) => {
                'id', rc.id,
                'name', rc.name,
                'logo_url', rc.logo_url,
+               'local_logo_url', rc.local_logo_url,
+               'logo_status', rc.logo_status,
                'stream_url', rc.stream_url,
+               'backup_stream_url', rc.backup_stream_url,
+               'health_status', rc.health_status,
                'category_id', rc.category_id,
                'category_name', rc.category_name,
                'language', rc.language,
                'quality', rc.quality,
                'is_premium', rc.is_premium,
                'is_featured', rc.is_featured,
+               'is_popular', rc.is_popular,
                'popularity_score', rc.popularity_score,
-               'watch_count', rc.watch_count
+               'watch_count', rc.watch_count,
+               'sort_order', rc.sort_order,
+               'referrer', rc.referrer,
+               'user_agent', rc.user_agent
              ) ORDER BY rc.rn
            ) AS channels
          FROM categories cat
@@ -287,19 +260,21 @@ exports.getHome = async (req, res) => {
          HAVING COUNT(rc.id) > 0
          ORDER BY cat.sort_order ASC, cat.name ASC`,
         bp
-      );
+      ).catch(e => { console.error('[home] categories error:', e.message); return { rows: [] }; }),
 
-      categories = catChannelsRes.rows.map(row => ({
-        id: row.id,
-        name: row.name,
-        icon_url: row.icon_url,
-        sort_order: row.cat_sort_order,
-        channel_count: row.channels?.length || 0,
-        channels: (row.channels || []).map(ch => formatChannelRow(req, ch))
-      }));
-    } catch (e) {
-      console.error('[home] categories error:', e.message);
-    }
+    ]);
+
+    const premiumChannels  = premiumResult.rows.map(row => formatChannelRow(req, row));
+    const popularChannels  = popularResult.rows.map(row => formatChannelRow(req, row));
+    const featuredChannels = featuredResult.rows.map(row => formatChannelRow(req, row));
+    const categories = catChannelsRes.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      icon_url: row.icon_url,
+      sort_order: row.cat_sort_order,
+      channel_count: row.channels?.length || 0,
+      channels: (row.channels || []).map(ch => formatChannelRow(req, ch)),
+    }));
 
     return res.json({
       success: true,

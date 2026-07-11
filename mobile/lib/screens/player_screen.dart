@@ -206,13 +206,13 @@ const PlaybackProfile kWebProfile = PlaybackProfile(
 );
 
 /// Mobile (auto on Android/iOS): lighter buffer for variable mobile data connections.
-/// 8s readahead = faster channel open; 32MB cap avoids RAM pressure on phones.
+/// 6s readahead = faster channel open; 32MB cap avoids RAM pressure on phones.
 const PlaybackProfile kMobileProfile = PlaybackProfile(
   name: 'mobile',
-  demuxerReadaheadSecs: 8,
+  demuxerReadaheadSecs: 6,
   bufferSizeBytes: 32 * 1024 * 1024, // 32 MB
-  startupTimeoutSecs: 15,
-  stallTimeoutSecs: 20,
+  startupTimeoutSecs: 12,
+  stallTimeoutSecs: 15,
   preferredQuality: 'auto',
   demuxerMaxBytesMib: 48,
   demuxerMaxBackBytesMib: 16,
