@@ -30,12 +30,18 @@ const CSP = [
 
 const nextConfig: NextConfig = {
   compress: false,
+  // Silence "multiple lockfiles" warning — our root is the frontend dir
+  outputFileTracingRoot: require('path').join(__dirname),
   // Required for nginx to proxy correctly on EC2
   async rewrites() {
     return [
       {
         source: '/api/:path*',
         destination: `${BACKEND_URL}/api/:path*`,
+      },
+      {
+        source: '/logos/:path*',
+        destination: `${BACKEND_URL}/logos/:path*`,
       },
     ];
   },

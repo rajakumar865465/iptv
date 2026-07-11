@@ -112,8 +112,6 @@ export default async function HomePage() {
     // Backend not available during build, use defaults
   }
   
-  console.log("popularChannels length:", popularChannels.length);
-
   // Homepage shows only: 1 Day Trial, 1 Month (Most Popular), 1 Year (Best Value)
   const planTrial = plans.find(p => p.duration_days <= 1 || /trial|1.*day/i.test(p.name));
   const plan1m = plans.find(p => p.duration_days === 30 || /^1\s*month/i.test(p.name));

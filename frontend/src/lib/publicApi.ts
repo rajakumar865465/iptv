@@ -139,12 +139,25 @@ export const getPublicPlans = (): Promise<Plan[]> =>
     return data.map(normalizePlan);
   });
 
+function fixLogoUrl(url: string | null): string {
+  if (!url) return '';
+  if (url.includes('127.0.0.1') || url.includes('localhost')) {
+    try {
+      const u = new URL(url);
+      return u.pathname + u.search;
+    } catch {
+      return url;
+    }
+  }
+  return url;
+}
+
 export const getPopularChannels = (limit = 12): Promise<Channel[]> =>
-  publicAxios.get(`/api/public/channels/popular?limit=${limit}`).then(unwrap) as Promise<Channel[]>;
+  publicAxios.get(`/api/public/channels/popular?limit=${limit}`).then(unwrap).then(data => (data as any[]).map(c => ({...c, logo_url: fixLogoUrl(c.logo_url)}))) as Promise<Channel[]>;
 
 export const getChannelPreview = (category?: string): Promise<Channel[]> => {
   const qs = category ? `?category=${encodeURIComponent(category)}` : '';
-  return publicAxios.get('/api/public/channels/preview' + qs).then(unwrap) as Promise<Channel[]>;
+  return publicAxios.get('/api/public/channels/preview' + qs).then(unwrap).then(data => (data as any[]).map(c => ({...c, logo_url: fixLogoUrl(c.logo_url)}))) as Promise<Channel[]>;
 };
 
 export const getCategories = (): Promise<Category[]> =>

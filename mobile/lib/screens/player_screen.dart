@@ -1304,10 +1304,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         // this is a normal browser behavior, not a real playback error.
         if (errorMsg.contains('media was removed from the document') ||
             errorMsg.contains('play() request was interrupted')) {
-          _playerDebugLog('player_error_suppressed_web_switch', {
-            'channel_id': _currentChannel.id,
-            'player_error': errorMsg,
-          });
+          // Suppress known benign web errors during rapid channel switching
           return;
         }
         _playerDebugLog('player_error', {
@@ -2570,29 +2567,30 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                     child: GestureDetector(
                       onTap: _toggleControls,
                       onDoubleTap: _onDoubleTapFitToggle,
-                    behavior: HitTestBehavior.translucent,
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-                if (_isLoading) Positioned.fill(child: _buildLoadingOverlay()),
-                if (_hasError) Positioned.fill(child: _buildErrorOverlay()),
-                if (_warmingOverLive)
-                  Positioned(top: 0, left: 0, right: 0, child: _buildWarmingBanner()),
-                if (_gapWarning && !_isLoading && !_hasError)
-                  Positioned(top: 0, left: 0, right: 0, child: _buildGapWarningBanner()),
-                if (!_hasError && !_isLoading)
-                  Positioned.fill(
-                    child: FadeTransition(
-                      opacity: _controlsOpacity,
-                      child: IgnorePointer(
-                        ignoring: !_showControls,
-                        child: _buildControlsOverlay(),
-                      ),
+                      behavior: HitTestBehavior.translucent,
+                      child: const SizedBox.expand(),
                     ),
                   ),
-                _buildSlowConnectionOverlay(),
-                _buildPlayerToast(),
-              ],
+                  if (_isLoading) Positioned.fill(child: _buildLoadingOverlay()),
+                  if (_hasError) Positioned.fill(child: _buildErrorOverlay()),
+                  if (_warmingOverLive)
+                    Positioned(top: 0, left: 0, right: 0, child: _buildWarmingBanner()),
+                  if (_gapWarning && !_isLoading && !_hasError)
+                    Positioned(top: 0, left: 0, right: 0, child: _buildGapWarningBanner()),
+                  if (!_hasError && !_isLoading)
+                    Positioned.fill(
+                      child: FadeTransition(
+                        opacity: _controlsOpacity,
+                        child: IgnorePointer(
+                          ignoring: !_showControls,
+                          child: _buildControlsOverlay(),
+                        ),
+                      ),
+                    ),
+                  _buildSlowConnectionOverlay(),
+                  _buildPlayerToast(),
+                  ],
+              ),
             ),
           ),
         ),

@@ -257,9 +257,17 @@ class _SvgLogoWidgetState extends State<_SvgLogoWidget> {
         },
       );
       if (response.statusCode == 200) {
+        // Strip common vector editor tags that cause flutter_svg console spam
+        String cleanSvg = response.body
+            .replaceAll(RegExp(r'<metadata.*?>.*?</metadata>', dotAll: true), '')
+            .replaceAll(RegExp(r'<metadata\s*/>', dotAll: true), '')
+            .replaceAll(RegExp(r'<sodipodi:namedview.*?>.*?</sodipodi:namedview>', dotAll: true), '')
+            .replaceAll(RegExp(r'<sodipodi:namedview\s*/>', dotAll: true), '')
+            .replaceAll(RegExp(r'<defs\s*/>', dotAll: true), '');
+
         if (mounted) {
           setState(() {
-            _svgString = response.body;
+            _svgString = cleanSvg;
             _isLoading = false;
           });
         }
