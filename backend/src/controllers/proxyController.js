@@ -660,11 +660,34 @@ exports.proxySegment = async (req, res) => {
     Object.assign(segHeaders, safeExtraHeaders);
     const headers = segHeaders;
 
+    // Fix #9: Abort upstream fetch when client disconnects (channel switch).
+    // Without this, the backend continues downloading the full .ts segment even
+    // after the player switches to a new channel, wasting bandwidth and EC2 resources.
+    // Tracking: The current makeProxyRequest uses node's http.request which supports
+    // req.destroy() on abort. We detect client close and destroy the upstream request.
+    let upstreamReq = null;
+    let clientAborted = false;
+
+    req.on('close', () => {
+      if (!res.writableEnded && !clientAborted) {
+        clientAborted = true;
+        console.info(`[proxy] client_disconnected streamId=${streamId} — aborting upstream`);
+        if (upstreamReq) {
+          try { upstreamReq.destroy(); } catch (_) {}
+        }
+      }
+    });
+
     // Fix #8: Use smart retry helper with exponential backoff and 4xx fast-fail
     let proxyRes;
     const fetchStart = Date.now();
     try {
       proxyRes = await fetchSegmentWithRetry(targetUrl, headers);
+      if (clientAborted) {
+        // Client already gone — don't process the segment
+        console.info(`[proxy] upstream_aborted_after_fetch streamId=${streamId}`);
+        return;
+      }
     } catch (e) {
       const fetchMs = Date.now() - fetchStart;
       console.warn(`[proxy] segment fetch failed streamId=${streamId} fetchMs=${fetchMs}ms err=${e.message}`);

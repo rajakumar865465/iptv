@@ -439,6 +439,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _reportedSuccessForGeneration = false;
   int _activeFetchId = 0;
 
+  // Channel-switch session ID — incremented on every channel selection.
+  // Every async callback (API responses, player events, timers) checks this before
+  // updating any state. Stale callbacks from the previous channel are silently dropped.
+  int _channelSessionId = 0;
+  bool _isStoppingPrevious = false;
+
   @override
   void initState() {
     _channelTapTime = DateTime.now();
@@ -912,9 +918,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   Future<void> _fetchPlaybackAndInitialize() async {
     final int myFetchId = ++_activeFetchId;
+    final int mySession = _channelSessionId; // Capture session at start of fetch
     
     // Fix #3: Cancel any pending buffer timer before starting a new stream to prevent
     // the old channel's timeout from firing and setting _isRetryingStream on the new one.
+    // Note: most of these are already cancelled in _onChannelChanged, but this is a safety net
+    // for cases where _fetchPlaybackAndInitialize is called independently (e.g. quality retry).
     _bufferTimer?.cancel();
     _bufferTimer = null;
     _startupTimer?.cancel();
@@ -939,18 +948,29 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _qualityUpgradeTimer = null;
 
     if (mounted) setState(() { _isLoading = true; _hasError = false; _streamOverlayMessage = 'Loading...'; _isRetryingStream = false; });
-    _playerDebugLog('fetch_playback', {
-      'backend_url': BackendConfig.baseUrl,
+    _playerDebugLog('playback_api_started', {
       'channel_id': _currentChannel.id,
       'channel_name': _currentChannel.name,
-      'playback_api_url': '${BackendConfig.baseUrl}${ApiEndpoints.channelPlaybackPath(_currentChannel.id)}',
+      'session_id': mySession,
     });
     _playbackApiStartTime = DateTime.now();
     try {
       final res = await _api.get(ApiEndpoints.channelPlaybackPath(_currentChannel.id));
-      if (_activeFetchId != myFetchId) return; // Abort if a new fetch started
+      // Abort if a new fetch started OR if the user already switched channels
+      if (_activeFetchId != myFetchId || _channelSessionId != mySession) {
+        _playerDebugLog('stale_callback_ignored', {
+          'reason': 'playback_api_superseded',
+          'my_session': mySession,
+          'current_session': _channelSessionId,
+        });
+        return;
+      }
       
       _playbackApiEndTime = DateTime.now();
+      _playerDebugLog('playback_api_completed', {
+        'channel_id': _currentChannel.id,
+        'duration_ms': _playbackApiEndTime!.difference(_playbackApiStartTime!).inMilliseconds,
+      });
       if (res['success'] == true) {
         final data = res['data'];
         _currentStreamMeta = data['primary_stream'];
@@ -2173,23 +2193,36 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   /// Reports successful playback to backend.
-  /// If the stream played after a prior failure/retry, marks it as 'unstable' (not offline).
+  /// Only called after the first real frame is rendered (_onStartupSuccess).
+  /// Captures the channel/stream state at call time to prevent stale reports
+  /// if the user switches channel while the API call is in flight.
   Future<void> _reportPlaybackSuccess() async {
+    // Capture everything synchronously before any await
+    final int mySession = _channelSessionId;
+    final int channelId = _currentChannel.id;
+    final String result = _hadFailureBeforePlaying ? 'played_after_retry' : 'played';
+    final int bufferSeconds = _playStartTime != null
+        ? DateTime.now().difference(_playStartTime!).inSeconds
+        : 0;
+    final String? streamUrl = _currentUrl;
+    final dynamic streamId = _currentStreamMeta?['id'];
+    final String path = _playbackPath;
     try {
-      final result = _hadFailureBeforePlaying ? 'played_after_retry' : 'played';
-      // Fix #18: Compute elapsed seconds since play start and send as buffer_seconds.
-      // Previously this was never sent, causing watch_history.watch_duration to always be 0.
-      final int bufferSeconds = _playStartTime != null
-          ? DateTime.now().difference(_playStartTime!).inSeconds
-          : 0;
-      await _api.post(ApiEndpoints.channelPlaybackResultPath(_currentChannel.id), {
+      await _api.post(ApiEndpoints.channelPlaybackResultPath(channelId), {
         'result': result,
         'status': _hadFailureBeforePlaying ? 'unstable' : 'online',
-        'stream_url': _currentUrl,
-        'stream_id': _currentStreamMeta?['id'],
+        'stream_url': streamUrl,
+        'stream_id': streamId,
         'buffer_seconds': bufferSeconds,
-        'playback_path': _playbackPath,
+        'playback_path': path,
       });
+      // Silently drop if user has already switched — do not log a success for old channel
+      if (_channelSessionId != mySession) {
+        _playerDebugLog('stale_callback_ignored', {
+          'reason': 'report_playback_success_stale',
+          'reported_channel': channelId,
+        });
+      }
     } catch (_) {}
   }
 
@@ -2197,22 +2230,28 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   Future<void> _loadChannelData() async {
     final channelId = _currentChannel.id;
+    final int mySession = _channelSessionId; // Capture session ID at call time
+    
     if (mounted) setState(() { _loadingEPG = true; _loadingRelated = true; });
 
     // EPG Now Playing
     try {
       final nowRes = await _api.get(ApiEndpoints.channelEPGNowPath(channelId));
-      if (mounted && nowRes['success'] == true && nowRes['data'] != null) {
+      // Drop response if the user already switched to a different channel
+      if (!mounted || _channelSessionId != mySession) return;
+      if (nowRes['success'] == true && nowRes['data'] != null) {
         _nowPlaying = EpgProgram.fromJson(nowRes['data']);
       }
     } catch (_) {
       _nowPlaying = null;
     }
+    if (!mounted || _channelSessionId != mySession) return;
 
     // Upcoming EPG
     try {
       final upcomingRes = await _api.get(ApiEndpoints.channelEPGUpcomingPath(channelId));
-      if (mounted && upcomingRes['success'] == true && upcomingRes['data'] != null) {
+      if (!mounted || _channelSessionId != mySession) return;
+      if (upcomingRes['success'] == true && upcomingRes['data'] != null) {
         final rawUpcoming = upcomingRes['data'];
         if (rawUpcoming is List) {
           _upcoming = rawUpcoming.map((p) => EpgProgram.fromJson(p)).toList();
@@ -2221,13 +2260,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     } catch (_) {
       _upcoming = [];
     }
+    if (!mounted || _channelSessionId != mySession) return;
 
     if (mounted) setState(() { _loadingEPG = false; });
 
     // Related Channels
     try {
       final relatedRes = await _api.get(ApiEndpoints.channelRelatedPath(channelId));
-      if (mounted && relatedRes['success'] == true && relatedRes['data'] != null) {
+      if (!mounted || _channelSessionId != mySession) return;
+      if (relatedRes['success'] == true && relatedRes['data'] != null) {
         final data = relatedRes['data'];
         _relatedSourceType = data['source_type'] as String? ?? '';
         _relatedChannels = ((data['channels'] as List?) ?? [])
@@ -2238,6 +2279,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _relatedChannels = [];
       _relatedSourceType = '';
     }
+    if (!mounted || _channelSessionId != mySession) return;
 
     if (mounted) setState(() { _loadingRelated = false; });
   }
@@ -2334,6 +2376,48 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   ChannelModel get _currentChannel => _contextChannels[_currentIndex];
 
   void _onChannelChanged({bool fetchNewContext = false}) {
+    // ── Step 1: Invalidate the previous channel session IMMEDIATELY ─────────────
+    // Every in-flight async operation (API calls, player events, timers) checks
+    // _channelSessionId. By incrementing it here, all stale callbacks from the
+    // previous channel become no-ops the instant they resume after their await.
+    _channelSessionId++;
+    _channelTapTime = DateTime.now(); // Reset global startup budget for the new channel
+
+    _playerDebugLog('channel_switch_requested', {
+      'new_channel_id': _currentChannel.id,
+      'new_channel_name': _currentChannel.name,
+      'new_session_id': _channelSessionId,
+    });
+
+    // ── Step 2: Stop the previous player stream synchronously ───────────────────
+    // This MUST happen before _fetchPlaybackAndInitialize to ensure libmpv stops
+    // requesting HLS playlists and segments for the previous channel. Without this,
+    // old streams continue downloading in the background after channel switch.
+    _isStoppingPrevious = true;
+    _player.stop().catchError((_) {}).then((_) {
+      _isStoppingPrevious = false;
+    });
+
+    // Cancel all timers and subscriptions from the old session immediately
+    _bufferTimer?.cancel(); _bufferTimer = null;
+    _startupTimer?.cancel(); _startupTimer = null;
+    _playerSubscription?.cancel(); _playerSubscription = null;
+    _playerErrorSubscription?.cancel(); _playerErrorSubscription = null;
+    _videoParamsSubscription?.cancel(); _videoParamsSubscription = null;
+    _audioParamsSubscription?.cancel(); _audioParamsSubscription = null;
+    _playerPlayingSubscription?.cancel(); _playerPlayingSubscription = null;
+    _positionCheckTimer?.cancel(); _positionCheckTimer = null;
+    _errorGraceTimer?.cancel(); _errorGraceTimer = null;
+    _playerErrorPending = false;
+    _qualityUpgradeTimer?.cancel(); _qualityUpgradeTimer = null;
+    _smoothWarmTimer?.cancel(); _smoothWarmTimer = null;
+    _gapWarningRefreshTimer?.cancel(); _gapWarningRefreshTimer = null;
+
+    _playerDebugLog('old_session_cancelled', {
+      'channel_id': _currentChannel.id,
+      'session_id': _channelSessionId,
+    });
+
     _hadFailureBeforePlaying = false;
     _retryAttempt = 0;
     _lastApiHeaders = null;
@@ -2350,15 +2434,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _showPreparingOverlay = false;
     _switchedToSmooth = false;
     _pendingSmoothUrl = null;
-    _smoothWarmTimer?.cancel();
-    _smoothWarmTimer = null;
     _warmStartedAt = null;
-    // Cancel any pending quality upgrade scheduled for the previous channel
-    _qualityUpgradeTimer?.cancel();
-    _qualityUpgradeTimer = null;
-    // Reset gap warning state and stop the refresh timer for the previous channel
-    _gapWarningRefreshTimer?.cancel();
-    _gapWarningRefreshTimer = null;
     _gapWarning = false;
     _gapWarningMessage = '';
     _bufferQualityStatus = 'clean_buffer';
@@ -2384,8 +2460,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     }
     
+    // ── Phase 1: Start video playback (top priority) ─────────────────────────────
     _fetchPlaybackAndInitialize();
-    _loadChannelData();
+    
+    // ── Phase 2: Secondary API calls deferred — called from _onStartupSuccess ───
+    // EPG, related channels, etc. will load after the first frame renders.
+    // _loadChannelData() is intentionally NOT called here.
 
     if (fetchNewContext) {
       _fetchContextChannelsPage(page: 1);
