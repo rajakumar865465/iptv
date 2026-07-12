@@ -567,7 +567,11 @@ exports.proxyManifest = async (req, res) => {
     res.send(rewritten);
   } catch (err) {
     console.error('proxyManifest err:', err.message);
-    res.status(500).send('Proxy error');
+    if (err.message === 'Timeout' || err.message.includes('ETIMEDOUT') || err.message.includes('ESOCKETTIMEDOUT')) {
+      res.status(504).send('Gateway Timeout');
+    } else {
+      res.status(500).send('Proxy error');
+    }
   }
 };
 

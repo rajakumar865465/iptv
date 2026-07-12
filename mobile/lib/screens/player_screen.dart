@@ -437,6 +437,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   DateTime? _overlayHiddenTime;
 
   bool _reportedSuccessForGeneration = false;
+  int _activeFetchId = 0;
 
   @override
   void initState() {
@@ -910,6 +911,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Future<void> _fetchPlaybackAndInitialize() async {
+    final int myFetchId = ++_activeFetchId;
+    
     // Fix #3: Cancel any pending buffer timer before starting a new stream to prevent
     // the old channel's timeout from firing and setting _isRetryingStream on the new one.
     _bufferTimer?.cancel();
@@ -945,6 +948,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playbackApiStartTime = DateTime.now();
     try {
       final res = await _api.get(ApiEndpoints.channelPlaybackPath(_currentChannel.id));
+      if (_activeFetchId != myFetchId) return; // Abort if a new fetch started
+      
       _playbackApiEndTime = DateTime.now();
       if (res['success'] == true) {
         final data = res['data'];
@@ -1422,38 +1427,17 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       });
 
       // -- Clear the loading overlay when video starts playing --
-      // On native (Android/libmpv) the 'playing' event fires as soon as libmpv
-      // starts buffering — often several seconds before any frames are decoded.
-      // Clearing the overlay here causes a black screen gap until real frames arrive.
-      // videoParams fires only when the first frame is decoded, so it is the
-      // authoritative "show the video" signal on native. We let the startup timer
-      // keep running until videoParams cancels it; that way a stream that gets
-      // 'playing' but never produces frames still triggers init_timeout recovery.
-      // On web, videoParams may never fire (Chrome MSE), so 'playing' + a short
-      // delay is the only available first-frame proxy. Guard the overlay-clear
-      // behind kIsWeb so it only applies there.
+      // On native (Android/iOS), videoParams fires exactly when the first frame is decoded.
+      // On Web (Chrome MSE), videoParams is unreliable. We must use playing=true + buffering=false.
       _playerPlayingSubscription = _player.stream.playing.listen((isPlaying) {
         if (!isPlaying || !mounted || _playbackGeneration != thisGeneration) return;
-        if (!kIsWeb) {
-          // Native: do NOT cancel startup timer or clear overlay here.
-          // videoParams handles both when the first real frame is ready.
-          return;
-        }
-        // Web only: videoParams may never fire — cancel timeout and clear overlay.
-        _startupTimer?.cancel();
-        _startupTimer = null;
-        if (_isLoading && !_hasError) {
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted && _isLoading && !_hasError) {
-              setState(() {
-                _isLoading = false;
-                _isRetryingStream = false;
-                _streamOverlayMessage = '';
-              });
-              _playStartTime ??= DateTime.now();
-              _showControlsWithTimer();
-            }
-          });
+        
+        if (kIsWeb) {
+          // Web-specific fast-start: trigger success immediately when playing and not buffering.
+          // Do not hardcode a 3-second wait, which artificially extends the loading screen.
+          if (!_player.state.buffering && !_startupCompleted) {
+            _onStartupSuccess('playing_stable_web_fallback', thisGeneration);
+          }
         }
       });
 
@@ -1551,32 +1535,33 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _onStartupSuccess('audio_params', thisGeneration);
       });
 
-      // -- Stable Playback Fallback (if codecs don't trigger events) -----
-      _playerPlayingSubscription = _player.stream.playing.listen((isPlaying) {
-        if (!isPlaying || !mounted || _playbackGeneration != thisGeneration) return;
-        // Wait 3 seconds. If still playing and not buffering, consider it a success.
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted && _playbackGeneration == thisGeneration && !_startupCompleted && _player.state.playing && !_player.state.buffering) {
-            _onStartupSuccess('playing_stable_fallback', thisGeneration);
-          }
-        });
-      });
 
-      // -- Safety startup timeout (dynamic budget) ---------------------------
-      int startupSecs = profile.startupTimeoutSecs;
-      if (isDelayedStream) {
-        startupSecs = 45;
-      } else if (url.contains('/api/proxy/')) {
-        startupSecs = 15;
-      } else if (_playbackPath == 'backup' || _playbackPath == 'transcode' || _selectedQuality != null) {
-        startupSecs = 15;
-      } else if (_playbackPath == 'direct' && _currentChannel.healthStatus == 'unstable') {
-        startupSecs = 8;
-      } else if (_playbackPath == 'direct') {
-        startupSecs = 12;
-      }
 
-      _startupTimer = Timer(Duration(seconds: startupSecs), () {
+      // -- Safety startup timeout (Global dynamic budget) --------------------
+      // Instead of giving each retry attempt a full 12s/15s block (which could stack up to 40s total),
+      // we enforce a global channel-open budget from the moment the user tapped the channel.
+      const int MAX_GLOBAL_STARTUP_SECS = 22; // Strict cap for total startup sequence
+      final int elapsedSecs = _channelTapTime != null 
+          ? DateTime.now().difference(_channelTapTime!).inSeconds 
+          : 0;
+          
+      int remainingBudget = MAX_GLOBAL_STARTUP_SECS - elapsedSecs;
+      
+      // Minimum grace period for the *current* network attempt so we don't kill a proxy fetch instantly
+      if (remainingBudget < 4) remainingBudget = 4;
+      
+      // Calculate local ideal timeout
+      int idealStartupSecs = profile.startupTimeoutSecs;
+      if (isDelayedStream) idealStartupSecs = 45; // Smooth streams get their own massive budget
+      else if (url.contains('/api/proxy/')) idealStartupSecs = 15;
+      else if (_playbackPath == 'backup' || _playbackPath == 'transcode' || _selectedQuality != null) idealStartupSecs = 15;
+      else if (_playbackPath == 'direct' && _currentChannel.healthStatus == 'unstable') idealStartupSecs = 8;
+      else if (_playbackPath == 'direct') idealStartupSecs = 12;
+
+      // The actual timeout is whichever is smaller: the ideal local timeout, or the remaining global budget
+      final int actualTimeoutSecs = isDelayedStream ? idealStartupSecs : (idealStartupSecs < remainingBudget ? idealStartupSecs : remainingBudget);
+
+      _startupTimer = Timer(Duration(seconds: actualTimeoutSecs), () {
         if (!mounted || _playbackGeneration != thisGeneration) return;
         if (!_startupCompleted && !_hasError) {
           // Check for Proxy Segment Decoder Stalls (Task 8)
@@ -1584,7 +1569,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
              _playerDebugLog('decoder_startup_delay', {
                 'channel_id': _currentChannel.id,
                 'url': url,
-                'waited_secs': startupSecs,
+                'waited_secs': actualTimeoutSecs,
                 'is_initialized': _playerInitialized,
                 'is_playing': _player.state.playing,
              });
@@ -1595,7 +1580,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           _playerDebugLog('startup_timeout', {
             'channel_id': _currentChannel.id,
             'url': url,
-            'waited_secs': startupSecs,
+            'waited_secs': actualTimeoutSecs,
+            'elapsed_total_secs': elapsedSecs,
             'is_initialized': _playerInitialized,
             'is_buffering': _player.state.buffering,
             'is_playing': _player.state.playing,
