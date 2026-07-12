@@ -694,6 +694,10 @@ exports.proxySegment = async (req, res) => {
     //
     // "Premature close" and "aborted" are NORMAL for live IPTV — they happen whenever
     // the viewer switches channels or the tab is closed. Suppress them to keep logs clean.
+    
+    // Performance Telemetry for Proxy Segments
+    const contentLength = proxyRes.headers['content-length'] || 'unknown';
+    console.info(`[proxy_telemetry] segment streamed streamId=${streamId} fetchMs=${fetchMs}ms bytes=${contentLength} url=${targetUrl.substring(0, 80)}`);
     pipeline(proxyRes, res, (err) => {
       if (!err) return;
       const isPrematureClose =

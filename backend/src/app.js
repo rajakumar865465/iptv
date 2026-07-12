@@ -76,7 +76,18 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan('combined'));
+morgan.token('url-redacted', (req) => {
+  const url = req.originalUrl || req.url;
+  if (url && url.includes('token=')) {
+    return url.replace(/token=[^&]+/, 'token=[REDACTED]');
+  }
+  // also redact from URL path segments for /api/proxy/segment/:streamId/:token
+  if (url && url.includes('/api/proxy/segment/')) {
+    return url.replace(/\/api\/proxy\/segment\/([^\/]+)\/([^\.]+)(\.ts|\.m3u8)?/, '/api/proxy/segment/$1/[REDACTED]$3');
+  }
+  return url;
+});
+app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url-redacted HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'));
 app.use(standardLimiter);
 
 // Health check — never expose raw DB error messages

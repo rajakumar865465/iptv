@@ -268,8 +268,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Timer? _stablePlaybackTimer;
   Timer? _positionCheckTimer;
   Duration? _lastPosition;
+  DateTime? _lastProgressAt;
   int _frozenSeconds = 0;
   int _retryAttempt = 0;
+  int _playbackGeneration = 0;
+  bool _recoveryInProgress = false;
+  bool _sourceStartupGrace = false;
+  String _playbackSessionId = '';
   StreamSubscription? _playerSubscription;
   StreamSubscription? _playerErrorSubscription;
   StreamSubscription? _videoParamsSubscription;
@@ -421,6 +426,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   @override
   void initState() {
     super.initState();
+    _api.setContext(context);
+    _playbackSessionId = DateTime.now().millisecondsSinceEpoch.toString();
     _contextChannels = List<ChannelModel>.from(widget.channels);
     _currentIndex = widget.initialIndex;
     if (_currentIndex < 0 || _currentIndex >= _contextChannels.length) {
@@ -1078,6 +1085,19 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playStartTime = null;
     if (mounted) setState(() { _isLoading = true; _hasError = false; _lastErrorDescription = ''; _lastErrorReason = ''; _lastPlayerError = ''; _showDiagDetails = false; _playerInitialized = false; if (_streamOverlayMessage.isEmpty) _streamOverlayMessage = 'Loading...'; });
 
+    _playbackGeneration++;
+    final int thisGeneration = _playbackGeneration;
+    _sourceStartupGrace = true;
+    _recoveryInProgress = false;
+    _lastProgressAt = DateTime.now();
+
+    _playerDebugLog('source_open_requested', {
+      'channel_id': _currentChannel.id,
+      'url': url,
+      'generation': _playbackGeneration,
+      'session_id': _playbackSessionId,
+    });
+
     try {
       // -- Apply profile-based libmpv tuning --------------------------------
       // media_kit / libmpv only. No ExoPlayer/Media3. No seek() on live streams.
@@ -1259,19 +1279,29 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
       _positionCheckTimer?.cancel();
       _positionCheckTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-        if (!mounted || !_playerInitialized) return;
+        if (!mounted || !_playerInitialized || _playbackGeneration != thisGeneration || _recoveryInProgress) return;
+        
+        // Wait for startup grace to finish before enforcing position checks
+        if (_sourceStartupGrace) {
+          _frozenSeconds = 0;
+          return;
+        }
+
         // Only track freeze if it is playing, not buffering, and we have played before
         if (_player.state.playing && !_player.state.buffering && _playStartTime != null && !_isLoading) {
           final currentPos = _player.state.position;
+          
           if (_lastPosition != null && currentPos == _lastPosition) {
             _frozenSeconds += 2;
             if (_frozenSeconds >= 10) {
-              _playerDebugLog('position_frozen', {'channel_id': _currentChannel.id, 'frozen_seconds': _frozenSeconds});
+              _playerDebugLog('position_frozen', {'channel_id': _currentChannel.id, 'frozen_seconds': _frozenSeconds, 'generation': thisGeneration});
               _handleStreamFailure('position_frozen');
               _frozenSeconds = 0;
             }
           } else {
+            // Position advanced!
             _frozenSeconds = 0;
+            _lastProgressAt = DateTime.now();
           }
           _lastPosition = currentPos;
         } else {
@@ -1280,7 +1310,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       });
 
       // -- Listen for buffering changes ----------------------------------
-      _playerSubscription = _player.stream.buffering.listen(_onBufferingChanged);
+      _playerSubscription = _player.stream.buffering.listen((isBuffering) {
+        if (!mounted || _playbackGeneration != thisGeneration) return;
+        _onBufferingChanged(isBuffering);
+      });
 
       // -- Clear the loading overlay when video starts playing --
       // On native (Android/libmpv) the 'playing' event fires as soon as libmpv
@@ -1294,7 +1327,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // delay is the only available first-frame proxy. Guard the overlay-clear
       // behind kIsWeb so it only applies there.
       _playerPlayingSubscription = _player.stream.playing.listen((isPlaying) {
-        if (!isPlaying || !mounted) return;
+        if (!isPlaying || !mounted || _playbackGeneration != thisGeneration) return;
         if (!kIsWeb) {
           // Native: do NOT cancel startup timer or clear overlay here.
           // videoParams handles both when the first real frame is ready.
@@ -1327,6 +1360,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // events rapidly. Without this, each spawns a separate delayed failure call that
       // can race with each other and exhaust backup streams in one burst.
       _playerErrorSubscription = _player.stream.error.listen((errorMsg) {
+        if (_playbackGeneration != thisGeneration) return;
         if (errorMsg.isEmpty) return;
         // Track the latest raw error for on-screen diagnostics (PlayerState has
         // no `error` field in media_kit 1.2.x — it only arrives via this stream).
@@ -1400,11 +1434,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _videoParamsSubscription = _player.stream.videoParams
           .where((p) => p.w != null && p.w! > 0)
           .listen((params) {
-        if (!mounted || params.w == null) return;
+        if (!mounted || params.w == null || _playbackGeneration != thisGeneration) return;
         _videoParamsSubscription?.cancel();
         _videoParamsSubscription = null;
         _startupTimer?.cancel();
         _startupTimer = null;
+        _sourceStartupGrace = false;
 
           // Deferred HD promotion: never force the highest track on open.
           // Forcing HD immediately pushed bitrate above capacity on slower
@@ -1443,12 +1478,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // download is slower than a live-edge stream. Give 45s for smooth streams.
       final int startupSecs = isDelayedStream ? 45 : profile.startupTimeoutSecs;
       _startupTimer = Timer(Duration(seconds: startupSecs), () {
-        if (mounted && _isLoading && !_hasError) {
+        if (!mounted || _playbackGeneration != thisGeneration) return;
+        if (_isLoading && !_hasError) {
           _playerDebugLog('startup_timeout', {
             'channel_id': _currentChannel.id,
             'url': url,
             'waited_secs': startupSecs,
-        'is_initialized': _playerInitialized,
+            'is_initialized': _playerInitialized,
             'is_buffering': _player.state.buffering,
             'is_playing': _player.state.playing,
             'has_error': _lastPlayerError.isNotEmpty,
@@ -1847,6 +1883,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Future<void> _handleStreamFailure(String reason) async {
+    if (_recoveryInProgress) return;
+    _recoveryInProgress = true;
     _playerDebugLog('stream_failure', {
       'channel_id': _currentChannel.id,
       'reason': reason,
@@ -1855,8 +1893,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       'proxy_attempted': _proxyAttempted,
       'is_playing': _player.state.playing,
       'is_buffering': _player.state.buffering,
+      'generation': _playbackGeneration,
     });
-    if (_isRetryingStream) return;
+    if (_isRetryingStream) {
+      _recoveryInProgress = false;
+      return;
+    }
 
     // If the smooth buffer became ready while we were playing the direct stream,
     // apply it now at the stall boundary — a natural, non-disruptive switch point.
@@ -2059,6 +2101,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               'on Android.';
       setState(() { _isLoading = false; _hasError = true; _streamOverlayMessage = ''; });
     }
+    _recoveryInProgress = false;
   }
 
   /// Reports successful playback to backend.
