@@ -458,27 +458,96 @@ exports.proxyManifest = async (req, res) => {
       return `/api/proxy/segment/${streamId}/${token}${ext}`;
     }
 
-    const rewritten = lines.map(line => {
-      const t = line.trim();
-      if (!t) return line;
-      
-      // Handle tags with URIs (e.g. #EXT-X-MAP:URI="init.mp4", #EXT-X-KEY:URI="...", #EXT-X-MEDIA:URI="...")
-      if (t.startsWith('#EXT-X-MAP:') || t.startsWith('#EXT-X-KEY:') || t.startsWith('#EXT-X-MEDIA:')) {
-        const uriMatch = t.match(/URI="([^"]+)"/);
-        if (uriMatch) {
-          const originalUri = uriMatch[1];
-          const proxyUri = rewriteUri(originalUri);
-          return t.replace(`URI="${originalUri}"`, `URI="${proxyUri}"`);
-        }
-        return line;
+    // Mobile Fast-Start Optimization (Task 9):
+    // For master manifests, we must parse and reorder the variants so the lowest/medium 
+    // stable quality (e.g. 360p or 480p) appears FIRST. HLS players typically start with 
+    // the first variant in the manifest before ABR logic kicks in.
+    let isMasterManifest = false;
+    const variants = [];
+    let currentVariantTag = null;
+    let globalTags = [];
+    
+    // First pass to check if it's a master manifest
+    for (const line of lines) {
+      if (line.trim().startsWith('#EXT-X-STREAM-INF')) {
+        isMasterManifest = true;
+        break;
       }
+    }
+
+    let rewritten = '';
+
+    if (isMasterManifest) {
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t) continue;
+        
+        if (t.startsWith('#EXT-X-STREAM-INF')) {
+          currentVariantTag = t;
+        } else if (currentVariantTag && !t.startsWith('#')) {
+          // We found a variant URI
+          const bandwidthMatch = currentVariantTag.match(/BANDWIDTH=(\d+)/);
+          const resolutionMatch = currentVariantTag.match(/RESOLUTION=\d+x(\d+)/);
+          
+          let bandwidth = 99999999;
+          if (bandwidthMatch) bandwidth = parseInt(bandwidthMatch[1], 10);
+          
+          let height = 9999;
+          if (resolutionMatch) height = parseInt(resolutionMatch[1], 10);
+          
+          variants.push({
+            tag: currentVariantTag,
+            uri: rewriteUri(t),
+            bandwidth,
+            height
+          });
+          currentVariantTag = null;
+        } else if (!currentVariantTag && t.startsWith('#')) {
+          // Global tags like #EXTM3U, #EXT-X-VERSION, #EXT-X-MEDIA
+          if (t.startsWith('#EXT-X-MEDIA:')) {
+            const uriMatch = t.match(/URI="([^"]+)"/);
+            if (uriMatch) {
+              const originalUri = uriMatch[1];
+              const proxyUri = rewriteUri(originalUri);
+              globalTags.push(t.replace(`URI="${originalUri}"`, `URI="${proxyUri}"`));
+            } else {
+              globalTags.push(t);
+            }
+          } else {
+            globalTags.push(t);
+          }
+        }
+      }
+
+      // Sort variants: ascending by bandwidth (lowest first for fast start)
+      variants.sort((a, b) => a.bandwidth - b.bandwidth);
       
-      // Other tags are preserved as-is
-      if (t.startsWith('#')) return line;
-      
-      // Raw segment or variant URL
-      return rewriteUri(t);
-    }).join('\n');
+      // Rebuild manifest
+      rewritten = globalTags.join('\n') + '\n';
+      for (const v of variants) {
+        rewritten += v.tag + '\n' + v.uri + '\n';
+      }
+    } else {
+      // Media playlist (or no #EXT-X-STREAM-INF)
+      rewritten = lines.map(line => {
+        const t = line.trim();
+        if (!t) return line;
+        
+        if (t.startsWith('#EXT-X-MAP:') || t.startsWith('#EXT-X-KEY:')) {
+          const uriMatch = t.match(/URI="([^"]+)"/);
+          if (uriMatch) {
+            const originalUri = uriMatch[1];
+            const proxyUri = rewriteUri(originalUri);
+            return t.replace(`URI="${originalUri}"`, `URI="${proxyUri}"`);
+          }
+          return line;
+        }
+        
+        if (t.startsWith('#')) return line;
+        
+        return rewriteUri(t);
+      }).join('\n');
+    }
 
     // Only cache MASTER playlists. Do NOT cache MEDIA playlists.
     // Caching a live media playlist causes the player to receive stale segments,

@@ -428,8 +428,19 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _livePulseVisible = true;
   Timer? _livePulseTimer;
 
+  // Startup Timeline Diagnostics
+  DateTime? _channelTapTime;
+  DateTime? _playbackApiStartTime;
+  DateTime? _playbackApiEndTime;
+  DateTime? _mediaOpenTime;
+  DateTime? _firstVideoSignalTime;
+  DateTime? _overlayHiddenTime;
+
+  bool _reportedSuccessForGeneration = false;
+
   @override
   void initState() {
+    _channelTapTime = DateTime.now();
     super.initState();
     _playbackSessionId = DateTime.now().millisecondsSinceEpoch.toString();
     _contextChannels = List<ChannelModel>.from(widget.channels);
@@ -481,8 +492,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     context.read<FavoriteCubit>().loadFavorites();
     _scrollController.addListener(_onScroll);
     _loadQualitySettingsAndFetch();
-    _loadChannelData();
-    _updateMoreChannelsFromContext();
+    
+    // Fix: Defer secondary network requests (EPG, Related Channels) until after the first frame
+    // is rendered, prioritizing bandwidth for the critical HLS startup sequence.
+    // _loadChannelData();
+    // _updateMoreChannelsFromContext();
 
     // Start LIVE badge red-dot pulse (alternates every 900ms)
     _livePulseTimer = Timer.periodic(const Duration(milliseconds: 900), (_) {
@@ -928,8 +942,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       'channel_name': _currentChannel.name,
       'playback_api_url': '${BackendConfig.baseUrl}${ApiEndpoints.channelPlaybackPath(_currentChannel.id)}',
     });
+    _playbackApiStartTime = DateTime.now();
     try {
       final res = await _api.get(ApiEndpoints.channelPlaybackPath(_currentChannel.id));
+      _playbackApiEndTime = DateTime.now();
       if (res['success'] == true) {
         final data = res['data'];
         _currentStreamMeta = data['primary_stream'];
@@ -1068,6 +1084,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   void _onStartupSuccess(String sourceTrigger, int generation) async {
     if (!mounted || _playbackGeneration != generation || _startupCompleted) return;
+    
+    _firstVideoSignalTime ??= DateTime.now();
     _startupCompleted = true;
     _startupTimer?.cancel();
     _startupTimer = null;
@@ -1076,11 +1094,21 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playerDebugLog('startup_completed', {
       'channel_id': _currentChannel.id,
       'trigger': sourceTrigger,
-      'startup_time_ms': _playStartTime != null ? DateTime.now().difference(_playStartTime!).inMilliseconds : 0,
       'generation': generation,
+      'timeline_ms': {
+        'tap_to_api_start': _playbackApiStartTime != null && _channelTapTime != null ? _playbackApiStartTime!.difference(_channelTapTime!).inMilliseconds : -1,
+        'api_duration': _playbackApiEndTime != null && _playbackApiStartTime != null ? _playbackApiEndTime!.difference(_playbackApiStartTime!).inMilliseconds : -1,
+        'api_to_media_open': _mediaOpenTime != null && _playbackApiEndTime != null ? _mediaOpenTime!.difference(_playbackApiEndTime!).inMilliseconds : -1,
+        'media_open_to_first_signal': _firstVideoSignalTime != null && _mediaOpenTime != null ? _firstVideoSignalTime!.difference(_mediaOpenTime!).inMilliseconds : -1,
+        'total_tap_to_first_signal': _firstVideoSignalTime != null && _channelTapTime != null ? _firstVideoSignalTime!.difference(_channelTapTime!).inMilliseconds : -1,
+      }
     });
 
     _scheduleHdPromotionIfStable();
+
+    // Trigger secondary network requests only now that video is starting
+    _loadChannelData();
+    _updateMoreChannelsFromContext();
 
     setState(() {
       _isRetryingStream = false;
@@ -1090,8 +1118,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     });
     
     _playStartTime ??= DateTime.now();
+    _overlayHiddenTime = DateTime.now();
     _showControlsWithTimer();
-    _reportPlaybackSuccess();
+    
+    if (!_reportedSuccessForGeneration) {
+      _reportedSuccessForGeneration = true;
+      _reportPlaybackSuccess();
+    }
+    
     _startAutoUpgradeTimerIfNeeded();
     
     // Remember successful path!
@@ -1107,6 +1141,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Future<void> _initializePlayer(String url, [Map<String, dynamic>? rawHeaders, Duration? startPosition]) async {
     _currentUrl = url;
     final int myInitId = ++_initId;
+    _reportedSuccessForGeneration = false;
+    _mediaOpenTime = null;
+    _firstVideoSignalTime = null;
+    _overlayHiddenTime = null;
     
     try {
       // Prevent rapid-switch crashes on Web: wait for the previous stream to completely stop 
@@ -1240,6 +1278,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           try {
             await (platform as dynamic).setProperty('load-unsafe-playlists', 'yes');
           } catch (_) {}
+          // Force libmpv to select the lowest bitrate variant initially (Fast-Start Optimization)
+          // It will upgrade later if a higher track is available and explicitly selected.
+          try {
+            await (platform as dynamic).setProperty('hls-bitrate', 'min');
+          } catch (_) {}
           // 32 MB stream buffer absorbs slow CDN segment starts (HD IPTV segments).
           try {
             await (platform as dynamic).setProperty('stream-buffer-size', '33554432');
@@ -1321,7 +1364,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // Final concurrency check before we officially bind this media to the player instance
       if (_initId != myInitId) return;
 
-      await _player.stop();
+      _mediaOpenTime = DateTime.now();
       await _player.open(media, play: true);
       _playerInitialized = true;
 
@@ -1502,7 +1545,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
       // -- Wait for audio (Fallback for audio-only streams) --------------
       _audioParamsSubscription = _player.stream.audioParams
-          .where((p) => p.channels != null && p.channels! > 0)
+          .where((p) => p.channels != null && p.channels.toString().isNotEmpty)
           .listen((params) {
         if (!mounted || _playbackGeneration != thisGeneration) return;
         _onStartupSuccess('audio_params', thisGeneration);
