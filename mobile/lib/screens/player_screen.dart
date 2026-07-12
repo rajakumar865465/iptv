@@ -265,6 +265,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Timer? _bufferTimer;
   Timer? _startupTimer;
   Timer? _reconnectTimer;
+  Timer? _stablePlaybackTimer;
+  Timer? _positionCheckTimer;
+  Duration? _lastPosition;
+  int _frozenSeconds = 0;
   int _retryAttempt = 0;
   StreamSubscription? _playerSubscription;
   StreamSubscription? _playerErrorSubscription;
@@ -1060,6 +1064,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _startupTimer = null;
     _qualityStallTimer?.cancel();
     _qualityStallTimer = null;
+    _stablePlaybackTimer?.cancel();
+    _stablePlaybackTimer = null;
+    _positionCheckTimer?.cancel();
+    _positionCheckTimer = null;
+    _frozenSeconds = 0;
+    _lastPosition = null;
     // Fix #4: Cancel any pending error grace timer when reinitializing — prevents a delayed
     // error from a previous stream from triggering failure on the newly loaded stream.
     _errorGraceTimer?.cancel();
@@ -1247,6 +1257,28 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
       });
 
+      _positionCheckTimer?.cancel();
+      _positionCheckTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+        if (!mounted || !_playerInitialized) return;
+        // Only track freeze if it is playing, not buffering, and we have played before
+        if (_player.state.playing && !_player.state.buffering && _playStartTime != null && !_isLoading) {
+          final currentPos = _player.state.position;
+          if (_lastPosition != null && currentPos == _lastPosition) {
+            _frozenSeconds += 2;
+            if (_frozenSeconds >= 10) {
+              _playerDebugLog('position_frozen', {'channel_id': _currentChannel.id, 'frozen_seconds': _frozenSeconds});
+              _handleStreamFailure('position_frozen');
+              _frozenSeconds = 0;
+            }
+          } else {
+            _frozenSeconds = 0;
+          }
+          _lastPosition = currentPos;
+        } else {
+          _frozenSeconds = 0;
+        }
+      });
+
       // -- Listen for buffering changes ----------------------------------
       _playerSubscription = _player.stream.buffering.listen(_onBufferingChanged);
 
@@ -1392,7 +1424,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           _playStartTime ??= DateTime.now();
           // Detect aspect ratio and re-resolve fit mode from stream dimensions
           _detectAspectRatio(paramsWidth: params.w, paramsHeight: params.h);
-          _retryAttempt = 0; // reset retry counter on success
           _showControlsWithTimer();
           // Report playback result to backend
           _reportPlaybackSuccess();
@@ -1637,6 +1668,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _reconnectTimer = null;
       _qualityStallTimer?.cancel();
       _qualityStallTimer = null;
+      // Start a timer for stable playback to reset retry counters.
+      _stablePlaybackTimer?.cancel();
+      _stablePlaybackTimer = Timer(const Duration(seconds: 30), () {
+        if (mounted) _retryAttempt = 0;
+      });
       // Only clear loading here for mid-stream recovery (videoParams hasn't fired yet
       // during initial load — let videoParams handle the initial loading overlay).
       if (mounted && _isLoading && _playStartTime != null) {
@@ -1645,7 +1681,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           _isRetryingStream = false;
           _streamOverlayMessage = '';
         });
-        _retryAttempt = 0; // reset retry counter on success
         _showControlsWithTimer();
       }
       // Hide slow connection overlay when playback resumes
@@ -1842,12 +1877,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _reconnectTimer = null;
 
     // Silent retry flow (Attempt 1: Retry once silently before falling back)
-    if (_retryAttempt < 2) {
+    if (_retryAttempt == 0) {
       _retryAttempt++;
       if (mounted) {
         setState(() {
           // Always show "Loading..." so the user sees a clean load experience.
-          _streamOverlayMessage = 'Loading...';
+          _streamOverlayMessage = 'Retrying stream...';
           _isLoading = true;
           _hasError = false;
         });
@@ -1876,9 +1911,49 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       return;
     }
 
+    // Attempt 2: Fetch fresh playback API
+    if (_retryAttempt == 1) {
+      _retryAttempt++;
+      if (mounted) setState(() { _streamOverlayMessage = 'Refreshing stream...'; _isLoading = true; _hasError = false; });
+      try {
+        final res = await _api.get(ApiEndpoints.channelPlaybackPath(_currentChannel.id));
+        if (res['success'] == true) {
+          final data = res['data'];
+          final newPrimary = data['primary_stream'];
+          
+          if (newPrimary != null) {
+            final newUrl = newPrimary['url'] ?? newPrimary['final_url'] ?? newPrimary['stream_url'];
+            final newId = newPrimary['id']?.toString() ?? '';
+            final oldId = _currentStreamMeta?['id']?.toString() ?? '';
+            
+            // If the backend gave us a DIFFERENT stream URL or ID, try it.
+            if (newUrl != null && (newUrl != _currentUrl || (newId.isNotEmpty && oldId.isNotEmpty && newId != oldId))) {
+              _currentStreamMeta = newPrimary;
+              _backupStreams = List<dynamic>.from(data['backup_streams'] ?? []);
+              _qualities = List<dynamic>.from(data['qualities'] ?? []);
+              _proxyUrl = data['proxy_url'] as String?;
+              _isRetryingStream = false;
+              // Do NOT reset _retryAttempt here. It should only reset after stable playback.
+              
+              final headersToUse = newPrimary['headers'] ?? {};
+              await _initializePlayer(newUrl, headersToUse);
+              return;
+            } else {
+              // It gave us the same stream URL/ID that just failed.
+              // Update our backups list in case they changed, and fall through to backup/lower-quality logic.
+              _backupStreams = List<dynamic>.from(data['backup_streams'] ?? []);
+              _qualities = List<dynamic>.from(data['qualities'] ?? []);
+            }
+          }
+        }
+      } catch (e) {
+        // ignore and fall through
+      }
+    }
+
     _isRetryingStream = true;
     _hadFailureBeforePlaying = true; // mark that we had a failure before success
-    _retryAttempt = 0; // Reset for fallback streams
+    // Do NOT reset _retryAttempt here. It should carry over for fallback streams so they don't do silent retries.
 
     try {
       await _api.post(ApiEndpoints.channelReportFailurePath(_currentChannel.id), {
@@ -2470,9 +2545,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playerToastTimer?.cancel();
     _livePulseTimer?.cancel();
     _qualityUpgradeTimer?.cancel();
-    _hdPromoteTimer?.cancel();
     _gapWarningRefreshTimer?.cancel();
     _smoothWarmTimer?.cancel();
+    _stablePlaybackTimer?.cancel();
+    _positionCheckTimer?.cancel();
+    _errorGraceTimer?.cancel();
+    _hdPromoteTimer?.cancel();
     _playerSubscription?.cancel();
     _playerErrorSubscription?.cancel();
     _videoParamsSubscription?.cancel();

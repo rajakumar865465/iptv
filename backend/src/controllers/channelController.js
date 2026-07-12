@@ -1015,11 +1015,20 @@ exports.getChannelPlayback = async (req, res) => {
       FROM channel_streams cs
       WHERE cs.channel_id = $1
         AND cs.is_hidden IS NOT TRUE
-        /* Removed strict IN ('online', ...) filter so that offline/dead streams 
-           can still act as a fallback if no healthy streams exist. They will be 
-           sorted to the bottom by the ORDER BY clause. */
       ORDER BY
+        -- 1. Favor streams with recent success over recent failure. A stream with 1 old failure and recent success will rank well here.
+        CASE WHEN COALESCE(cs.last_success_at, '1970-01-01') >= COALESCE(cs.last_failed_at, '1970-01-01') THEN 0 ELSE 1 END ASC,
+        -- 2. Sort by lowest failures first (fewer consecutive/overall segment failures is better)
+        COALESCE(cs.fail_count, 0) ASC,
+        COALESCE(cs.segment_failure_count, 0) ASC,
+        -- 3. Factor in real Android playback success (streams that have played for 5 mins are highly stable)
+        COALESCE(cs.played_5min_count, 0) DESC,
+        COALESCE(cs.startup_success_count, 0) DESC,
+        -- 4. Stability score computed by backend
+        COALESCE(cs.stability_score, 50) DESC,
+        -- 5. Editor priority
         cs.priority ASC,
+        -- 6. Overall channel health status
         CASE cs.health_status
           WHEN 'online'   THEN 5
           WHEN 'unstable' THEN 4

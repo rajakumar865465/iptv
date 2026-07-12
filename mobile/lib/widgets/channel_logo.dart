@@ -44,11 +44,24 @@ class ChannelLogo extends StatelessWidget {
     }
     final url = logoUrl?.trim();
     if (url == null || url.isEmpty) return null;
-    // Upgrade http to https to avoid cleartext traffic blocks on Android
-    if (url.startsWith('http://')) {
-      return url.replaceFirst('http://', 'https://');
+    
+    var finalUrl = url;
+    // Upgrade Wikimedia SVG URLs to pre-rendered PNG thumbnails for reliable display
+    final wikiRegExp = RegExp(r'upload\.wikimedia\.org/wikipedia/(commons|en|hi)/([a-f0-9])/([a-f0-9]{2})/(.+?\.svg)$', caseSensitive: false);
+    final match = wikiRegExp.firstMatch(finalUrl);
+    if (match != null) {
+      final project = match.group(1);
+      final h1 = match.group(2);
+      final h2 = match.group(3);
+      final file = match.group(4);
+      finalUrl = 'https://upload.wikimedia.org/wikipedia/$project/thumb/$h1/$h2/$file/512px-$file.png';
     }
-    return url;
+
+    // Upgrade http to https to avoid cleartext traffic blocks on Android
+    if (finalUrl.startsWith('http://')) {
+      return finalUrl.replaceFirst('http://', 'https://');
+    }
+    return finalUrl;
   }
 
   String get _initials {
