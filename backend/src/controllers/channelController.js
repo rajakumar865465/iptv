@@ -1138,6 +1138,14 @@ exports.getChannelPlayback = async (req, res) => {
       ? `${baseUrl}/api/proxy/${primary.id}/master.m3u8`
       : null;
 
+    // ── Playback Path Recommendation ────────────────────────────────────────
+    let preferredMode = 'direct';
+    let recReason = 'default';
+    if (primary.health_status === 'unstable' && proxyEligible) {
+      preferredMode = 'proxy';
+      recReason = 'stream_unstable';
+    }
+
     success(res, {
       channel_id: parseInt(id),
       channel: { id: parseInt(id), name: channel.name || 'Unknown Channel' },
@@ -1156,6 +1164,11 @@ exports.getChannelPlayback = async (req, res) => {
       // ── New fields for Flutter playback profile system ──
       recommended_buffer_profile: recommendedProfile,
       proxy_url: proxyUrl,           // null when DRM/geo/hidden/unlicensed
+      recommendation: {
+        preferred_mode: preferredMode,
+        reason: recReason,
+        stream_id: primary.id,
+      },
       health_status: channel.health_status || 'unknown',
       health_score: channel.health_score ?? 50,
       // ── Smooth Playback / Gap Warning fields (per work.md) ──

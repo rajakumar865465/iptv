@@ -34,6 +34,9 @@ void _playerDebugLog(String tag, Map<String, dynamic> fields) {
     if (k.toLowerCase().contains('token') || k.toLowerCase().contains('authorization')) {
       return MapEntry(k, v == null ? null : '<redacted:${v.toString().length}chars>');
     }
+    if (v is String) {
+       return MapEntry(k, v.replaceAll(RegExp(r'token=[^&\s]+'), 'token=[REDACTED]').replaceAll(RegExp(r'Bearer\s+[A-Za-z0-9\-\._~+/]+=*'), 'Bearer [REDACTED]'));
+    }
     return MapEntry(k, v);
   });
   final line = '[PlayerDiag][$tag] $redacted';
@@ -278,7 +281,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   StreamSubscription? _playerSubscription;
   StreamSubscription? _playerErrorSubscription;
   StreamSubscription? _videoParamsSubscription;
+  StreamSubscription? _audioParamsSubscription;
   StreamSubscription? _playerPlayingSubscription;
+  bool _startupCompleted = false;
   bool _hadFailureBeforePlaying = false;
 
   // Fix #4: Prevent multiple error callbacks from firing simultaneously.
@@ -426,7 +431,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   @override
   void initState() {
     super.initState();
-    _api.setContext(context);
     _playbackSessionId = DateTime.now().millisecondsSinceEpoch.toString();
     _contextChannels = List<ChannelModel>.from(widget.channels);
     _currentIndex = widget.initialIndex;
@@ -1004,12 +1008,30 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _selectedQuality = _determineInitialQuality();
 
         // Fix #3: Guard against null _currentStreamMeta before accessing with !.
-        final String urlToPlay;
-        final Map<String, dynamic>? headersToUse;
+        String urlToPlay;
+        Map<String, dynamic>? headersToUse;
+        
+        final prefs = await SharedPreferences.getInstance();
+        final String streamId = _currentStreamMeta?['id']?.toString() ?? '';
+        final String? prefPath = streamId.isNotEmpty ? prefs.getString('pref_path_${_currentChannel.id}_$streamId') : null;
+        final recommendation = data['recommendation'];
+
         if (webPreferredUrl != null) {
           urlToPlay = webPreferredUrl;
           headersToUse = webPreferredHeaders;
           _playbackPath = 'proxy';
+        } else if (!kIsWeb && prefPath == 'proxy' && _proxyUrl != null) {
+          _playerDebugLog('preferred_path_used', {'path': 'proxy', 'stream_id': streamId, 'reason': 'local_preference'});
+          urlToPlay = _proxyUrl!;
+          headersToUse = _proxyHeaders;
+          _playbackPath = 'proxy';
+          _proxyAttempted = true;
+        } else if (!kIsWeb && recommendation != null && recommendation['preferred_mode'] == 'proxy' && _proxyUrl != null) {
+          _playerDebugLog('alternate_path_selected', {'path': 'proxy', 'stream_id': streamId, 'reason': recommendation['reason']});
+          urlToPlay = _proxyUrl!;
+          headersToUse = _proxyHeaders;
+          _playbackPath = 'proxy';
+          _proxyAttempted = true;
         } else if (_selectedQuality != null && _selectedQuality!['url'] != null) {
           urlToPlay = _selectedQuality!['url'];
           headersToUse = _selectedQuality!['headers'];
@@ -1044,6 +1066,44 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
   }
 
+  void _onStartupSuccess(String sourceTrigger, int generation) async {
+    if (!mounted || _playbackGeneration != generation || _startupCompleted) return;
+    _startupCompleted = true;
+    _startupTimer?.cancel();
+    _startupTimer = null;
+    _sourceStartupGrace = false;
+
+    _playerDebugLog('startup_completed', {
+      'channel_id': _currentChannel.id,
+      'trigger': sourceTrigger,
+      'startup_time_ms': _playStartTime != null ? DateTime.now().difference(_playStartTime!).inMilliseconds : 0,
+      'generation': generation,
+    });
+
+    _scheduleHdPromotionIfStable();
+
+    setState(() {
+      _isRetryingStream = false;
+      _isLoading = false;
+      _hasError = false;
+      _streamOverlayMessage = '';
+    });
+    
+    _playStartTime ??= DateTime.now();
+    _showControlsWithTimer();
+    _reportPlaybackSuccess();
+    _startAutoUpgradeTimerIfNeeded();
+    
+    // Remember successful path!
+    if (_currentStreamMeta != null) {
+      final streamId = _currentStreamMeta!['id']?.toString() ?? '';
+      if (streamId.isNotEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('pref_path_${_currentChannel.id}_$streamId', _playbackPath);
+      }
+    }
+  }
+
   Future<void> _initializePlayer(String url, [Map<String, dynamic>? rawHeaders, Duration? startPosition]) async {
     _currentUrl = url;
     final int myInitId = ++_initId;
@@ -1063,6 +1123,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playerErrorSubscription = null;
     _videoParamsSubscription?.cancel();
     _videoParamsSubscription = null;
+    _audioParamsSubscription?.cancel();
+    _audioParamsSubscription = null;
     _playerPlayingSubscription?.cancel();
     _playerPlayingSubscription = null;
     _bufferTimer?.cancel();
@@ -1087,6 +1149,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
     _playbackGeneration++;
     final int thisGeneration = _playbackGeneration;
+    _startupCompleted = false;
     _sourceStartupGrace = true;
     _recoveryInProgress = false;
     _lastProgressAt = DateTime.now();
@@ -1429,57 +1492,63 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       });
 
       // -- Wait for actual video to be ready -----------------------------
-      // 'playing' becomes true instantly, but 'videoParams' only updates
-      // when the video stream is actually parsed and ready to render.
       _videoParamsSubscription = _player.stream.videoParams
           .where((p) => p.w != null && p.w! > 0)
           .listen((params) {
         if (!mounted || params.w == null || _playbackGeneration != thisGeneration) return;
-        _videoParamsSubscription?.cancel();
-        _videoParamsSubscription = null;
-        _startupTimer?.cancel();
-        _startupTimer = null;
-        _sourceStartupGrace = false;
-
-          // Deferred HD promotion: never force the highest track on open.
-          // Forcing HD immediately pushed bitrate above capacity on slower
-          // connections, causing the first stall of the buffering loop.
-          // Instead, start on libmpv's default (auto/first) track and promote
-          // to HD only after 60s of provably stable playback (no buffering
-          // events, no downgrades). Any stall cancels the promotion.
-          _scheduleHdPromotionIfStable();
-
-          setState(() {
-            _isRetryingStream = false;
-            _isLoading = false;
-            _hasError = false;
-            _streamOverlayMessage = '';
-          });
-          // Fix #18: Record when the video actually starts so we can compute accurate watch_duration
-          _playStartTime ??= DateTime.now();
-          // Detect aspect ratio and re-resolve fit mode from stream dimensions
-          _detectAspectRatio(paramsWidth: params.w, paramsHeight: params.h);
-          _showControlsWithTimer();
-          // Report playback result to backend
-          _reportPlaybackSuccess();
-          // Start auto quality upgrade timer if quality was previously downgraded
-          _startAutoUpgradeTimerIfNeeded();
-          // Fallback: retry detection after delay (web platforms may populate dimensions late)
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted && _detectedAspectRatioType == 'unknown') {
-              _detectAspectRatio();
-            }
-          });
+        _detectAspectRatio(paramsWidth: params.w, paramsHeight: params.h);
+        _onStartupSuccess('video_params', thisGeneration);
       });
 
-      // -- Safety startup timeout (profile-based) ---------------------------
-      // Smooth/delayed streams need more time: backend serves segments that were
-      // recorded and written to disk, so the first playlist response + first segment
-      // download is slower than a live-edge stream. Give 45s for smooth streams.
-      final int startupSecs = isDelayedStream ? 45 : profile.startupTimeoutSecs;
+      // -- Wait for audio (Fallback for audio-only streams) --------------
+      _audioParamsSubscription = _player.stream.audioParams
+          .where((p) => p.channels != null && p.channels! > 0)
+          .listen((params) {
+        if (!mounted || _playbackGeneration != thisGeneration) return;
+        _onStartupSuccess('audio_params', thisGeneration);
+      });
+
+      // -- Stable Playback Fallback (if codecs don't trigger events) -----
+      _playerPlayingSubscription = _player.stream.playing.listen((isPlaying) {
+        if (!isPlaying || !mounted || _playbackGeneration != thisGeneration) return;
+        // Wait 3 seconds. If still playing and not buffering, consider it a success.
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted && _playbackGeneration == thisGeneration && !_startupCompleted && _player.state.playing && !_player.state.buffering) {
+            _onStartupSuccess('playing_stable_fallback', thisGeneration);
+          }
+        });
+      });
+
+      // -- Safety startup timeout (dynamic budget) ---------------------------
+      int startupSecs = profile.startupTimeoutSecs;
+      if (isDelayedStream) {
+        startupSecs = 45;
+      } else if (url.contains('/api/proxy/')) {
+        startupSecs = 15;
+      } else if (_playbackPath == 'backup' || _playbackPath == 'transcode' || _selectedQuality != null) {
+        startupSecs = 15;
+      } else if (_playbackPath == 'direct' && _currentChannel.healthStatus == 'unstable') {
+        startupSecs = 8;
+      } else if (_playbackPath == 'direct') {
+        startupSecs = 12;
+      }
+
       _startupTimer = Timer(Duration(seconds: startupSecs), () {
         if (!mounted || _playbackGeneration != thisGeneration) return;
-        if (_isLoading && !_hasError) {
+        if (!_startupCompleted && !_hasError) {
+          // Check for Proxy Segment Decoder Stalls (Task 8)
+          if (_playbackPath == 'proxy' && _player.state.playing && _player.state.buffering) {
+             _playerDebugLog('decoder_startup_delay', {
+                'channel_id': _currentChannel.id,
+                'url': url,
+                'waited_secs': startupSecs,
+                'is_initialized': _playerInitialized,
+                'is_playing': _player.state.playing,
+             });
+             // Don't kill it immediately if we're technically playing but buffering - wait for stall watchdog
+             return;
+          }
+
           _playerDebugLog('startup_timeout', {
             'channel_id': _currentChannel.id,
             'url': url,
@@ -1918,45 +1987,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
 
-    // Silent retry flow (Attempt 1: Retry once silently before falling back)
     if (_retryAttempt == 0) {
       _retryAttempt++;
-      if (mounted) {
-        setState(() {
-          // Always show "Loading..." so the user sees a clean load experience.
-          _streamOverlayMessage = 'Retrying stream...';
-          _isLoading = true;
-          _hasError = false;
-        });
-      }
-      // 5s gives the network time to recover before we discard the buffer and
-      // re-open from scratch. At 1500ms the retry itself stalled immediately on
-      // borderline connections, perpetuating the load→play→load loop.
-      await Future.delayed(const Duration(milliseconds: 5000));
-      // Re-initialize player with same parameters
-      // When retrying a proxy URL, use proxy headers (with Authorization) —
-      // stream meta headers don't contain the Bearer token the proxy route requires.
-      // On web, proxy is used as primary (_playbackPath='proxy') but _proxyAttempted
-      // is only set in the mobile fallback path. Check _playbackPath too so web
-      // retries correctly carry the Authorization header.
-      final headersToUse;
-      if (_proxyHeaders != null &&
-          (_playbackPath == 'proxy' ||
-              (_proxyAttempted && _proxyUrl != null && _currentUrl == _proxyUrl))) {
-        headersToUse = _proxyHeaders;
-      } else if (_selectedQuality != null && _selectedQuality!['headers'] != null) {
-        headersToUse = _selectedQuality!['headers'];
-      } else {
-        headersToUse = _currentStreamMeta?['headers'];
-      }
-      await _initializePlayer(_currentUrl, headersToUse);
-      return;
-    }
-
-    // Attempt 2: Fetch fresh playback API
-    if (_retryAttempt == 1) {
-      _retryAttempt++;
-      if (mounted) setState(() { _streamOverlayMessage = 'Refreshing stream...'; _isLoading = true; _hasError = false; });
+      if (mounted) setState(() { _streamOverlayMessage = 'Connecting to a better source...'; _isLoading = true; _hasError = false; });
       try {
         final res = await _api.get(ApiEndpoints.channelPlaybackPath(_currentChannel.id));
         if (res['success'] == true) {
@@ -1968,8 +2001,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             final newId = newPrimary['id']?.toString() ?? '';
             final oldId = _currentStreamMeta?['id']?.toString() ?? '';
             
+            // Normalize URLs to strip ephemeral tokens before comparing
+            String normalizeUrl(String u) => u.replaceAll(RegExp(r'(&|\?)token=[^&]+'), '');
+            final bool urlChanged = newUrl != null && normalizeUrl(newUrl) != normalizeUrl(_currentUrl);
+            final bool idChanged = newId.isNotEmpty && oldId.isNotEmpty && newId != oldId;
+
             // If the backend gave us a DIFFERENT stream URL or ID, try it.
-            if (newUrl != null && (newUrl != _currentUrl || (newId.isNotEmpty && oldId.isNotEmpty && newId != oldId))) {
+            if (urlChanged || idChanged) {
               _currentStreamMeta = newPrimary;
               _backupStreams = List<dynamic>.from(data['backup_streams'] ?? []);
               _qualities = List<dynamic>.from(data['qualities'] ?? []);
@@ -1978,10 +2016,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               // Do NOT reset _retryAttempt here. It should only reset after stable playback.
               
               final headersToUse = newPrimary['headers'] ?? {};
-              await _initializePlayer(newUrl, headersToUse);
+              await _initializePlayer(newUrl!, headersToUse);
               return;
             } else {
               // It gave us the same stream URL/ID that just failed.
+              _playerDebugLog('same_source_rejected', {'url': _currentUrl});
               // Update our backups list in case they changed, and fall through to backup/lower-quality logic.
               _backupStreams = List<dynamic>.from(data['backup_streams'] ?? []);
               _qualities = List<dynamic>.from(data['qualities'] ?? []);
@@ -2029,7 +2068,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
       if (lowerQuality != null) {
         final lowerLabel = lowerQuality['label'] as String? ?? 'lower quality';
-        if (mounted) setState(() { _streamOverlayMessage = 'Switching to smoother quality...'; _isLoading = true; _hasError = false; });
+        if (mounted) setState(() { _streamOverlayMessage = 'Optimizing playback...'; _isLoading = true; _hasError = false; });
         _selectedQuality = lowerQuality;
         _wasQualityDowngraded = true;  // remember for auto upgrade timer
         _isRetryingStream = false;
@@ -2041,7 +2080,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
       // Smart Fallback to AWS Server (Auto-Transcode) for Premium users
       if (_isPremium && !_currentUrl.contains('/api/stream/transcode/')) {
-        if (mounted) setState(() { _streamOverlayMessage = 'Trying optimized stream...'; _isLoading = true; _hasError = false; });
+        if (mounted) setState(() { _streamOverlayMessage = 'Connecting to a better source...'; _isLoading = true; _hasError = false; });
         _isRetryingStream = false;
         try {
           final token = await StorageService().getToken() ?? '';
@@ -2061,7 +2100,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
 
     if (_backupStreams.isNotEmpty) {
-      if (mounted) setState(() { _streamOverlayMessage = 'Trying another source...'; _isLoading = true; _hasError = false; });
+      if (mounted) setState(() { _streamOverlayMessage = 'Connecting to a better source...'; _isLoading = true; _hasError = false; });
       final backup = _backupStreams.removeAt(0);
       _currentStreamMeta = backup;
       _isRetryingStream = false; // allow next failure cycle on the backup stream
@@ -2076,7 +2115,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _proxyAttempted = true;
       _isRetryingStream = false;
       if (mounted) setState(() {
-        _streamOverlayMessage = 'Optimizing stream...';
+        _streamOverlayMessage = 'Connecting to a better source...';
         _isLoading = true;
         _hasError = false;
       });
