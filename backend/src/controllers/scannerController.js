@@ -33,7 +33,11 @@ async function ensureScanJobsTable() {
     )
   `);
   // Add channel_log column to existing tables if missing
-  await db.query(`ALTER TABLE stream_scan_jobs ADD COLUMN IF NOT EXISTS channel_log JSONB DEFAULT '[]'::jsonb`);
+  try {
+    await db.query(`ALTER TABLE stream_scan_jobs ADD COLUMN IF NOT EXISTS channel_log JSONB DEFAULT '[]'::jsonb`);
+  } catch (err) {
+    console.warn('[Scanner] Could not alter stream_scan_jobs table (likely ownership issue):', err.message);
+  }
 }
 
 function httpGet(url, headers = {}, segmentMode = false, timeout = TIMEOUT, redirectDepth = 0) {
