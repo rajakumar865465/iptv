@@ -39,7 +39,11 @@ exports.adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const result = await db.query('SELECT * FROM users WHERE email = $1 AND role = $2', [email, 'admin']);
+    // Accept both 'admin' and 'superadmin' roles
+    const result = await db.query(
+      "SELECT * FROM users WHERE email = $1 AND role IN ('admin', 'superadmin')",
+      [email]
+    );
     if (result.rows.length === 0) {
       return error(res, 'Invalid admin credentials', 401);
     }
@@ -53,9 +57,10 @@ exports.adminLogin = async (req, res) => {
     // Log successful login
     await logAdminAction(req, admin.id, 'login', 'admin', admin.id, { email: admin.email });
 
-    const token = generateAdminToken({ userId: admin.id, email: admin.email, role: 'admin' });
-    success(res, { token, admin: { id: admin.id, full_name: admin.full_name, email: admin.email } });
+    const token = generateAdminToken({ userId: admin.id, email: admin.email, role: admin.role });
+    success(res, { token, admin: { id: admin.id, full_name: admin.full_name, email: admin.email, role: admin.role } });
   } catch (err) {
+    console.error('[adminLogin] Error:', err.message);
     error(res, 'Admin login failed', 500);
   }
 };
