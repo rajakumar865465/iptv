@@ -9,5 +9,5 @@ const checkUrl = (url) => {
     });
   }).on('error', console.error);
 };
-checkUrl('http://35.154.128.217/api/channels/categories?workingOnly=true');
-checkUrl('http://35.154.128.217/api/channels/languages?workingOnly=true');
+checkUrl('http://35.174.78.33/api/channels/categories?workingOnly=true');
+checkUrl('http://35.174.78.33/api/channels/languages?workingOnly=true');

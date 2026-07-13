@@ -1,5 +1,5 @@
 const { Client } = require('pg');
-const client = new Client({ connectionString: 'postgresql://iptvdb:SecureDbPass9aF2xL8qP3@35.154.128.217:5432/iptv_db' });
+const client = new Client({ connectionString: 'postgresql://iptvdb:SecureDbPass9aF2xL8qP3@35.174.78.33:5432/iptv_db' });
 client.connect().then(() => {
   return client.query(`
 SELECT 

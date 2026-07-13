@@ -71,7 +71,7 @@ ADMIN_JWT_SECRET=your_strong_admin_secret_here
 PORT=5000
 NODE_ENV=production
 
-CORS_ORIGINS=http://35.154.128.217
+CORS_ORIGINS=http://35.174.78.33
 
 RAZORPAY_KEY_ID=your_razorpay_key_id
 RAZORPAY_KEY_SECRET=your_razorpay_key_secret
@@ -84,7 +84,7 @@ FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
 
 ### Frontend `/home/ubuntu/iptv/frontend/.env.local`
 ```
-NEXT_PUBLIC_API_URL=http://nivatv.abrdns.com
+NEXT_PUBLIC_API_URL=https://nivatv.abrdns.com
 BACKEND_URL=http://127.0.0.1:5000
 ```
 

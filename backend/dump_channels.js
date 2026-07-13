@@ -4,7 +4,7 @@ const fs = require('fs');
 const secret = 'f9a8b1c4e7d6f5a3b2c1d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8';
 const token = jwt.sign({ userId: 1, email: 'admin@tangotv.in', role: 'admin' }, secret, { expiresIn: '1h' });
 
-fetch('http://35.154.128.217:5000/api/internal/channels?limit=5000', {
+fetch('http://35.174.78.33:5000/api/internal/channels?limit=5000', {
   headers: { Authorization: `Bearer ${token}` }
 })
   .then(r => r.json())

@@ -2,8 +2,8 @@
 # Build a production (release) APK. The backend URL is MANDATORY.
 #
 # Usage:
-#   ./build_release.ps1 -BackendUrl http://35.154.128.217
-#   ./build_release.ps1 -BackendUrl http://35.154.128.217 -SplitPerAbi
+#   ./build_release.ps1 -BackendUrl http://35.174.78.33
+#   ./build_release.ps1 -BackendUrl http://35.174.78.33 -SplitPerAbi
 
 param(
     [Parameter(Mandatory = $true, HelpMessage = "Production backend HTTPS URL, e.g. https://api.yourdomain.com")]

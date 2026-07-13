@@ -1,6 +1,6 @@
 # Phase 1 — Category & Language Filter Analysis (NivaTV)
 
-_Generated from live production data (AWS EC2 `35.154.128.217`, DB `iptv_db`) via the public API._
+_Generated from live production data (AWS EC2 `35.174.78.33`, DB `iptv_db`) via the public API._
 
 ## 1. How the system works today
 

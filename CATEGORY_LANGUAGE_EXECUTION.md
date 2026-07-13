@@ -39,7 +39,7 @@ node scripts/normalize-categories-languages.js
 node scripts/verify-filters.js          # expect "N passed, 0 failed"
 
 # ── D. (optional) rebuild the mobile app for the chip-order tweaks
-#      cd ../mobile && flutter build apk --dart-define=BACKEND_URL=http://35.154.128.217
+#      cd ../mobile && flutter build apk --dart-define=BACKEND_URL=http://35.174.78.33
 ```
 
 The normalizer is idempotent (safe to re-run) and does **not** touch stream_url,

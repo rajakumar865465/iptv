@@ -2,7 +2,7 @@ import subprocess
 
 try:
     result = subprocess.run(
-        ['ssh', '-i', r'C:\Users\deba_pc.com\.ssh\iptv_rsa', '-o', 'StrictHostKeyChecking=no', 'ubuntu@35.154.128.217', 'pm2 list'],
+        ['ssh', '-i', r'C:\Users\deba_pc.com\.ssh\iptv_rsa', '-o', 'StrictHostKeyChecking=no', 'ubuntu@35.174.78.33', 'pm2 list'],
         capture_output=True,
         text=True,
         timeout=15

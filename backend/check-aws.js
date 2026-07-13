@@ -1,5 +1,5 @@
 const http = require('http');
-http.get('http://35.154.128.217/api/channels', res => {
+http.get('http://35.174.78.33/api/channels', res => {
   console.log('Status:', res.statusCode);
   let data = '';
   res.on('data', chunk => data += chunk);

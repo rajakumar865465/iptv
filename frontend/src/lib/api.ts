@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // In production the frontend talks directly to the backend.
-// Set NEXT_PUBLIC_API_URL to http://nivatv.abrdns.com
+// Set NEXT_PUBLIC_API_URL to https://nivatv.abrdns.com
 // In development with Next.js server running, leave it empty to use the /api rewrite proxy.
 const API_BASE = process.env.NEXT_PUBLIC_API_URL
   ? `${process.env.NEXT_PUBLIC_API_URL}/api/internal`

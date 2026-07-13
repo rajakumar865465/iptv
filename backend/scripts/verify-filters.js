@@ -13,10 +13,10 @@
  *
  * Usage:
  *   node scripts/verify-filters.js                       # default base URL
- *   API_BASE=http://35.154.128.217 node scripts/verify-filters.js
+ *   API_BASE=http://35.174.78.33 node scripts/verify-filters.js
  */
 
-const BASE = process.env.API_BASE || 'http://35.154.128.217';
+const BASE = process.env.API_BASE || 'http://35.174.78.33';
 
 const BANNED_CATEGORY_SUBSTR = ['hindi entertainment', 'hindi movies', 'hindi news', 'english news', 'business news'];
 const GLOBAL_CATEGORIES = ['Doordarshan', 'Entertainment', 'Movies', 'News', 'Sports',
