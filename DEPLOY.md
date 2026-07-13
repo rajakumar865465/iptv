@@ -84,7 +84,7 @@ FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
 
 ### Frontend `/home/ubuntu/iptv/frontend/.env.local`
 ```
-NEXT_PUBLIC_API_URL=http://35.154.128.217:5000
+NEXT_PUBLIC_API_URL=http://nivatv.int.yt
 BACKEND_URL=http://127.0.0.1:5000
 ```
 

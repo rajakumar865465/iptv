@@ -10,7 +10,7 @@ import 'package:flutter/foundation.dart';
 ///
 /// Production build (backend server — release builds REQUIRE this and the
 /// Gradle guard in android/app/build.gradle.kts will fail without it):
-///   flutter build apk --release --dart-define=BACKEND_URL=http://35.154.128.217:5000
+///   flutter build apk --release --dart-define=BACKEND_URL=http://nivatv.int.yt
 ///
 /// If BACKEND_URL is not supplied, the app shows a configuration-error screen
 /// instead of running. Never hardcode a URL in source — always use --dart-define.
@@ -19,7 +19,7 @@ class BackendConfig {
 
   /// Default backend URL used for the IPTV app
   /// Update this whenever you redeploy your Node.js backend.
-  static const String baseUrl = 'http://35.174.78.33:5000';
+  static const String baseUrl = 'http://nivatv.int.yt';
   
   /// Base URL to fetch channel data (if not using the backend API directly)
   static bool get isConfigured => baseUrl.isNotEmpty;
