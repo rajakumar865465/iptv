@@ -78,7 +78,8 @@ export async function middleware(req: NextRequest) {
   }
 
   try {
-    const secret = process.env.ADMIN_JWT_SECRET;
+    const secret = process.env.ADMIN_JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'dev-admin-secret-change-in-production' : undefined);
+    
     if (!secret) {
       console.error('ADMIN_JWT_SECRET not set - cannot verify admin token in middleware');
       return redirectToLogin(req);

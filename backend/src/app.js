@@ -48,32 +48,32 @@ const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
   : [];
 
-app.use(cors({
-  origin: function(origin, callback) {
+const corsOptionsDelegate = function (req, callback) {
+  let corsOptions;
+  const origin = req.header('Origin');
+  const host = req.get('host');
+  
+  if (!origin) {
     // Allow requests with no origin (mobile apps, Postman, curl, server-to-server)
-    if (!origin) return callback(null, true);
+    corsOptions = { origin: true, credentials: true };
+  } else if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    // Allow localhost origins (any port)
+    corsOptions = { origin: true, credentials: true };
+  } else if (host && origin.includes(host)) {
+    // Allow requests if the Origin matches the Host (same-origin behind proxy)
+    corsOptions = { origin: true, credentials: true };
+  } else if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
+    corsOptions = { origin: true, credentials: true };
+  } else if (allowedOrigins.length === 0 && process.env.NODE_ENV !== 'production') {
+    // Development fallback
+    corsOptions = { origin: true, credentials: true };
+  } else {
+    corsOptions = { origin: false, credentials: true };
+  }
+  callback(null, corsOptions);
+};
 
-    // Allow localhost origins (any port) — needed for local dev/testing even in production
-    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
-      return callback(null, true);
-    }
-
-    // Production: deny if CORS_ORIGINS is not configured
-    if (allowedOrigins.length === 0) {
-      if (process.env.NODE_ENV === 'production') {
-        return callback(new Error('CORS not configured for production'));
-      }
-      // Development fallback: allow all
-      return callback(null, true);
-    }
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-}));
+app.use(cors(corsOptionsDelegate));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 morgan.token('url-redacted', (req) => {
