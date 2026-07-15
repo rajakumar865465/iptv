@@ -23,11 +23,20 @@ const TRIAL_FEATURES = [
 
 export type PlanVariant = 'most-popular' | 'save-more' | 'best-value' | 'starter';
 
+/**
+ * Decide a card's visual variant.
+ * Prefer the backend-managed `is_popular` / `is_best_value` flags so that only
+ * the plans you explicitly mark in the admin dashboard get those badges.
+ * Fall back to a duration-based guess only if flags aren't set.
+ */
 export function planVariant(plan: Plan): PlanVariant {
   if (plan.price === 0) return 'starter';
-  if (plan.duration_days === 30 || plan.duration_days === 90) return 'most-popular';
-  if (plan.duration_days === 180) return 'save-more';
-  return plan.duration_days >= 365 ? 'best-value' : 'starter';
+  if (plan.is_best_value) return 'best-value';
+  if (plan.is_popular) return 'most-popular';
+  // Sensible fallback only when no flags are set
+  if (plan.duration_days >= 365) return 'best-value';
+  if (plan.duration_days === 30) return 'most-popular';
+  return 'starter';
 }
 
 function getCtaText(plan: Plan, variant: PlanVariant): string {
@@ -95,40 +104,42 @@ interface Props {
   variant?: PlanVariant;
 }
 
-export default function PlanCard({ plan, ctaText, variant = 'starter' }: Props) {
+export default function PlanCard({ plan, ctaText, variant }: Props) {
+  // Auto-detect variant from backend flags when not explicitly passed
+  const resolvedVariant = variant ?? planVariant(plan);
   const isFree = plan.price === 0;
   const hasOffer = plan.regular_price && plan.regular_price > plan.price;
 
   const features = isFree ? TRIAL_FEATURES : FEATURES;
-  const buttonText = ctaText || getCtaText(plan, variant);
+  const buttonText = ctaText || getCtaText(plan, resolvedVariant);
 
   const wrapperClass = 'relative rounded-2xl border flex flex-col transition-all duration-300 hover:-translate-y-1 overflow-hidden ' +
-    cardClasses[variant];
-  const priceCls = priceColor[variant];
-  const iconCls = iconColor[variant];
+    cardClasses[resolvedVariant];
+  const priceCls = priceColor[resolvedVariant];
+  const iconCls = iconColor[resolvedVariant];
 
   let badgeText = '';
   let badgeClass = '';
-  if (variant === 'most-popular') {
+  if (resolvedVariant === 'most-popular') {
     badgeText = 'Most Popular';
     badgeClass = 'bg-indigo-600 text-white';
-  } else if (variant === 'save-more') {
+  } else if (resolvedVariant === 'save-more') {
     badgeText = 'Save More';
     badgeClass = 'bg-green-600 text-white';
-  } else if (variant === 'best-value') {
+  } else if (resolvedVariant === 'best-value') {
     badgeText = 'Best Value';
     badgeClass = 'bg-amber-500 text-black';
   }
 
   let offerBadgeClass = 'bg-white/10 text-slate-300';
-  if (variant === 'most-popular') offerBadgeClass = 'bg-indigo-600 text-white';
-  else if (variant === 'save-more') offerBadgeClass = 'bg-green-600 text-white';
-  else if (variant === 'best-value') offerBadgeClass = 'bg-amber-500 text-black';
+  if (resolvedVariant === 'most-popular') offerBadgeClass = 'bg-indigo-600 text-white';
+  else if (resolvedVariant === 'save-more') offerBadgeClass = 'bg-green-600 text-white';
+  else if (resolvedVariant === 'best-value') offerBadgeClass = 'bg-amber-500 text-black';
 
   let btnClass = 'bg-white/10 hover:bg-white/20 text-white border border-white/10';
-  if (variant === 'most-popular') btnClass = 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20';
-  else if (variant === 'save-more') btnClass = 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/20';
-  else if (variant === 'best-value') btnClass = 'bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20';
+  if (resolvedVariant === 'most-popular') btnClass = 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20';
+  else if (resolvedVariant === 'save-more') btnClass = 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/20';
+  else if (resolvedVariant === 'best-value') btnClass = 'bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20';
 
   return (
     <div className={wrapperClass}>

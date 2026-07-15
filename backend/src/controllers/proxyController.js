@@ -264,6 +264,12 @@ const manifestCache = new BoundedCache(200, CACHE_MANIFEST_MS);
 // Cache authorized IPs for 15 minutes to allow HLS live reloads where players drop headers
 const ipAuthCache = new BoundedCache(10000, 1000 * 60 * 15);
 
+const initSegmentCache = new BoundedCache(500, 1000 * 60 * 60); // 1 hour cache
+
+// Map to track the active playbackSessionId for each user (to abort old streams on channel switch)
+// Key: userId (string) -> { sessionId, abortControllers: Set }
+const activeProxySessions = new Map();
+
 // ── DNS safety result cache ─────────────────────────────────────────────────
 // isSafeExternalUrl() does a DNS resolve on every call. For segment requests
 // (one every 2-3s per viewer), this adds a round-trip to the DNS resolver before
@@ -308,7 +314,7 @@ async function getStreamHeaders(streamId) {
 // Fix #8: Add depth counter to prevent infinite redirect loops
 // Fix #6: Increased timeout from 8s → 20s — live HLS sources from slow CDNs
 // frequently take 10–15s to respond, causing unnecessary stream failures at 8s.
-async function makeProxyRequest(url, headers, redirectDepth = 0) {
+async function makeProxyRequest(url, headers, redirectDepth = 0, onRequestCreated = null) {
   if (redirectDepth > 5) {
     throw new Error('Too many redirects');
   }
@@ -332,10 +338,15 @@ async function makeProxyRequest(url, headers, redirectDepth = 0) {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         // Follow redirect with incremented depth counter, re-checking SSRF on each hop
         const nextUrl = resolveUrl(url, res.headers.location);
-        return resolve(makeProxyRequest(nextUrl, headers, redirectDepth + 1));
+        return resolve(makeProxyRequest(nextUrl, headers, redirectDepth + 1, onRequestCreated));
       }
       resolve(res);
     });
+    
+    if (onRequestCreated) {
+      onRequestCreated(req);
+    }
+    
     req.on('error', reject);
     req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
     req.end();
@@ -578,14 +589,14 @@ exports.proxyManifest = async (req, res) => {
 // Fix #8: Smarter retry logic — distinguish permanent vs transient failures.
 // 4xx errors (403, 404) are permanent; retrying wastes time and delays the 502 response.
 // 5xx errors and timeouts are transient; retry with exponential backoff (200ms → 400ms → 800ms).
-async function fetchSegmentWithRetry(targetUrl, headers) {
+async function fetchSegmentWithRetry(targetUrl, headers, onRequestCreated = null) {
   const MAX_RETRIES = 3;
   const BACKOFF_MS = [200, 400, 800];
 
   let lastError;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const proxyRes = await makeProxyRequest(targetUrl, headers);
+      const proxyRes = await makeProxyRequest(targetUrl, headers, 0, onRequestCreated);
       // Permanent 4xx failures — stop immediately, no retry
       if (proxyRes.statusCode >= 400 && proxyRes.statusCode < 500) {
         return proxyRes;
@@ -594,6 +605,9 @@ async function fetchSegmentWithRetry(targetUrl, headers) {
       return proxyRes;
     } catch (e) {
       lastError = e;
+      if (e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND') {
+        throw e; // Fail fast for connection refused or DNS errors
+      }
       if (attempt < MAX_RETRIES) {
         await new Promise(resolve => setTimeout(resolve, BACKOFF_MS[attempt]));
       }
@@ -660,44 +674,101 @@ exports.proxySegment = async (req, res) => {
     Object.assign(segHeaders, safeExtraHeaders);
     const headers = segHeaders;
 
+    const isInitSegment = targetUrl.includes('init.mp4') || targetUrl.includes('init.m4s');
+    const initCacheKey = `${streamId}:${targetUrl}`;
+    
+    // ETag for init segments to save 1.3KB bandwidth on repeat requests
+    const eTag = `W/"init-${crypto.createHash('md5').update(initCacheKey).digest('hex')}"`;
+    
+    if (isInitSegment) {
+      if (req.headers['if-none-match'] === eTag) {
+        return res.status(304).end();
+      }
+      
+      const cachedInit = initSegmentCache.get(initCacheKey);
+      if (cachedInit) {
+        res.setHeader('Content-Type', cachedInit.data.contentType);
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.setHeader('ETag', eTag);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+        res.setHeader('Content-Length', cachedInit.data.buffer.length);
+        console.info(`[proxy] init segment served from cache streamId=${streamId} url=${targetUrl.substring(0, 80)}`);
+        return res.send(cachedInit.data.buffer);
+      }
+    }
+
     // Fix #9: Abort upstream fetch when client disconnects (channel switch).
-    // Without this, the backend continues downloading the full .ts segment even
-    // after the player switches to a new channel, wasting bandwidth and EC2 resources.
-    // Tracking: The current makeProxyRequest uses node's http.request which supports
-    // req.destroy() on abort. We detect client close and destroy the upstream request.
     let upstreamReq = null;
     let clientAborted = false;
+    
+    // Session Leak Prevention: abort older sessions
+    const playbackSessionId = req.query.sid || 'anon';
+    const userId = tokenUserId;
+    if (userId !== 'anon' && playbackSessionId !== 'anon') {
+      let sessionData = activeProxySessions.get(userId);
+      if (!sessionData) {
+        sessionData = { sessionId: playbackSessionId, abortControllers: new Set() };
+        activeProxySessions.set(userId, sessionData);
+      } else if (sessionData.sessionId !== playbackSessionId) {
+        // User switched channels! Abort all pending requests from old session
+        console.info(`[proxy] session_changed userId=${userId} newSession=${playbackSessionId} oldSession=${sessionData.sessionId} — aborting old streams`);
+        for (const ac of sessionData.abortControllers) {
+          ac.abort();
+        }
+        sessionData.abortControllers.clear();
+        sessionData.sessionId = playbackSessionId;
+      }
+      
+      const abortController = new AbortController();
+      sessionData.abortControllers.add(abortController);
+      
+      abortController.signal.addEventListener('abort', () => {
+        if (!res.writableEnded && !clientAborted) {
+           clientAborted = true;
+           if (upstreamReq) try { upstreamReq.destroy(); } catch (_) {}
+           res.end(); // forcefully close downstream
+        }
+      });
+      
+      req.on('close', () => {
+        sessionData.abortControllers.delete(abortController);
+      });
+    }
 
     req.on('close', () => {
       if (!res.writableEnded && !clientAborted) {
         clientAborted = true;
-        console.info(`[proxy] client_disconnected streamId=${streamId} — aborting upstream`);
+        console.info(`[proxy_telemetry] client_aborted streamId=${streamId} sessionId=${playbackSessionId}`);
         if (upstreamReq) {
           try { upstreamReq.destroy(); } catch (_) {}
         }
       }
     });
 
-    // Fix #8: Use smart retry helper with exponential backoff and 4xx fast-fail
     let proxyRes;
     const fetchStart = Date.now();
     try {
-      proxyRes = await fetchSegmentWithRetry(targetUrl, headers);
+      // makeProxyRequest attaches the HTTP request to upstreamReq for abortion
+      proxyRes = await fetchSegmentWithRetry(targetUrl, headers, (req) => upstreamReq = req);
       if (clientAborted) {
-        // Client already gone — don't process the segment
-        console.info(`[proxy] upstream_aborted_after_fetch streamId=${streamId}`);
+        console.info(`[proxy_telemetry] upstream_aborted_after_fetch streamId=${streamId} sessionId=${playbackSessionId}`);
         return;
       }
     } catch (e) {
       const fetchMs = Date.now() - fetchStart;
-      console.warn(`[proxy] segment fetch failed streamId=${streamId} fetchMs=${fetchMs}ms err=${e.message}`);
+      console.warn(`[proxy_telemetry] segment fetch failed streamId=${streamId} fetchMs=${fetchMs}ms err=${e.message}`);
       return res.status(502).send('Upstream segment unavailable');
     }
-    const fetchMs = Date.now() - fetchStart;
-    // Log slow upstream segment fetches (>2s) so latency issues are measurable, not guesswork
-    if (fetchMs > 2000) {
-      console.warn(`[proxy] slow segment upstream_fetch_ms=${fetchMs} streamId=${streamId} url=${targetUrl.slice(0, 60)}`);
-    }
+    
+    // Detailed telemetry tracking variables
+    const upstreamTTFBMs = Date.now() - fetchStart;
+    let upstreamFetchEndMs = 0;
+    
+    proxyRes.on('end', () => {
+      upstreamFetchEndMs = Date.now() - fetchStart;
+      console.info(`[proxy_telemetry] upstream_fetch_complete streamId=${streamId} sessionId=${playbackSessionId} fetchMs=${upstreamFetchEndMs}`);
+    });
 
     // Fix #1: Also accept 206 Partial Content from upstream CDNs
     if (proxyRes.statusCode !== 200 && proxyRes.statusCode !== 206) {
@@ -783,18 +854,47 @@ exports.proxySegment = async (req, res) => {
       return res.send(rewritten);
     }
 
-    // Fix #9: Use stream.pipeline() instead of proxyRes.pipe(res).
-    // pipeline() handles backpressure properly — if the client reads slowly,
-    // it pauses the upstream read instead of buffering unboundedly in memory.
-    // It also auto-destroys both streams on error or completion.
-    //
-    // "Premature close" and "aborted" are NORMAL for live IPTV — they happen whenever
-    // the viewer switches channels or the tab is closed. Suppress them to keep logs clean.
-    
-    // Performance Telemetry for Proxy Segments
     const contentLength = proxyRes.headers['content-length'] || 'unknown';
-    console.info(`[proxy_telemetry] segment streamed streamId=${streamId} fetchMs=${fetchMs}ms bytes=${contentLength} url=${targetUrl.substring(0, 80)}`);
+    
+    if (isInitSegment) {
+      const chunks = [];
+      for await (const chunk of proxyRes) {
+        chunks.push(chunk);
+      }
+      const buffer = Buffer.concat(chunks);
+      initSegmentCache.set(initCacheKey, { contentType, buffer });
+      console.info(`[proxy] init segment cached streamId=${streamId} size=${buffer.length}`);
+      
+      if (!res.hasHeader('Content-Length')) {
+        res.setHeader('Content-Length', buffer.length);
+      }
+      res.setHeader('ETag', eTag);
+      return res.send(buffer);
+    }
+
+    const downstreamStart = Date.now();
+    let downstreamBytes = 0;
+    let firstByteSentToClientMs = -1;
+    let responseBackpressureCount = 0;
+    
+    proxyRes.on('data', (chunk) => {
+      if (firstByteSentToClientMs === -1) {
+         firstByteSentToClientMs = Date.now() - fetchStart;
+      }
+      downstreamBytes += chunk.length;
+    });
+    
+    res.on('drain', () => {
+      responseBackpressureCount++;
+    });
+
     pipeline(proxyRes, res, (err) => {
+      const downstreamSendMs = Date.now() - downstreamStart;
+      const totalResponseMs = Date.now() - fetchStart;
+      const effectiveClientMbps = downstreamSendMs > 0 ? ((downstreamBytes * 8) / 1000000 / (downstreamSendMs / 1000)).toFixed(2) : 0;
+      
+      console.info(`[proxy_telemetry_complete] streamId=${streamId} sessionId=${playbackSessionId} TTFB=${upstreamTTFBMs}ms fetchMs=${upstreamFetchEndMs}ms firstByteMs=${firstByteSentToClientMs}ms downstreamSendMs=${downstreamSendMs}ms totalMs=${totalResponseMs}ms bytes=${downstreamBytes} effectiveMbps=${effectiveClientMbps} backpressure=${responseBackpressureCount} aborted=${clientAborted} err=${err ? err.code || err.message : 'none'}`);
+
       if (!err) return;
       const isPrematureClose =
         err.code === 'ERR_STREAM_PREMATURE_CLOSE' ||

@@ -108,6 +108,26 @@ class StorageService {
   }
 
   // --- Playback Settings ---
+  Future<void> setDisplayRefreshRate(String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('display_refresh_rate', mode);
+  }
+
+  Future<String> getDisplayRefreshRate() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('display_refresh_rate') ?? 'auto';
+  }
+
+  Future<void> setMatchVideoFrameRate(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('match_video_frame_rate', enabled);
+  }
+
+  Future<bool> getMatchVideoFrameRate() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('match_video_frame_rate') ?? true;
+  }
+
   Future<void> setVideoFitMode(String mode) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('video_fit_mode', mode);

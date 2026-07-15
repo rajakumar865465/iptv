@@ -1,5 +1,14 @@
 const errorHandler = (err, req, res, next) => {
-  console.error(err.stack);
+  // Only log full stack trace for 500 internal errors
+  if (!err.status || err.status === 500) {
+    if (err.code !== 'ECONNREFUSED' && err.code !== 'ETIMEDOUT') {
+      console.error(err.stack || err.message);
+    } else {
+      console.error(`[Network Error] ${err.message}`);
+    }
+  } else {
+    console.error(`[Error ${err.status}] ${err.message}`);
+  }
 
   if (err.code === '23505') {
     return res.status(409).json({

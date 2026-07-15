@@ -1,4 +1,7 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 import '../constants.dart';
 import '../services/storage_service.dart';
 
@@ -16,6 +19,11 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
   bool _dataSaverEnabled = false;
   bool _autoMobileData = true;
   bool _hdOnlyWifi = true;
+  
+  String _displayRefreshRate = 'auto';
+  bool _matchVideoFrameRate = true;
+  bool _supports120Hz = false;
+  bool _supports90Hz = false;
 
   @override
   void initState() {
@@ -28,6 +36,20 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
     final dataSaver = await _storage.isDataSaverEnabled();
     final autoMobile = await _storage.isAutoQualityOnMobileData();
     final hdOnlyWifi = await _storage.isHdOnlyOnWifi();
+    final displayRate = await _storage.getDisplayRefreshRate();
+    final matchVideoRate = await _storage.getMatchVideoFrameRate();
+    
+    bool supports120 = false;
+    bool supports90 = false;
+    if (!kIsWeb && Platform.isAndroid) {
+      try {
+        final modes = await FlutterDisplayMode.supported;
+        for (var mode in modes) {
+          if (mode.refreshRate > 119) supports120 = true;
+          if (mode.refreshRate > 89 && mode.refreshRate < 100) supports90 = true;
+        }
+      } catch (_) {}
+    }
 
     if (mounted) {
       setState(() {
@@ -35,6 +57,10 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
         _dataSaverEnabled = dataSaver;
         _autoMobileData = autoMobile;
         _hdOnlyWifi = hdOnlyWifi;
+        _displayRefreshRate = displayRate;
+        _matchVideoFrameRate = matchVideoRate;
+        _supports120Hz = supports120;
+        _supports90Hz = supports90;
       });
     }
   }
@@ -74,6 +100,50 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
                 setState(() => _defaultQuality = val);
                 _storage.setVideoQualityPreference(val);
               }
+            },
+          ),
+          const Divider(color: Color(AppColors.surfaceLight), height: 32),
+          const Text(
+            'DISPLAY & FRAMERATE',
+            style: TextStyle(color: Color(AppColors.primary), fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          _buildDropdownItem(
+            title: 'Display Refresh Rate',
+            subtitle: 'Use the best refresh rate supported by your device. Higher rates make scrolling smoother but may use more battery.',
+            value: _displayRefreshRate,
+            items: [
+              const DropdownMenuItem(value: 'auto', child: Text('Auto - Recommended')),
+              const DropdownMenuItem(value: '60', child: Text('60Hz - Battery Saver')),
+              if (_supports90Hz || _displayRefreshRate == '90') const DropdownMenuItem(value: '90', child: Text('90Hz - Smooth')),
+              if (_supports120Hz || _displayRefreshRate == '120') const DropdownMenuItem(value: '120', child: Text('120Hz - Ultra Smooth')),
+            ],
+            onChanged: (val) {
+              if (val != null) {
+                setState(() => _displayRefreshRate = val);
+                _storage.setDisplayRefreshRate(val);
+                // Provide immediate feedback by setting the mode if supported
+                if (!kIsWeb && Platform.isAndroid) {
+                  if (val == '120' && _supports120Hz) FlutterDisplayMode.setHighRefreshRate();
+                  else if (val == '90' && _supports90Hz) FlutterDisplayMode.setHighRefreshRate();
+                  else if (val == '60') FlutterDisplayMode.setLowRefreshRate();
+                  else FlutterDisplayMode.setPreferredMode(DisplayMode.auto);
+                }
+              }
+            },
+          ),
+          if (!_supports120Hz && !_supports90Hz && !kIsWeb && Platform.isAndroid)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 16.0),
+              child: Text('High refresh rate (90Hz/120Hz) is not supported on this device, or is limited by Battery Saver.', style: TextStyle(color: Colors.white54, fontSize: 12)),
+            ),
+          _buildSwitchItem(
+            title: 'Match video frame rate',
+            subtitle: 'Adjust display timing to match the channel\'s native frame rate where supported.',
+            value: _matchVideoFrameRate,
+            onChanged: (val) {
+              setState(() => _matchVideoFrameRate = val);
+              _storage.setMatchVideoFrameRate(val);
             },
           ),
           const Divider(color: Color(AppColors.surfaceLight), height: 32),

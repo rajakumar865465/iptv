@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -244,6 +246,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Timer? _controlsTimer;
   final GlobalKey _videoKey = GlobalKey();
   int _initId = 0; // Tracks initialization sequences to prevent concurrent media_kit worker overlaps
+  int _lastReportedDisplayChannelId = -1;
+  int _hasReportedPlaybackSuccessForSession = -1;
+  int _mediaOpenCount = 0;
+  String _mediaOpenReason = 'initial';
+  int _consecutiveLowBandwidthSeconds = 0;
+  bool _thermalSafeMode = false;
+  String _playbackSessionId = '';
+  String _displayRefreshRatePref = 'auto';
+  bool _matchVideoFrameRatePref = true;
+  double _currentVideoFps = 0.0;
+  List<DisplayMode> _supportedDisplayModes = [];
+  DisplayMode? _activeDisplayMode;
 
   List<dynamic> _backupStreams = [];
   Map<String, dynamic>? _currentStreamMeta;
@@ -279,10 +293,16 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _sourceStartupGrace = false;
   String _playbackSessionId = '';
   StreamSubscription? _playerSubscription;
+  StreamSubscription? _playerLogSubscription;
   StreamSubscription? _playerErrorSubscription;
   StreamSubscription? _videoParamsSubscription;
   StreamSubscription? _audioParamsSubscription;
   StreamSubscription? _playerPlayingSubscription;
+  StreamSubscription? _trackSubscription;
+  bool _showDebugDiagnostics = kDebugMode;
+  int _framesDropped = 0;
+  int _framesDelayed = 0;
+  String _activeVideoDecoder = 'unknown';
   bool _startupCompleted = false;
   bool _hadFailureBeforePlaying = false;
 
@@ -482,6 +502,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         bufferSize: kStableProfile.bufferSizeBytes,
         // Disable pitch shifting to save CPU during startup
         pitch: false,
+        logLevel: MPVLogLevel.warn,
       ),
     );
     _videoController = VideoController(_player);
@@ -542,7 +563,72 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _isOnMobileData = connectivityResult.contains(ConnectivityResult.mobile);
     } catch (_) {}
 
+    _displayRefreshRatePref = await storage.getDisplayRefreshRate();
+    _matchVideoFrameRatePref = await storage.getMatchVideoFrameRate();
+
+    if (!kIsWeb && Platform.isAndroid) {
+      try {
+        _supportedDisplayModes = await FlutterDisplayMode.supported;
+        _activeDisplayMode = await FlutterDisplayMode.active;
+        _applyUiDisplayMode();
+      } catch (_) {}
+    }
+
     _fetchPlaybackAndInitialize();
+  }
+
+  Future<void> _applyUiDisplayMode() async {
+    if (kIsWeb || !Platform.isAndroid || _supportedDisplayModes.isEmpty) return;
+    try {
+      if (_displayRefreshRatePref == '120') {
+        await FlutterDisplayMode.setHighRefreshRate();
+      } else if (_displayRefreshRatePref == '90') {
+        final modes = _supportedDisplayModes.where((m) => m.refreshRate > 89 && m.refreshRate < 100).toList();
+        if (modes.isNotEmpty) {
+          modes.sort((a, b) => b.refreshRate.compareTo(a.refreshRate));
+          await FlutterDisplayMode.setPreferredMode(modes.first);
+        } else {
+          await FlutterDisplayMode.setHighRefreshRate();
+        }
+      } else if (_displayRefreshRatePref == '60') {
+        await FlutterDisplayMode.setLowRefreshRate();
+      } else {
+        await FlutterDisplayMode.setPreferredMode(DisplayMode.auto);
+      }
+      _activeDisplayMode = await FlutterDisplayMode.active;
+      if (mounted) setState(() {});
+    } catch (_) {}
+  }
+
+  Future<void> _applyContentFrameRateMatching() async {
+    if (kIsWeb || !Platform.isAndroid || !_matchVideoFrameRatePref || _currentVideoFps <= 0) {
+      return _applyUiDisplayMode();
+    }
+    
+    try {
+      DisplayMode? bestMode;
+      for (final mode in _supportedDisplayModes) {
+        final hz = mode.refreshRate;
+        final multiple = hz / _currentVideoFps;
+        final diff = (multiple - multiple.round()).abs();
+        
+        if (diff < 0.05) { 
+          if (bestMode == null || hz > bestMode.refreshRate) {
+             bestMode = mode;
+          }
+        }
+      }
+      
+      if (bestMode != null) {
+        await FlutterDisplayMode.setPreferredMode(bestMode);
+        _activeDisplayMode = await FlutterDisplayMode.active;
+        if (mounted) setState(() {});
+      } else {
+        _applyUiDisplayMode();
+      }
+    } catch (_) {
+      _applyUiDisplayMode();
+    }
   }
 
   static const Set<String> _validFitModes = {'auto', 'fit', 'fill', 'zoom', 'stretch'};
@@ -673,6 +759,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   /// Report detected display info to backend for admin visibility
   Future<void> _reportDisplayInfo() async {
+    if (_lastReportedDisplayChannelId == _currentChannel.id) return;
     try {
       await _api.post(ApiEndpoints.channelDisplayReportPath(_currentChannel.id), {
         'aspect_ratio_type': _detectedAspectRatioType,
@@ -680,6 +767,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         'video_height': _detectedVideoHeight,
         'detected_fit_mode': _autoDetectedFitMode,
       });
+      _lastReportedDisplayChannelId = _currentChannel.id;
     } catch (_) {}
   }
 
@@ -994,7 +1082,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           final prefs = await SharedPreferences.getInstance();
           final token = prefs.getString(StorageKeys.token);
           if (token != null) {
-            _proxyUrl = '$_proxyUrl?token=$token';
+          if (token != null) {
+            _proxyUrl = '$_proxyUrl?token=$token&sid=$_playbackSessionId';
           }
           webPreferredUrl = _proxyUrl;
           webPreferredHeaders = {
@@ -1012,7 +1101,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           final prefs = await SharedPreferences.getInstance();
           final token = prefs.getString(StorageKeys.token);
           if (token != null) {
-            _proxyUrl = '$_proxyUrl?token=$token';
+            _proxyUrl = '$_proxyUrl?token=$token&sid=$_playbackSessionId';
           }
           _proxyHeaders = {
             if (token != null) 'Authorization': 'Bearer $token',
@@ -1222,6 +1311,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       'url': url,
       'generation': _playbackGeneration,
       'session_id': _playbackSessionId,
+      'media_open_count': _mediaOpenCount,
+      'media_open_reason': _mediaOpenReason,
     });
 
     try {
@@ -1374,12 +1465,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
       final media = Media(url, httpHeaders: headers.isNotEmpty ? headers : null);
 
+      _mediaOpenCount++;
       _playerDebugLog('initialize_player', {
         'channel_id': _currentChannel.id,
         'selected_stream_url': url,
         'headers': headers,
         'retry_count': _retryAttempt,
         'proxy_attempted': _proxyAttempted,
+        'media_open_count': _mediaOpenCount,
       });
 
       // Fix: Use open(play: true) — removes redundant play() call
@@ -1460,6 +1553,64 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           }
         }
       });
+
+      _trackSubscription?.cancel();
+      _trackSubscription = _player.stream.track.listen((track) {
+        if (!mounted || _playbackGeneration != thisGeneration) return;
+        final fps = track.video.fps;
+        if (fps != null && fps > 0) {
+          if (_currentVideoFps != fps) {
+             _currentVideoFps = fps;
+             _applyContentFrameRateMatching();
+          }
+        }
+      });
+
+      _playerLogSubscription?.cancel();
+      _playerLogSubscription = _player.stream.log.listen((event) {
+        if (!mounted || _playbackGeneration != thisGeneration) return;
+        final t = event.text.toLowerCase();
+        
+        // Track hardware decoding and dropped frames for diagnostics
+        if (t.contains('using hardware decoding')) {
+           _activeVideoDecoder = 'hardware';
+        } else if (t.contains('using software decoding')) {
+           _activeVideoDecoder = 'software';
+        }
+        if (t.contains('dropped frame') || t.contains('dropping frame')) {
+           _framesDropped++;
+           if (_framesDropped > 100 && _activeVideoDecoder == 'software' && !_thermalSafeMode) {
+             _thermalSafeMode = true;
+             _displayRefreshRatePref = '60'; // Force 60Hz in thermal safe mode
+             _applyUiDisplayMode();
+             _playerDebugLog('thermal_safe_mode_activated', {'channel_id': _currentChannel.id});
+           }
+        }
+        if (t.contains('delayed frame')) {
+           _framesDelayed++;
+        }
+
+        if (t.contains('underrun') || t.contains('desynchronization') || t.contains('audio/video desync') || t.contains('non-monotonic dts')) {
+          _playerDebugLog('audio_diagnostic', {'channel_id': _currentChannel.id, 'text': event.text});
+          if (t.contains('incompatible')) {
+            _handleStreamFailure('android_incompatible');
+          }
+        }
+        
+        // Very basic bandwidth stall detection via libmpv logs
+        if (t.contains('buffering') && t.contains('stall')) {
+          _consecutiveLowBandwidthSeconds += 2;
+          if (_consecutiveLowBandwidthSeconds >= 8) {
+             _handleStreamFailure('insufficient_bandwidth');
+             _consecutiveLowBandwidthSeconds = 0;
+          }
+        } else if (t.contains('playing')) {
+          _consecutiveLowBandwidthSeconds = 0;
+        }
+      });
+
+      // Tune buffer for live fMP4 / large segments: limit readahead so it doesn't overshoot live edge
+      // (media_kit Player doesn't directly expose setProperty, relying on PlayerConfiguration)
 
       // -- Listen for errors ---------------------------------------------
       // media_kit fires error events during normal HLS playlist resolution
@@ -2197,6 +2348,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   /// Captures the channel/stream state at call time to prevent stale reports
   /// if the user switches channel while the API call is in flight.
   Future<void> _reportPlaybackSuccess() async {
+    if (_hasReportedPlaybackSuccessForSession == _channelSessionId) return;
+    _hasReportedPlaybackSuccessForSession = _channelSessionId;
+    
     // Capture everything synchronously before any await
     final int mySession = _channelSessionId;
     final int channelId = _currentChannel.id;
@@ -2692,12 +2846,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   void _toggleFullScreen() {
     setState(() { _isFullScreen = !_isFullScreen; });
     if (_isFullScreen) {
-      SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
     } else {
-      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     }
+    _applyContentFrameRateMatching();
     _showControlsWithTimer();
   }
 
@@ -2739,6 +2894,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _gapWarningRefreshTimer?.cancel();
     _smoothWarmTimer?.cancel();
     _stablePlaybackTimer?.cancel();
+    _audioParamsSubscription?.cancel();
+    _playerPlayingSubscription?.cancel();
+    _playerLogSubscription?.cancel();
     _positionCheckTimer?.cancel();
     _errorGraceTimer?.cancel();
     _hdPromoteTimer?.cancel();
@@ -2811,6 +2969,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           ),
           _buildSlowConnectionOverlay(),
           _buildPlayerToast(),
+          if (_showDebugDiagnostics)
+             Positioned(
+               top: 20, right: 20,
+               child: _buildDiagnosticOverlay(),
+             ),
         ],
       ),
     );
@@ -2858,6 +3021,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                     ),
                   _buildSlowConnectionOverlay(),
                   _buildPlayerToast(),
+                  if (_showDebugDiagnostics)
+                     Positioned(
+                       top: 10, right: 10,
+                       child: _buildDiagnosticOverlay(),
+                     ),
                   ],
               ),
             ),
@@ -3643,9 +3811,43 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           // ── Right-side icon buttons: fullscreen ───────────────────────────
           // (cast/CC icons can be added when functionality is available)
           _overlayIconBtn(
+            icon: Icons.info_outline,
+            onTap: () {
+               setState(() { _showDebugDiagnostics = !_showDebugDiagnostics; });
+            },
+          ),
+          const SizedBox(width: 10),
+          _overlayIconBtn(
             icon: _isFullScreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
             onTap: _toggleFullScreen,
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiagnosticOverlay() {
+    final actHz = _activeDisplayMode?.refreshRate.toStringAsFixed(1) ?? 'Unknown';
+    final actW = _activeDisplayMode?.width ?? 0;
+    final actH = _activeDisplayMode?.height ?? 0;
+    
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.black87,
+        border: Border.all(color: Colors.redAccent, width: 1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('DIAGNOSTICS', style: TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+          Text('UI Hz: $actHz ($actW x $actH)', style: const TextStyle(color: Colors.white, fontSize: 10)),
+          Text('Video FPS: ${_currentVideoFps.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 10)),
+          Text('Decoder: $_activeVideoDecoder', style: const TextStyle(color: Colors.white, fontSize: 10)),
+          Text('Dropped/Delayed: $_framesDropped / $_framesDelayed', style: const TextStyle(color: Colors.white, fontSize: 10)),
+          Text('Hardware Accel: ${_activeVideoDecoder == 'hardware' ? 'Yes' : 'No'}', style: const TextStyle(color: Colors.white, fontSize: 10)),
         ],
       ),
     );

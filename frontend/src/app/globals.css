@@ -23,4 +23,52 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Display font utility — Poppins loaded in root layout */
+.font-display {
+  font-family: var(--font-poppins);
+}
+
+/* Balance headline line breaks where supported */
+.text-balance {
+  text-wrap: balance;
+}
+
+/* ---- Marquee animation for live channel ticker ---- */
+@keyframes nivatv-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes nivatv-marquee-reverse {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+
+/* Two copies of the row are rendered; -50% travel gives a seamless loop.
+   Duration is set inline per-row so each row can scroll at its own speed. */
+.animate-marquee {
+  animation: nivatv-marquee linear infinite;
+  will-change: transform;
+}
+.animate-marquee-reverse {
+  animation: nivatv-marquee-reverse linear infinite;
+  will-change: transform;
+}
+.marquee-pause:hover .animate-marquee,
+.marquee-pause:hover .animate-marquee-reverse {
+  animation-play-state: paused;
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .animate-marquee-reverse {
+    animation: none;
+  }
+  * {
+    scroll-behavior: auto !important;
+  }
 }

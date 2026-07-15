@@ -48,6 +48,8 @@ dependencies:
   media_kit_libs_video: ^1.0.4
   # Wakelock to keep screen on during playback (Fix #9)
   wakelock_plus: ^1.2.10
+  # Android display refresh rate handling
+  flutter_displaymode: ^0.7.0
   # Real device ID for stable device tracking (Fix #24)
   device_info_plus: ^10.1.0
   flutter_svg: ^2.0.7

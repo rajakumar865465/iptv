@@ -47,8 +47,21 @@ function getKey() {
  */
 function encryptSegmentUrl(url, streamId, userId) {
   const key = getKey();
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const expiresAt = Date.now() + 6 * 60 * 60 * 1000; // 6 hours — covers any continuous watch session
+  
+  let iv;
+  let expiresAt;
+  const isInitSegment = url.includes('init.mp4') || url.includes('init.m4s');
+
+  if (isInitSegment) {
+    // 100% deterministic stable token for init segments forever
+    expiresAt = 0; // 0 = never expires
+    // Generate deterministic IV from URL and streamId
+    const hash = crypto.createHash('sha256').update(`init:${streamId}:${url}`).digest();
+    iv = hash.subarray(0, IV_LENGTH);
+  } else {
+    iv = crypto.randomBytes(IV_LENGTH);
+    expiresAt = Date.now() + 6 * 60 * 60 * 1000; // 6 hours
+  }
 
   const payload = JSON.stringify({
     url,
@@ -105,7 +118,7 @@ function decryptSegmentToken(token, expectedStreamId) {
   // just before a manifest refresh (new tokens issued every 8s) still serve correctly.
   // This is belt-and-suspenders: the 6h TTL already makes rotation-boundary 403s rare.
   const GRACE_MS = 30 * 1000;
-  if (payload.exp + GRACE_MS < Date.now()) {
+  if (payload.exp !== 0 && payload.exp + GRACE_MS < Date.now()) {
     throw new Error('Token expired');
   }
 

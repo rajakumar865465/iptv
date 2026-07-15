@@ -34,15 +34,6 @@ const TRUST_LINES = [
   'Support available',
 ];
 
-type PlanVariant = 'most-popular' | 'save-more' | 'best-value' | 'starter';
-
-function planVariant(plan: Plan): PlanVariant {
-  if (plan.price === 0) return 'starter';
-  if (plan.duration_days === 30 || plan.duration_days === 90) return 'most-popular';
-  if (plan.duration_days === 180) return 'save-more';
-  return plan.duration_days >= 365 ? 'best-value' : 'starter';
-}
-
 function getPlanOrder(plan: Plan): number {
   if (plan.price === 0) return -1;
   return plan.duration_days;
@@ -130,7 +121,7 @@ export default async function PricingPage() {
               : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-16'
           }>
             {visiblePlans.map(plan => (
-              <PlanCard key={plan.id} plan={plan} variant={planVariant(plan)} />
+              <PlanCard key={plan.id} plan={plan} />
             ))}
           </div>
         ) : (

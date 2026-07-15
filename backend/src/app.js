@@ -75,6 +75,13 @@ const corsOptionsDelegate = function (req, callback) {
 
 app.use(cors(corsOptionsDelegate));
 app.use(express.json({ limit: '10mb' }));
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error(`Malformed JSON Error: ${req.method} ${req.url} - IP: ${req.ip}`);
+    return res.status(400).json({ success: false, message: 'Bad Request: Malformed JSON' });
+  }
+  next(err);
+});
 app.use(express.urlencoded({ extended: true }));
 morgan.token('url-redacted', (req) => {
   const url = req.originalUrl || req.url;
