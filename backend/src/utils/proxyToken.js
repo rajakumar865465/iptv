@@ -22,20 +22,49 @@
 
 const crypto = require('node:crypto');
 
+// Module-load diagnostic: log exactly what `crypto` resolves to here so a
+// broken binding shows up at startup (once) instead of as thousands of
+// identical "crypto.createHash is not a function" lines inside proxySegment.
+console.log('[proxyToken] crypto import check:', {
+  exists: !!crypto,
+  typeofModule: typeof crypto,
+  hasCreateHash: typeof crypto?.createHash,
+  hasRandomBytes: typeof crypto?.randomBytes,
+  hasCreateCipheriv: typeof crypto?.createCipheriv,
+  keys: crypto ? Object.keys(crypto).slice(0, 12) : [],
+});
+
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;          // 96-bit IV for GCM
 const TAG_LENGTH = 16;         // 128-bit auth tag
 const KEY_LENGTH = 32;         // 256-bit key
 
+// Cached derived key. Recomputed only once per process. We cache because the
+// only documented failure mode in production was "crypto.createHash is not a
+// function" on the per-segment path — deriving once at module load and
+// logging the full stack there (once) is far easier to debug than thousands
+// of identical errors inside proxySegment.
+let _cachedKey = null;
+
+function sha256(input) {
+  if (typeof crypto.createHash !== 'function') {
+    throw new Error(`crypto.createHash unavailable in this runtime: typeof crypto = ${typeof crypto}, keys = ${crypto && Object.keys(crypto).slice(0, 8).join(',')}`);
+  }
+  return crypto.createHash('sha256').update(input).digest();
+}
+
 function getKey() {
+  if (_cachedKey) return _cachedKey;
   const secret = process.env.PROXY_SEGMENT_SECRET;
   if (!secret) {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('PROXY_SEGMENT_SECRET environment variable is missing in production. Cannot generate or decrypt proxy tokens safely.');
     }
-    return crypto.createHash('sha256').update(process.env.JWT_SECRET || 'nivatv-proxy-default-secret').digest();
+    _cachedKey = sha256(process.env.JWT_SECRET || 'nivatv-proxy-default-secret');
+  } else {
+    _cachedKey = sha256(secret);
   }
-  return crypto.createHash('sha256').update(secret).digest();
+  return _cachedKey;
 }
 
 /**
@@ -58,7 +87,7 @@ function encryptSegmentUrl(url, streamId, userId) {
     expiresAt = 0; // 0 = never expires
     // Generate deterministic IV from URL and streamId
     finalUrl = url.split('?')[0];
-    const hash = crypto.createHash('sha256').update(`init:${streamId}:${finalUrl}`).digest();
+    const hash = sha256(`init:${streamId}:${finalUrl}`);
     iv = hash.subarray(0, IV_LENGTH);
   } else {
     iv = crypto.randomBytes(IV_LENGTH);
