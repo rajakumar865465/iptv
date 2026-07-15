@@ -232,6 +232,9 @@ const PlaybackProfile kMobileProfile = PlaybackProfile(
 );
 
 // ----
+// Global singletons for Web to prevent media_kit_video double-initialization bugs (PromiseCompleter errors)
+Player? _globalWebPlayer;
+VideoController? _globalWebVideoController;
 
 class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixin {
   final ApiService _api = ApiService();
@@ -514,16 +517,31 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _currentUrl = _currentChannel.streamUrl;
 
     // Fix #1: Initialize media_kit player with optimized Netflix-style fast-start configuration
-    _player = Player(
-      configuration: PlayerConfiguration(
-        // Match the stable profile at startup. libmpv readahead is tuned per stream below.
-        bufferSize: kStableProfile.bufferSizeBytes,
-        // Disable pitch shifting to save CPU during startup
-        pitch: false,
-        logLevel: MPVLogLevel.warn,
-      ),
-    );
-    _videoController = VideoController(_player);
+    if (kIsWeb) {
+      if (_globalWebPlayer == null) {
+        _globalWebPlayer = Player(
+          configuration: PlayerConfiguration(
+            bufferSize: kStableProfile.bufferSizeBytes,
+            pitch: false,
+            logLevel: MPVLogLevel.warn,
+          ),
+        );
+        _globalWebVideoController = VideoController(_globalWebPlayer!);
+      }
+      _player = _globalWebPlayer!;
+      _videoController = _globalWebVideoController!;
+    } else {
+      _player = Player(
+        configuration: PlayerConfiguration(
+          // Match the stable profile at startup. libmpv readahead is tuned per stream below.
+          bufferSize: kStableProfile.bufferSizeBytes,
+          // Disable pitch shifting to save CPU during startup
+          pitch: false,
+          logLevel: MPVLogLevel.warn,
+        ),
+      );
+      _videoController = VideoController(_player);
+    }
 
     // Fix #9: Keep screen on during playback
     if (!kIsWeb || !_wakelockEnabled) {
@@ -1552,15 +1570,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
       _webFirstFrameTimer?.cancel();
       if (kIsWeb) {
+        // On Web, hls.js reports `playing=true` before width/dimensions populate
+        // for live HLS streams (MSE). Treating `playing=true` as first-frame
+        // avoids the 15s startup timer tearing down a stream that is actually
+        // playing. We still prefer dimensions if present (more accurate), but
+        // we don't block startup on them.
         _webFirstFrameTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
           if (!mounted || _playbackGeneration != thisGeneration || _startupCompleted) {
             timer.cancel();
             return;
           }
-          final hasDimensions = _player.state.width != null && _player.state.width! > 0;
-          final isPlayingProgression = _player.state.playing && _player.state.position.inMilliseconds > 100;
-          if (hasDimensions && isPlayingProgression) {
-            _onStartupSuccess('web_first_frame_progression', thisGeneration);
+          if (_player.state.playing) {
+            _onStartupSuccess('web_playing_first_frame', thisGeneration);
             timer.cancel();
           }
         });
@@ -1611,9 +1632,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         if (!isPlaying || !mounted || _playbackGeneration != thisGeneration) return;
         
         if (kIsWeb) {
-          // Web-specific fast-start: trigger success when playing, not buffering, and dimensions are known (first frame decoded).
-          final hasDimensions = _player.state.width != null && _player.state.width! > 0;
-          if (hasDimensions && !_player.state.buffering && !_startupCompleted) {
+          // Web-specific fast-start: hls.js fires `playing=true` before width
+          // populates for live MSE streams; treat playing as first-frame.
+          if (!_startupCompleted) {
             _onStartupSuccess('playing_stable_web_fallback', thisGeneration);
           }
         }
@@ -1802,7 +1823,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         if (!_startupCompleted && !_hasError) {
           final hasDimensions = _player.state.width != null && _player.state.width! > 0;
           final isPlayingProgression = _player.state.playing && _player.state.position.inMilliseconds > 100;
-          
+
           if (hasDimensions && isPlayingProgression) {
             _playerDebugLog('decoder_startup_delay_ignored_already_playing', {
               'channel_id': _currentChannel.id,
@@ -1813,7 +1834,31 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             return;
           }
 
-          // Check for Proxy Segment Decoder Stalls
+          // On Web (hls.js + MSE), `playing=true` can be reported while
+          // width/dimensions are still 0 and position reads 0 for live streams.
+          // The width-gated first-frame listeners therefore don't fire, and we
+          // must NOT kill a stream that the engine reports as actively playing —
+          // regardless of proxy/direct path. Declaring init_timeout here would
+          // tear down a successfully-playing channel (observed: Zee News direct
+          // hit startup_timeout 15s with is_playing=true and recovered to a
+          // backup that had the same false-positive).
+          if (kIsWeb && _player.state.playing) {
+            _playerDebugLog('decoder_startup_delay_web_playing', {
+              'channel_id': _currentChannel.id,
+              'url': url,
+              'waited_secs': actualTimeoutSecs,
+              'is_initialized': _playerInitialized,
+              'is_playing': _player.state.playing,
+              'is_buffering': _player.state.buffering,
+              'has_dimensions': hasDimensions,
+              'playback_path': _playbackPath,
+            });
+            // Don't kill it — let the stall watchdog (buffer timeout) handle a
+            // genuine stall. Startup succeeded as far as the engine is concerned.
+            return;
+          }
+
+          // Check for Proxy Segment Decoder Stalls (native paths)
           if (_playbackPath == 'proxy' && _player.state.playing && _player.state.buffering) {
              _playerDebugLog('decoder_startup_delay', {
                 'channel_id': _currentChannel.id,
@@ -2036,7 +2081,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         // before emitting a Flutter buffering event. The timer below is the *additional* wait
         // after that before triggering the failure cascade.
         // Mobile/Stable=40s, Fast=10s. This keeps detection under ~45s while surviving CDN hiccups.
-        _bufferTimer ??= Timer(Duration(seconds: _activeProfile.stallTimeoutSecs), () {
+        final stallSecs = _startupCompleted ? 40 : _activeProfile.stallTimeoutSecs;
+        _bufferTimer ??= Timer(Duration(seconds: stallSecs), () {
           if (mounted) _recoverPlayback('buffer_timeout');
         });
       }
@@ -2992,7 +3038,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playerPlayingSubscription?.cancel();
     // Fix #4: Cancel error grace timer on dispose to prevent post-dispose callbacks
     _errorGraceTimer?.cancel();
-    _player.dispose();
+    if (!kIsWeb) {
+      _player.dispose();
+    } else {
+      _player.stop();
+    }
     _controlsAnimController.dispose();
     _scrollController.dispose();
     // Fix #9: Disable wakelock when leaving player
