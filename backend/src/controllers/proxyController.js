@@ -941,7 +941,7 @@ exports.proxySegment = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('proxySegment outer err:', err.message);
+    console.error('proxySegment outer err:', err.message, '| stack:', err.stack);
     if (!res.headersSent) {
       res.status(500).json({
         streamId: req.params?.streamId,
