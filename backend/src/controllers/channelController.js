@@ -1,5 +1,7 @@
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
+const { generateProxySessionToken } = require('../utils/jwt');
+const crypto = require('crypto');
 
 let healthStatusColumnExists = null;
 // Fix #26: Cache schema introspection results at module level to avoid per-request queries
@@ -778,7 +780,10 @@ exports.reportFailure = async (req, res) => {
       reason, stream_url, stream_id, buffer_seconds,
       device, player, message, network_type, android_version,
       quality, has_played_once, playback_path,
+      failureCode, activeState, generation
     } = req.body;
+
+    console.info(`[report_failure] channel=${id} stream=${stream_id} reason=${reason} code=${failureCode} state=${activeState} gen=${generation} path=${playback_path}`);
 
     const failReason = reason || message || 'buffer_timeout';
     const failDescription = [message || 'Failed to load stream', playback_path ? `path:${playback_path}` : null].filter(Boolean).join(' ');
@@ -1134,9 +1139,15 @@ exports.getChannelPlayback = async (req, res) => {
 
     // ── Proxy URL — only for eligible legal/public streams ──────────────────
     const proxyEligible = isProxyEligible(primary);
-    const proxyUrl = proxyEligible
-      ? `${baseUrl}/api/proxy/${primary.id}/master.m3u8`
-      : null;
+    let proxyUrl = null;
+    if (proxyEligible) {
+      // Generate a server-issued session token for the proxy.
+      // This allows the proxy to validate access without relying on the generic IP-cache
+      // or expecting the browser to pass the JWT via headers to every nested HLS segment.
+      // req.user.id is available from the authMiddleware.
+      const proxySessionToken = generateProxySessionToken(req.user?.id || 'anon', primary.id, '6h');
+      proxyUrl = `${baseUrl}/api/proxy/${primary.id}/master.m3u8?token=${proxySessionToken}`;
+    }
 
     // ── Playback Path Recommendation ────────────────────────────────────────
     let preferredMode = 'direct';
@@ -1150,6 +1161,7 @@ exports.getChannelPlayback = async (req, res) => {
       channel_id: parseInt(id),
       channel: { id: parseInt(id), name: channel.name || 'Unknown Channel' },
       qualities,
+      session_id: crypto.randomUUID(),
       primary_stream: {
         id: primary.id,
         url: getPlayUrl(primary),

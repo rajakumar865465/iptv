@@ -32,15 +32,23 @@ import '../utils/backend_config.dart';
 final List<String> _globalDiagLog = [];
 
 void _playerDebugLog(String tag, Map<String, dynamic> fields) {
-  final redacted = fields.map((k, v) {
-    if (k.toLowerCase().contains('token') || k.toLowerCase().contains('authorization')) {
-      return MapEntry(k, v == null ? null : '<redacted:${v.toString().length}chars>');
+  dynamic redactValue(dynamic value, String? key) {
+    if (key != null && (key.toLowerCase().contains('token') || key.toLowerCase().contains('authorization'))) {
+      return value == null ? null : '[REDACTED]';
     }
-    if (v is String) {
-       return MapEntry(k, v.replaceAll(RegExp(r'token=[^&\s]+'), 'token=[REDACTED]').replaceAll(RegExp(r'Bearer\s+[A-Za-z0-9\-\._~+/]+=*'), 'Bearer [REDACTED]'));
+    if (value is Map) {
+      return value.map((k, v) => MapEntry(k, redactValue(v, k.toString())));
     }
-    return MapEntry(k, v);
-  });
+    if (value is List) {
+      return value.map((v) => redactValue(v, null)).toList();
+    }
+    if (value is String) {
+      return value.replaceAll(RegExp(r'token=[^&\s]+'), 'token=[REDACTED]')
+                  .replaceAll(RegExp(r'Bearer\s+[A-Za-z0-9\-\._~+/]+=*'), 'Bearer [REDACTED]');
+    }
+    return value;
+  }
+  final redacted = fields.map((k, v) => MapEntry(k, redactValue(v, k)));
   final line = '[PlayerDiag][$tag] $redacted';
   debugPrint(line);
   _globalDiagLog.add(line);
@@ -165,9 +173,9 @@ class PlaybackProfile {
 const PlaybackProfile kStableProfile = PlaybackProfile(
   name: 'stable',
   demuxerReadaheadSecs: 30,
-  bufferSizeBytes: 80 * 1024 * 1024, // 80 MB — handles HD IPTV without stalling
+  bufferSizeBytes: 80 * 1024 * 1024,
   startupTimeoutSecs: 30,
-  stallTimeoutSecs: 40,
+  stallTimeoutSecs: 12,
   preferredQuality: 'auto',
   demuxerMaxBytesMib: 128,
   demuxerMaxBackBytesMib: 48,
@@ -177,9 +185,9 @@ const PlaybackProfile kStableProfile = PlaybackProfile(
 const PlaybackProfile kFastProfile = PlaybackProfile(
   name: 'fast',
   demuxerReadaheadSecs: 3,
-  bufferSizeBytes: 32 * 1024 * 1024, // 32 MB
+  bufferSizeBytes: 32 * 1024 * 1024,
   startupTimeoutSecs: 18,
-  stallTimeoutSecs: 10,
+  stallTimeoutSecs: 8,
   preferredQuality: 'auto',
   demuxerMaxBytesMib: 32,
   demuxerMaxBackBytesMib: 16,
@@ -189,9 +197,9 @@ const PlaybackProfile kFastProfile = PlaybackProfile(
 const PlaybackProfile kDataSaverProfile = PlaybackProfile(
   name: 'data_saver',
   demuxerReadaheadSecs: 6,
-  bufferSizeBytes: 16 * 1024 * 1024, // 16 MB
+  bufferSizeBytes: 16 * 1024 * 1024,
   startupTimeoutSecs: 15,
-  stallTimeoutSecs: 20,
+  stallTimeoutSecs: 12,
   preferredQuality: '360p',
   demuxerMaxBytesMib: 32,
   demuxerMaxBackBytesMib: 16,
@@ -202,9 +210,9 @@ const PlaybackProfile kDataSaverProfile = PlaybackProfile(
 const PlaybackProfile kWebProfile = PlaybackProfile(
   name: 'web',
   demuxerReadaheadSecs: 8,
-  bufferSizeBytes: 32 * 1024 * 1024, // 32 MB
-  startupTimeoutSecs: 20, // web loads fast via proxy
-  stallTimeoutSecs: 15,   // 15s = fast retry on buffering stalls
+  bufferSizeBytes: 32 * 1024 * 1024,
+  startupTimeoutSecs: 20,
+  stallTimeoutSecs: 8,
   preferredQuality: 'auto',
   demuxerMaxBytesMib: 64,
   demuxerMaxBackBytesMib: 16,
@@ -215,11 +223,11 @@ const PlaybackProfile kWebProfile = PlaybackProfile(
 const PlaybackProfile kMobileProfile = PlaybackProfile(
   name: 'mobile',
   demuxerReadaheadSecs: 6,
-  bufferSizeBytes: 32 * 1024 * 1024, // 32 MB
-  startupTimeoutSecs: 12,
-  stallTimeoutSecs: 15,
+  bufferSizeBytes: 32 * 1024 * 1024,
+  startupTimeoutSecs: 20,
+  stallTimeoutSecs: 10,
   preferredQuality: 'auto',
-  demuxerMaxBytesMib: 48,
+  demuxerMaxBytesMib: 32,
   demuxerMaxBackBytesMib: 16,
 );
 
@@ -281,17 +289,21 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _showDiagDetails = false;
   Timer? _bufferTimer;
   Timer? _startupTimer;
+  Timer? _webFirstFrameTimer;
   Timer? _reconnectTimer;
   Timer? _stablePlaybackTimer;
   Timer? _positionCheckTimer;
   Duration? _lastPosition;
   DateTime? _lastProgressAt;
   int _frozenSeconds = 0;
-  int _retryAttempt = 0;
+  int _directStartupAttempts = 0;
+  int _proxyStartupAttempts = 0;
+  int _runtimeRecoveryAttempts = 0;
+  bool _directFailed = false;
+  bool _proxyStarted = false;
   int _playbackGeneration = 0;
   bool _recoveryInProgress = false;
   bool _sourceStartupGrace = false;
-  String _playbackSessionId = '';
   StreamSubscription? _playerSubscription;
   StreamSubscription? _playerLogSubscription;
   StreamSubscription? _playerErrorSubscription;
@@ -459,6 +471,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _reportedSuccessForGeneration = false;
   int _activeFetchId = 0;
 
+  // Global static flag to prevent duplicate Wakelock JS injections on Web
+  static bool _wakelockEnabled = false;
+
+  // Duplicate Initialization Guard
+  bool _initializationInProgress = false;
+  String? _activePlaybackRequestId;
+
   // Channel-switch session ID — incremented on every channel selection.
   // Every async callback (API responses, player events, timers) checks this before
   // updating any state. Stale callbacks from the previous channel are silently dropped.
@@ -469,7 +488,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   void initState() {
     _channelTapTime = DateTime.now();
     super.initState();
-    _playbackSessionId = DateTime.now().millisecondsSinceEpoch.toString();
     _contextChannels = List<ChannelModel>.from(widget.channels);
     _currentIndex = widget.initialIndex;
     if (_currentIndex < 0 || _currentIndex >= _contextChannels.length) {
@@ -508,7 +526,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _videoController = VideoController(_player);
 
     // Fix #9: Keep screen on during playback
-    WakelockPlus.enable();
+    if (!kIsWeb || !_wakelockEnabled) {
+      WakelockPlus.enable();
+      _wakelockEnabled = true;
+    }
 
     _controlsAnimController = AnimationController(
       vsync: this,
@@ -1005,6 +1026,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Future<void> _fetchPlaybackAndInitialize() async {
+    if (_initializationInProgress) {
+      _playerDebugLog('playback_initialization_aborted_already_in_progress', {
+        'channel_id': _currentChannel.id,
+      });
+      return;
+    }
+    _initializationInProgress = true;
+    _activePlaybackRequestId = '${DateTime.now().millisecondsSinceEpoch}_${DateTime.now().microsecond}';
+
     final int myFetchId = ++_activeFetchId;
     final int mySession = _channelSessionId; // Capture session at start of fetch
     
@@ -1039,13 +1069,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _playerDebugLog('playback_api_started', {
       'channel_id': _currentChannel.id,
       'channel_name': _currentChannel.name,
-      'session_id': mySession,
+      'request_id': _activePlaybackRequestId,
+      'session_id': null,
     });
     _playbackApiStartTime = DateTime.now();
     try {
       final res = await _api.get(ApiEndpoints.channelPlaybackPath(_currentChannel.id));
       // Abort if a new fetch started OR if the user already switched channels
       if (_activeFetchId != myFetchId || _channelSessionId != mySession) {
+        _initializationInProgress = false;
         _playerDebugLog('stale_callback_ignored', {
           'reason': 'playback_api_superseded',
           'my_session': mySession,
@@ -1057,6 +1089,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _playbackApiEndTime = DateTime.now();
       _playerDebugLog('playback_api_completed', {
         'channel_id': _currentChannel.id,
+        'request_id': _activePlaybackRequestId,
         'duration_ms': _playbackApiEndTime!.difference(_playbackApiStartTime!).inMilliseconds,
       });
       if (res['success'] == true) {
@@ -1066,13 +1099,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _qualities = List<dynamic>.from(data['qualities'] ?? []);
 
         // Parse new fields from enhanced playback API
+        _playbackSessionId = data['session_id'] as String? ?? _playbackSessionId;
         // proxy_url is null when DRM/geo-blocked/hidden/unlicensed — never try proxy then
         _proxyUrl = data['proxy_url'] as String?;
 
         // Proxy strategy:
         // - Web: use proxy as primary to avoid browser CORS blocks on CDN segment fetches.
         // - Mobile/native: go DIRECT first (CDN → phone is faster than CDN → server → phone).
-        //   The proxy is available as a last-resort fallback in _handleStreamFailure for
+        //   The proxy is available as a last-resort fallback in _recoverPlayback for
         //   mobile users whose ISP throttles/blocks certain CDNs.
         // Using proxy as primary for mobile was causing widespread buffering because every
         // segment was routed through the backend server, overloading it under normal load.
@@ -1081,7 +1115,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         if (kIsWeb && _proxyUrl != null) {
           final prefs = await SharedPreferences.getInstance();
           final token = prefs.getString(StorageKeys.token);
-          if (token != null) {
           if (token != null) {
             _proxyUrl = '$_proxyUrl?token=$token&sid=$_playbackSessionId';
           }
@@ -1097,7 +1130,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           });
         } else if (!kIsWeb && _proxyUrl != null) {
           // Pre-compute proxy headers for the fallback cascade on mobile.
-          // The proxy itself is NOT used now; headers are ready if _handleStreamFailure uses it.
+          // The proxy itself is NOT used now; headers are ready if _recoverPlayback uses it.
           final prefs = await SharedPreferences.getInstance();
           final token = prefs.getString(StorageKeys.token);
           if (token != null) {
@@ -1150,18 +1183,22 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           urlToPlay = webPreferredUrl;
           headersToUse = webPreferredHeaders;
           _playbackPath = 'proxy';
+          _proxyAttempted = true;
+          _proxyStartupAttempts++;
         } else if (!kIsWeb && prefPath == 'proxy' && _proxyUrl != null) {
           _playerDebugLog('preferred_path_used', {'path': 'proxy', 'stream_id': streamId, 'reason': 'local_preference'});
           urlToPlay = _proxyUrl!;
           headersToUse = _proxyHeaders;
           _playbackPath = 'proxy';
           _proxyAttempted = true;
+          _proxyStartupAttempts++;
         } else if (!kIsWeb && recommendation != null && recommendation['preferred_mode'] == 'proxy' && _proxyUrl != null) {
           _playerDebugLog('alternate_path_selected', {'path': 'proxy', 'stream_id': streamId, 'reason': recommendation['reason']});
           urlToPlay = _proxyUrl!;
           headersToUse = _proxyHeaders;
           _playbackPath = 'proxy';
           _proxyAttempted = true;
+          _proxyStartupAttempts++;
         } else if (_selectedQuality != null && _selectedQuality!['url'] != null) {
           urlToPlay = _selectedQuality!['url'];
           headersToUse = _selectedQuality!['headers'];
@@ -1193,6 +1230,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         });
       }
       return;
+    } finally {
+      _initializationInProgress = false;
     }
   }
 
@@ -1203,6 +1242,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _startupCompleted = true;
     _startupTimer?.cancel();
     _startupTimer = null;
+    _webFirstFrameTimer?.cancel();
+    _webFirstFrameTimer = null;
     _sourceStartupGrace = false;
 
     _playerDebugLog('startup_completed', {
@@ -1465,13 +1506,25 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
       final media = Media(url, httpHeaders: headers.isNotEmpty ? headers : null);
 
+      // Final concurrency check before we officially bind this media to the player instance
+      if (_initId != myInitId) return;
+
       _mediaOpenCount++;
+      _mediaOpenTime = DateTime.now();
+
       _playerDebugLog('initialize_player', {
         'channel_id': _currentChannel.id,
         'selected_stream_url': url,
         'headers': headers,
-        'retry_count': _retryAttempt,
+        'direct_startup_attempts': _directStartupAttempts,
+        'proxy_startup_attempts': _proxyStartupAttempts,
+        'runtime_recovery_attempts': _runtimeRecoveryAttempts,
         'proxy_attempted': _proxyAttempted,
+        'media_open_count': _mediaOpenCount,
+      });
+
+      _playerDebugLog('source_open_requested', {
+        'channel_id': _currentChannel.id,
         'media_open_count': _mediaOpenCount,
       });
 
@@ -1479,10 +1532,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // IMPORTANT: Do NOT seek() for live stream recovery — it can jump to the beginning
       // or fail outright. Let libmpv start from the live edge via reconnect=1.
       
-      // Final concurrency check before we officially bind this media to the player instance
-      if (_initId != myInitId) return;
-
-      _mediaOpenTime = DateTime.now();
       await _player.open(media, play: true);
       _playerInitialized = true;
 
@@ -1500,6 +1549,22 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         'duration_ms': _player.state.duration.inMilliseconds,
         'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
       });
+
+      _webFirstFrameTimer?.cancel();
+      if (kIsWeb) {
+        _webFirstFrameTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
+          if (!mounted || _playbackGeneration != thisGeneration || _startupCompleted) {
+            timer.cancel();
+            return;
+          }
+          final hasDimensions = _player.state.width != null && _player.state.width! > 0;
+          final isPlayingProgression = _player.state.playing && _player.state.position.inMilliseconds > 100;
+          if (hasDimensions && isPlayingProgression) {
+            _onStartupSuccess('web_first_frame_progression', thisGeneration);
+            timer.cancel();
+          }
+        });
+      }
 
       _positionCheckTimer?.cancel();
       _positionCheckTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
@@ -1519,7 +1584,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             _frozenSeconds += 2;
             if (_frozenSeconds >= 10) {
               _playerDebugLog('position_frozen', {'channel_id': _currentChannel.id, 'frozen_seconds': _frozenSeconds, 'generation': thisGeneration});
-              _handleStreamFailure('position_frozen');
+              _recoverPlayback('position_frozen');
               _frozenSeconds = 0;
             }
           } else {
@@ -1546,9 +1611,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         if (!isPlaying || !mounted || _playbackGeneration != thisGeneration) return;
         
         if (kIsWeb) {
-          // Web-specific fast-start: trigger success immediately when playing and not buffering.
-          // Do not hardcode a 3-second wait, which artificially extends the loading screen.
-          if (!_player.state.buffering && !_startupCompleted) {
+          // Web-specific fast-start: trigger success when playing, not buffering, and dimensions are known (first frame decoded).
+          final hasDimensions = _player.state.width != null && _player.state.width! > 0;
+          if (hasDimensions && !_player.state.buffering && !_startupCompleted) {
             _onStartupSuccess('playing_stable_web_fallback', thisGeneration);
           }
         }
@@ -1593,7 +1658,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         if (t.contains('underrun') || t.contains('desynchronization') || t.contains('audio/video desync') || t.contains('non-monotonic dts')) {
           _playerDebugLog('audio_diagnostic', {'channel_id': _currentChannel.id, 'text': event.text});
           if (t.contains('incompatible')) {
-            _handleStreamFailure('android_incompatible');
+            _recoverPlayback('android_incompatible');
           }
         }
         
@@ -1601,7 +1666,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         if (t.contains('buffering') && t.contains('stall')) {
           _consecutiveLowBandwidthSeconds += 2;
           if (_consecutiveLowBandwidthSeconds >= 8) {
-             _handleStreamFailure('insufficient_bandwidth');
+             _recoverPlayback('insufficient_bandwidth');
              _consecutiveLowBandwidthSeconds = 0;
           }
         } else if (t.contains('playing')) {
@@ -1670,7 +1735,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           }
 
           // Mid-stream errors while buffering: do NOT restart the player here.
-          // Every _handleStreamFailure → _initializePlayer is a full re-open that
+          // Every _recoverPlayback → _initializePlayer is a full re-open that
           // discards the entire buffered cache and re-downloads from scratch —
           // on marginal networks this created the play→stall→restart loop.
           // The stall watchdog (_bufferTimer, stallTimeoutSecs) already fires
@@ -1685,7 +1750,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             return;
           }
 
-          _handleStreamFailure('player_error');
+          _recoverPlayback('player_error');
         });
       });
 
@@ -1735,7 +1800,20 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _startupTimer = Timer(Duration(seconds: actualTimeoutSecs), () {
         if (!mounted || _playbackGeneration != thisGeneration) return;
         if (!_startupCompleted && !_hasError) {
-          // Check for Proxy Segment Decoder Stalls (Task 8)
+          final hasDimensions = _player.state.width != null && _player.state.width! > 0;
+          final isPlayingProgression = _player.state.playing && _player.state.position.inMilliseconds > 100;
+          
+          if (hasDimensions && isPlayingProgression) {
+            _playerDebugLog('decoder_startup_delay_ignored_already_playing', {
+              'channel_id': _currentChannel.id,
+              'url': url,
+              'position_ms': _player.state.position.inMilliseconds,
+            });
+            _onStartupSuccess('startup_timer_fallback', thisGeneration);
+            return;
+          }
+
+          // Check for Proxy Segment Decoder Stalls
           if (_playbackPath == 'proxy' && _player.state.playing && _player.state.buffering) {
              _playerDebugLog('decoder_startup_delay', {
                 'channel_id': _currentChannel.id,
@@ -1759,14 +1837,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             'has_error': _lastPlayerError.isNotEmpty,
             'error_description': _lastPlayerError,
             'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
-            'retry_attempt': _retryAttempt,
+            'direct_startup_attempts': _directStartupAttempts,
           });
-          _handleStreamFailure('init_timeout');
+          _recoverPlayback('init_timeout');
         }
       });
 
     } catch (e) {
-      _handleStreamFailure('init_failed');
+      _recoverPlayback('init_failed');
     }
   }
 
@@ -1936,13 +2014,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         //   (a real mid-stream interruption)
         _reconnectTimer?.cancel();
         final bool hasPlayedBefore = _playStartTime != null;
-        // Delay is 4s for mid-stream stalls and 3s for initial load.
-        // cache-pause-wait=2 means libmpv self-recovers brief CDN hiccups within ~2s.
-        // Setting the overlay to 4s gives libmpv its 2s window, then shows the spinner
-        // only for real stalls. Previously 8s lagged 6 extra seconds behind actual recovery.
-        // For initial load, 3s is fine since cache-pause hasn't applied yet.
-        final int reconnectDelaySecs = hasPlayedBefore ? 4 : 3;
-        _reconnectTimer = Timer(Duration(seconds: reconnectDelaySecs), () {
+        // Delay is 1s for mid-stream stalls to debounce micro-stutters.
+        // For initial load, use 3s so we don't flash "Loading..." immediately if it connects fast.
+        final int reconnectDelayMillis = hasPlayedBefore ? 1000 : 3000;
+        _reconnectTimer = Timer(Duration(milliseconds: reconnectDelayMillis), () {
           if (mounted && alreadyStarted) {
             _playerDebugLog('showing_buffering_overlay', {
               'channel_id': _currentChannel.id,
@@ -1962,7 +2037,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         // after that before triggering the failure cascade.
         // Mobile/Stable=40s, Fast=10s. This keeps detection under ~45s while surviving CDN hiccups.
         _bufferTimer ??= Timer(Duration(seconds: _activeProfile.stallTimeoutSecs), () {
-          if (mounted) _handleStreamFailure('buffer_timeout');
+          if (mounted) _recoverPlayback('buffer_timeout');
         });
       }
     } else {
@@ -1976,7 +2051,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // Start a timer for stable playback to reset retry counters.
       _stablePlaybackTimer?.cancel();
       _stablePlaybackTimer = Timer(const Duration(seconds: 30), () {
-        if (mounted) _retryAttempt = 0;
+        if (mounted) {
+          _directStartupAttempts = 0;
+          _proxyStartupAttempts = 0;
+          _runtimeRecoveryAttempts = 0;
+        }
       });
       // Only clear loading here for mid-stream recovery (videoParams hasn't fired yet
       // during initial load — let videoParams handle the initial loading overlay).
@@ -2151,13 +2230,19 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     return best;
   }
 
-  Future<void> _handleStreamFailure(String reason) async {
+  Future<void> _recoverPlayback(String reason) async {
     if (_recoveryInProgress) return;
     _recoveryInProgress = true;
+    
+    // Stop playback immediately to avoid background audio or stuck frames
+    try { await _player.pause(); } catch (_) {}
+    
     _playerDebugLog('stream_failure', {
       'channel_id': _currentChannel.id,
       'reason': reason,
-      'retry_count': _retryAttempt,
+      'direct_startup_attempts': _directStartupAttempts,
+      'proxy_startup_attempts': _proxyStartupAttempts,
+      'runtime_recovery_attempts': _runtimeRecoveryAttempts,
       'current_url': _currentUrl,
       'proxy_attempted': _proxyAttempted,
       'is_playing': _player.state.playing,
@@ -2169,8 +2254,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       return;
     }
 
-    // If the smooth buffer became ready while we were playing the direct stream,
-    // apply it now at the stall boundary — a natural, non-disruptive switch point.
     if (_pendingSmoothUrl != null && !_switchedToSmooth) {
       final smoothUrl = _pendingSmoothUrl!;
       _pendingSmoothUrl = null;
@@ -2187,8 +2270,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
 
-    if (_retryAttempt == 0) {
-      _retryAttempt++;
+    if (!_directFailed && _playbackPath != 'proxy') {
+      _directFailed = true;
+      _directStartupAttempts++;
       if (mounted) setState(() { _streamOverlayMessage = 'Connecting to a better source...'; _isLoading = true; _hasError = false; });
       try {
         final res = await _api.get(ApiEndpoints.channelPlaybackPath(_currentChannel.id));
@@ -2201,27 +2285,22 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             final newId = newPrimary['id']?.toString() ?? '';
             final oldId = _currentStreamMeta?['id']?.toString() ?? '';
             
-            // Normalize URLs to strip ephemeral tokens before comparing
             String normalizeUrl(String u) => u.replaceAll(RegExp(r'(&|\?)token=[^&]+'), '');
             final bool urlChanged = newUrl != null && normalizeUrl(newUrl) != normalizeUrl(_currentUrl);
             final bool idChanged = newId.isNotEmpty && oldId.isNotEmpty && newId != oldId;
 
-            // If the backend gave us a DIFFERENT stream URL or ID, try it.
             if (urlChanged || idChanged) {
               _currentStreamMeta = newPrimary;
               _backupStreams = List<dynamic>.from(data['backup_streams'] ?? []);
               _qualities = List<dynamic>.from(data['qualities'] ?? []);
               _proxyUrl = data['proxy_url'] as String?;
               _isRetryingStream = false;
-              // Do NOT reset _retryAttempt here. It should only reset after stable playback.
               
               final headersToUse = newPrimary['headers'] ?? {};
               await _initializePlayer(newUrl!, headersToUse);
               return;
             } else {
-              // It gave us the same stream URL/ID that just failed.
               _playerDebugLog('same_source_rejected', {'url': _currentUrl});
-              // Update our backups list in case they changed, and fall through to backup/lower-quality logic.
               _backupStreams = List<dynamic>.from(data['backup_streams'] ?? []);
               _qualities = List<dynamic>.from(data['qualities'] ?? []);
             }
@@ -2230,11 +2309,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       } catch (e) {
         // ignore and fall through
       }
+    } else if (_playbackPath == 'proxy') {
+      // proxy startup attempts are now tracked when the path is selected
+    } else {
+      _runtimeRecoveryAttempts++;
     }
 
     _isRetryingStream = true;
-    _hadFailureBeforePlaying = true; // mark that we had a failure before success
-    // Do NOT reset _retryAttempt here. It should carry over for fallback streams so they don't do silent retries.
+    _hadFailureBeforePlaying = true; 
 
     try {
       await _api.post(ApiEndpoints.channelReportFailurePath(_currentChannel.id), {
@@ -2242,12 +2324,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         'stream_url': _currentUrl,
         'stream_id': _currentStreamMeta?['id'],
         'playback_path': _playbackPath,
+        'failureCode': reason,
+        'activeState': _player.state.playing ? 'playing' : 'stalled',
+        'generation': _playbackGeneration,
       });
     } catch(e) {}
 
-    // Try lower quality first if it was a buffer stall.
-    // Guard: only downgrade if there are REAL quality variants with known resolution.
-    // If only the 'auto' entry exists, skip quality downgrade entirely - no fake options.
     final hasRealVariants = _qualities.any(
         (q) => q['type'] != 'auto' && ((q['height'] as num?)?.toInt() ?? 0) > 0 && q['url'] != null);
 
@@ -2270,7 +2352,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         final lowerLabel = lowerQuality['label'] as String? ?? 'lower quality';
         if (mounted) setState(() { _streamOverlayMessage = 'Optimizing playback...'; _isLoading = true; _hasError = false; });
         _selectedQuality = lowerQuality;
-        _wasQualityDowngraded = true;  // remember for auto upgrade timer
+        _wasQualityDowngraded = true;
         _isRetryingStream = false;
         _playbackPath = 'direct';
         await _initializePlayer(lowerQuality['url'], lowerQuality['headers'] ?? _currentStreamMeta?['headers'] ?? {});
@@ -2278,14 +2360,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         return;
       }
 
-      // Smart Fallback to AWS Server (Auto-Transcode) for Premium users
       if (_isPremium && !_currentUrl.contains('/api/stream/transcode/')) {
         if (mounted) setState(() { _streamOverlayMessage = 'Connecting to a better source...'; _isLoading = true; _hasError = false; });
         _isRetryingStream = false;
         try {
           final token = await StorageService().getToken() ?? '';
           if (token.isEmpty) throw Exception('No token');
-          // Fix #14: Token in Authorization header, not URL query param
           final fallbackUrl = '${BackendConfig.baseUrl}${ApiEndpoints.streamTranscodePath(_currentChannel.id, quality: '360')}';
           final transcodeHeaders = {'Authorization': 'Bearer $token'};
           _currentStreamMeta = {'url': fallbackUrl, 'headers': transcodeHeaders};
@@ -2293,38 +2373,39 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           await _initializePlayer(fallbackUrl, transcodeHeaders);
           return;
         } catch (e) {
-          // Transcode unavailable - continue to backup stream fallback below
           if (mounted) setState(() { _isLoading = false; _streamOverlayMessage = ''; });
         }
       }
     }
 
-    if (_backupStreams.isNotEmpty) {
+    if (_backupStreams.isNotEmpty && !_proxyStarted) {
       if (mounted) setState(() { _streamOverlayMessage = 'Connecting to a better source...'; _isLoading = true; _hasError = false; });
       final backup = _backupStreams.removeAt(0);
       _currentStreamMeta = backup;
-      _isRetryingStream = false; // allow next failure cycle on the backup stream
+      _isRetryingStream = false;
       _playbackPath = 'backup';
       await _initializePlayer(backup['url'], backup['headers']);
       return;
     }
 
-    // Proxy fallback - only for legal/public streams; proxy_url is null for DRM/geo/unlicensed.
-    // This is the last resort before showing an error to the user.
     if (!_proxyAttempted && _proxyUrl != null) {
       _proxyAttempted = true;
+      _proxyStartupAttempts++;
+      _proxyStarted = true;
       _isRetryingStream = false;
       if (mounted) setState(() {
         _streamOverlayMessage = 'Connecting to a better source...';
         _isLoading = true;
         _hasError = false;
       });
-        // Proxy URL requires Bearer token via headers
-        final prefs = await SharedPreferences.getInstance();
-        final token = prefs.getString(StorageKeys.token);
-        final proxyHeaders = {
-          if (token != null) 'Authorization': 'Bearer $token',
-        };
+        final proxyHeaders = <String, String>{};
+        if (!kIsWeb) {
+          final prefs = await SharedPreferences.getInstance();
+          final token = prefs.getString(StorageKeys.token);
+          if (token != null) {
+             proxyHeaders['Authorization'] = 'Bearer $token';
+          }
+        }
         _proxyHeaders = proxyHeaders;
         _playbackPath = 'proxy';
         await _initializePlayer(_proxyUrl!, proxyHeaders);
@@ -2342,6 +2423,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
     _recoveryInProgress = false;
   }
+
 
   /// Reports successful playback to backend.
   /// Only called after the first real frame is rendered (_onStartupSuccess).
@@ -2573,7 +2655,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     });
 
     _hadFailureBeforePlaying = false;
-    _retryAttempt = 0;
+    _directStartupAttempts = 0;
+    _proxyStartupAttempts = 0;
+    _runtimeRecoveryAttempts = 0;
+    _directFailed = false;
+    _proxyStarted = false;
     _lastApiHeaders = null;
     _hwdecSoftwareFallbackAttempted = false;
     // Reset smooth playback state for new channel

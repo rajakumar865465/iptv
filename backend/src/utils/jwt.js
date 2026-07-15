@@ -13,6 +13,8 @@ const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || 'dev-admin-secret-chang
 const REFRESH_SECRET = process.env.REFRESH_JWT_SECRET || JWT_SECRET + '-refresh';
 // Secret for short-lived smooth-playback stream tokens (kept separate from auth tokens)
 const SMOOTH_SECRET = process.env.SMOOTH_JWT_SECRET || JWT_SECRET + '-smooth';
+// Secret for proxy session tokens (Task 7/17 fixes)
+const PROXY_SESSION_SECRET = process.env.PROXY_SESSION_SECRET || JWT_SECRET + '-proxy-session';
 
 // Access token: 7-day lifetime — mobile users open/close the app throughout the
 // day; a 15-min expiry caused forced re-login on every cold start once the token
@@ -96,6 +98,17 @@ const verifySmoothToken = (token, channelId) => {
   return payload;
 };
 
+const generateProxySessionToken = (userId, streamId, expiresIn = '8h') => {
+  return jwt.sign({ userId, streamId: Number(streamId), type: 'proxy_session' }, PROXY_SESSION_SECRET, { expiresIn });
+};
+
+const verifyProxySessionToken = (token, streamId) => {
+  const payload = jwt.verify(token, PROXY_SESSION_SECRET);
+  if (payload.type !== 'proxy_session') throw new Error('Not a proxy session token');
+  if (streamId && payload.streamId !== Number(streamId)) throw new Error('Token stream mismatch');
+  return payload;
+};
+
 const generateAdminToken = (payload, expiresIn = '1d') => {
   return jwt.sign(payload, ADMIN_JWT_SECRET, { expiresIn });
 };
@@ -109,5 +122,6 @@ module.exports = {
   generateRefreshToken, verifyRefreshToken, revokeRefreshToken, consumeRefreshToken,
   generateAdminToken, verifyAdminToken,
   generateSmoothToken, verifySmoothToken,
+  generateProxySessionToken, verifyProxySessionToken,
   isRefreshTokenRevoked,
 };

@@ -5,6 +5,7 @@ const { pipeline } = require('node:stream');
 const dns = require('dns').promises;
 const db = require('../config/db');
 const { encryptSegmentUrl, decryptSegmentToken } = require('../utils/proxyToken');
+const { verifyProxySessionToken } = require('../utils/jwt');
 const crypto = require('node:crypto');
 
 // ── Persistent connection pools ────────────────────────────────────────────────
@@ -102,17 +103,23 @@ const PROXY_ALLOWED_LICENSE_TYPES = new Set(['free', 'licensed', 'public', null,
  */
 async function verifyProxyAccess(req, streamId) {
   // req.user is already set by authMiddleware (if JWT provided and valid)
-  const userId = req.user?.id;
+  let userId = req.user?.id;
+  
+  if (req.query.token) {
+    try {
+      const payload = verifyProxySessionToken(req.query.token, streamId);
+      userId = payload.userId;
+    } catch (e) {
+      const err = new Error('Invalid or expired proxy session token');
+      err.statusCode = 401;
+      throw err;
+    }
+  }
+
   const ip = req.ip || req.connection?.remoteAddress || 'unknown';
-  const cacheKey = `${ip}:${streamId}`;
 
   if (!userId) {
-    if (ipAuthCache.get(cacheKey)) {
-      console.warn(`[proxy] Anonymous proxy access allowed via IP cache (HLS reload) for streamId=${streamId}, IP=${ip}`);
-      ipAuthCache.set(cacheKey, true); // Refresh TTL
-    } else {
-      const e = new Error('Active license required (No token provided)'); e.statusCode = 401; throw e;
-    }
+    const e = new Error('Active license required (No token provided)'); e.statusCode = 401; throw e;
   } else {
 
   // ── License check ────────────────────────────────────────────────────────
@@ -209,10 +216,8 @@ async function verifyProxyAccess(req, streamId) {
     e.statusCode = 403; throw e;
   }
 
-  // Success! Record IP in cache so subsequent HLS reloads without headers succeed.
-  if (userId) {
-    ipAuthCache.set(cacheKey, true);
-  }
+  // Success!
+  // (Previously IP caching was here, removed in favor of proxy_session token)
 
   return { stream, channel };
 }
@@ -262,8 +267,7 @@ const CACHE_MANIFEST_MS = 8000;
 // Note: Segment caching has been removed to prevent massive memory leaks and GC pauses
 const manifestCache = new BoundedCache(200, CACHE_MANIFEST_MS);
 
-// Cache authorized IPs for 15 minutes to allow HLS live reloads where players drop headers
-const ipAuthCache = new BoundedCache(10000, 1000 * 60 * 15);
+// Cache authorized IPs removed (Task 17/7)
 
 const initSegmentCache = new BoundedCache(500, 1000 * 60 * 60); // 1 hour cache
 
@@ -387,7 +391,7 @@ exports.proxyManifest = async (req, res) => {
 
     const stream_url = stream.stream_url || stream.final_url;
     if (!stream_url) return res.status(404).send('Stream URL not configured');
-    console.log(`[proxy] manifest streamId=${streamId} channel="${stream.channel_name || stream.name || 'unknown'}" url=${stream_url.substring(0, 80)}`);
+    console.log(`[proxy] manifest streamId=${streamId} sessionId=${req.query.sid || 'none'} channel="${stream.channel_name || stream.name || 'unknown'}" url=${stream_url.substring(0, 80)}`);
 
     // Check manifest cache (after auth so we don't cache responses for unauthorized requests).
     // Cache key includes the user: segment tokens are encrypted per-user, so a manifest
@@ -467,7 +471,8 @@ exports.proxyManifest = async (req, res) => {
       if (!fullUrl) return uriStr;
       const token = encryptSegmentUrl(fullUrl, streamId, userId);
       const ext = getExtension(fullUrl);
-      return `/api/proxy/segment/${streamId}/${token}${ext}`;
+      const sidParams = req.query.sid ? `?sid=${encodeURIComponent(req.query.sid)}` : '';
+      return `/api/proxy/segment/${streamId}/${token}${ext}${sidParams}`;
     }
 
     // Mobile Fast-Start Optimization (Task 9):
@@ -718,8 +723,8 @@ exports.proxySegment = async (req, res) => {
     let clientAborted = false;
     
     // Session Leak Prevention: abort older sessions
-    const playbackSessionId = req.query.sid || 'anon';
     const userId = tokenUserId;
+    const playbackSessionId = req.query.sid || ((userId !== 'anon' && streamId) ? `${userId}_${streamId}` : 'anon');
     if (userId !== 'anon' && playbackSessionId !== 'anon') {
       let sessionData = activeProxySessions.get(userId);
       if (!sessionData) {
@@ -849,7 +854,8 @@ exports.proxySegment = async (req, res) => {
         if (!fullUrl) return uriStr;
         const token = encryptSegmentUrl(fullUrl, streamId, userId);
         const ext = getExtension(fullUrl);
-        return `/api/proxy/segment/${streamId}/${token}${ext}`;
+        const sidParams = req.query.sid ? `?sid=${encodeURIComponent(req.query.sid)}` : '';
+        return `/api/proxy/segment/${streamId}/${token}${ext}${sidParams}`;
       }
 
       const rewritten = lines.map(line => {
