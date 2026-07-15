@@ -5,6 +5,7 @@ const { pipeline } = require('node:stream');
 const dns = require('dns').promises;
 const db = require('../config/db');
 const { encryptSegmentUrl, decryptSegmentToken } = require('../utils/proxyToken');
+const crypto = require('node:crypto');
 
 // ── Persistent connection pools ────────────────────────────────────────────────
 // Re-using TCP connections to upstream CDNs eliminates the 50-200ms TCP+TLS
@@ -579,9 +580,13 @@ exports.proxyManifest = async (req, res) => {
   } catch (err) {
     console.error('proxyManifest err:', err.message);
     if (err.message === 'Timeout' || err.message.includes('ETIMEDOUT') || err.message.includes('ESOCKETTIMEDOUT')) {
-      res.status(504).send('Gateway Timeout');
+      db.query(`UPDATE channel_streams SET health_status = 'offline', is_active = false WHERE id = $1`, [req.params.streamId]).catch(e => console.error(e));
+      res.status(504).json({ streamId: req.params.streamId, error: 'UPSTREAM_TIMEOUT' });
+    } else if (err.code === 'ECONNREFUSED' || err.message.includes('ECONNREFUSED')) {
+      db.query(`UPDATE channel_streams SET health_status = 'offline', is_active = false WHERE id = $1`, [req.params.streamId]).catch(e => console.error(e));
+      res.status(502).json({ streamId: req.params.streamId, error: 'UPSTREAM_CONNECTION_REFUSED' });
     } else {
-      res.status(500).send('Proxy error');
+      res.status(500).json({ streamId: req.params.streamId, error: 'PROXY_MANIFEST_ERROR' });
     }
   }
 };
@@ -605,8 +610,8 @@ async function fetchSegmentWithRetry(targetUrl, headers, onRequestCreated = null
       return proxyRes;
     } catch (e) {
       lastError = e;
-      if (e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND') {
-        throw e; // Fail fast for connection refused or DNS errors
+      if (e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND' || e.message === 'Timeout' || e.message.includes('ETIMEDOUT')) {
+        throw e; // Fail fast for connection refused or DNS errors or Timeouts
       }
       if (attempt < MAX_RETRIES) {
         await new Promise(resolve => setTimeout(resolve, BACKOFF_MS[attempt]));
@@ -675,12 +680,22 @@ exports.proxySegment = async (req, res) => {
     const headers = segHeaders;
 
     const isInitSegment = targetUrl.includes('init.mp4') || targetUrl.includes('init.m4s');
-    const initCacheKey = `${streamId}:${targetUrl}`;
+    const normalizedTargetUrl = targetUrl.split('?')[0];
+    const initCacheKey = `${streamId}:${normalizedTargetUrl}`;
     
     // ETag for init segments to save 1.3KB bandwidth on repeat requests
-    const eTag = `W/"init-${crypto.createHash('md5').update(initCacheKey).digest('hex')}"`;
-    
+    let eTag = '';
+    let hashHelperFailed = false;
     if (isInitSegment) {
+      try {
+        eTag = `W/"init-${crypto.createHash('md5').update(initCacheKey).digest('hex')}"`;
+      } catch (err) {
+        console.warn('[proxy_cache] key_generation_failed; bypassing_cache');
+        hashHelperFailed = true;
+      }
+    }
+    
+    if (isInitSegment && !hashHelperFailed) {
       if (req.headers['if-none-match'] === eTag) {
         return res.status(304).end();
       }
@@ -758,7 +773,15 @@ exports.proxySegment = async (req, res) => {
     } catch (e) {
       const fetchMs = Date.now() - fetchStart;
       console.warn(`[proxy_telemetry] segment fetch failed streamId=${streamId} fetchMs=${fetchMs}ms err=${e.message}`);
-      return res.status(502).send('Upstream segment unavailable');
+      if (e.code === 'ECONNREFUSED' || e.message === 'Timeout' || e.message.includes('ETIMEDOUT') || e.message.includes('ECONNREFUSED')) {
+        db.query(`UPDATE channel_streams SET health_status = 'offline', is_active = false WHERE id = $1`, [streamId]).catch(err => console.error(err));
+      }
+      return res.status(502).json({
+        streamId,
+        requestId: req.headers['x-request-id'] || 'unknown',
+        error: 'UPSTREAM_CONNECTION_FAILED',
+        code: (e.code === 'ECONNREFUSED' || e.message.includes('ECONNREFUSED')) ? 'UPSTREAM_CONNECTION_REFUSED' : (e.message === 'Timeout' || e.message.includes('ETIMEDOUT') ? 'UPSTREAM_TIMEOUT' : 'SEGMENT_FETCH_FAILURE')
+      });
     }
     
     // Detailed telemetry tracking variables
@@ -862,13 +885,15 @@ exports.proxySegment = async (req, res) => {
         chunks.push(chunk);
       }
       const buffer = Buffer.concat(chunks);
-      initSegmentCache.set(initCacheKey, { contentType, buffer });
-      console.info(`[proxy] init segment cached streamId=${streamId} size=${buffer.length}`);
+      if (!hashHelperFailed) {
+        initSegmentCache.set(initCacheKey, { contentType, buffer });
+        console.info(`[proxy] init segment cached streamId=${streamId} size=${buffer.length}`);
+      }
       
       if (!res.hasHeader('Content-Length')) {
         res.setHeader('Content-Length', buffer.length);
       }
-      res.setHeader('ETag', eTag);
+      if (!hashHelperFailed) res.setHeader('ETag', eTag);
       return res.send(buffer);
     }
 
@@ -911,6 +936,13 @@ exports.proxySegment = async (req, res) => {
 
   } catch (err) {
     console.error('proxySegment outer err:', err.message);
-    if (!res.headersSent) res.status(500).end();
+    if (!res.headersSent) {
+      res.status(500).json({
+        streamId: req.params?.streamId,
+        requestId: req.headers['x-request-id'] || 'unknown',
+        error: 'PROXY_SEGMENT_ERROR',
+        code: 'INTERNAL_ERROR'
+      });
+    }
   }
 };

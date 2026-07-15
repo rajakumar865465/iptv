@@ -300,6 +300,15 @@ module.exports = { app, broadcastToClients };
 
 // Start server after DB init
 initDatabase().then(() => {
+  // Task 3: Crypto availability self-test
+  try {
+    require('node:crypto').createHash('sha256').update('test').digest('hex');
+    console.log('[crypto_check] node_create_hash_available=true');
+  } catch (e) {
+    console.error('[crypto_check] node:crypto createHash is missing. Aborting startup to prevent playback proxy failures.', e.message);
+    process.exit(1);
+  }
+
   const server = http.createServer(app);
   
   // Initialize WebSocket server

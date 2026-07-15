@@ -20,7 +20,7 @@
  *  - Authenticated encryption (GCM authTag) — tampering is detected
  */
 
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;          // 96-bit IV for GCM
@@ -51,12 +51,14 @@ function encryptSegmentUrl(url, streamId, userId) {
   let iv;
   let expiresAt;
   const isInitSegment = url.includes('init.mp4') || url.includes('init.m4s');
+  let finalUrl = url;
 
   if (isInitSegment) {
     // 100% deterministic stable token for init segments forever
     expiresAt = 0; // 0 = never expires
     // Generate deterministic IV from URL and streamId
-    const hash = crypto.createHash('sha256').update(`init:${streamId}:${url}`).digest();
+    finalUrl = url.split('?')[0];
+    const hash = crypto.createHash('sha256').update(`init:${streamId}:${finalUrl}`).digest();
     iv = hash.subarray(0, IV_LENGTH);
   } else {
     iv = crypto.randomBytes(IV_LENGTH);
@@ -64,7 +66,7 @@ function encryptSegmentUrl(url, streamId, userId) {
   }
 
   const payload = JSON.stringify({
-    url,
+    url: finalUrl,
     sid: String(streamId),   // streamId
     uid: String(userId),     // userId
     exp: expiresAt,
