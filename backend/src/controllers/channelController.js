@@ -131,9 +131,9 @@ function normalizeLanguage(raw) {
 }
 
 // PLAYABLE health statuses — shown when workingOnly=true
-const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable', 'unknown'];
+const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable', 'unknown', 'paid_blocked_scan'];
 // Hidden health statuses — always hidden from normal users
-const DEAD_STATUSES = ['offline', 'dead', 'forbidden_403', 'drm_or_unsupported', 'geo_blocked', 'requires_licensed_source', 'segment_failed', 'timeout'];
+const DEAD_STATUSES = ['offline', 'dead', 'forbidden_403', 'drm_or_unsupported', 'geo_blocked', 'requires_licensed_source'];
 // Allow unknown streams (channels not yet checked) when ALLOW_UNKNOWN_STREAMS=true in .env
 const ALLOW_UNKNOWN = process.env.ALLOW_UNKNOWN_STREAMS === 'true';
 
@@ -215,7 +215,7 @@ exports.getChannels = async (req, res) => {
       // Health filter now applies equally to all channels regardless of premium status.
       if (hasHealthStatus) {
         const deadList = DEAD_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
-        conditions.push(`(c.health_status IS NULL OR c.health_status NOT IN (${deadList}) OR c.is_premium = true OR c.is_popular = true OR c.is_featured = true)`);
+        conditions.push(`(c.health_status IS NULL OR c.health_status NOT IN (${deadList}) OR c.is_premium = true OR c.is_paid = true OR c.is_popular = true OR c.is_featured = true)`);
         params.push(...DEAD_STATUSES);
         paramIndex += DEAD_STATUSES.length;
       }
@@ -434,7 +434,7 @@ exports.getChannelsByCategory = async (req, res) => {
     // including offline/dead/geo-blocked ones, causing broken streams in category view.
     // Mirrors the default-mode filter in getChannels (excludes clearly dead, shows unknown).
     const healthClause = hasHealthStatus
-      ? `AND (c.health_status IS NULL OR c.health_status NOT IN (${DEAD_STATUSES.map((_, i) => `$${i + 2}`).join(', ')}) OR c.is_premium = true OR c.is_popular = true OR c.is_featured = true)`
+      ? `AND (c.health_status IS NULL OR c.health_status NOT IN (${DEAD_STATUSES.map((_, i) => `$${i + 2}`).join(', ')}) OR c.is_premium = true OR c.is_paid = true OR c.is_popular = true OR c.is_featured = true)`
       : '';
     const params = hasHealthStatus ? [categoryId, ...DEAD_STATUSES] : [categoryId];
     const result = await db.query(
@@ -478,7 +478,7 @@ exports.getCategories = async (req, res) => {
       paramIndex += WORKING_STATUSES.length;
     } else if (workingOnly !== 'false' && req.query.showOffline !== 'true' && hasHealthStatus) {
       const deadList = DEAD_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
-      channelFilter += ` AND (ch.health_status IS NULL OR ch.health_status NOT IN (${deadList}) OR ch.is_premium = true OR ch.is_popular = true OR ch.is_featured = true)`;
+      channelFilter += ` AND (ch.health_status IS NULL OR ch.health_status NOT IN (${deadList}) OR ch.is_premium = true OR ch.is_paid = true OR ch.is_popular = true OR ch.is_featured = true)`;
       params.push(...DEAD_STATUSES);
       paramIndex += DEAD_STATUSES.length;
     }
@@ -527,7 +527,7 @@ exports.getLanguages = async (req, res) => {
       paramIndex += WORKING_STATUSES.length;
     } else if (workingOnly !== 'false' && req.query.showOffline !== 'true' && hasHealthStatus) {
       const deadList = DEAD_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
-      channelFilter += ` AND (c.health_status IS NULL OR c.health_status NOT IN (${deadList}))`;
+      channelFilter += ` AND (c.health_status IS NULL OR c.health_status NOT IN (${deadList}) OR c.is_premium = true OR c.is_paid = true OR c.is_popular = true OR c.is_featured = true)`;
       params.push(...DEAD_STATUSES);
       paramIndex += DEAD_STATUSES.length;
     }

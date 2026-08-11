@@ -55,7 +55,7 @@ async function checkHealthStatusColumn() {
 function buildHealthFilter(paramIndex) {
   const statusList = WORKING_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
   // Always allow NULL (unscanned) and 'unknown'; ALLOW_UNKNOWN kept for backwards compat
-  let fragment = `(c.health_status IS NULL OR c.health_status IN (${statusList}))`;
+  let fragment = `(c.health_status IS NULL OR c.health_status IN (${statusList}) OR c.health_status = 'paid_blocked_scan' OR c.is_premium = true OR c.is_paid = true)`;
   return { fragment, params: [...WORKING_STATUSES], nextIndex: paramIndex + WORKING_STATUSES.length };
 }
 

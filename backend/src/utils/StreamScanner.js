@@ -159,7 +159,7 @@ class StreamScanner {
       const probe = await probeCodecs(result.final_url, headers);
       if (probe.video_codec === 'mpeg2video') {
         result.codec_issue_detected = true;
-        result.scanner_status = 'codec_unsupported_android';
+        result.scanner_status = 'unstable'; // Mark unstable instead of codec_unsupported_android
       }
 
       return result;
@@ -184,7 +184,7 @@ class StreamScanner {
     let bestUrl = null;
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].startsWith('#EXT-X-STREAM-INF')) {
-        const bwMatch = lines[i].match(/BANDWIDTH=(\\d+)/);
+        const bwMatch = lines[i].match(/BANDWIDTH=(\d+)/);
         const bw = bwMatch ? parseInt(bwMatch[1], 10) : 0;
         const next = lines[i + 1]?.trim();
         if (next && !next.startsWith('#')) {

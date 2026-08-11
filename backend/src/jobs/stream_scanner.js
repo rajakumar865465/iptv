@@ -18,7 +18,8 @@ async function runHealthScan() {
     // Also guard against NULL booleans with IS NOT TRUE / IS NOT FALSE pattern.
     const { rows: streams } = await db.query(`
       SELECT cs.id, cs.stream_url, cs.headers_json, cs.user_agent, cs.referer, cs.channel_id,
-             cs.health_status, COALESCE(cs.consecutive_scan_failures, 0) AS consecutive_scan_failures
+             cs.health_status, COALESCE(cs.consecutive_scan_failures, 0) AS consecutive_scan_failures,
+             c.is_paid, c.is_premium
       FROM channel_streams cs
       JOIN channels c ON cs.channel_id = c.id
       WHERE cs.is_hidden IS NOT TRUE
@@ -104,7 +105,11 @@ async function runHealthScan() {
           if (scanWorking) {
             resolvedHealthStatus = 'online';
           } else if (newConsecutiveFailures >= OFFLINE_FAILURE_THRESHOLD) {
-            resolvedHealthStatus = result.scanner_status; // e.g. 'offline', 'geo_blocked', etc.
+            if (result.scanner_status === 'forbidden' && (stream.is_paid || stream.is_premium)) {
+              resolvedHealthStatus = 'paid_blocked_scan';
+            } else {
+              resolvedHealthStatus = result.scanner_status; // e.g. 'offline', 'geo_blocked', etc.
+            }
           } else {
             // Keep current status during the grace window; show 'unstable' if currently online
             resolvedHealthStatus = stream.health_status === 'online' ? 'unstable' : stream.health_status;
@@ -223,7 +228,8 @@ async function updateParentChannelHealth(channelIds) {
       UPDATE channels
       SET health_status   = COALESCE((SELECT health_status FROM best_stream), 'unknown'),
           health_score    = COALESCE((SELECT health_score  FROM best_stream), 0),
-          last_checked_at = NOW()
+          last_checked_at = NOW(),
+          needs_manual_verification = CASE WHEN (SELECT health_status FROM best_stream) = 'paid_blocked_scan' THEN true ELSE needs_manual_verification END
       WHERE id = $1
     `, [channelId]);
   }
