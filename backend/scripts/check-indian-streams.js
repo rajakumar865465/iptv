@@ -72,7 +72,9 @@ async function checkStream(url, customHeaders = {}) {
   const body = getResult.body || '';
   const isHLS = ct.includes('mpegurl') || ct.includes('m3u') ||
                 url.toLowerCase().endsWith('.m3u8') ||
-                body.trimStart().startsWith('#EXTM3U');
+                body.trimStart().startsWith('#EXTM3U') ||
+                ct.includes('octet-stream') ||
+                ct.includes('video/');
 
   return { ok: isHLS, method: 'GET', isHLS };
 }

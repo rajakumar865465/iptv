@@ -94,7 +94,9 @@ async function checkStream(url, customHeaders = {}) {
                 body.trimStart().startsWith('#EXTM3U') ||
                 body.includes('#EXT-X-VERSION') ||
                 body.includes('#EXT-X-STREAM-INF') ||
-                body.includes('#EXT-X-TARGETDURATION');
+                body.includes('#EXT-X-TARGETDURATION') ||
+                ct.includes('octet-stream') ||
+                ct.includes('video/');
 
   return { ok: isHLS, method: 'GET', isHLS };
 }
