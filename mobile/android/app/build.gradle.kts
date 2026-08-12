@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.iptv.iptv_app"
-    compileSdk = 34
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -84,7 +84,7 @@ gradle.taskGraph.whenReady {
         it.name.contains("Release", ignoreCase = true)
     }
     if (backendUrlMissing && releaseRun) {
-        println("\n[WARNING] BACKEND_URL not provided via --dart-define. Falling back to default production URL (http://35.154.128.217).")
+        println("\n[WARNING] BACKEND_URL not provided via --dart-define. Falling back to default production URL (http://44.206.18.189).")
     }
 }
 
