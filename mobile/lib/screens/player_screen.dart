@@ -1179,7 +1179,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           final prefs = await SharedPreferences.getInstance();
           final token = prefs.getString(StorageKeys.token);
           if (token != null) {
-            _proxyUrl = '$_proxyUrl?token=$token&sid=$_playbackSessionId';
+            final separator = _proxyUrl!.contains('?') ? '&' : '?';
+            _proxyUrl = '$_proxyUrl${separator}sid=$_playbackSessionId';
           }
           webPreferredUrl = _proxyUrl;
           webPreferredHeaders = {
@@ -1197,7 +1198,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           final prefs = await SharedPreferences.getInstance();
           final token = prefs.getString(StorageKeys.token);
           if (token != null) {
-            _proxyUrl = '$_proxyUrl?token=$token&sid=$_playbackSessionId';
+            final separator = _proxyUrl!.contains('?') ? '&' : '?';
+            _proxyUrl = '$_proxyUrl${separator}sid=$_playbackSessionId';
           }
           _proxyHeaders = {
             if (token != null) 'Authorization': 'Bearer $token',

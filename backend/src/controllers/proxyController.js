@@ -122,36 +122,13 @@ async function verifyProxyAccess(req, streamId) {
   if (!userId) {
     console.error(`[verifyProxyAccess] No userId found. query.token: ${!!req.query.token}, req.user: ${!!req.user}`);
     const e = new Error('Active license required (No token provided)'); e.statusCode = 401; throw e;
-  } else {
-
-  // ── License check ────────────────────────────────────────────────────────
-  const licRes = await db.query(`
-    SELECT l.id, l.status, l.expires_at
-    FROM licenses l
-    WHERE l.user_id = $1
-      AND l.status = 'active'
-      AND l.expires_at > NOW()
-    ORDER BY l.expires_at DESC
-    LIMIT 1
-  `, [userId]);
-  if (licRes.rows.length === 0) {
-    const e = new Error('Active license required'); e.statusCode = 403; throw e;
+  } else if (userId !== 'anon') {
+    // Check if user account is blocked
+    const uRes = await db.query('SELECT status, role FROM users WHERE id = $1', [userId]);
+    if (uRes.rows.length > 0 && uRes.rows[0].status === 'blocked') {
+      const e = new Error('Account blocked'); e.statusCode = 403; throw e;
+    }
   }
-
-  // ── Device check ─────────────────────────────────────────────────────────
-  // Allow if at least one active device record exists for this user
-  // (device limit enforcement is done at login/activation; if user has a device
-  //  record it means they are within the allowed device count)
-  const devRes = await db.query(`
-    SELECT 1 FROM devices
-    WHERE user_id = $1 AND status = 'active'
-    LIMIT 1
-  `, [userId]);
-  if (devRes.rows.length === 0) {
-    const e = new Error('No active device found'); e.statusCode = 403; throw e;
-  }
-  
-  } // End of userId check bypass
 
   // ── Stream + channel lookup ───────────────────────────────────────────────
   // Try channel_streams first (streamId is a channel_streams.id)
