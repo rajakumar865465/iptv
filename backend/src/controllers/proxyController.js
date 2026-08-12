@@ -110,6 +110,7 @@ async function verifyProxyAccess(req, streamId) {
       const payload = verifyProxySessionToken(req.query.token, streamId);
       userId = payload.userId;
     } catch (e) {
+      console.error(`[verifyProxyAccess] Token verification failed. Token: ${req.query.token.substring(0, 15)}... Error:`, e.message);
       const err = new Error('Invalid or expired proxy session token');
       err.statusCode = 401;
       throw err;
@@ -119,6 +120,7 @@ async function verifyProxyAccess(req, streamId) {
   const ip = req.ip || req.connection?.remoteAddress || 'unknown';
 
   if (!userId) {
+    console.error(`[verifyProxyAccess] No userId found. query.token: ${!!req.query.token}, req.user: ${!!req.user}`);
     const e = new Error('Active license required (No token provided)'); e.statusCode = 401; throw e;
   } else {
 

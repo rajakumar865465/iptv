@@ -103,10 +103,15 @@ const generateProxySessionToken = (userId, streamId, expiresIn = '8h') => {
 };
 
 const verifyProxySessionToken = (token, streamId) => {
-  const payload = jwt.verify(token, PROXY_SESSION_SECRET);
-  if (payload.type !== 'proxy_session') throw new Error('Not a proxy session token');
-  if (streamId && payload.streamId !== Number(streamId)) throw new Error('Token stream mismatch');
-  return payload;
+  try {
+    const payload = jwt.verify(token, PROXY_SESSION_SECRET);
+    if (payload.type !== 'proxy_session') throw new Error('Not a proxy session token');
+    if (streamId && payload.streamId !== Number(streamId)) throw new Error(`Token stream mismatch: expected ${streamId}, got ${payload.streamId}`);
+    return payload;
+  } catch (err) {
+    console.error(`[JWT] verifyProxySessionToken failed: ${err.message}`);
+    throw err;
+  }
 };
 
 const generateAdminToken = (payload, expiresIn = '1d') => {
