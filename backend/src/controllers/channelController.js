@@ -3,6 +3,8 @@ const { success, error } = require('../utils/response');
 const { generateProxySessionToken } = require('../utils/jwt');
 const crypto = require('crypto');
 
+const ALLOW_UNKNOWN = process.env.ALLOW_UNKNOWN_STREAMS === 'true';
+
 let healthStatusColumnExists = null;
 // Fix #26: Cache schema introspection results at module level to avoid per-request queries
 let channelStreamsTableExists = null;
