@@ -72,25 +72,15 @@ function makeRequest(url, method, headers = {}) {
 async function checkStream(url, customHeaders = {}) {
   if (!url || url.trim() === '') return { ok: false, error: 'empty_url' };
 
+  // Step 1: HEAD request — if server responds 200, the stream is alive
   const headResult = await makeRequest(url, 'HEAD', customHeaders);
-  if (headResult.ok) {
-    const ct = headResult.contentType.toLowerCase();
-    const isHLS = ct.includes('mpegurl') || ct.includes('m3u') || url.toLowerCase().endsWith('.m3u8');
-    if (isHLS) return { ok: true, method: 'HEAD' };
-  }
+  if (headResult.ok) return { ok: true, method: 'HEAD' };
 
+  // Step 2: Some servers reject HEAD. Try GET as fallback.
   const getResult = await makeRequest(url, 'GET', customHeaders);
-  if (!getResult.ok) return { ok: false, error: getResult.error || `HTTP_${getResult.status}` };
+  if (getResult.ok) return { ok: true, method: 'GET' };
 
-  const ct = (getResult.contentType || '').toLowerCase();
-  const body = getResult.body || '';
-  const isHLS = ct.includes('mpegurl') || ct.includes('m3u') ||
-                url.toLowerCase().endsWith('.m3u8') ||
-                body.trimStart().startsWith('#EXTM3U') ||
-                ct.includes('octet-stream') ||
-                ct.includes('video/');
-
-  return { ok: isHLS, method: 'GET', isHLS };
+  return { ok: false, error: getResult.error || `HTTP_${getResult.status}` };
 }
 
 async function runWithConcurrency(items, fn, limit) {

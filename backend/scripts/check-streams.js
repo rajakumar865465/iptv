@@ -76,40 +76,21 @@ function makeRequest(url, method, headers = {}) {
 }
 
 /**
- * Check if a stream URL is working and HLS.
- * Step 1: HEAD request
- * Step 2 (if HEAD fails): GET with Range header, inspect body
+ * Check if a stream URL is working.
+ * VLC-style: if server returns HTTP 200, the stream is alive.
  */
 async function checkStream(url, customHeaders = {}) {
   if (!url || url.trim() === '') return { ok: false, error: 'empty_url' };
 
-  // Step 1: HEAD
+  // Step 1: HEAD request — if server responds 200, the stream is alive
   const headResult = await makeRequest(url, 'HEAD', customHeaders);
-  if (headResult.ok) {
-    const ct = headResult.contentType.toLowerCase();
-    const isHLS = ct.includes('mpegurl') || ct.includes('m3u') || url.toLowerCase().endsWith('.m3u8');
-    if (isHLS) return { ok: true, method: 'HEAD' };
-    // HEAD succeeded but no clear HLS content-type: fall through to GET for body check
-  }
+  if (headResult.ok) return { ok: true, method: 'HEAD' };
 
-  // Step 2: GET with Range header
+  // Step 2: Some servers reject HEAD. Try GET as fallback.
   const getResult = await makeRequest(url, 'GET', customHeaders);
-  if (!getResult.ok) return { ok: false, error: getResult.error || `HTTP_${getResult.status}` };
+  if (getResult.ok) return { ok: true, method: 'GET' };
 
-  const ct = (getResult.contentType || '').toLowerCase();
-  const body = getResult.body || '';
-  const urlLower = url.toLowerCase();
-
-  const isHLS = ct.includes('mpegurl') || ct.includes('m3u') ||
-                urlLower.endsWith('.m3u8') ||
-                body.trimStart().startsWith('#EXTM3U') ||
-                body.includes('#EXT-X-VERSION') ||
-                body.includes('#EXT-X-STREAM-INF') ||
-                body.includes('#EXT-X-TARGETDURATION') ||
-                ct.includes('octet-stream') ||
-                ct.includes('video/');
-
-  return { ok: isHLS, method: 'GET', isHLS };
+  return { ok: false, error: getResult.error || `HTTP_${getResult.status}` };
 }
 
 /**
