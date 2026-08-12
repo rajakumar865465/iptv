@@ -144,22 +144,41 @@ async function runIptvOrgSync(importGlobal = true) {
       const isVisibleApp = (extractedCountry === 'IN' || extractedCountry === 'INTL_IN');
 
       if (matchedDbChannel) {
-        // Update URL, reset health, update country and visibility
+        let needsUpdate = false;
+        let updateQuery = 'UPDATE channels SET updated_at = NOW()';
+        const updateParams = [];
+
+        // Backfill missing logo from M3U
+        if (pc.logo && (!matchedDbChannel.logo_url || matchedDbChannel.logo_url.trim() === '')) {
+          updateParams.push(pc.logo);
+          updateQuery += `, logo_url = $${updateParams.length}`;
+          matchedDbChannel.logo_url = pc.logo;
+          needsUpdate = true;
+        }
+
+        // Update URL if changed
         if (matchedDbChannel.stream_url !== pc.url) {
-          await db.query(`
-            UPDATE channels 
-            SET stream_url = $1, health_status = 'unknown', updated_at = NOW(),
-                country = COALESCE(country, $3), is_visible_app = $4
-            WHERE id = $2
-          `, [pc.url, matchedDbChannel.id, extractedCountry, isVisibleApp]);
-          updatedCount++;
-          
+          updateParams.push(pc.url);
+          updateQuery += `, stream_url = $${updateParams.length}, health_status = 'unknown'`;
+          updateParams.push(extractedCountry);
+          updateQuery += `, country = COALESCE(country, $${updateParams.length})`;
+          updateParams.push(isVisibleApp);
+          updateQuery += `, is_visible_app = $${updateParams.length}`;
+          needsUpdate = true;
+
           // Add to channel_streams as backup
           await db.query(`
             INSERT INTO channel_streams (channel_id, stream_url, quality, priority, health_status)
             VALUES ($1, $2, 'auto', 10, 'unknown')
             ON CONFLICT DO NOTHING
           `, [matchedDbChannel.id, pc.url]);
+        }
+
+        if (needsUpdate) {
+          updateParams.push(matchedDbChannel.id);
+          updateQuery += ` WHERE id = $${updateParams.length}`;
+          await db.query(updateQuery, updateParams);
+          updatedCount++;
         }
       } else {
         // New channel auto-import
@@ -170,18 +189,68 @@ async function runIptvOrgSync(importGlobal = true) {
         `, [pc.name, defaultCatId, pc.url, pc.tvgId || null, pc.logo || null, extractedCountry, isVisibleApp]);
         
         // Save to maps to avoid duplicates within the same run
-        if (pc.tvgId) dbByTvgId[pc.tvgId] = { id: cRes.rows[0].id, stream_url: pc.url };
-        dbByName[normalizeName(pc.name)] = { id: cRes.rows[0].id, stream_url: pc.url };
+        if (pc.tvgId) dbByTvgId[pc.tvgId] = { id: cRes.rows[0].id, stream_url: pc.url, logo_url: pc.logo };
+        dbByName[normalizeName(pc.name)] = { id: cRes.rows[0].id, stream_url: pc.url, logo_url: pc.logo };
         newCount++;
       }
     }
     
     console.log(`[iptv-org] Sync complete. Updated: ${updatedCount}, Auto-imported: ${newCount}.`);
+
+    // Backfill remaining missing logos from iptv-org official channel registry
+    await backfillMissingLogos();
+
     return { updatedCount, newCount };
     
   } catch (err) {
     console.error('[iptv-org] Sync failed:', err);
     throw err;
+  }
+}
+
+async function backfillMissingLogos() {
+  console.log('[logo-enricher] Fetching iptv-org channels.json for logo backfill...');
+  try {
+    const raw = await download('https://iptv-org.github.io/api/channels.json');
+    const apiChannels = JSON.parse(raw);
+    
+    const logoByTvgId = new Map();
+    const logoByName = new Map();
+
+    for (const c of apiChannels) {
+      if (c.logo && typeof c.logo === 'string' && c.logo.trim() !== '') {
+        if (c.id) logoByTvgId.set(c.id.toLowerCase(), c.logo.trim());
+        if (c.name) logoByName.set(normalizeName(c.name), c.logo.trim());
+      }
+    }
+
+    const missingRes = await db.query(
+      `SELECT id, name, tvg_id FROM channels WHERE logo_url IS NULL OR TRIM(logo_url) = ''`
+    );
+
+    console.log(`[logo-enricher] Found ${missingRes.rows.length} channels with missing logos.`);
+
+    let updatedLogosCount = 0;
+    for (const ch of missingRes.rows) {
+      let foundLogo = null;
+      if (ch.tvg_id && logoByTvgId.has(ch.tvg_id.toLowerCase())) {
+        foundLogo = logoByTvgId.get(ch.tvg_id.toLowerCase());
+      }
+      if (!foundLogo) {
+        const norm = normalizeName(ch.name);
+        if (logoByName.has(norm)) {
+          foundLogo = logoByName.get(norm);
+        }
+      }
+
+      if (foundLogo) {
+        await db.query(`UPDATE channels SET logo_url = $1, updated_at = NOW() WHERE id = $2`, [foundLogo, ch.id]);
+        updatedLogosCount++;
+      }
+    }
+    console.log(`[logo-enricher] Successfully backfilled logos for ${updatedLogosCount} channels!`);
+  } catch (err) {
+    console.error('[logo-enricher] Error backfilling logos:', err.message);
   }
 }
 

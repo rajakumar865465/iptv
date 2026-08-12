@@ -307,6 +307,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   int _playbackGeneration = 0;
   bool _recoveryInProgress = false;
   bool _sourceStartupGrace = false;
+  bool _userPaused = false;
   StreamSubscription? _playerSubscription;
   StreamSubscription? _playerLogSubscription;
   StreamSubscription? _playerErrorSubscription;
@@ -1410,6 +1411,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _startupCompleted = false;
     _sourceStartupGrace = true;
     _recoveryInProgress = false;
+    _userPaused = false;
     _lastProgressAt = DateTime.now();
 
     _playerDebugLog('source_open_requested', {
@@ -1600,6 +1602,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       await _player.open(media, play: true);
       _playerInitialized = true;
 
+      // Enforcement safety check: ensure stream starts playing even if browser autoplay/MSE initially pauses it
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted && !_userPaused && !_recoveryInProgress && !_player.state.playing && _playbackGeneration == thisGeneration) {
+          _playerDebugLog('open_auto_play_enforce', {'channel_id': _currentChannel.id});
+          _player.play();
+        }
+      });
+
       // Detailed post-open diagnostics for the "stuck on buffering" investigation.
       _playerDebugLog('initialization_end', {
         'channel_id': _currentChannel.id,
@@ -1676,14 +1686,22 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // On native (Android/iOS), videoParams fires exactly when the first frame is decoded.
       // On Web (Chrome MSE), videoParams is unreliable. We must use playing=true + buffering=false.
       _playerPlayingSubscription = _player.stream.playing.listen((isPlaying) {
-        if (!isPlaying || !mounted || _playbackGeneration != thisGeneration) return;
+        if (!mounted || _playbackGeneration != thisGeneration) return;
         
-        if (kIsWeb) {
-          // Web-specific fast-start: hls.js fires `playing=true` before width
-          // populates for live MSE streams; treat playing as first-frame.
-          if (!_startupCompleted) {
+        if (isPlaying) {
+          if (kIsWeb && !_startupCompleted) {
             _onStartupSuccess('playing_stable_web_fallback', thisGeneration);
           }
+        } else if (!_userPaused && !_recoveryInProgress && _playerInitialized) {
+          // Auto-resume if the stream entered a paused state automatically
+          // (e.g. browser autoplay restrictions, transient buffer stall)
+          // without explicit user intent.
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted && !_userPaused && !_recoveryInProgress && !_player.state.playing && _playerInitialized && _playbackGeneration == thisGeneration) {
+              _playerDebugLog('auto_resume_pause_situation_fix', {'channel_id': _currentChannel.id});
+              _player.play();
+            }
+          });
         }
       });
 
@@ -4118,6 +4136,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             // ── Play / Pause (large, centred) ────────────────────────────
             GestureDetector(
               onTap: () {
+                _userPaused = _player.state.playing;
                 _player.playOrPause();
                 _showControlsWithTimer();
               },
