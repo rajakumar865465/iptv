@@ -376,5 +376,20 @@ initDatabase().then(() => {
     // setTimeout(() => {
     //   runHealthScan().catch(err => console.error('Initial health scan failed:', err));
     // }, 2 * 60 * 1000);
+    
+    // iptv-org Automatic Sync
+    try {
+      const cron = require('node-cron');
+      const { runIptvOrgSync } = require('./services/iptvOrgSync');
+      // Sync every 6 hours
+      cron.schedule('0 */6 * * *', () => {
+        console.log('[iptv-org] Starting scheduled sync...');
+        // true = importGlobal
+        runIptvOrgSync(true).catch(err => console.error('[iptv-org] Cron sync error:', err));
+      });
+      console.log('[iptv-org] Cron scheduler initialized (Runs every 6 hours)');
+    } catch (err) {
+      console.error('[iptv-org] Failed to initialize cron scheduler:', err);
+    }
   });
 });
