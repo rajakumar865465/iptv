@@ -131,14 +131,27 @@ async function runIptvOrgSync(importGlobal = true) {
         if (dbByName[normName]) matchedDbChannel = dbByName[normName];
       }
 
+      // Extract country code from tvgId (e.g., AajTak.in -> IN)
+      let extractedCountry = 'INTL';
+      if (pc.tvgId) {
+        const parts = pc.tvgId.split('.');
+        if (parts.length > 1) {
+          extractedCountry = parts[parts.length - 1].toUpperCase();
+        }
+      }
+      
+      // Only Indian channels are visible by default
+      const isVisibleApp = (extractedCountry === 'IN' || extractedCountry === 'INTL_IN');
+
       if (matchedDbChannel) {
-        // Update URL and reset health if changed
+        // Update URL, reset health, update country and visibility
         if (matchedDbChannel.stream_url !== pc.url) {
           await db.query(`
             UPDATE channels 
-            SET stream_url = $1, health_status = 'unknown', updated_at = NOW()
+            SET stream_url = $1, health_status = 'unknown', updated_at = NOW(),
+                country = COALESCE(country, $3), is_visible_app = $4
             WHERE id = $2
-          `, [pc.url, matchedDbChannel.id]);
+          `, [pc.url, matchedDbChannel.id, extractedCountry, isVisibleApp]);
           updatedCount++;
           
           // Add to channel_streams as backup
@@ -151,10 +164,10 @@ async function runIptvOrgSync(importGlobal = true) {
       } else {
         // New channel auto-import
         const cRes = await db.query(`
-          INSERT INTO channels (name, category_id, stream_url, tvg_id, logo_url, is_premium, is_paid, status, health_status)
-          VALUES ($1, $2, $3, $4, $5, false, false, 'active', 'unknown')
+          INSERT INTO channels (name, category_id, stream_url, tvg_id, logo_url, is_premium, is_paid, status, health_status, country, is_visible_app)
+          VALUES ($1, $2, $3, $4, $5, false, false, 'active', 'unknown', $6, $7)
           RETURNING id
-        `, [pc.name, defaultCatId, pc.url, pc.tvgId || null, pc.logo || null]);
+        `, [pc.name, defaultCatId, pc.url, pc.tvgId || null, pc.logo || null, extractedCountry, isVisibleApp]);
         
         // Save to maps to avoid duplicates within the same run
         if (pc.tvgId) dbByTvgId[pc.tvgId] = { id: cRes.rows[0].id, stream_url: pc.url };

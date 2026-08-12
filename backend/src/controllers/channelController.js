@@ -167,6 +167,7 @@ exports.getChannels = async (req, res) => {
       showOffline,
       workingOnly,
       premium,        // 'true' | 'false' | 'all'
+      region,           // 'world' allows showing international channels
       sort,           // recommended | popular | premium | az | recent | quality | stable
     } = req.query;
 
@@ -175,7 +176,7 @@ exports.getChannels = async (req, res) => {
     const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 50));
 
     console.log('[getChannels] filters:', {
-      categoryId, category, language, workingOnly, showOffline, search, premium, page: pageNum
+      categoryId, category, language, workingOnly, showOffline, search, premium, region, page: pageNum
     });
 
     // Always exclude merged/duplicate/inactive/hidden channels
@@ -183,10 +184,15 @@ exports.getChannels = async (req, res) => {
       `c.status = 'active'`,
       `c.is_hidden IS NOT TRUE`,
       `c.is_removed IS NOT TRUE`,
-      `c.is_visible_app IS NOT FALSE`,
       `c.stream_url IS NOT NULL`,
       `c.stream_url != ''`,
     ];
+    
+    // Default mode: hide international channels (is_visible_app = false)
+    if (region !== 'world') {
+      conditions.push(`c.is_visible_app IS NOT FALSE`);
+    }
+
     const params = [];
     let paramIndex = 1;
 
