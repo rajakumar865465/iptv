@@ -486,6 +486,39 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // updating any state. Stale callbacks from the previous channel are silently dropped.
   int _channelSessionId = 0;
   bool _isStoppingPrevious = false;
+  
+  // Fix A: Silent retries
+  int _silentRetryCount = 0;
+  
+  // Fix C: Auto-retry state for Error UI
+  Timer? _autoRetryTimer;
+  int _autoRetryCountdown = 0;
+  int _autoRetryAttempts = 0;
+
+  // Fix E: Cache for API responses
+  final Map<int, Map<String, dynamic>> _playbackApiCache = {};
+  final Map<int, DateTime> _playbackApiCacheTime = {};
+
+  void _startAutoRetryTimer() {
+    _autoRetryTimer?.cancel();
+    if (_autoRetryAttempts >= 3) return; // Stop after 3 auto retries
+    _autoRetryCountdown = 15;
+    _autoRetryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        if (_autoRetryCountdown > 0) {
+          _autoRetryCountdown--;
+        } else {
+          timer.cancel();
+          _autoRetryAttempts++;
+          _retry(); // This just calls _fetchPlaybackAndInitialize()
+        }
+      });
+    });
+  }
 
   @override
   void initState() {
@@ -1083,7 +1116,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _qualityUpgradeTimer?.cancel();
     _qualityUpgradeTimer = null;
 
-    if (mounted) setState(() { _isLoading = true; _hasError = false; _streamOverlayMessage = 'Loading...'; _isRetryingStream = false; });
+    if (mounted) setState(() { _isLoading = true; _hasError = false; _streamOverlayMessage = 'Loading channel...'; _isRetryingStream = false; });
     _playerDebugLog('playback_api_started', {
       'channel_id': _currentChannel.id,
       'channel_name': _currentChannel.name,
@@ -1092,16 +1125,29 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     });
     _playbackApiStartTime = DateTime.now();
     try {
-      final res = await _api.get(ApiEndpoints.channelPlaybackPath(_currentChannel.id));
-      // Abort if a new fetch started OR if the user already switched channels
-      if (_activeFetchId != myFetchId || _channelSessionId != mySession) {
-        _initializationInProgress = false;
-        _playerDebugLog('stale_callback_ignored', {
-          'reason': 'playback_api_superseded',
-          'my_session': mySession,
-          'current_session': _channelSessionId,
-        });
-        return;
+      Map<String, dynamic>? data;
+      final cacheAge = _playbackApiCacheTime[_currentChannel.id];
+      if (cacheAge != null && DateTime.now().difference(cacheAge).inSeconds < 30) {
+        data = _playbackApiCache[_currentChannel.id];
+      }
+      
+      if (data == null) {
+        final res = await _api.get(ApiEndpoints.channelPlaybackPath(_currentChannel.id));
+        // Abort if a new fetch started OR if the user already switched channels
+        if (_activeFetchId != myFetchId || _channelSessionId != mySession) {
+          _initializationInProgress = false;
+          _playerDebugLog('stale_callback_ignored', {
+            'reason': 'playback_api_superseded',
+            'my_session': mySession,
+            'current_session': _channelSessionId,
+          });
+          return;
+        }
+        if (res['success'] == true) {
+          data = res['data'];
+          _playbackApiCache[_currentChannel.id] = data!;
+          _playbackApiCacheTime[_currentChannel.id] = DateTime.now();
+        }
       }
       
       _playbackApiEndTime = DateTime.now();
@@ -1110,8 +1156,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         'request_id': _activePlaybackRequestId,
         'duration_ms': _playbackApiEndTime!.difference(_playbackApiStartTime!).inMilliseconds,
       });
-      if (res['success'] == true) {
-        final data = res['data'];
+      if (data != null) {
         _currentStreamMeta = data['primary_stream'];
         _backupStreams = List<dynamic>.from(data['backup_streams'] ?? []);
         _qualities = List<dynamic>.from(data['qualities'] ?? []);
@@ -1797,7 +1842,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // -- Safety startup timeout (Global dynamic budget) --------------------
       // Instead of giving each retry attempt a full 12s/15s block (which could stack up to 40s total),
       // we enforce a global channel-open budget from the moment the user tapped the channel.
-      const int MAX_GLOBAL_STARTUP_SECS = 22; // Strict cap for total startup sequence
+      const int MAX_GLOBAL_STARTUP_SECS = 35; // Strict cap for total startup sequence
       final int elapsedSecs = _channelTapTime != null 
           ? DateTime.now().difference(_channelTapTime!).inSeconds 
           : 0;
@@ -1805,14 +1850,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       int remainingBudget = MAX_GLOBAL_STARTUP_SECS - elapsedSecs;
       
       // Minimum grace period for the *current* network attempt so we don't kill a proxy fetch instantly
-      if (remainingBudget < 4) remainingBudget = 4;
+      if (url.contains('/api/proxy/')) {
+        if (remainingBudget < 12) remainingBudget = 12;
+      } else {
+        if (remainingBudget < 4) remainingBudget = 4;
+      }
       
       // Calculate local ideal timeout
       int idealStartupSecs = profile.startupTimeoutSecs;
       if (isDelayedStream) idealStartupSecs = 45; // Smooth streams get their own massive budget
       else if (url.contains('/api/proxy/')) idealStartupSecs = 15;
       else if (_playbackPath == 'backup' || _playbackPath == 'transcode' || _selectedQuality != null) idealStartupSecs = 15;
-      else if (_playbackPath == 'direct' && _currentChannel.healthStatus == 'unstable') idealStartupSecs = 8;
+      else if (_playbackPath == 'direct' && _currentChannel.healthStatus == 'unstable') idealStartupSecs = 18; // Give extra grace for unstable direct
       else if (_playbackPath == 'direct') idealStartupSecs = 12;
 
       // The actual timeout is whichever is smaller: the ideal local timeout, or the remaining global budget
@@ -2315,11 +2364,37 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _startupTimer = null;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    
+    // Fix A: Silent retries before fallback cascade
+    if (_silentRetryCount < 2 && !_directFailed && _playbackPath == 'direct') {
+      _silentRetryCount++;
+      final delayMs = _silentRetryCount == 1 ? 1500 : 3000;
+      if (mounted) setState(() { 
+        _streamOverlayMessage = 'Reconnecting...'; 
+        _isLoading = true; 
+        _hasError = false; 
+      });
+      
+      if (_silentRetryCount == 1 && _currentUrl != null) {
+        // First retry: just wait and reopen the same URL
+        await Future.delayed(Duration(milliseconds: delayMs));
+        if (!mounted || _recoveryInProgress == false) return;
+        _isRetryingStream = false;
+        _hadFailureBeforePlaying = true;
+        await _initializePlayer(_currentUrl!, _currentStreamMeta?['headers'] ?? {});
+        return;
+      } else {
+        // Second retry: wait and re-fetch from API to see if URL changed
+        await Future.delayed(Duration(milliseconds: delayMs));
+        if (!mounted || _recoveryInProgress == false) return;
+        // Proceed down to the API fetch block without setting _directFailed = true
+      }
+    }
 
     if (!_directFailed && _playbackPath != 'proxy') {
-      _directFailed = true;
+      if (_silentRetryCount >= 2) _directFailed = true; // Mark failed after silent retries
       _directStartupAttempts++;
-      if (mounted) setState(() { _streamOverlayMessage = 'Connecting to a better source...'; _isLoading = true; _hasError = false; });
+      if (mounted) setState(() { _streamOverlayMessage = 'Trying backup source...'; _isLoading = true; _hasError = false; });
       try {
         final res = await _api.get(ApiEndpoints.channelPlaybackPath(_currentChannel.id));
         if (res['success'] == true) {
@@ -2466,6 +2541,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               'specific User-Agent/Referer, or use a codec/container unsupported '
               'on Android.';
       setState(() { _isLoading = false; _hasError = true; _streamOverlayMessage = ''; });
+      _startAutoRetryTimer();
     }
     _recoveryInProgress = false;
   }
@@ -2706,6 +2782,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _runtimeRecoveryAttempts = 0;
     _directFailed = false;
     _proxyStarted = false;
+    _silentRetryCount = 0;
+    _autoRetryTimer?.cancel();
+    _autoRetryTimer = null;
+    _autoRetryCountdown = 0;
+    _autoRetryAttempts = 0;
     _lastApiHeaders = null;
     _hwdecSoftwareFallbackAttempted = false;
     // Reset smooth playback state for new channel
@@ -3360,6 +3441,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                   style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
+                if (_autoRetryCountdown > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Retrying in $_autoRetryCountdown' + 's...',
+                      style: const TextStyle(color: Colors.blueAccent, fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity,

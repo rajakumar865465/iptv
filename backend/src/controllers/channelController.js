@@ -1122,7 +1122,7 @@ exports.getChannelPlayback = async (req, res) => {
     ];
 
     // ── Backup streams (other top-level streams, not variants of primary) ───
-    const backups = result.rows
+    let backups = result.rows
       .filter(r => r.id !== primary.id && r.parent_stream_id == null)
       .map(r => ({
         id: r.id,
@@ -1132,6 +1132,35 @@ exports.getChannelPlayback = async (req, res) => {
         health_status: r.health_status || 'unknown',
         health_score: r.health_score ?? 50,
       }));
+
+    // If no clean backups exist, include all non-dead streams as last-resort backups
+    if (backups.length === 0) {
+      backups = result.rows
+        .filter(r => r.id !== primary.id)
+        .map(r => ({
+          id: r.id,
+          url: getPlayUrl(r),
+          quality: r.quality || 'auto',
+          headers: compileHeaders(r),
+          health_status: r.health_status || 'unknown',
+          health_score: r.health_score ?? 50,
+        }));
+    }
+    
+    // Emergency fallback: If still no backups and channels.stream_url exists and is different from primary
+    if (backups.length === 0 && channel.stream_url && channel.stream_url !== getPlayUrl(primary)) {
+      backups.push({
+        id: 'fallback_channel_url',
+        url: channel.stream_url,
+        quality: 'auto',
+        headers: {
+          'User-Agent': channel.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          ...(channel.referrer ? { 'Referer': channel.referrer } : {}),
+        },
+        health_status: channel.health_status || 'unknown',
+        health_score: 50,
+      });
+    }
 
     // ── Recommended buffer profile based on health score ────────────────────
     const primaryScore = primary.health_score ?? 50;
@@ -1183,6 +1212,8 @@ exports.getChannelPlayback = async (req, res) => {
       },
       health_status: channel.health_status || 'unknown',
       health_score: channel.health_score ?? 50,
+      retry_after_ms: 2000,
+
       // ── Smooth Playback / Gap Warning fields (per work.md) ──
       smooth_playback_enabled: false, // Disabled per user request
       smooth_stream_url: null, // Disabled
