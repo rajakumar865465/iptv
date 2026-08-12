@@ -1,28 +1,44 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Inter is loaded in the root layout as --font-inter; wire it as the base
+     sans (previously pointed at an undefined --font-geist-sans, so body text
+     silently fell back to Arial). */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Brand design tokens (Cinema dark + play red) ──────────────────────────
+   Static values → emitted as :root custom properties AND generate utilities
+   (bg-*, text-*, border-*, ring-*) plus opacity modifiers (e.g. bg-brand-500/10). */
+@theme {
+  /* structure / surfaces */
+  --color-base:       #0B0B0F;   /* page background */
+  --color-surface:    #121218;   /* solid cards / footer */
+  --color-surface-2:  #17171F;   /* elevated tiles / logo chips */
+  --color-line:       rgba(255, 255, 255, 0.10); /* default hairline border */
+
+  /* text (ink) — tuned for contrast on the near-black base */
+  --color-ink:        #F8FAFC;   /* primary   */
+  --color-ink-muted:  #A7A7B4;   /* secondary */
+  --color-ink-subtle: #7C7C89;   /* tertiary / decorative */
+
+  /* brand — play red / rose */
+  --color-brand-400:  #FB7185;
+  --color-brand-500:  #F43F5E;
+  --color-brand-600:  #E11D48;   /* core brand: logo "TV", primary action */
+  --color-brand-700:  #BE123C;
+
+  /* status */
+  --color-live:       #22C55E;   /* reserved for the LIVE indicator only */
 }
 
+/* Cinema-dark base — applied unconditionally (the site is dark-only, so the
+   body must not depend on the OS prefers-color-scheme). */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-base);
+  color: var(--color-ink);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
@@ -30,6 +46,23 @@ body {
 /* Display font utility — Poppins loaded in root layout */
 .font-display {
   font-family: var(--font-poppins);
+}
+
+/* Visible keyboard focus for every interactive element — one place fixes the
+   site-wide focus-state gap (links/buttons previously had hover-only styling). */
+:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Pointer/click shouldn't paint the ring (only keyboard nav). */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+::selection {
+  background: rgba(244, 63, 94, 0.30);
+  color: #fff;
 }
 
 /* Balance headline line breaks where supported */

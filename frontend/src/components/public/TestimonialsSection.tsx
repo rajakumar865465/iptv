@@ -38,7 +38,7 @@ function Stars({ rating }: { rating: number }) {
       {Array.from({ length: 5 }).map((_, i) => (
         <Star
           key={i}
-          className={`w-4 h-4 ${i < rating ? 'fill-amber-400 text-amber-400' : 'text-slate-700'}`}
+          className={`w-4 h-4 ${i < rating ? 'fill-amber-400 text-amber-400' : 'text-white/20'}`}
         />
       ))}
     </div>
@@ -51,14 +51,14 @@ export default function TestimonialsSection() {
       {TESTIMONIALS.map(t => (
         <figure
           key={t.name}
-          className="relative p-5 sm:p-6 rounded-2xl bg-white/[0.04] border border-white/10 backdrop-blur-sm hover:border-indigo-500/25 hover:bg-indigo-500/[0.04] transition-all overflow-hidden"
+          className="relative p-5 sm:p-6 rounded-2xl bg-white/[0.04] border border-line backdrop-blur-sm hover:border-brand-500/25 hover:bg-brand-500/[0.04] hover:shadow-[0_0_40px_-16px] hover:shadow-brand-500/40 transition-all overflow-hidden"
         >
           {/* Watermark quote mark */}
           <Quote className="absolute top-4 right-4 w-10 h-10 text-white/[0.04] rotate-180" />
 
           <div className="flex items-center justify-between mb-4">
             <Stars rating={t.rating} />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-brand-400 bg-brand-500/10 border border-brand-500/20 px-2 py-0.5 rounded-full">
               {t.plan}
             </span>
           </div>
@@ -68,12 +68,12 @@ export default function TestimonialsSection() {
           </blockquote>
 
           <figcaption className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500/30 to-blue-500/20 border border-indigo-500/20 flex items-center justify-center font-display font-bold text-indigo-200 text-sm">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500/30 to-brand-700/20 border border-brand-500/20 flex items-center justify-center font-display font-bold text-brand-400 text-sm">
               {t.name.charAt(0)}
             </div>
             <div>
               <div className="text-sm font-semibold text-white">{t.name}</div>
-              <div className="text-xs text-slate-500">{t.location}</div>
+              <div className="text-xs text-ink-muted">{t.location}</div>
             </div>
           </figcaption>
         </figure>

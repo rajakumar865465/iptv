@@ -245,12 +245,16 @@ const errorLoggerMiddleware = async (req, res, next) => {
 
 const path = require('path');
 
-// Static serving for cached logos — PLAYBACK-06 FIX: add long-lived Cache-Control header
-// so Flutter clients don't re-fetch logos on every app launch.
 app.use('/logos', express.static(path.join(__dirname, '../public/logos'), {
   maxAge: '1d',
   setHeaders: (res) => {
     res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+  },
+}));
+
+app.use('/downloads', express.static(path.join(__dirname, '../public/downloads'), {
+  setHeaders: (res) => {
+    res.setHeader('Content-Disposition', 'attachment; filename="NivaTV-release.apk"');
   },
 }));
 

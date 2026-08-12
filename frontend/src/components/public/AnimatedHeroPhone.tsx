@@ -26,7 +26,7 @@ function AppBar({ title }: { title?: string }) {
         <span className="text-[10px] font-bold text-white">{title}</span>
       ) : (
         <span className="text-[10px] font-bold text-white">
-          Niva<span className="text-blue-400">TV</span>
+          Niva<span className="text-brand-500">TV</span>
         </span>
       )}
       <Search className="w-[12px] h-[12px] text-white/30" />
@@ -37,8 +37,8 @@ function AppBar({ title }: { title?: string }) {
 // Screen 1: App Home
 function HomeScreen() {
   const channels = [
-    { n: 'Aaj Tak', l: 'Hindi News', c: 'bg-indigo-500/10 text-indigo-400' },
-    { n: 'ABP News', l: 'Hindi News', c: 'bg-indigo-500/10 text-indigo-400' },
+    { n: 'Aaj Tak', l: 'Hindi News', c: 'bg-brand-500/10 text-brand-400' },
+    { n: 'ABP News', l: 'Hindi News', c: 'bg-brand-500/10 text-brand-400' },
     { n: 'Star Gold', l: 'Movies', c: 'bg-amber-500/10 text-amber-400' },
     { n: 'Zee TV', l: 'Entertainment', c: 'bg-blue-500/10 text-blue-400' },
     { n: 'Sun TV', l: 'Tamil', c: 'bg-cyan-500/10 text-cyan-400' },
@@ -50,19 +50,19 @@ function HomeScreen() {
       <AppBar />
       <div className="px-3 pt-3 flex-1 overflow-hidden">
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-          <span className="text-[7px] text-indigo-400 font-bold uppercase tracking-[0.12em]">Live Now</span>
+          <div className="w-2 h-2 rounded-full bg-live animate-pulse" />
+          <span className="text-[7px] text-live font-bold uppercase tracking-[0.12em]">Live Now</span>
         </div>
-        <div className="bg-gradient-to-r from-red-600/20 to-transparent rounded-2xl p-3 border border-indigo-500/15 mb-3">
+        <div className="bg-gradient-to-r from-brand-600/20 to-transparent rounded-2xl p-3 border border-brand-500/15 mb-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center shrink-0">
-              <Tv className="w-5 h-5 text-indigo-400" />
+            <div className="w-10 h-10 rounded-xl bg-brand-600/20 flex items-center justify-center shrink-0">
+              <Tv className="w-5 h-5 text-brand-400" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[10px] font-bold">Aaj Tak</div>
               <div className="text-[7px] text-slate-400">Hindi News &bull; Live</div>
             </div>
-            <div className="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-indigo-600/20">
+            <div className="w-7 h-7 bg-brand-600 rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-brand-600/20">
               <Play className="w-3.5 h-3.5 fill-white text-white" />
             </div>
           </div>
@@ -112,7 +112,7 @@ function ChannelListScreen() {
       </div>
       <div className="flex gap-1.5 px-3 py-2 shrink-0 overflow-hidden">
         {['All', 'Hindi', 'Tamil', 'News', 'Movies'].map((cat, i) => (
-          <div key={cat} className={`shrink-0 text-[7px] px-2.5 py-0.5 rounded-full font-semibold ${i === 0 ? 'bg-indigo-600 text-white' : 'bg-white/[0.06] text-slate-500'}`}>
+          <div key={cat} className={`shrink-0 text-[7px] px-2.5 py-0.5 rounded-full font-semibold ${i === 0 ? 'bg-brand-600 text-white' : 'bg-white/[0.06] text-slate-500'}`}>
             {cat}
           </div>
         ))}
@@ -129,8 +129,8 @@ function ChannelListScreen() {
                 <div className="text-[7px] text-slate-500">{ch.cat}</div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                <span className="text-[6px] text-indigo-400 font-bold">LIVE</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-live animate-pulse" />
+                <span className="text-[6px] text-live font-bold">LIVE</span>
               </div>
             </div>
           ))}
@@ -148,18 +148,18 @@ function PlayerScreen() {
       <div className="mx-2 mt-2 mb-3 rounded-2xl overflow-hidden relative shrink-0" style={{ aspectRatio: '16/9' }}>
         <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-900 to-black" />
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-14 h-14 bg-indigo-600 rounded-full flex items-center justify-center shadow-xl shadow-indigo-600/30">
+          <div className="w-14 h-14 bg-brand-600 rounded-full flex items-center justify-center shadow-xl shadow-brand-600/30">
             <Play className="w-6 h-6 fill-white text-white ml-1" />
           </div>
         </div>
         <div className="absolute top-3 left-3 flex items-center gap-1.5 z-10">
-          <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
-          <span className="text-[7px] text-indigo-400 font-bold bg-black/50 px-1.5 py-0.5 rounded">LIVE</span>
+          <div className="w-2 h-2 bg-live rounded-full animate-pulse" />
+          <span className="text-[7px] text-live font-bold bg-black/50 px-1.5 py-0.5 rounded">LIVE</span>
         </div>
         <div className="absolute bottom-3 left-3 right-3 z-10">
           <div className="text-[9px] text-white/90 mb-1.5 font-semibold">Star Sports 1</div>
           <div className="h-[3px] bg-white/15 rounded-full overflow-hidden">
-            <div className="h-full w-[40%] bg-indigo-500 rounded-full" />
+            <div className="h-full w-[40%] bg-brand-500 rounded-full" />
           </div>
         </div>
       </div>
@@ -173,7 +173,7 @@ function PlayerScreen() {
         </div>
         <div className="flex gap-1.5 mb-3">
           {['Auto', 'HD', '480p', 'Data Saver'].map((q, i) => (
-            <div key={q} className={`text-[7px] px-2 py-1 rounded-full font-semibold ${i === 0 ? 'bg-indigo-600 text-white' : 'bg-white/[0.06] text-slate-500'}`}>
+            <div key={q} className={`text-[7px] px-2 py-1 rounded-full font-semibold ${i === 0 ? 'bg-brand-600 text-white' : 'bg-white/[0.06] text-slate-500'}`}>
               {q}
             </div>
           ))}
@@ -198,17 +198,17 @@ function LicenseScreen() {
       <StatusBar />
       <AppBar title="Activate License" />
       <div className="flex-1 flex flex-col items-center justify-center px-5">
-        <div className="w-14 h-14 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-4">
-          <Key className="w-7 h-7 text-indigo-400" />
+        <div className="w-14 h-14 rounded-full bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mb-4">
+          <Key className="w-7 h-7 text-brand-400" />
         </div>
         <div className="text-[11px] font-bold mb-1.5">Enter License Key</div>
         <div className="text-[8px] text-slate-500 text-center mb-5 leading-relaxed">
           Paste the key you received<br />after payment
         </div>
         <div className="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-3.5 py-3 mb-3">
-          <div className="text-[8px] text-blue-400 font-mono tracking-[0.2em]">NVT-XXXX-XXXX-XXXX</div>
+          <div className="text-[8px] text-brand-400 font-mono tracking-[0.2em]">NVT-XXXX-XXXX-XXXX</div>
         </div>
-        <button className="w-full bg-indigo-600 rounded-xl py-3 text-center mb-4 text-sm font-bold transition-colors">
+        <button className="w-full bg-brand-600 rounded-xl py-3 text-center mb-4 text-sm font-bold transition-colors">
           Activate Now
         </button>
         <div className="w-full bg-green-500/10 border border-green-500/20 rounded-xl px-3.5 py-3">
@@ -262,7 +262,7 @@ export default function AnimatedHeroPhone() {
   return (
     <div className="flex flex-col items-center select-none">
       <div className="relative">
-        <div className="absolute inset-0 bg-indigo-600/15 blur-[60px] rounded-full scale-75 translate-y-8 pointer-events-none" />
+        <div className="absolute inset-0 bg-brand-600/15 blur-[60px] rounded-full scale-75 translate-y-8 pointer-events-none" />
         <div className="relative w-[260px]">
           <div className="rounded-[44px] bg-gradient-to-b from-[#333333] via-[#222222] to-[#151515] border border-white/15 shadow-2xl shadow-black/60 p-[8px] pb-4">
             <div className="flex justify-center pt-1.5 mb-1.5">
@@ -286,11 +286,11 @@ export default function AnimatedHeroPhone() {
             key={s.id}
             onClick={() => handleDot(i)}
             aria-label={s.label}
-            className={`rounded-full transition-all duration-300 cursor-pointer ${i === current ? 'w-7 h-[6px] bg-indigo-500' : 'w-[6px] h-[6px] bg-white/20 hover:bg-white/40'}`}
+            className={`rounded-full transition-all duration-300 cursor-pointer ${i === current ? 'w-7 h-[6px] bg-brand-500' : 'w-[6px] h-[6px] bg-white/20 hover:bg-white/40'}`}
           />
         ))}
       </div>
-      <p className="mt-2.5 text-xs text-slate-500 font-medium transition-opacity" style={{ opacity: fading ? 0 : 1, transitionDuration: `${FADE_MS}ms` }}>
+      <p className="mt-2.5 text-xs text-ink-muted font-medium transition-opacity" style={{ opacity: fading ? 0 : 1, transitionDuration: `${FADE_MS}ms` }}>
         {SCREENS[current].label}
       </p>
     </div>

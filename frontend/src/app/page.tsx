@@ -2,7 +2,7 @@ import Link from 'next/link';
 import {
   Tv, Key, Zap, RefreshCw,
   ArrowRight, Download, Check, Globe, Smartphone,
-  ShieldCheck, Headphones, Play, Sparkles,
+  ShieldCheck, Headphones, Play, Sparkles, Star,
 } from 'lucide-react';
 import {
   getPublicPlans, getCategories, getWebsiteSettings, getPopularChannels
@@ -48,11 +48,11 @@ function getCategoryEmoji(name: string): string {
   return '📺';
 }
 
-/* ── Reworked channel card: glass tile + live pulse + indigo glow on hover ─ */
+/* ── Channel card: glass tile + live pulse + brand glow on hover ─ */
 function ChannelCard({ channel }: { channel: Channel }) {
   return (
-    <div className="group relative bg-white/[0.04] border border-white/[0.08] backdrop-blur-sm rounded-2xl p-4 flex items-center gap-3.5 hover:border-indigo-500/30 hover:bg-indigo-500/[0.04] hover:shadow-[0_0_40px_-12px] hover:shadow-indigo-500/30 transition-all duration-300 min-w-[220px] sm:min-w-0">
-      <div className="w-11 h-11 rounded-xl bg-[#1c1c20] border border-white/5 flex items-center justify-center shrink-0 overflow-hidden">
+    <div className="group relative bg-white/[0.04] border border-line backdrop-blur-sm rounded-2xl p-4 flex items-center gap-3.5 hover:border-brand-500/30 hover:bg-brand-500/[0.06] hover:shadow-[0_0_40px_-12px] hover:shadow-brand-500/45 transition-all duration-300 min-w-[220px] sm:min-w-0">
+      <div className="w-11 h-11 rounded-xl bg-surface-2 border border-white/5 flex items-center justify-center shrink-0 overflow-hidden">
         <ChannelLogoImage
           src={channel.logo_url || ''}
           alt={channel.name}
@@ -64,21 +64,21 @@ function ChannelCard({ channel }: { channel: Channel }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
           <span className="text-sm font-semibold text-white truncate">{channel.name}</span>
-          <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
+          <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-bold text-live bg-live/10 border border-live/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
             <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-green-500/70 animate-ping" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-500" />
+              <span className="absolute inline-flex h-full w-full rounded-full bg-live/70 animate-ping" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-live" />
             </span>
             LIVE
           </span>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
-          {channel.category && <span className="text-[10px] text-slate-400 bg-white/[0.05] px-1.5 py-0.5 rounded">{channel.category}</span>}
-          {channel.language && <span className="text-[10px] text-slate-500">{channel.language}</span>}
+          {channel.category && <span className="text-[10px] text-ink-muted bg-white/[0.05] px-1.5 py-0.5 rounded">{channel.category}</span>}
+          {channel.language && <span className="text-[10px] text-ink-subtle">{channel.language}</span>}
         </div>
       </div>
-      <div className="w-8 h-8 rounded-full bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center shrink-0 group-hover:bg-indigo-600 group-hover:border-indigo-500 transition-all">
-        <Play className="w-3.5 h-3.5 text-indigo-400 group-hover:text-white group-hover:fill-white transition-all" />
+      <div className="w-8 h-8 rounded-full bg-brand-600/10 border border-brand-500/20 flex items-center justify-center shrink-0 group-hover:bg-brand-600 group-hover:border-brand-500 transition-all">
+        <Play className="w-3.5 h-3.5 text-brand-400 group-hover:text-white group-hover:fill-white transition-all" />
       </div>
     </div>
   );
@@ -101,12 +101,12 @@ const FAQ = [
   { q: 'How do I activate my license?', a: 'After downloading the app, enter your license key in the activation screen. It is activated instantly.' },
 ];
 
-/* Primary call-to-action button — indigo gradient, reused in hero + CTA banner */
+/* Primary call-to-action button — brand gradient, reused in hero + CTA banner */
 function PrimaryCTA({ href, children, className = '' }: { href: string; children: React.ReactNode; className?: string }) {
   return (
     <Link
       href={href}
-      className={`inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-500 hover:to-blue-400 text-white font-bold text-sm sm:text-base shadow-lg shadow-indigo-600/20 hover:shadow-indigo-500/40 hover:-translate-y-0.5 transition-all min-h-[44px] ${className}`}
+      className={`inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-white font-bold text-sm sm:text-base shadow-lg shadow-brand-600/25 hover:shadow-brand-500/40 hover:-translate-y-0.5 transition-all min-h-[44px] ${className}`}
     >
       {children}
     </Link>
@@ -117,7 +117,7 @@ function SecondaryCTA({ href, children }: { href: string; children: React.ReactN
   return (
     <Link
       href={href}
-      className="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-white font-bold text-sm sm:text-base border border-white/10 hover:border-white/20 backdrop-blur-sm transition-all min-h-[44px]"
+      className="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm sm:text-base border border-slate-600 hover:border-slate-400 shadow-lg shadow-black/20 backdrop-blur-sm transition-all min-h-[44px]"
     >
       {children}
     </Link>
@@ -163,64 +163,79 @@ export default async function HomePage() {
   const visibleCategories = categories.filter(cat => cat.channel_count > 0);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0c] text-white overflow-x-hidden">
+    <div className="min-h-screen bg-base text-white overflow-x-hidden">
       <PageTracker page="home" />
       <PublicHeader />
       <StickyMobileCTA />
 
       <main>
         {/* ───────────────────────── HERO ───────────────────────── */}
-        <section className="relative pt-20 sm:pt-24 md:pt-32 pb-12 sm:pb-16 md:pb-24 overflow-hidden">
-          {/* Layered background: radial indigo glow + faint grid */}
+        <section className="relative pt-24 sm:pt-28 md:pt-36 pb-14 sm:pb-20 md:pb-28 overflow-hidden">
+          {/* Layered cinematic background: masked grid + static brand aurora */}
           <div className="pointer-events-none absolute inset-0 -z-10">
-            <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[80%] h-[60%] bg-indigo-600/20 blur-[120px] rounded-full" />
-            <div className="absolute top-[20%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[100px] rounded-full" />
             <div
-              className="absolute inset-0 opacity-[0.04]"
+              className="absolute inset-0 opacity-[0.05]"
               style={{
                 backgroundImage:
                   'linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)',
                 backgroundSize: '56px 56px',
-                maskImage: 'radial-gradient(ellipse 70% 50% at 50% 30%, #000 60%, transparent 100%)',
-                WebkitMaskImage: 'radial-gradient(ellipse 70% 50% at 50% 30%, #000 60%, transparent 100%)',
+                maskImage: 'radial-gradient(ellipse 70% 55% at 50% 28%, #000 55%, transparent 100%)',
+                WebkitMaskImage: 'radial-gradient(ellipse 70% 55% at 50% 28%, #000 55%, transparent 100%)',
               }}
             />
+            <div className="absolute -top-[12%] left-1/2 -translate-x-1/2 w-[75%] h-[55%] bg-brand-600/20 blur-[130px] rounded-full" />
+            <div className="absolute top-[8%] right-[-8%] w-[38%] h-[48%] bg-brand-500/12 blur-[120px] rounded-full" />
+            <div className="absolute bottom-[-10%] left-[-6%] w-[32%] h-[42%] bg-brand-700/12 blur-[120px] rounded-full" />
           </div>
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-8 sm:gap-10 lg:gap-12 items-center">
-              <div className="order-2 lg:order-1">
+              <MotionReveal className="order-1 lg:order-1">
                 {/* Live pill */}
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.05] border border-white/10 backdrop-blur-sm mb-5">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.05] border border-line backdrop-blur-sm mb-5">
                   <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-green-500/70 animate-ping" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-live/70 animate-ping" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-live" />
                   </span>
-                  <span className="text-xs font-semibold text-slate-300">
+                  <span className="text-xs font-semibold text-ink-muted">
                     LIVE • {channelsCount}+ channels streaming now
                   </span>
                 </div>
 
-                <h1 className="font-display text-[28px] leading-[1.12] sm:text-4xl md:text-5xl lg:text-6xl font-extrabold sm:leading-[1.1] mb-4 sm:mb-6 text-balance">
+                <h1 className="font-display text-[30px] leading-[1.1] sm:text-5xl md:text-6xl lg:text-7xl font-extrabold sm:leading-[1.05] mb-4 sm:mb-6 text-balance">
                   Live TV for Every{' '}
-                  <span className="bg-gradient-to-r from-indigo-400 via-blue-400 to-indigo-400 bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-brand-400 via-brand-500 to-brand-400 bg-clip-text text-transparent">
                     Indian Home
                   </span>
                 </h1>
-                <p className="text-base sm:text-lg text-slate-400 mb-6 sm:mb-8 leading-relaxed max-w-xl">
+                <p className="text-base sm:text-lg text-ink-muted mb-6 sm:mb-8 leading-relaxed max-w-[60ch]">
                   Watch Hindi, Bengali, Tamil, Telugu, Malayalam and {channelsCount}+ Indian live channels on Android. Buy a license, download the APK and start watching instantly.
                 </p>
+
+                {/* Social proof — PLACEHOLDER figure, replace 10,000+ with a real number */}
+                <div className="flex items-center gap-3 mb-6 sm:mb-8">
+                  <div className="flex items-center gap-0.5" aria-hidden="true">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                    ))}
+                  </div>
+                  <span className="text-sm text-ink-muted">
+                    Loved by <span className="font-semibold text-white">10,000+</span> viewers across India
+                  </span>
+                </div>
+
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6 sm:mb-8">
                   <PrimaryCTA href="/pricing"><Key className="w-4 h-4 sm:w-5 sm:h-5" /> Buy License</PrimaryCTA>
                   <SecondaryCTA href="/download"><Download className="w-4 h-4 sm:w-5 sm:h-5" /> Download APK</SecondaryCTA>
                 </div>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-6 text-xs sm:text-sm text-slate-500">
+
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:text-sm text-ink-muted">
+                  <span className="flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-green-400" /> Secured by Razorpay</span>
                   <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-green-400" /> Instant delivery</span>
-                  <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-green-400" /> No auto-renewal</span>
-                  <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-green-400" /> 24/7 support</span>
+                  <span className="flex items-center gap-1.5"><Smartphone className="w-4 h-4 text-ink-muted" /> Android 6.0+</span>
                 </div>
-              </div>
-              <div className="order-1 lg:order-2 flex justify-center lg:justify-end">
+              </MotionReveal>
+              <div className="order-2 lg:order-2 flex justify-center lg:justify-end">
                 <AnimatedHeroPhone />
               </div>
             </div>
@@ -245,10 +260,10 @@ export default async function HomePage() {
                 { icon: RefreshCw, value: 'No Auto',          label: 'Renewal' },
               ].map(({ icon: Icon, value, label }) => (
                 <MotionReveal key={label} className="h-full">
-                  <div className="text-center p-4 sm:p-5 rounded-2xl bg-white/[0.03] border border-white/[0.06] backdrop-blur-sm h-full">
-                    <Icon className="w-6 h-6 sm:w-7 sm:h-7 text-indigo-400 mx-auto mb-2" />
+                  <div className="text-center p-4 sm:p-5 rounded-2xl bg-white/[0.04] border border-line backdrop-blur-sm h-full">
+                    <Icon className="w-6 h-6 sm:w-7 sm:h-7 text-brand-400 mx-auto mb-2" />
                     <div className="font-display text-xl sm:text-3xl font-extrabold text-white">{value}</div>
-                    <div className="text-xs sm:text-sm text-slate-400 mt-0.5">{label}</div>
+                    <div className="text-xs sm:text-sm text-ink-muted mt-0.5">{label}</div>
                   </div>
                 </MotionReveal>
               ))}
@@ -258,12 +273,12 @@ export default async function HomePage() {
 
         {/* ─────────────────── POPULAR CHANNELS ─────────────────── */}
         {popularChannels.length > 0 && (
-          <section className="py-14 sm:py-20 md:py-24">
+          <section className="py-16 sm:py-24 md:py-28">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <MotionReveal>
                 <SectionHeading
                   eyebrow="What's on"
-                  title={<>Popular <span className="text-indigo-400">Live Channels</span></>}
+                  title={<>Popular <span className="text-brand-400">Live Channels</span></>}
                   subtitle="A taste of what's streaming right now. Browse the full library for hundreds more."
                 />
               </MotionReveal>
@@ -285,12 +300,12 @@ export default async function HomePage() {
         <AppShowcase />
 
         {/* ───────────────── LANGUAGES STRIP ───────────────── */}
-        <section className="py-14 sm:py-20 md:py-24">
+        <section className="py-16 sm:py-24 md:py-28">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <MotionReveal>
               <SectionHeading
                 eyebrow="Local & loved"
-                title={<>Available in <span className="text-indigo-400">your language</span></>}
+                title={<>Available in <span className="text-brand-400">your language</span></>}
                 subtitle="From Hindi to Malayalam, watch the channels that feel like home."
               />
             </MotionReveal>
@@ -302,12 +317,12 @@ export default async function HomePage() {
 
         {/* ─────────────────── CATEGORIES ─────────────────── */}
         {visibleCategories.length > 0 && (
-          <section className="py-14 sm:py-20 md:py-24 bg-white/[0.02] border-y border-white/5">
+          <section className="py-16 sm:py-24 md:py-28 bg-white/[0.02] border-y border-white/5">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <MotionReveal>
                 <SectionHeading
                   eyebrow="Something for everyone"
-                  title={<>Channel <span className="text-indigo-400">Categories</span></>}
+                  title={<>Channel <span className="text-brand-400">Categories</span></>}
                   subtitle="Content for every language and interest"
                 />
               </MotionReveal>
@@ -318,16 +333,16 @@ export default async function HomePage() {
                     <Link
                       href={`/browse?category=${encodeURIComponent(slug)}`}
                       key={cat.id}
-                      className="group p-4 rounded-2xl bg-white/[0.04] border border-white/[0.08] backdrop-blur-sm hover:border-indigo-500/30 hover:bg-indigo-500/[0.05] hover:shadow-[0_0_36px_-14px] hover:shadow-indigo-500/40 hover:-translate-y-0.5 transition-all"
+                      className="group p-4 rounded-2xl bg-white/[0.04] border border-line backdrop-blur-sm hover:border-brand-500/30 hover:bg-brand-500/[0.05] hover:shadow-[0_0_36px_-14px] hover:shadow-brand-500/45 hover:-translate-y-0.5 transition-all"
                     >
                       <div className="flex items-center justify-between">
                         <div className="text-2xl">{getCategoryEmoji(cat.name)}</div>
-                        <span className="text-[10px] text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full font-semibold">
+                        <span className="text-[10px] text-brand-400 bg-brand-500/10 border border-brand-500/20 px-2 py-0.5 rounded-full font-semibold">
                           {cat.channel_count}
                         </span>
                       </div>
-                      <h3 className="font-semibold text-white text-sm mt-3 mb-1 group-hover:text-indigo-300 transition-colors truncate">{cat.name}</h3>
-                      <p className="text-[11px] text-slate-500">{cat.channel_count} channels</p>
+                      <h3 className="font-semibold text-white text-sm mt-3 mb-1 group-hover:text-brand-400 transition-colors truncate">{cat.name}</h3>
+                      <p className="text-[11px] text-ink-subtle">{cat.channel_count} channels</p>
                     </Link>
                   );
                 })}
@@ -337,12 +352,12 @@ export default async function HomePage() {
         )}
 
         {/* ───────────────────── WHY CHOOSE ───────────────────── */}
-        <section className="py-14 sm:py-20 md:py-24">
+        <section className="py-16 sm:py-24 md:py-28">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <MotionReveal>
               <SectionHeading
                 eyebrow="Why NivaTV"
-                title={<>Built for the way <span className="text-indigo-400">India watches</span></>}
+                title={<>Built for the way <span className="text-brand-400">India watches</span></>}
                 subtitle="Trusted by thousands of users across the country"
               />
             </MotionReveal>
@@ -356,12 +371,12 @@ export default async function HomePage() {
                 { icon: Headphones,  title: 'Real Human Support', desc: 'Help via WhatsApp, Telegram or email — from people who actually use the app.' },
               ].map((item, i) => (
                 <MotionReveal key={item.title} delay={i * 0.06}>
-                  <div className="p-5 sm:p-6 rounded-2xl bg-white/[0.04] border border-white/[0.08] backdrop-blur-sm hover:border-indigo-500/25 hover:bg-indigo-500/[0.04] transition-all h-full">
-                    <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-4">
-                      <item.icon className="w-6 h-6 text-indigo-400" />
+                  <div className="p-5 sm:p-6 rounded-2xl bg-white/[0.04] border border-line backdrop-blur-sm hover:border-brand-500/25 hover:bg-brand-500/[0.04] hover:shadow-[0_0_40px_-16px] hover:shadow-brand-500/40 transition-all h-full">
+                    <div className="w-12 h-12 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mb-4">
+                      <item.icon className="w-6 h-6 text-brand-400" />
                     </div>
                     <h3 className="font-display font-bold text-white text-base sm:text-lg mb-1.5">{item.title}</h3>
-                    <p className="text-sm text-slate-400 leading-relaxed">{item.desc}</p>
+                    <p className="text-sm text-ink-muted leading-relaxed">{item.desc}</p>
                   </div>
                 </MotionReveal>
               ))}
@@ -370,12 +385,12 @@ export default async function HomePage() {
         </section>
 
         {/* ─────────────────── COMPARISON TABLE ─────────────────── */}
-        <section className="py-14 sm:py-20 md:py-24 bg-white/[0.02] border-y border-white/5">
+        <section className="py-16 sm:py-24 md:py-28 bg-white/[0.02] border-y border-white/5">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <MotionReveal>
               <SectionHeading
                 eyebrow="The smart switch"
-                title={<>Why switch to <span className="text-indigo-400">NivaTV</span></>}
+                title={<>Why switch to <span className="text-brand-400">NivaTV</span></>}
                 subtitle="Compare NivaTV with traditional cable and other streaming apps."
               />
             </MotionReveal>
@@ -386,12 +401,12 @@ export default async function HomePage() {
         </section>
 
         {/* ───────────────────── HOW IT WORKS ───────────────────── */}
-        <section className="py-14 sm:py-20 md:py-24">
+        <section className="py-16 sm:py-24 md:py-28">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <MotionReveal>
               <SectionHeading
                 eyebrow="Get started"
-                title={<>From purchase to playback <span className="text-indigo-400">in minutes</span></>}
+                title={<>From purchase to playback <span className="text-brand-400">in minutes</span></>}
                 subtitle="Five simple steps — no technician, no hardware, no waiting"
               />
             </MotionReveal>
@@ -400,16 +415,16 @@ export default async function HomePage() {
                 <MotionReveal key={step.step} delay={i * 0.05}>
                   <div className="flex gap-4 sm:gap-6 mb-6 sm:mb-8 last:mb-0">
                     <div className="flex flex-col items-center">
-                      <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-indigo-600 to-blue-500 flex items-center justify-center text-white font-display font-bold text-sm shrink-0 shadow-lg shadow-indigo-600/30">
+                      <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-white font-display font-bold text-sm shrink-0 shadow-lg shadow-brand-600/30">
                         {step.step}
                       </div>
                       {i < HOW_IT_WORKS.length - 1 && (
-                        <div className="w-0.5 flex-1 bg-gradient-to-b from-indigo-600/40 to-indigo-600/5 mt-2 min-h-[24px]" />
+                        <div className="w-0.5 flex-1 bg-gradient-to-b from-brand-600/40 to-brand-600/5 mt-2 min-h-[24px]" />
                       )}
                     </div>
                     <div className="pb-6 sm:pb-8">
                       <h3 className="font-display font-bold text-white text-base sm:text-lg mb-1">{step.title}</h3>
-                      <p className="text-slate-400 text-sm leading-relaxed">{step.desc}</p>
+                      <p className="text-ink-muted text-sm leading-relaxed">{step.desc}</p>
                     </div>
                   </div>
                 </MotionReveal>
@@ -419,12 +434,12 @@ export default async function HomePage() {
         </section>
 
         {/* ─────────────────── TESTIMONIALS ─────────────────── */}
-        <section className="py-14 sm:py-20 md:py-24 bg-white/[0.02] border-y border-white/5">
+        <section className="py-16 sm:py-24 md:py-28 bg-white/[0.02] border-y border-white/5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <MotionReveal>
               <SectionHeading
                 eyebrow="Loved by viewers"
-                title={<>What our <span className="text-indigo-400">users say</span></>}
+                title={<>What our <span className="text-brand-400">users say</span></>}
                 subtitle="Real feedback from people watching NivaTV every day"
               />
             </MotionReveal>
@@ -435,12 +450,12 @@ export default async function HomePage() {
         </section>
 
         {/* ───────────────────── PRICING ───────────────────── */}
-        <section className="py-14 sm:py-20 md:py-24">
+        <section className="py-16 sm:py-24 md:py-28">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <MotionReveal>
               <SectionHeading
                 eyebrow="Pricing"
-                title={<>Choose your <span className="text-indigo-400">plan</span></>}
+                title={<>Choose your <span className="text-brand-400">plan</span></>}
                 subtitle="Flexible plans for every budget. Start with a free trial."
               />
             </MotionReveal>
@@ -460,18 +475,18 @@ export default async function HomePage() {
         </section>
 
         {/* ───────────────────── CTA BANNER ───────────────────── */}
-        <section className="py-14 sm:py-20 md:py-24">
+        <section className="py-16 sm:py-24 md:py-28">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <MotionReveal>
-              <div className="relative overflow-hidden rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-indigo-600/20 via-blue-600/10 to-transparent p-8 sm:p-12 md:p-16 text-center">
+              <div className="relative overflow-hidden rounded-3xl border border-brand-500/20 bg-gradient-to-br from-brand-600/20 via-brand-700/10 to-transparent p-8 sm:p-12 md:p-16 text-center">
                 <div className="pointer-events-none absolute inset-0 -z-10">
-                  <div className="absolute top-[-30%] left-1/2 -translate-x-1/2 w-[60%] h-[80%] bg-indigo-600/30 blur-[100px] rounded-full" />
+                  <div className="absolute top-[-30%] left-1/2 -translate-x-1/2 w-[60%] h-[80%] bg-brand-600/30 blur-[100px] rounded-full" />
                 </div>
-                <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-indigo-300 mx-auto mb-4" />
+                <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-brand-400 mx-auto mb-4" />
                 <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-white mb-3 sm:mb-4 text-balance">
                   Ready to start watching?
                 </h2>
-                <p className="text-slate-300 text-sm sm:text-lg mb-6 sm:mb-8 max-w-2xl mx-auto">
+                <p className="text-ink-muted text-sm sm:text-lg mb-6 sm:mb-8 max-w-2xl mx-auto">
                   Join thousands of users streaming {channelsCount}+ live channels on Android. Your license arrives instantly.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
@@ -484,7 +499,7 @@ export default async function HomePage() {
         </section>
 
         {/* ───────────────────── FAQ ───────────────────── */}
-        <section className="py-14 sm:py-20 md:py-24 bg-white/[0.02] border-t border-white/5">
+        <section className="py-16 sm:py-24 md:py-28 bg-white/[0.02] border-t border-white/5">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             <MotionReveal>
               <SectionHeading

@@ -68,17 +68,28 @@ const ROWS: Row[] = [
 
 function Cell({ cell, highlight }: { cell: Row['nivatv']; highlight?: boolean }) {
   const tone = highlight
-    ? 'text-indigo-300'
+    ? 'text-brand-400'
     : 'text-slate-300';
   if (cell.status === 'yes')
-    return <Check className={`w-5 h-5 mx-auto ${highlight ? 'text-green-400' : 'text-green-400/80'}`} />;
+    return (
+      <>
+        <Check aria-hidden="true" className={`w-5 h-5 mx-auto ${highlight ? 'text-green-400' : 'text-green-400/80'}`} />
+        <span className="sr-only">Included</span>
+      </>
+    );
   if (cell.status === 'no')
-    return <X className="w-5 h-5 mx-auto text-slate-600" />;
+    return (
+      <>
+        <X aria-hidden="true" className="w-5 h-5 mx-auto text-slate-500" />
+        <span className="sr-only">Not included</span>
+      </>
+    );
   if (cell.status === 'partial')
     return (
       <span className="inline-flex flex-col items-center gap-0.5">
-        <Minus className="w-4 h-4 text-amber-400/80" />
-        {cell.text && <span className="text-[10px] text-slate-500">{cell.text}</span>}
+        <Minus aria-hidden="true" className="w-4 h-4 text-amber-400/80" />
+        <span className="sr-only">Partial</span>
+        {cell.text && <span className="text-[10px] text-ink-subtle">{cell.text}</span>}
       </span>
     );
   return <span className={`text-sm font-semibold ${tone}`}>{cell.text}</span>;
@@ -88,17 +99,17 @@ export default function ComparisonTable() {
   return (
     <div>
       {/* ---- Desktop / tablet table ---- */}
-      <div className="hidden md:block overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+      <div className="hidden md:block overflow-hidden rounded-2xl border border-line bg-white/[0.03] backdrop-blur-sm">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-white/10">
-              <th className="text-left text-xs font-bold uppercase tracking-wider text-slate-500 px-5 py-4">
+            <tr className="border-b border-line">
+              <th className="text-left text-xs font-bold uppercase tracking-wider text-ink-muted px-5 py-4">
                 Compare
               </th>
               <th className="relative px-5 py-4">
-                <div className="absolute inset-x-0 -top-px h-0.5 bg-gradient-to-r from-indigo-500 to-blue-500" />
+                <div className="absolute inset-x-0 -top-px h-0.5 bg-gradient-to-r from-brand-500 to-brand-600" />
                 <div className="flex flex-col items-center">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-400 mb-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-brand-400 mb-0.5">
                     Best value
                   </span>
                   <span className="font-display text-lg font-extrabold text-white">NivaTV</span>
@@ -115,7 +126,7 @@ export default function ComparisonTable() {
                 className={i % 2 === 1 ? 'bg-white/[0.015]' : ''}
               >
                 <td className="px-5 py-4 text-sm font-medium text-slate-200">{row.feature}</td>
-                <td className="px-5 py-4 text-center bg-indigo-500/[0.06] border-x border-indigo-500/10">
+                <td className="px-5 py-4 text-center bg-brand-500/[0.06] border-x border-brand-500/10">
                   <Cell cell={row.nivatv} highlight />
                 </td>
                 <td className="px-5 py-4 text-center"><Cell cell={row.cable} /></td>
@@ -131,28 +142,28 @@ export default function ComparisonTable() {
         {ROWS.map(row => (
           <div
             key={row.feature}
-            className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4"
+            className="rounded-2xl border border-line bg-white/[0.03] backdrop-blur-sm p-4"
           >
             <div className="text-sm font-semibold text-white mb-3">{row.feature}</div>
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-lg bg-indigo-500/[0.08] border border-indigo-500/20 py-2.5">
+              <div className="rounded-lg bg-brand-500/[0.08] border border-brand-500/20 py-2.5">
                 <Cell cell={row.nivatv} highlight />
-                <div className="text-[10px] text-indigo-400 mt-1 font-semibold">NivaTV</div>
+                <div className="text-[10px] text-brand-400 mt-1 font-semibold">NivaTV</div>
               </div>
               <div className="rounded-lg py-2.5">
                 <Cell cell={row.cable} />
-                <div className="text-[10px] text-slate-500 mt-1">Cable</div>
+                <div className="text-[10px] text-ink-muted mt-1">Cable</div>
               </div>
               <div className="rounded-lg py-2.5">
                 <Cell cell={row.otherApps} />
-                <div className="text-[10px] text-slate-500 mt-1">Others</div>
+                <div className="text-[10px] text-ink-muted mt-1">Others</div>
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      <p className="text-center text-[11px] text-slate-600 mt-4">
+      <p className="text-center text-[11px] text-ink-subtle mt-4">
         *Competitor details are approximate, for comparison only. Prices and packages vary by provider.
       </p>
     </div>

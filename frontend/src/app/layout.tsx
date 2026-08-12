@@ -15,7 +15,7 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "NivaTV Admin Dashboard",
+  title: "NivaTV",
   description: "Admin panel for NivaTV",
   icons: {
     icon: "/logo.png",

@@ -46,12 +46,9 @@ export default function PublicHeader() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 shrink-0">
             <Image src="/logo.png" alt="NivaTV" width={40} height={40} className="h-9 w-auto object-contain" priority />
-            <span
-              className="text-xl font-bold tracking-tight leading-none select-none hidden sm:block"
-              style={{ fontFamily: 'var(--font-poppins)' }}
-            >
+            <span className="font-display text-xl font-bold tracking-tight leading-none select-none hidden sm:block">
               <span className="text-white">Niva</span>
-              <span className="text-red-400">TV</span>
+              <span className="text-brand-500">TV</span>
             </span>
           </Link>
 
@@ -63,7 +60,7 @@ export default function PublicHeader() {
                 href={link.href}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   pathname === link.href
-                    ? 'text-blue-400 bg-blue-500/10'
+                    ? 'text-brand-400 bg-brand-500/10'
                     : 'text-slate-300 hover:text-white hover:bg-white/5'
                 }`}
               >
@@ -76,7 +73,7 @@ export default function PublicHeader() {
           <div className="hidden md:flex items-center gap-3">
             <Link
               href="/pricing"
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors"
+              className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors"
             >
               Buy Now
             </Link>
@@ -105,7 +102,7 @@ export default function PublicHeader() {
                   onClick={() => setMenuOpen(false)}
                   className={`block px-4 py-3.5 rounded-xl text-base font-medium transition-colors ${
                     pathname === link.href
-                      ? 'text-blue-400 bg-blue-500/10'
+                      ? 'text-brand-400 bg-brand-500/10'
                       : 'text-slate-300 hover:text-white hover:bg-white/5'
                   }`}
                 >
@@ -117,7 +114,7 @@ export default function PublicHeader() {
               <Link
                 href="/pricing"
                 onClick={() => setMenuOpen(false)}
-                className="flex items-center justify-center gap-2 w-full px-4 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-base font-bold transition-colors"
+                className="flex items-center justify-center gap-2 w-full px-4 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-base font-bold transition-colors"
               >
                 <Key className="w-5 h-5" /> Buy License
               </Link>

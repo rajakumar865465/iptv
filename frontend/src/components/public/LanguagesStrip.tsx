@@ -27,16 +27,16 @@ export default function LanguagesStrip() {
         <Link
           key={lang.name}
           href={`/browse?language=${encodeURIComponent(lang.name)}`}
-          className="group flex items-center gap-3 p-3 sm:p-3.5 rounded-xl bg-white/[0.04] border border-white/10 backdrop-blur-sm hover:border-indigo-500/30 hover:bg-indigo-500/[0.05] hover:shadow-[0_0_36px_-14px] hover:shadow-indigo-500/40 transition-all"
+          className="group flex items-center gap-3 p-3 sm:p-3.5 rounded-xl bg-white/[0.04] border border-line backdrop-blur-sm hover:border-brand-500/30 hover:bg-brand-500/[0.05] hover:shadow-[0_0_36px_-14px] hover:shadow-brand-500/45 transition-all"
         >
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500/20 to-blue-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
-            <span className="text-lg font-bold text-indigo-300 font-display">{lang.initial}</span>
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-brand-500/20 to-brand-700/10 border border-brand-500/20 flex items-center justify-center shrink-0">
+            <span className="text-lg font-bold text-brand-400 font-display">{lang.initial}</span>
           </div>
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-white truncate group-hover:text-indigo-300 transition-colors">
+            <div className="text-sm font-semibold text-white truncate group-hover:text-brand-400 transition-colors">
               {lang.name}
             </div>
-            <div className="text-[11px] text-slate-500 truncate">{lang.note}</div>
+            <div className="text-[11px] text-ink-subtle truncate">{lang.note}</div>
           </div>
         </Link>
       ))}

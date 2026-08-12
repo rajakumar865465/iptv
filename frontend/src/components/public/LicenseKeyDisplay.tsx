@@ -12,8 +12,8 @@ export default function LicenseKeyDisplay({ licenseKey }: { licenseKey: string }
   };
 
   return (
-    <div className="flex items-center gap-3 bg-white/5 border border-indigo-500/30 rounded-xl px-5 py-4">
-      <span className="flex-1 font-mono text-lg font-bold text-indigo-400 tracking-widest break-all">
+    <div className="flex items-center gap-3 bg-white/5 border border-brand-500/30 rounded-xl px-5 py-4">
+      <span className="flex-1 font-mono text-lg font-bold text-brand-400 tracking-widest break-all">
         {licenseKey}
       </span>
       <button
