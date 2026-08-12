@@ -90,7 +90,14 @@ class _SplashScreenState extends State<SplashScreen> {
             if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
               // Access token expired (15-min lifetime). Try to rotate it via the
               // stored 30-day refresh token before giving up on the session.
-              final refreshed = await authCubit.tryRefresh();
+              bool refreshed = false;
+              try {
+                refreshed = await authCubit.tryRefresh();
+              } catch (refreshErr) {
+                // If refresh throws (e.g. network timeout), don't clear the session.
+                isTemporaryError = true;
+              }
+
               if (refreshed && context.mounted) {
                 try {
                   meResult = await authCubit.me(throwOnError: true);
@@ -110,7 +117,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   }
                   isTemporaryError = true;
                 }
-              } else {
+              } else if (!isTemporaryError) {
                 // No usable refresh token, or server rejected the rotation.
                 await StorageService().clearAuthData();
                 if (context.mounted) {

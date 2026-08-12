@@ -12,11 +12,11 @@ const { optionalAuth } = require('../middleware/auth');
 // media_kit passes the Bearer token as a header for the initial manifest request;
 // rewritten segment URLs carry an encrypted segToken so segments need no header.
 router.get('/:streamId/master.m3u8', optionalAuth, proxyController.proxyManifest);
-// Handle browser CORS preflight for manifest requests (Flutter Web / HLS.js)
 router.options('/:streamId/master.m3u8', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Range');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
   res.sendStatus(204);
 });
 // Segments: token in URL carries auth — no Bearer needed (libmpv may not forward headers)
@@ -25,6 +25,8 @@ router.get('/segment/:streamId/:segToken', proxyController.proxySegment);
 router.options('/segment/:streamId/:segToken', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Range');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
   res.sendStatus(204);
 });
 

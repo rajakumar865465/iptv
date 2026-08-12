@@ -580,7 +580,8 @@ exports.proxyManifest = async (req, res) => {
     // HLS.js ABR probing which may fetch from the JS execution origin).
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Range');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
     res.send(rewritten);
   } catch (err) {
     console.error('proxyManifest err:', err.message);
@@ -712,6 +713,8 @@ exports.proxySegment = async (req, res) => {
         res.setHeader('ETag', eTag);
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Range');
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
         res.setHeader('Content-Length', cachedInit.data.buffer.length);
         console.info(`[proxy] init segment served from cache streamId=${streamId} url=${targetUrl.substring(0, 80)}`);
         return res.send(cachedInit.data.buffer);
@@ -827,6 +830,8 @@ exports.proxySegment = async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Range');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
     // Forward Content-Length so the browser ABR algorithm can measure segment download
     // speed accurately. Without this, the browser treats each segment as unknown-size
     // chunked data and underestimates bandwidth, causing unnecessary quality drops.

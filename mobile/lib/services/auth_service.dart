@@ -122,14 +122,18 @@ class AuthService {
   /// Returns null if the refresh token is missing, invalid, or the server
   /// refused the rotation (caller must then sign the user out).
   Future<AuthUserResult?> refreshToken(String refreshToken) async {
-    try {
-      final response = await _dio.post(ApiEndpoints.refreshToken, data: {
-        'refreshToken': refreshToken,
-      });
+    final response = await _dio.post(ApiEndpoints.refreshToken, data: {
+      'refreshToken': refreshToken,
+    });
+    if (response.data is Map<String, dynamic>) {
       return _parseRefreshResponse(response.data);
-    } catch (_) {
-      return null;
     }
+    throw DioException(
+      requestOptions: response.requestOptions,
+      response: response,
+      type: DioExceptionType.badResponse,
+      error: 'Invalid response format',
+    );
   }
 
   AuthUserResult? _parseRefreshResponse(Map<String, dynamic> data) {
@@ -169,13 +173,21 @@ class AuthService {
   Future<Map<String, dynamic>?> me() async {
     try {
       final response = await _dio.get(ApiEndpoints.me);
-      if (response.data['success'] == true && response.data['data'] != null) {
-        return response.data['data'];
+      if (response.data is Map) {
+        if (response.data['success'] == true && response.data['data'] != null) {
+          return response.data['data'];
+        }
+        return null; // Explicit failure from backend
       }
-      return null;
+      throw DioException(
+        requestOptions: response.requestOptions,
+        response: response,
+        type: DioExceptionType.badResponse,
+        error: 'Invalid response format',
+      );
     } catch (e) {
       if (e is DioException) rethrow;
-      return null;
+      throw Exception('Parse error in /me: $e');
     }
   }
 

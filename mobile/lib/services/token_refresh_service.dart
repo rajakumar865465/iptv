@@ -39,14 +39,21 @@ class TokenRefreshService {
     final refreshToken = prefs.getString(StorageKeys.refreshToken);
     if (refreshToken == null || refreshToken.isEmpty) return false;
 
-    final result = await _auth.refreshToken(refreshToken);
-    if (result == null || result.token.isEmpty) return false;
+    try {
+      final result = await _auth.refreshToken(refreshToken);
+      if (result == null || result.token.isEmpty) return false;
 
-    await prefs.setString(StorageKeys.token, result.token);
-    if (result.refreshToken != null && result.refreshToken!.isNotEmpty) {
-      await prefs.setString(StorageKeys.refreshToken, result.refreshToken!);
+      await prefs.setString(StorageKeys.token, result.token);
+      if (result.refreshToken != null && result.refreshToken!.isNotEmpty) {
+        await prefs.setString(StorageKeys.refreshToken, result.refreshToken!);
+      }
+      _auth.setToken(result.token);
+      return true;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+        return false; // Server explicitly rejected the rotation
+      }
+      rethrow; // Network timeout or 5xx error, don't clear session!
     }
-    _auth.setToken(result.token);
-    return true;
   }
 }

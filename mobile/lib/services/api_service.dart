@@ -65,22 +65,27 @@ class ApiService {
 
             if (!isRefreshCall && !alreadyRetried) {
               developer.log('[API] Access token expired — attempting refresh + retry.', name: 'ApiService');
-              final ok = await TokenRefreshService.instance.refresh();
-              if (ok) {
-                try {
-                  final prefs = await SharedPreferences.getInstance();
-                  final newToken = prefs.getString(StorageKeys.token);
-                  if (newToken != null) {
-                    req.headers['Authorization'] = 'Bearer $newToken';
+              try {
+                final ok = await TokenRefreshService.instance.refresh();
+                if (ok) {
+                  try {
+                    final prefs = await SharedPreferences.getInstance();
+                    final newToken = prefs.getString(StorageKeys.token);
+                    if (newToken != null) {
+                      req.headers['Authorization'] = 'Bearer $newToken';
+                    }
+                    req.extra['refreshed'] = true;
+                    // Replay the original request with the fresh token.
+                    final response = await _dio.fetch(req);
+                    return handler.resolve(response);
+                  } catch (retryErr) {
+                    developer.log('[API] Retry after refresh failed: $retryErr', name: 'ApiService');
+                    return handler.next(error);
                   }
-                  req.extra['refreshed'] = true;
-                  // Replay the original request with the fresh token.
-                  final response = await _dio.fetch(req);
-                  return handler.resolve(response);
-                } catch (retryErr) {
-                  developer.log('[API] Retry after refresh failed: $retryErr', name: 'ApiService');
-                  return handler.next(error);
                 }
+              } catch (refreshErr) {
+                developer.log('[API] Refresh attempt failed with temporary error: $refreshErr', name: 'ApiService');
+                return handler.next(error);
               }
             }
             developer.log('[API] Refresh failed or unavailable — clearing session.', name: 'ApiService');
