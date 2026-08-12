@@ -143,7 +143,7 @@ async function runIptvOrgSync(importGlobal = true) {
           
           // Add to channel_streams as backup
           await db.query(`
-            INSERT INTO channel_streams (channel_id, stream_url, resolution, priority, health_status)
+            INSERT INTO channel_streams (channel_id, stream_url, quality, priority, health_status)
             VALUES ($1, $2, 'auto', 10, 'unknown')
             ON CONFLICT DO NOTHING
           `, [matchedDbChannel.id, pc.url]);
