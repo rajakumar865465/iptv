@@ -60,9 +60,9 @@ async function syncHindiM3u() {
         } else {
           // Create the channel if it doesn't exist at all
           const insertRes = await db.query(`
-            INSERT INTO channels (name, country, language, is_visible_app, status, health_status) 
-            VALUES ($1, 'IN', 'Hindi', true, 'active', 'online') RETURNING id
-          `, [rawName]);
+            INSERT INTO channels (name, stream_url, country, language, is_visible_app, status, health_status) 
+            VALUES ($1, $2, 'IN', 'Hindi', true, 'active', 'online') RETURNING id
+          `, [rawName, url]);
           channelId = insertRes.rows[0].id;
         }
 
