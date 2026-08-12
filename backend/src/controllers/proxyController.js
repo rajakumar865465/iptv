@@ -13,16 +13,16 @@ const crypto = require('node:crypto');
 // handshake overhead on every segment request (~1 req / 2-3s / viewer).
 const httpsAgent = new https.Agent({
   keepAlive: true,
-  maxSockets: 64,          // concurrent upstream connections per CDN host
-  maxFreeSockets: 16,      // idle sockets kept alive in pool
-  timeout: 25000,
+  maxSockets: 128,         // concurrent upstream connections per CDN host
+  maxFreeSockets: 32,      // idle sockets kept alive in pool
+  timeout: 20000,
   freeSocketTimeout: 30000,
 });
 const httpAgent = new http.Agent({
   keepAlive: true,
-  maxSockets: 64,
-  maxFreeSockets: 16,
-  timeout: 25000,
+  maxSockets: 128,
+  maxFreeSockets: 32,
+  timeout: 20000,
   freeSocketTimeout: 30000,
 });
 
@@ -247,8 +247,9 @@ class BoundedCache {
 // 8s aligns better with HLS spec (cache for ~1× target_duration).
 const CACHE_MANIFEST_MS = 8000;
 
-// Note: Segment caching has been removed to prevent massive memory leaks and GC pauses
 const manifestCache = new BoundedCache(200, CACHE_MANIFEST_MS);
+// Short-lived 1.5s micro-cache for live media playlists to eliminate polling latency spikes
+const mediaManifestCache = new BoundedCache(300, 1500);
 
 // Cache authorized IPs removed (Task 17/7)
 
@@ -324,7 +325,7 @@ async function makeProxyRequest(url, headers, redirectDepth = 0, onRequestCreate
     const client  = isHttps ? https : http;
     const agent   = isHttps ? httpsAgent : httpAgent;  // ← keepAlive pool
 
-    const req = client.request(url, { headers, agent, timeout: 20000 }, (res) => {
+    const req = client.request(url, { headers, agent, timeout: 6000 }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         // Follow redirect with incremented depth counter, re-checking SSRF on each hop
         const nextUrl = resolveUrl(url, res.headers.location);
@@ -392,6 +393,16 @@ exports.proxyManifest = async (req, res) => {
       res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Range');
       res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
       return res.send(typeof cachedManifest === 'object' && cachedManifest.data ? cachedManifest.data : cachedManifest);
+    }
+    const cachedMedia = mediaManifestCache.get(manifestCacheKey);
+    if (cachedMedia) {
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.setHeader('Cache-Control', 'no-cache, no-store');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Range');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
+      return res.send(typeof cachedMedia === 'object' && cachedMedia.data ? cachedMedia.data : cachedMedia);
     }
 
     // Sanitize headers_json — only allow safe header names (prevent header injection)
@@ -561,6 +572,9 @@ exports.proxyManifest = async (req, res) => {
     // until the cache expires, causing the "loading -> playing -> loading" buffering loop.
     if (body.includes('#EXT-X-STREAM-INF')) {
       manifestCache.set(manifestCacheKey, rewritten);
+    } else {
+      // 1.5s micro-cache for live media playlists eliminates redundant upstream polling latency
+      mediaManifestCache.set(manifestCacheKey, rewritten);
     }
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
