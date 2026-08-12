@@ -402,6 +402,12 @@ initDatabase().then(() => {
         checkIndianStreams().catch(err => console.error('[health-scan] Cron error:', err));
       });
       console.log('[health-scan] Fast health checker initialized (Runs every 15 mins)');
+
+      // Run initial health scan 10s after startup
+      setTimeout(() => {
+        console.log('[health-scan] Running initial stream health scan...');
+        checkIndianStreams().catch(err => console.error('[health-scan] Startup error:', err));
+      }, 10000);
       // Sync Hindi M3U every 6 hours (offset by 30 minutes to avoid overlap)
       const { exec } = require('child_process');
       const path = require('path');

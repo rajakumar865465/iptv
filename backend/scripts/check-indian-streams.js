@@ -72,13 +72,16 @@ function makeRequest(url, method, headers = {}) {
 async function checkStream(url, customHeaders = {}) {
   if (!url || url.trim() === '') return { ok: false, error: 'empty_url' };
 
-  // Step 1: HEAD request — if server responds 200, the stream is alive
-  const headResult = await makeRequest(url, 'HEAD', customHeaders);
-  if (headResult.ok) return { ok: true, method: 'HEAD' };
-
-  // Step 2: Some servers reject HEAD. Try GET as fallback.
+  // Always use GET to verify actual M3U8 content (HEAD requests often falsely return 200)
   const getResult = await makeRequest(url, 'GET', customHeaders);
-  if (getResult.ok) return { ok: true, method: 'GET' };
+  if (getResult.ok) {
+    const body = getResult.body || '';
+    if (body.includes('#EXTM3U') || body.includes('#EXTINF') || body.includes('#EXT-X')) {
+      return { ok: true, method: 'GET' };
+    } else {
+      return { ok: false, error: 'invalid_m3u8_content' };
+    }
+  }
 
   return { ok: false, error: getResult.error || `HTTP_${getResult.status}` };
 }
@@ -121,8 +124,14 @@ async function checkIndianStreams() {
 
     // If main stream fails, try backup streams
     if (!result.ok) {
+      // Mark main stream as offline in channel_streams
+      await db.query(
+        `UPDATE channel_streams SET health_status = 'offline', last_failed_at = NOW() WHERE channel_id = $1 AND stream_url = $2`,
+        [ch.id, ch.stream_url]
+      ).catch(() => {});
+
       const { rows: backups } = await db.query(
-        `SELECT stream_url FROM channel_streams WHERE channel_id = $1 AND stream_url != $2 ORDER BY priority DESC`,
+        `SELECT id, stream_url FROM channel_streams WHERE channel_id = $1 AND stream_url != $2 ORDER BY priority DESC`,
         [ch.id, ch.stream_url]
       );
       
@@ -136,10 +145,25 @@ async function checkIndianStreams() {
             `UPDATE channels SET stream_url = $1 WHERE id = $2`,
             [finalUrl, ch.id]
           );
+          await db.query(
+            `UPDATE channel_streams SET health_status = 'online', last_success_at = NOW() WHERE id = $3`,
+            [backup.id]
+          ).catch(() => {});
           fixedCount++;
           break;
+        } else {
+          await db.query(
+            `UPDATE channel_streams SET health_status = 'offline', last_failed_at = NOW() WHERE id = $1`,
+            [backup.id]
+          ).catch(() => {});
         }
       }
+    } else {
+      // Update main stream health in channel_streams as well
+      await db.query(
+        `UPDATE channel_streams SET health_status = 'online', last_success_at = NOW() WHERE channel_id = $1 AND stream_url = $2`,
+        [ch.id, ch.stream_url]
+      ).catch(() => {});
     }
 
     const healthStatus = result.ok ? 'online' : 'offline';
