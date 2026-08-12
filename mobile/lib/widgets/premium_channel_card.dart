@@ -127,13 +127,13 @@ class _TappableScaleState extends State<_TappableScale> {
 }
 
 String _detailLine(ChannelModel channel) {
-  final parts = <String>[
-    if (channel.categoryName != null && channel.categoryName!.trim().isNotEmpty)
-      channel.categoryName!,
-    if (channel.language != null && channel.language!.trim().isNotEmpty)
-      channel.language!,
-  ];
-  return parts.join('  •  ');
+  if (channel.categoryName != null && channel.categoryName!.trim().isNotEmpty) {
+    return channel.categoryName!.trim();
+  }
+  if (channel.language != null && channel.language!.trim().isNotEmpty) {
+    return channel.language!.trim();
+  }
+  return '';
 }
 
 bool _isOffline(ChannelModel channel) {

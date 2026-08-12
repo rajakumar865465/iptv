@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
     AppNavItem(icon: Icons.home_rounded, label: 'Home'),
     AppNavItem(icon: Icons.live_tv_rounded, label: 'Live TV'),
     AppNavItem(icon: Icons.search_rounded, label: 'Search'),
-    AppNavItem(icon: Icons.favorite_rounded, label: 'Favorites'),
+    AppNavItem(icon: Icons.favorite_rounded, label: 'My List'),
     AppNavItem(icon: Icons.person_rounded, label: 'Profile'),
   ];
 
@@ -280,6 +280,12 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
             ),
           ),
           SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildQuickCategoryChips(),
+            ),
+          ),
+          SliverToBoxAdapter(
             child: HomeHero(onStartWatching: () => _seeAll()),
           ),
 
@@ -313,6 +319,25 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
             ),
           ],
 
+          // Popular Channels
+          if (state.popularChannels.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: HomeSectionHeader(
+                title: '🔥 Trending Now',
+                icon: Icons.local_fire_department_rounded,
+                accentColor: const Color(0xFFFF5722),
+                onSeeAll: () => _seeAll(),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: _buildCompactRow(
+                state.popularChannels.take(14).toList(),
+                PlayerSourceType.homePopular,
+                const ChannelSourceFilters(sort: 'popular'),
+              ),
+            ),
+          ],
+
           // Premium Channels
           if (state.premiumChannels.isNotEmpty) ...[
             SliverToBoxAdapter(
@@ -328,25 +353,6 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                 state.premiumChannels,
                 PlayerSourceType.homeFeatured,
                 const ChannelSourceFilters(premium: true),
-              ),
-            ),
-          ],
-
-          // Popular Channels
-          if (state.popularChannels.isNotEmpty) ...[
-            SliverToBoxAdapter(
-              child: HomeSectionHeader(
-                title: 'Popular Channels',
-                icon: Icons.local_fire_department_rounded,
-                accentColor: const Color(0xFFFF5722),
-                onSeeAll: () => _seeAll(),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: _buildCompactRow(
-                state.popularChannels.take(14).toList(),
-                PlayerSourceType.homePopular,
-                const ChannelSourceFilters(sort: 'popular'),
               ),
             ),
           ],
@@ -370,7 +376,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
             ),
           ],
 
-          // Category sections
+          // Category sections (capped at top 6 curated channels per category)
           for (final section in _orderSections(state.categories)) ...[
             SliverToBoxAdapter(
               child: HomeSectionHeader(
@@ -385,7 +391,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
             ),
             SliverToBoxAdapter(
               child: _buildCompactRow(
-                section.channels,
+                section.channels.take(6).toList(),
                 PlayerSourceType.category,
                 ChannelSourceFilters(
                   categoryId: section.id,
@@ -576,16 +582,90 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     );
   }
 
+  Widget _buildQuickCategoryChips() {
+    final categories = [
+      ('News', Icons.newspaper_rounded, const Color(0xFF0EA5E9)),
+      ('Sports', Icons.sports_cricket_rounded, const Color(0xFFFF5722)),
+      ('Entertainment', Icons.theaters_rounded, const Color(0xFFF59E0B)),
+      ('Movies', Icons.movie_rounded, const Color(0xFF8B5CF6)),
+      ('Kids', Icons.child_care_rounded, const Color(0xFF06B6D4)),
+      ('Music', Icons.music_note_rounded, const Color(0xFFEC4899)),
+      ('Doordarshan', Icons.cell_tower_rounded, const Color(0xFFE11D48)),
+      ('Devotional', Icons.auto_awesome_rounded, const Color(0xFFFF8F00)),
+      ('Regional', Icons.language_rounded, const Color(0xFF10B981)),
+    ];
+
+    return SizedBox(
+      height: 38,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: categories.length,
+        itemBuilder: (context, index) {
+          final cat = categories[index];
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _seeAll(categoryName: cat.$1),
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(AppColors.surfaceElevated),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: cat.$3.withOpacity(0.35),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(cat.$2, size: 14, color: cat.$3),
+                      const SizedBox(width: 6),
+                      Text(
+                        cat.$1,
+                        style: const TextStyle(
+                          color: Color(AppColors.textPrimary),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   // ─── Category ordering helpers ────────────────────────────────────────────
 
   List<HomeCategorySection> _orderSections(List<HomeCategorySection> sections) {
     const order = <String, int>{
-      'doordarshan': 0,
-      'entertainment': 1,
-      'movies': 2,
-      'news': 3,
-      'regional': 4,
-      'devotional': 5,
+      'news': 1,
+      'sports': 2,
+      'sport': 2,
+      'cricket': 2,
+      'entertainment': 3,
+      'movies': 4,
+      'movie': 4,
+      'film': 4,
+      'kids': 5,
+      'cartoon': 5,
+      'music': 6,
+      'doordarshan': 7,
+      'dd': 7,
+      'devotional': 8,
+      'religion': 8,
+      'regional': 9,
+      'international': 10,
     };
     final sorted = List<HomeCategorySection>.from(sections);
     sorted.sort((a, b) {
@@ -601,12 +681,23 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     Map<String, List<ChannelModel>> byCategory,
   ) {
     const order = <String, int>{
-      'doordarshan': 0,
-      'entertainment': 1,
-      'movies': 2,
-      'news': 3,
-      'regional': 4,
-      'devotional': 5,
+      'news': 1,
+      'sports': 2,
+      'sport': 2,
+      'cricket': 2,
+      'entertainment': 3,
+      'movies': 4,
+      'movie': 4,
+      'film': 4,
+      'kids': 5,
+      'cartoon': 5,
+      'music': 6,
+      'doordarshan': 7,
+      'dd': 7,
+      'devotional': 8,
+      'religion': 8,
+      'regional': 9,
+      'international': 10,
     };
     final entries = byCategory.entries.toList();
     entries.sort((a, b) {
