@@ -402,6 +402,10 @@ exports.proxyManifest = async (req, res) => {
     if (cachedManifest) {
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
       res.setHeader('Cache-Control', 'no-cache, no-store');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Range');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
       return res.send(typeof cachedManifest === 'object' && cachedManifest.data ? cachedManifest.data : cachedManifest);
     }
 
