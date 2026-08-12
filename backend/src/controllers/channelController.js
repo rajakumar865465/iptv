@@ -130,12 +130,10 @@ function normalizeLanguage(raw) {
   return map[l] || (raw.trim().length > 0 ? raw.trim() : null);
 }
 
-// PLAYABLE health statuses — shown when workingOnly=true
-const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable', 'unknown', 'paid_blocked_scan'];
+// PLAYABLE health statuses — strictly enforced for workingOnly=true
+const WORKING_STATUSES = ['online', 'playable', 'stable'];
 // Hidden health statuses — always hidden from normal users
-const DEAD_STATUSES = ['offline', 'dead', 'forbidden_403', 'drm_or_unsupported', 'geo_blocked', 'requires_licensed_source'];
-// Allow unknown streams (channels not yet checked) when ALLOW_UNKNOWN_STREAMS=true in .env
-const ALLOW_UNKNOWN = process.env.ALLOW_UNKNOWN_STREAMS === 'true';
+const DEAD_STATUSES = ['offline', 'dead', 'forbidden_403', 'drm_or_unsupported', 'geo_blocked', 'requires_licensed_source', 'unstable', 'unknown', 'paid_blocked_scan'];
 
 // Build the health_status filter fragment for workingOnly mode
 function buildHealthFilter(paramIndex) {
@@ -144,9 +142,6 @@ function buildHealthFilter(paramIndex) {
   let fragment = `c.health_status IN (${statusList})`;
   const nextIndex = paramIndex + params.length;
 
-  if (ALLOW_UNKNOWN) {
-    fragment = `(${fragment} OR c.health_status IS NULL OR c.health_status = 'unknown')`;
-  }
   return { fragment, params, nextIndex };
 }
 

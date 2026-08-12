@@ -388,8 +388,16 @@ initDatabase().then(() => {
         runIptvOrgSync(true).catch(err => console.error('[iptv-org] Cron sync error:', err));
       });
       console.log('[iptv-org] Cron scheduler initialized (Runs every 6 hours)');
+      
+      // Fast targeted health scan for visible Indian channels
+      const { checkIndianStreams } = require('../scripts/check-indian-streams');
+      cron.schedule('*/15 * * * *', () => {
+        console.log('[health-scan] Starting 15-minute fast health scan...');
+        checkIndianStreams().catch(err => console.error('[health-scan] Cron error:', err));
+      });
+      console.log('[health-scan] Fast health checker initialized (Runs every 15 mins)');
     } catch (err) {
-      console.error('[iptv-org] Failed to initialize cron scheduler:', err);
+      console.error('[cron] Failed to initialize cron schedulers:', err);
     }
   });
 });
