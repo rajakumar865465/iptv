@@ -1072,12 +1072,14 @@ exports.getChannelPlayback = async (req, res) => {
       );
     };
 
-    // Priority 1: explicitly marked primary that is NOT audio-only
-    let primary = result.rows.find(r => r.is_primary === true && !isAudioOnlyTrack(r));
-    // Priority 2: any top-level stream (no parent) that is NOT audio-only
+    // Priority 1: online/unknown primary stream (not audio-only)
+    let primary = result.rows.find(r => r.is_primary === true && !isAudioOnlyTrack(r) && r.health_status !== 'offline');
+    // Priority 2: online/unknown top-level stream (not audio-only)
+    if (!primary) primary = result.rows.find(r => r.parent_stream_id == null && !isAudioOnlyTrack(r) && r.health_status !== 'offline');
+    // Priority 3: any primary stream
+    if (!primary) primary = result.rows.find(r => r.is_primary === true && !isAudioOnlyTrack(r));
+    // Priority 4: any top-level stream
     if (!primary) primary = result.rows.find(r => r.parent_stream_id == null && !isAudioOnlyTrack(r));
-    // Priority 3: is_primary even if it looks like audio (safety net)
-    if (!primary) primary = result.rows.find(r => r.is_primary === true);
     // Last resort: first stream returned
     if (!primary) primary = result.rows[0];
 

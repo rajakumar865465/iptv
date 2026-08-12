@@ -1922,8 +1922,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               'has_dimensions': hasDimensions,
               'playback_path': _playbackPath,
             });
-            // Don't kill it — let the stall watchdog (buffer timeout) handle a
-            // genuine stall. Startup succeeded as far as the engine is concerned.
+            _onStartupSuccess('web_playing_startup_timer', thisGeneration);
             return;
           }
 
@@ -1936,7 +1935,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                 'is_initialized': _playerInitialized,
                 'is_playing': _player.state.playing,
              });
-             // Don't kill it immediately if we're technically playing but buffering - wait for stall watchdog
+             _onStartupSuccess('proxy_playing_startup_timer', thisGeneration);
              return;
           }
 
