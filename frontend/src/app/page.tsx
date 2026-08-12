@@ -117,7 +117,7 @@ function SecondaryCTA({ href, children }: { href: string; children: React.ReactN
   return (
     <Link
       href={href}
-      className="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm sm:text-base border border-slate-600 hover:border-slate-400 shadow-lg shadow-black/20 backdrop-blur-sm transition-all min-h-[44px]"
+      className="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 !text-white font-extrabold text-sm sm:text-base border border-slate-500 hover:border-white/60 shadow-lg shadow-black/40 backdrop-blur-sm transition-all min-h-[44px]"
     >
       {children}
     </Link>
