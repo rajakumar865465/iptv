@@ -14,7 +14,7 @@ async function main() {
       if (c.tvg_id) {
         const parts = c.tvg_id.split('.');
         if (parts.length > 1) {
-          extractedCountry = parts[parts.length - 1].toUpperCase();
+          extractedCountry = parts[parts.length - 1].toUpperCase().substring(0, 10);
         }
       }
       
