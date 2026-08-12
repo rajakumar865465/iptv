@@ -396,6 +396,21 @@ initDatabase().then(() => {
         checkIndianStreams().catch(err => console.error('[health-scan] Cron error:', err));
       });
       console.log('[health-scan] Fast health checker initialized (Runs every 15 mins)');
+      // Sync Hindi M3U every 6 hours (offset by 30 minutes to avoid overlap)
+      const { exec } = require('child_process');
+      const path = require('path');
+      cron.schedule('30 */6 * * *', () => {
+        console.log('[hindi-m3u] Starting scheduled Hindi M3U sync...');
+        exec('node ' + path.join(__dirname, '../scripts/sync-hindi-m3u.js'), (error, stdout, stderr) => {
+          if (error) {
+            console.error('[hindi-m3u] Cron sync error:', error);
+            return;
+          }
+          if (stdout) console.log(stdout.trim());
+          if (stderr) console.error(stderr.trim());
+        });
+      });
+      console.log('[hindi-m3u] Cron scheduler initialized (Runs every 6 hours)');
     } catch (err) {
       console.error('[cron] Failed to initialize cron schedulers:', err);
     }
