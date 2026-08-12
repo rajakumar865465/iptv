@@ -26,6 +26,13 @@ function makeRequest(url, method, headers = {}) {
     };
     if (method === 'GET') reqHeaders['Range'] = 'bytes=0-2048';
 
+    // Hard timeout to prevent DNS/OS level hanging
+    const timeoutId = setTimeout(() => {
+      resolve({ ok: false, error: 'hard_timeout' });
+    }, REQUEST_TIMEOUT + 2000);
+
+    const cleanup = () => clearTimeout(timeoutId);
+
     const req = client.request(url, {
       method,
       timeout: REQUEST_TIMEOUT,
@@ -41,16 +48,23 @@ function makeRequest(url, method, headers = {}) {
           body += chunk;
           if (body.length > 2048) res.destroy();
         });
-        res.on('end', () => resolve({ ok: status >= 200 && status < 400, status, contentType, body }));
-        res.on('error', () => resolve({ ok: false, error: 'response_error' }));
+        res.on('end', () => {
+          cleanup();
+          resolve({ ok: status >= 200 && status < 400, status, contentType, body });
+        });
+        res.on('error', () => {
+          cleanup();
+          resolve({ ok: false, error: 'response_error' });
+        });
       } else {
         res.resume();
+        cleanup();
         resolve({ ok: status >= 200 && status < 400, status, contentType, body: '' });
       }
     });
 
-    req.on('error', () => resolve({ ok: false, error: 'request_error' }));
-    req.on('timeout', () => { req.destroy(); resolve({ ok: false, error: 'timeout' }); });
+    req.on('error', () => { cleanup(); resolve({ ok: false, error: 'request_error' }); });
+    req.on('timeout', () => { req.destroy(); cleanup(); resolve({ ok: false, error: 'timeout' }); });
     req.end();
   });
 }
