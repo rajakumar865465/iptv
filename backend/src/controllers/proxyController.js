@@ -44,13 +44,17 @@ async function isSafeExternalUrl(urlString) {
       return !isPrivateIp(hostname);
     }
 
-    // For hostnames, resolve to IP(s) and validate all of them
-    let addresses;
+    // For hostnames, resolve to IP(s) using fast OS lookup (dns.lookup) with fallback to resolve4
+    let addresses = [];
     try {
-      addresses = await dns.resolve4(hostname).catch(async () => {
-        const r6 = await dns.resolve6(hostname).catch(() => []);
-        return r6;
-      });
+      const res = await dns.lookup(hostname, { all: true }).catch(() => []);
+      if (res && res.length > 0) {
+        addresses = res.map(r => r.address);
+      } else {
+        addresses = await dns.resolve4(hostname).catch(async () => {
+          return await dns.resolve6(hostname).catch(() => []);
+        });
+      }
     } catch {
       return false; // DNS failure — refuse
     }
@@ -266,7 +270,9 @@ async function isSafeExternalUrlCached(urlString) {
     const cached = dnsCache.get(hostname);
     if (cached !== undefined) return cached.data;
     const result = await isSafeExternalUrl(urlString);
-    dnsCache.set(hostname, result);
+    if (result === true) {
+      dnsCache.set(hostname, result);
+    }
     return result;
   } catch {
     return false;
@@ -304,7 +310,7 @@ async function makeProxyRequest(url, headers, redirectDepth = 0, onRequestCreate
   }
 
   // SSRF check on every hop — a redirect could point to an internal address
-  const safe = await isSafeExternalUrl(url);
+  const safe = await isSafeExternalUrlCached(url);
   if (!safe) {
     const err = new Error('SSRF: target URL resolves to a blocked address');
     err.statusCode = 400;
