@@ -533,6 +533,15 @@ async function main() {
   Object.entries(report.categories).slice(0,10).forEach(([k,v]) => console.log(`    ${k}: ${v}`));
   console.log(`\n  Report saved → reports/import-report.json`);
 
+  // Assign permanent channel numbers to any newly imported channels.
+  try {
+    const { assignChannelNumbers } = require('../src/utils/channelNumbering');
+    const { assigned } = await assignChannelNumbers(db);
+    console.log(`  Channel numbers assigned: ${assigned}`);
+  } catch (e) {
+    console.error('  Channel number assignment failed:', e.message);
+  }
+
   await db.pool.end();
   process.exit(0);
 }

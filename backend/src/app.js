@@ -185,6 +185,16 @@ async function initDatabase() {
     } catch (e) {
       console.error('[RECOVERY] Failed to run recovery checks, ignoring:', e.message);
     }
+
+    // Assign permanent channel numbers + genre to any channels missing one.
+    // Idempotent (only fills NULLs) so existing numbers are never renumbered.
+    try {
+      const { assignChannelNumbers } = require('./utils/channelNumbering');
+      const { assigned } = await assignChannelNumbers(db);
+      if (assigned > 0) console.log(`[channelNumbering] Assigned ${assigned} new channel number(s) on startup.`);
+    } catch (e) {
+      console.error('[channelNumbering] Failed to assign channel numbers, ignoring:', e.message);
+    }
   } catch (err) {
     console.error('Database initialization error:', err.message);
     // A failed migration means the schema is in an unknown state — refuse to

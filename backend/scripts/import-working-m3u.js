@@ -379,6 +379,16 @@ async function main() {
          AND source = 'working-m3u'`
     );
     console.log(`\n  Activated ${activeRes.rowCount} newly imported channels.`);
+
+    // Assign permanent channel numbers to any newly imported channels.
+    try {
+      const { assignChannelNumbers } = require('../src/utils/channelNumbering');
+      const { assigned } = await assignChannelNumbers(db);
+      console.log(`  Channel numbers assigned: ${assigned}`);
+    } catch (e) {
+      console.error('  Channel number assignment failed:', e.message);
+    }
+
     await db.pool.end();
   }
   process.exit(0);

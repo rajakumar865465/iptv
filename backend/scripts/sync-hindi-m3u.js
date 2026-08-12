@@ -107,6 +107,15 @@ async function syncHindiM3u() {
       WHERE channels.id = sub.channel_id
     `);
     console.log(`[hindi-m3u-sync] Refreshed ${activated} active channels in the main table.`);
+
+    // Assign permanent channel numbers to any newly added channels.
+    try {
+      const { assignChannelNumbers } = require('../src/utils/channelNumbering');
+      const { assigned } = await assignChannelNumbers(db);
+      console.log(`[hindi-m3u-sync] Channel numbers assigned: ${assigned}`);
+    } catch (e) {
+      console.error('[hindi-m3u-sync] Channel number assignment failed:', e.message);
+    }
   } catch (err) {
     console.error('[hindi-m3u-sync] Error during sync:', err.message);
   } finally {

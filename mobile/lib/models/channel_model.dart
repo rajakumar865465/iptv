@@ -27,6 +27,9 @@ class ChannelModel {
   final String defaultFitMode;
   final String aspectRatioType;
   final bool hasInternalBlackBars;
+  final int? channelNumber;
+  final String? genre;
+  final DateTime? createdAt;
 
   ChannelModel({
     required this.id,
@@ -57,6 +60,9 @@ class ChannelModel {
     this.defaultFitMode = 'original',
     this.aspectRatioType = 'unknown',
     this.hasInternalBlackBars = false,
+    this.channelNumber,
+    this.genre,
+    this.createdAt,
   });
 
   /// True if this channel is likely playable (shown when workingOnly=true)
@@ -82,6 +88,10 @@ class ChannelModel {
     if (q.isEmpty) return 'SD';
     return quality!.toUpperCase();
   }
+
+  /// Permanent channel number as a zero-padded 3-digit label (e.g. "007").
+  /// Returns null when the channel has no assigned number.
+  String? get numberLabel => channelNumber?.toString().padLeft(3, '0');
 
   factory ChannelModel.fromJson(Map<String, dynamic> json) {
     String? parseString(dynamic value) {
@@ -134,6 +144,9 @@ class ChannelModel {
       defaultFitMode: json['default_fit_mode'] ?? 'original',
       aspectRatioType: json['aspect_ratio_type'] ?? 'unknown',
       hasInternalBlackBars: parseBool(json['has_internal_black_bars']),
+      channelNumber: json['channel_number'] == null ? null : parseInt(json['channel_number']),
+      genre: parseString(json['genre']),
+      createdAt: json['created_at'] == null ? null : DateTime.tryParse(json['created_at'].toString()),
     );
   }
 }

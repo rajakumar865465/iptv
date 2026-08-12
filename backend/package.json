@@ -16,6 +16,7 @@
     "check-pending": "node scripts/check-streams-deep.js --pending --concurrency=10",
     "check-logos": "node scripts/check-logos.js",
     "check-logos-missing": "node scripts/check-logos.js --missing-only",
+    "assign-numbers": "node scripts/assign-channel-numbers.js",
     "dedupe": "node scripts/dedupe-channels.js",
     "dedupe-dry": "node scripts/dedupe-channels.js --dry-run",
     "activate": "node scripts/activate-working-channels.js",

@@ -58,7 +58,10 @@ class ChannelCubit extends Cubit<ChannelState> {
   int? _filterCategoryId;
   String? _filterCategoryName;
   String? _filterLanguage;
-  String _sortBy = 'recommended'; // recommended | popular | premium | az | recent | quality | stable
+  String? _genreFilter;   // coarse 9-genre facet (News, Movies, …)
+  String? _countryFilter; // country code / name substring
+  String? _qualityFilter; // hd | sd | 4k
+  String _sortBy = 'recommended'; // recommended | popular | premium | az | recent | quality | stable | number | watched | updated
   String _premiumFilter = 'all'; // all | true | false
 
   // Track what filter was active when chips were last loaded so we know when to reload them
@@ -69,10 +72,22 @@ class ChannelCubit extends Cubit<ChannelState> {
   int? get filterCategoryId => _filterCategoryId;
   String? get filterCategoryName => _filterCategoryName;
   String? get filterLanguage => _filterLanguage;
+  String? get genreFilter => _genreFilter;
+  String? get countryFilter => _countryFilter;
+  String? get qualityFilter => _qualityFilter;
   String get sortBy => _sortBy;
   String get premiumFilter => _premiumFilter;
   bool get workingOnly => _workingOnly;
   String get currentQuery => _currentQuery;
+
+  /// True when any directory facet (beyond search) is narrowing the list.
+  bool get hasActiveFilters =>
+      _filterCategoryId != null ||
+      _filterLanguage != null ||
+      _genreFilter != null ||
+      _countryFilter != null ||
+      _qualityFilter != null ||
+      _premiumFilter != 'all';
 
   Future<void> loadChannels({
     bool isRefresh = false,
@@ -82,8 +97,14 @@ class ChannelCubit extends Cubit<ChannelState> {
     int? categoryId,
     String? categoryName,
     String? language,
+    String? genre,
+    String? country,
+    String? quality,
     String? sortBy,
     String? premiumFilter,
+    // When false, omit page/limit so the server returns the FULL filtered set in
+    // one response — used by the Live TV directory to build A–Z / quick sections.
+    bool paginate = true,
   }) async {
     if (isRefresh) {
       _currentPage = 1;
@@ -98,7 +119,6 @@ class ChannelCubit extends Cubit<ChannelState> {
     } else {
       if (!_hasMore) return;
       if (state is ChannelLoaded) {
-        final s = state as ChannelLoaded;
         emit(ChannelLoaded(
           _allChannels, _allCategories, _allLanguages,
           hasMore: _hasMore, isLoadingMore: true,
@@ -128,6 +148,15 @@ class ChannelCubit extends Cubit<ChannelState> {
     if (language != null) {
       _filterLanguage = language.isEmpty ? null : language;
     }
+    if (genre != null) {
+      _genreFilter = genre.isEmpty ? null : genre;
+    }
+    if (country != null) {
+      _countryFilter = country.isEmpty ? null : country;
+    }
+    if (quality != null) {
+      _qualityFilter = quality.isEmpty ? null : quality;
+    }
 
     if (sortBy != null) _sortBy = sortBy;
     if (premiumFilter != null) _premiumFilter = premiumFilter;
@@ -154,14 +183,19 @@ class ChannelCubit extends Cubit<ChannelState> {
     );
 
     try {
-      final params = <String, dynamic>{
-        'page': _currentPage,
-        'limit': 50,
-      };
+      final params = <String, dynamic>{};
+      // Omit page/limit when not paginating → backend returns the full filtered set.
+      if (paginate) {
+        params['page'] = _currentPage;
+        params['limit'] = 50;
+      }
 
       if (_currentQuery.isNotEmpty) params['search'] = _currentQuery;
       if (_filterCategoryId != null) params['categoryId'] = _filterCategoryId.toString();
       if (_filterLanguage != null) params['language'] = _filterLanguage;
+      if (_genreFilter != null) params['genre'] = _genreFilter;
+      if (_countryFilter != null) params['country'] = _countryFilter;
+      if (_qualityFilter != null) params['quality'] = _qualityFilter;
       if (_workingOnly) {
         params['workingOnly'] = 'true';
       } else {
@@ -258,7 +292,9 @@ class ChannelCubit extends Cubit<ChannelState> {
 
         // Cache first page of unfiltered standard load
         if (_currentPage == 2 && _currentQuery.isEmpty &&
-            _filterCategoryId == null && _filterLanguage == null) {
+            _filterCategoryId == null && _filterLanguage == null &&
+            _genreFilter == null && _countryFilter == null &&
+            _qualityFilter == null && _premiumFilter == 'all') {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString(StorageKeys.cachedChannels, jsonEncode(channelRes['data']));
           await prefs.setString(StorageKeys.cachedCategories, jsonEncode(

@@ -164,8 +164,10 @@ exports.getChannels = async (req, res) => {
       showOffline,
       workingOnly,
       premium,        // 'true' | 'false' | 'all'
+      genre,          // coarse 9-genre facet (News, Movies, Sports, …)
+      quality,        // 'hd' | 'sd' | '4k' — resolution bucket filter
       region,           // 'world' allows showing international channels
-      sort,           // recommended | popular | premium | az | recent | quality | stable
+      sort,           // recommended | popular | premium | az | recent | quality | stable | number | watched | updated
     } = req.query;
 
     const usePagination = page !== undefined;
@@ -260,6 +262,28 @@ exports.getChannels = async (req, res) => {
     }
     // premium='all' or omitted: no filter
 
+    // Genre filter — coarse 9-genre facet (exact match on the derived column)
+    if (genre && genre.trim().length > 0) {
+      conditions.push(`c.genre = $${paramIndex++}`);
+      params.push(genre.trim());
+    }
+
+    // Quality filter — resolution buckets over the free-text quality column.
+    // Buckets mirror the sort='quality' CASE above.
+    if (quality && quality.trim().length > 0) {
+      const q = quality.trim().toLowerCase();
+      const qualityBuckets = {
+        '4k': ['4k', 'uhd', '2160p'],
+        hd:   ['hd', '720p', 'fhd', '1080p'],
+        sd:   ['sd', '480p', '576p'],
+      };
+      const bucket = qualityBuckets[q];
+      if (bucket) {
+        const placeholders = bucket.map(() => `$${paramIndex++}`).join(', ');
+        conditions.push(`LOWER(c.quality) IN (${placeholders})`);
+        params.push(...bucket);
+      }
+    }
     if (featured === 'true' || popular === 'true') {
       if (featured === 'true') {
         conditions.push(`c.is_featured = true`);
@@ -295,6 +319,15 @@ exports.getChannels = async (req, res) => {
         break;
       case 'recent':
         orderClause = `ORDER BY c.created_at DESC NULLS LAST, c.name ASC`;
+        break;
+      case 'number':
+        orderClause = `ORDER BY c.channel_number ASC NULLS LAST, c.name ASC`;
+        break;
+      case 'watched':
+        orderClause = `ORDER BY COALESCE(c.watch_count,0) DESC, COALESCE(c.popularity_score,0) DESC, c.name ASC`;
+        break;
+      case 'updated':
+        orderClause = `ORDER BY c.updated_at DESC NULLS LAST, c.name ASC`;
         break;
       case 'quality':
         orderClause = `ORDER BY CASE WHEN LOWER(c.quality) IN ('4k','uhd','2160p') THEN 0 WHEN LOWER(c.quality) IN ('fhd','1080p') THEN 1 WHEN LOWER(c.quality) IN ('hd','720p') THEN 2 WHEN LOWER(c.quality) IN ('sd','480p','576p') THEN 3 ELSE 4 END, c.name ASC`;
@@ -348,6 +381,8 @@ exports.getChannels = async (req, res) => {
         filters: {
           categoryId: categoryId || null,
           language: language || null,
+          genre: genre || null,
+          quality: quality || null,
           workingOnly: workingOnly === 'true',
           premium: premium || 'all',
           search: search || null,
