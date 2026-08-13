@@ -111,15 +111,16 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: { isOpen: bool
                 </button>
               ) : (
                 <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                  <div className="flex justify-center w-full bg-white rounded-xl overflow-hidden hover:opacity-90 transition-opacity">
+                  <div className="flex justify-center w-full hover:opacity-90 transition-opacity">
                     <GoogleLogin
                       onSuccess={handleGoogleSuccess}
                       onError={() => setError('Google login popup closed or failed')}
                       useOneTap
-                      theme="outline"
+                      theme="filled_black"
                       size="large"
                       shape="rectangular"
-                      width="100%"
+                      text="continue_with"
+                      width="400"
                     />
                   </div>
                 </GoogleOAuthProvider>
