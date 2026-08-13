@@ -39,33 +39,23 @@ class HomeHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Brand mark
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _BrandMark(),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'NivaTV',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.6,
-                        height: 1,
-                      ),
-                    ),
-                  ],
+                const Text(
+                  'NIVATV',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
+                    height: 1.1,
+                  ),
                 ),
-                const SizedBox(height: 8),
-                // Greeting
+                const SizedBox(height: 2),
                 Text(
-                  _displayGreeting,
+                  '👋 $_displayGreeting',
                   style: const TextStyle(
                     color: Color(AppColors.textSecondary),
-                    fontSize: 13.5,
+                    fontSize: 13,
                     fontWeight: FontWeight.w500,
-                    letterSpacing: -0.2,
                     height: 1.2,
                   ),
                   maxLines: 1,
@@ -74,13 +64,6 @@ class HomeHeader extends StatelessWidget {
               ],
             ),
           ),
-          // Premium badge
-          if (isPremium)
-            _PremiumBadge()
-          else
-            _UpgradeButton(onTap: onPremiumTap),
-          const SizedBox(width: 10),
-          // Notification
           _NotificationButton(
             onTap: onNotificationTap,
             hasUnread: hasUnreadNotifications,

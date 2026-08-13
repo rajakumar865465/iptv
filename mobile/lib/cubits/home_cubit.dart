@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../services/api_service.dart';
+import '../services/storage_service.dart';
 import '../models/channel_model.dart';
 import '../constants.dart';
 
@@ -83,7 +84,14 @@ class HomeCubit extends Cubit<HomeState> {
         }
         final data = rawData;
 
-        final continueWatching = _parseChannels(data['continue_watching']);
+        final serverContinueWatching = _parseChannels(data['continue_watching']);
+        final localContinueWatching = await StorageService().getWatchHistory();
+        
+        // Merge or just use local if preferred.
+        final continueWatching = localContinueWatching.isNotEmpty 
+            ? localContinueWatching 
+            : serverContinueWatching;
+
         final premiumChannels  = _parseChannels(data['premium_channels']);
         final popularChannels  = _parseChannels(data['popular_channels']);
         final featuredChannels = _parseChannels(data['featured_channels']);
@@ -96,7 +104,7 @@ class HomeCubit extends Cubit<HomeState> {
 
         developer.log(
           '[HomeCubit] Loaded home:\n'
-          '  continueWatching=${continueWatching.length}\n'
+          '  continueWatching=${continueWatching.length} (local: ${localContinueWatching.length})\n'
           '  premium=${premiumChannels.length}\n'
           '  popular=${popularChannels.length}\n'
           '  featured=${featuredChannels.length}\n'

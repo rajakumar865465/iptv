@@ -149,14 +149,14 @@ class _NavItem extends StatelessWidget {
                     children: [
                       Icon(
                         item.icon,
-                        color: const Color(AppColors.textMuted),
+                        color: const Color(AppColors.textMuted).withOpacity(0.5),
                         size: 22,
                       ),
                       const SizedBox(height: 3),
                       Text(
                         item.label,
-                        style: const TextStyle(
-                          color: Color(AppColors.textMuted),
+                        style: TextStyle(
+                          color: const Color(AppColors.textMuted).withOpacity(0.5),
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                         ),

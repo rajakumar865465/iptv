@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
 import '../cubits/home_cubit.dart';
 import '../cubits/channel_cubit.dart';
+import '../cubits/favorite_cubit.dart';
 import '../cubits/license_cubit.dart';
 import '../models/channel_model.dart';
 import '../services/api_service.dart';
@@ -300,6 +301,25 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
               ),
             ),
 
+          // Popular Channels (Trending Now)
+          if (state.popularChannels.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: HomeSectionHeader(
+                title: '🔥 Trending Now',
+                icon: Icons.local_fire_department_rounded,
+                accentColor: const Color(0xFFFF5722),
+                onSeeAll: () => _seeAll(),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: _buildCompactRow(
+                state.popularChannels.take(14).toList(),
+                PlayerSourceType.homePopular,
+                const ChannelSourceFilters(sort: 'popular'),
+              ),
+            ),
+          ],
+
           // Continue Watching
           if (state.continueWatching.isNotEmpty) ...[
             SliverToBoxAdapter(
@@ -319,62 +339,6 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
             ),
           ],
 
-          // Popular Channels
-          if (state.popularChannels.isNotEmpty) ...[
-            SliverToBoxAdapter(
-              child: HomeSectionHeader(
-                title: '🔥 Trending Now',
-                icon: Icons.local_fire_department_rounded,
-                accentColor: const Color(0xFFFF5722),
-                onSeeAll: () => _seeAll(),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: _buildCompactRow(
-                state.popularChannels.take(14).toList(),
-                PlayerSourceType.homePopular,
-                const ChannelSourceFilters(sort: 'popular'),
-              ),
-            ),
-          ],
-
-          // Premium Channels
-          if (state.premiumChannels.isNotEmpty) ...[
-            SliverToBoxAdapter(
-              child: HomeSectionHeader(
-                title: 'Premium Channels',
-                icon: Icons.workspace_premium_rounded,
-                accentColor: const Color(AppColors.premiumGold),
-                onSeeAll: () => _seeAll(),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: _buildFeaturedRow(
-                state.premiumChannels,
-                PlayerSourceType.homeFeatured,
-                const ChannelSourceFilters(premium: true),
-              ),
-            ),
-          ],
-
-          // Featured Live
-          if (state.featuredChannels.isNotEmpty) ...[
-            SliverToBoxAdapter(
-              child: HomeSectionHeader(
-                title: 'Featured Live',
-                icon: Icons.live_tv_rounded,
-                accentColor: const Color(AppColors.primary),
-                onSeeAll: () => _seeAll(),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: _buildFeaturedRow(
-                state.featuredChannels,
-                PlayerSourceType.homeFeatured,
-                const ChannelSourceFilters(),
-              ),
-            ),
-          ],
 
           // Category sections (capped at top 6 curated channels per category)
           for (final section in _orderSections(state.categories)) ...[
@@ -443,22 +407,37 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     ChannelSourceFilters filters,
   ) {
     return SizedBox(
-      height: 168,
+      height: 146,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: channels.length,
-        itemBuilder: (context, i) => PremiumChannelCard(
-          channel: channels[i],
-          variant: PremiumChannelCardVariant.compact,
-          onTap: () => _openPlayer(
-            channel: channels[i],
-            contextChannels: channels,
-            sourceType: sourceType,
-            filters: filters,
-          ),
-        ),
+        itemBuilder: (context, i) {
+          final channel = channels[i];
+          return BlocBuilder<FavoriteCubit, FavoriteState>(
+            builder: (context, favState) {
+              bool isFav = false;
+              if (favState is FavoriteLoaded) {
+                isFav = favState.favorites.any((f) => f.id == channel.id);
+              }
+              return PremiumChannelCard(
+                channel: channel,
+                variant: PremiumChannelCardVariant.compact,
+                showFavorite: true,
+                isFavorite: isFav,
+                onFavoriteToggle: () =>
+                    context.read<FavoriteCubit>().toggleFavorite(channel.id, isFavorite: isFav),
+                onTap: () => _openPlayer(
+                  channel: channel,
+                  contextChannels: channels,
+                  sourceType: sourceType,
+                  filters: filters,
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -612,31 +591,31 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                 onTap: () => _seeAll(categoryName: cat.$1),
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(AppColors.surfaceElevated),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: cat.$3.withOpacity(0.35),
-                      width: 0.8,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(AppColors.surfaceElevated),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(AppColors.divider).withOpacity(0.5),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(cat.$2, size: 16, color: cat.$3),
+                        const SizedBox(width: 6),
+                        Text(
+                          cat.$1,
+                          style: const TextStyle(
+                            color: Color(AppColors.textPrimary),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(cat.$2, size: 14, color: cat.$3),
-                      const SizedBox(width: 6),
-                      Text(
-                        cat.$1,
-                        style: const TextStyle(
-                          color: Color(AppColors.textPrimary),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ),
             ),
           );

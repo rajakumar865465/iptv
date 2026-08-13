@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/channel_model.dart';
 import '../constants.dart';
 import '../models/user_model.dart';
 
@@ -240,5 +241,33 @@ class StorageService {
     await prefs.remove(StorageKeys.hasSeenOnboarding);
     await prefs.remove(StorageKeys.cachedChannels);
     await prefs.remove(StorageKeys.cachedCategories);
+    await prefs.remove(StorageKeys.watchHistory);
+  }
+
+  // --- Watch History ---
+  Future<List<ChannelModel>> getWatchHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonStr = prefs.getString(StorageKeys.watchHistory);
+    if (jsonStr == null || jsonStr.isEmpty) return [];
+    try {
+      final List<dynamic> jsonList = jsonDecode(jsonStr);
+      return jsonList.map((e) => ChannelModel.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveWatchHistory(ChannelModel channel) async {
+    final history = await getWatchHistory();
+    // Remove if already exists to put it at the beginning
+    history.removeWhere((c) => c.id == channel.id);
+    history.insert(0, channel);
+    // Keep top 20 items
+    if (history.length > 20) {
+      history.removeRange(20, history.length);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final jsonStr = jsonEncode(history.map((c) => c.toJson()).toList());
+    await prefs.setString(StorageKeys.watchHistory, jsonStr);
   }
 }

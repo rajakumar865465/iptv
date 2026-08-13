@@ -149,6 +149,42 @@ class ChannelModel {
       createdAt: json['created_at'] == null ? null : DateTime.tryParse(json['created_at'].toString()),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'logo_url': logoUrl,
+      'stream_url': streamUrl,
+      'backup_stream_url': backupStreamUrl,
+      'category_id': categoryId,
+      'category_name': categoryName,
+      'language': language,
+      'quality': quality,
+      'status': status,
+      'health_status': healthStatus,
+      'is_featured': isFeatured,
+      'is_premium': isPremium,
+      'is_popular': isPopular,
+      'sort_order': sortOrder,
+      'popularity_score': popularityScore,
+      'watch_count': watchCount,
+      'favorite_count': favoriteCount,
+      'show_on_home': showOnHome,
+      'referrer': referrer,
+      'user_agent': userAgent,
+      'country': country,
+      'local_logo_url': localLogoUrl,
+      'logo_status': logoStatus,
+      'health_score': healthScore,
+      'default_fit_mode': defaultFitMode,
+      'aspect_ratio_type': aspectRatioType,
+      'has_internal_black_bars': hasInternalBlackBars,
+      'channel_number': channelNumber,
+      'genre': genre,
+      'created_at': createdAt?.toIso8601String(),
+    };
+  }
 }
 
 class CategoryModel {

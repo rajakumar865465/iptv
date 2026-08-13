@@ -44,20 +44,12 @@ class HomeSectionHeader extends StatelessWidget {
           const SizedBox(width: 10),
           // Optional icon
           if (icon != null) ...[
-            Container(
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                icon,
-                color: color,
-                size: 15,
-              ),
+            Icon(
+              icon,
+              color: color,
+              size: 20,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
           ],
           // Title
           Expanded(
@@ -65,9 +57,9 @@ class HomeSectionHeader extends StatelessWidget {
               title,
               style: const TextStyle(
                 color: Color(AppColors.textPrimary),
-                fontSize: 17,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.4,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
                 height: 1.1,
               ),
               maxLines: 1,
@@ -78,32 +70,24 @@ class HomeSectionHeader extends StatelessWidget {
           if (onSeeAll != null)
             GestureDetector(
               onTap: onSeeAll,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(AppColors.primary).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: const Color(AppColors.primary).withOpacity(0.25),
-                    width: 0.8,
-                  ),
-                ),
-                child: const Row(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'See All',
+                      'See all',
                       style: TextStyle(
-                        color: Color(AppColors.primary),
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
+                        color: const Color(AppColors.textSecondary).withOpacity(0.8),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    SizedBox(width: 2),
+                    const SizedBox(width: 2),
                     Icon(
-                      Icons.chevron_right_rounded,
+                      Icons.arrow_forward_rounded,
                       size: 14,
-                      color: Color(AppColors.primary),
+                      color: const Color(AppColors.textSecondary).withOpacity(0.8),
                     ),
                   ],
                 ),

@@ -93,13 +93,26 @@ class HomeHero extends StatelessWidget {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const LiveBadge(small: true),
+                        const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '🔴 LIVE NOW',
+                              style: TextStyle(
+                                color: Color(AppColors.brandRed),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 12),
                         const Text(
-                          'Watch Live TV Instantly',
+                          'Watch What\'s On',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 20,
+                            fontSize: 22,
                             fontWeight: FontWeight.w900,
                             letterSpacing: -0.5,
                             height: 1.15,
@@ -107,7 +120,7 @@ class HomeHero extends StatelessWidget {
                         ),
                         const SizedBox(height: 7),
                         Text(
-                          'News, movies, devotional, music and regional channels',
+                          'Sports, News & Entertainment\nLive right now.',
                           style: TextStyle(
                             color: const Color(AppColors.textSecondary).withOpacity(0.95),
                             fontSize: 13,
@@ -122,35 +135,24 @@ class HomeHero extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Color(AppColors.primary),
-                              Color(0xFF2563EB),
-                            ],
-                          ),
+                          color: Colors.white.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(AppColors.primary).withOpacity(0.45),
-                              blurRadius: 16,
-                              spreadRadius: 0,
-                              offset: const Offset(0, 5),
-                            ),
-                          ],
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 1,
+                          ),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              Icons.play_circle_fill_rounded,
+                              Icons.play_arrow_rounded,
                               color: Colors.white,
                               size: 20,
                             ),
                             SizedBox(width: 8),
                             Text(
-                              'Start Watching',
+                              'Watch Live',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 13.5,

@@ -22,72 +22,31 @@ async function main() {
   console.log('║      Activate Working Indian Channels                 ║');
   console.log('╚══════════════════════════════════════════════════════╝\n');
 
-  // 1. Activate channels that have at least one online stream
-  //    Set active_stream_id and stream_url to the BEST stream:
-  //    priority: health_score DESC, then quality preference 720p>HD>SD>1080p
+  // 1. Activate ALL channels that have a non-empty stream_url
   const { rowCount: activated } = await db.query(`
     UPDATE channels SET
       status        = 'active',
       health_status = 'online',
-      active_stream_id = sub.best_stream_id,
-      stream_url    = sub.best_url,
-      quality       = sub.best_quality,
-      health_score  = sub.best_score,
+      is_hidden     = false,
+      is_removed    = false,
+      is_visible_app = true,
       updated_at    = NOW()
-    FROM (
-      SELECT DISTINCT ON (channel_id)
-        channel_id,
-        id   AS best_stream_id,
-        stream_url  AS best_url,
-        quality     AS best_quality,
-        health_score AS best_score
-      FROM channel_streams
-      WHERE health_status = 'online'
-      ORDER BY channel_id,
-               health_score DESC,
-               CASE quality
-                 WHEN '720p' THEN 1 WHEN 'HD'   THEN 2
-                 WHEN 'SD'   THEN 3 WHEN '1080p' THEN 4
-                 ELSE 5
-               END ASC,
-               fail_count ASC,
-               last_success_at DESC NULLS LAST
-    ) sub
-    WHERE channels.id = sub.channel_id
-      AND channels.status NOT IN ('merged','duplicate')
-  `);
-  console.log(`✓ Activated online channels:   ${activated}`);
-
-  // 2. Unstable channels (has streams but none fully online)
-  const { rowCount: unstabled } = await db.query(`
-    UPDATE channels SET
-      status       = 'active',
-      health_status = 'unstable',
-      updated_at   = NOW()
-    WHERE health_status != 'online'
+    WHERE stream_url IS NOT NULL 
+      AND stream_url != ''
       AND status NOT IN ('merged','duplicate')
-      AND id IN (
-        SELECT DISTINCT channel_id FROM channel_streams WHERE health_status = 'unstable'
-      ) AND id NOT IN (
-        SELECT DISTINCT channel_id FROM channel_streams WHERE health_status = 'online'
-      ) AND status IN ('pending_check','offline','unknown')
   `);
-  console.log(`~ Activated unstable channels: ${unstabled}`);
+  console.log(`✓ Activated channels with stream URLs: ${activated}`);
 
-  // 3. Mark truly offline channels (don't touch merged ones)
+  // 2. Mark channels with NO stream URL as offline
   const { rowCount: offlined } = await db.query(`
     UPDATE channels SET
-      status       = 'offline',
+      status        = 'offline',
       health_status = 'offline',
-      updated_at   = NOW()
-    WHERE status = 'pending_check'
+      updated_at    = NOW()
+    WHERE (stream_url IS NULL OR stream_url = '')
       AND status NOT IN ('merged','duplicate')
-      AND id NOT IN (
-        SELECT DISTINCT channel_id FROM channel_streams
-        WHERE health_status IN ('online','unstable')
-      )
   `);
-  console.log(`✗ Marked offline channels:     ${offlined}`);
+  console.log(`✗ Marked channels with empty stream URLs as offline: ${offlined}`);
 
   // 4. Paid channels with no licensed source
   // COMMENTED OUT: We want paid/premium channels to remain visible in the app

@@ -591,6 +591,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _controlsAnimController.forward();
 
     context.read<FavoriteCubit>().loadFavorites();
+    StorageService().saveWatchHistory(_currentChannel);
     _scrollController.addListener(_onScroll);
     _loadQualitySettingsAndFetch();
     
@@ -2845,6 +2846,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (_scrollController.hasClients) {
       _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     }
+    
+    // Save to local watch history
+    StorageService().saveWatchHistory(_currentChannel);
     
     // ── Phase 1: Start video playback (top priority) ─────────────────────────────
     _fetchPlaybackAndInitialize();

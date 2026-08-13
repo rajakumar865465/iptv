@@ -136,6 +136,10 @@ String _detailLine(ChannelModel channel) {
   return '';
 }
 
+String _cleanChannelName(String name) {
+  return name.replaceAll(RegExp(r'\s*\(\s*(1080p|720p|4k|4K|SD|HD|FHD)\s*\)\s*', caseSensitive: false), '').trim();
+}
+
 bool _isOffline(ChannelModel channel) {
   final h = channel.healthStatus?.toLowerCase() ?? '';
   return h == 'offline' || h == 'dead';
@@ -253,32 +257,32 @@ class _CompactCard extends StatelessWidget {
     final offline = _isOffline(channel);
 
     return Container(
-      width: 118,
-      height: 168,
+      width: 104,
+      height: 146,
       margin: margin ?? const EdgeInsets.only(right: 12),
       decoration: _cardDecoration(offline: offline),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 26, 10, 10),
+              padding: const EdgeInsets.fromLTRB(8, 20, 8, 8),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   _logoContainer(
                     channel: channel,
-                    containerSize: 72,
-                    logoSize: 56,
+                    containerSize: 64,
+                    logoSize: 48,
                   ),
-                  const SizedBox(height: 11),
+                  const SizedBox(height: 10),
                   Text(
-                    channel.name,
+                    _cleanChannelName(channel.name),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Color(AppColors.textPrimary),
-                      fontSize: 12.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.2,
                       height: 1.15,
@@ -287,13 +291,13 @@ class _CompactCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (detail.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       detail,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Color(AppColors.textMuted),
-                        fontSize: 10,
+                        fontSize: 9.5,
                         fontWeight: FontWeight.w500,
                         height: 1.2,
                       ),
@@ -310,10 +314,34 @@ class _CompactCard extends StatelessWidget {
               child: LiveBadge(small: true),
             ),
             Positioned(
-              top: 10,
-              left: 10,
+              top: 8,
+              left: 8,
               child: _topLeftBadge(channel),
             ),
+            if (showFavorite)
+              Positioned(
+                bottom: 6,
+                right: 6,
+                child: GestureDetector(
+                  onTap: onFavoriteToggle,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.4),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isFavorite == true
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      size: 14,
+                      color: isFavorite == true
+                          ? const Color(AppColors.brandRed)
+                          : Colors.white70,
+                    ),
+                  ),
+                ),
+              ),
             if (offline)
               Positioned(
                 bottom: 0,
@@ -425,7 +453,7 @@ class _FeaturedCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    channel.name,
+                    _cleanChannelName(channel.name),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
@@ -570,7 +598,7 @@ class _GridCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    channel.name,
+                    _cleanChannelName(channel.name),
                     style: const TextStyle(
                       color: Color(AppColors.textPrimary),
                       fontSize: 12.5,
@@ -679,7 +707,7 @@ class _RelatedCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    channel.name,
+                    _cleanChannelName(channel.name),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Color(AppColors.textPrimary),

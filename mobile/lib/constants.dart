@@ -137,4 +137,5 @@ class StorageKeys {
   static const String cachedChannels = 'cached_channels';
   static const String cachedCategories = 'cached_categories';
   static const String notificationsClearedAt = 'notifications_cleared_at';
+  static const String watchHistory = 'watch_history';
 }

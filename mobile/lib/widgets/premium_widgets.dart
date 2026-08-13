@@ -47,15 +47,12 @@ class _LiveBadgeState extends State<LiveBadge>
     return Container(
       padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
       decoration: BoxDecoration(
-        color: const Color(AppColors.brandRed),
+        color: Colors.black.withOpacity(0.4),
         borderRadius: BorderRadius.circular(4),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(AppColors.brandRed).withOpacity(0.45),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 0.5,
+        ),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         FadeTransition(
@@ -64,7 +61,7 @@ class _LiveBadgeState extends State<LiveBadge>
             width: h,
             height: h,
             decoration: const BoxDecoration(
-              color: Colors.white,
+              color: Color(AppColors.brandRed),
               shape: BoxShape.circle,
             ),
           ),
@@ -75,7 +72,7 @@ class _LiveBadgeState extends State<LiveBadge>
           style: TextStyle(
             fontSize: fs,
             fontWeight: FontWeight.w800,
-            color: Colors.white,
+            color: Colors.white.withOpacity(0.9),
             letterSpacing: 0.6,
           ),
         ),
