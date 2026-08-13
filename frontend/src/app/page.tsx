@@ -154,11 +154,8 @@ export default async function HomePage() {
   const tickerOnly = tickerChannels.filter(c => !popularIds.has(c.id));
   const tickerPool = [...popularChannels, ...tickerOnly];
 
-  // Homepage shows only: 1 Day Trial, 1 Month (Most Popular), 1 Year (Best Value)
-  const planTrial = plans.find(p => p.duration_days <= 1 || /trial|1.*day/i.test(p.name));
-  const plan1m = plans.find(p => p.duration_days === 30 || /^1\s*month/i.test(p.name));
-  const plan1y = plans.find(p => p.duration_days >= 365 || /1.*year/i.test(p.name));
-  const top3 = [planTrial, plan1m, plan1y].filter(Boolean) as Plan[];
+  // Homepage shows the first 3 plans (which are ordered by sort_order), excluding the 7-day plan
+  const top3 = plans.filter(p => p.duration_days !== 7).slice(0, 3);
 
   const visibleCategories = categories.filter(cat => cat.channel_count > 0);
 
