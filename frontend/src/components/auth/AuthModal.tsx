@@ -100,19 +100,31 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: { isOpen: bool
 
           {method === 'select' && (
             <div className="space-y-4">
-              <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                <div className="flex justify-center w-full bg-white rounded-xl overflow-hidden hover:opacity-90 transition-opacity">
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={() => setError('Google login popup closed or failed')}
-                    useOneTap
-                    theme="outline"
-                    size="large"
-                    shape="rectangular"
-                    width="100%"
-                  />
-                </div>
-              </GoogleOAuthProvider>
+              {GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID_HERE' ? (
+                <button
+                  disabled
+                  className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-white/5 text-slate-500 rounded-xl font-medium border border-white/5 cursor-not-allowed"
+                >
+                  <svg className="w-5 h-5 opacity-50" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M21.35,11.1H12.18V13.83H18.69C18.36,17.64 15.19,19.27 12.19,19.27C8.36,19.27 5,16.25 5,12C5,7.9 8.2,4.73 12.2,4.73C15.29,4.73 17.1,6.7 17.1,6.7L19,4.72C19,4.72 16.56,2 12.1,2C6.42,2 2.03,6.8 2.03,12C2.03,17.05 6.36,22 12.22,22C17,22 21.6,18.33 21.6,12.73C21.6,11.67 21.35,11.1 21.35,11.1V11.1Z" />
+                  </svg>
+                  Google Login (Missing Client ID)
+                </button>
+              ) : (
+                <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                  <div className="flex justify-center w-full bg-white rounded-xl overflow-hidden hover:opacity-90 transition-opacity">
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={() => setError('Google login popup closed or failed')}
+                      useOneTap
+                      theme="outline"
+                      size="large"
+                      shape="rectangular"
+                      width="100%"
+                    />
+                  </div>
+                </GoogleOAuthProvider>
+              )}
 
               <div className="relative py-4 flex items-center justify-center">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
