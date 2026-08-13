@@ -393,21 +393,22 @@ initDatabase().then(() => {
     
     // iptv-org Automatic Sync
     try {
-      const cron = require('node-cron');
-      const { runIptvOrgSync } = require('./services/iptvOrgSync');
-      // Sync every 6 hours
-      cron.schedule('0 */6 * * *', () => {
-        console.log('[iptv-org] Starting scheduled sync...');
-        // true = importGlobal
-        runIptvOrgSync(true).catch(err => console.error('[iptv-org] Cron sync error:', err));
-      });
-      console.log('[iptv-org] Cron scheduler initialized (Runs every 6 hours)');
+      // AUTO-SYNC DISABLED: Handled via manual admin M3U Importer
+      // const cron = require('node-cron');
+      // const { runIptvOrgSync } = require('./services/iptvOrgSync');
+      // // Sync every 6 hours
+      // cron.schedule('0 */6 * * *', () => {
+      //   console.log('[iptv-org] Starting scheduled sync...');
+      //   // true = importGlobal
+      //   runIptvOrgSync(true).catch(err => console.error('[iptv-org] Cron sync error:', err));
+      // });
+      // console.log('[iptv-org] Cron scheduler initialized (Runs every 6 hours)');
 
-      // Run initial logo enrichment and sync 5s after startup
-      setTimeout(() => {
-        console.log('[iptv-org] Running initial logo enrichment task...');
-        runIptvOrgSync(false).catch(err => console.error('[iptv-org] Startup sync error:', err));
-      }, 5000);
+      // // Run initial logo enrichment and sync 5s after startup
+      // setTimeout(() => {
+      //   console.log('[iptv-org] Running initial logo enrichment task...');
+      //   runIptvOrgSync(false).catch(err => console.error('[iptv-org] Startup sync error:', err));
+      // }, 5000);
       
       // Fast targeted health scan for visible Indian channels
       const { checkIndianStreams } = require('../scripts/check-indian-streams');
@@ -422,21 +423,22 @@ initDatabase().then(() => {
         console.log('[health-scan] Running initial stream health scan...');
         checkIndianStreams().catch(err => console.error('[health-scan] Startup error:', err));
       }, 10000);
-      // Sync Hindi M3U every 6 hours (offset by 30 minutes to avoid overlap)
-      const { exec } = require('child_process');
-      const path = require('path');
-      cron.schedule('30 */6 * * *', () => {
-        console.log('[hindi-m3u] Starting scheduled Hindi M3U sync...');
-        exec('node ' + path.join(__dirname, '../scripts/sync-hindi-m3u.js'), (error, stdout, stderr) => {
-          if (error) {
-            console.error('[hindi-m3u] Cron sync error:', error);
-            return;
-          }
-          if (stdout) console.log(stdout.trim());
-          if (stderr) console.error(stderr.trim());
-        });
-      });
-      console.log('[hindi-m3u] Cron scheduler initialized (Runs every 6 hours)');
+      // AUTO-SYNC DISABLED
+      // // Sync Hindi M3U every 6 hours (offset by 30 minutes to avoid overlap)
+      // const { exec } = require('child_process');
+      // const path = require('path');
+      // cron.schedule('30 */6 * * *', () => {
+      //   console.log('[hindi-m3u] Starting scheduled Hindi M3U sync...');
+      //   exec('node ' + path.join(__dirname, '../scripts/sync-hindi-m3u.js'), (error, stdout, stderr) => {
+      //     if (error) {
+      //       console.error('[hindi-m3u] Cron sync error:', error);
+      //       return;
+      //     }
+      //     if (stdout) console.log(stdout.trim());
+      //     if (stderr) console.error(stderr.trim());
+      //   });
+      // });
+      // console.log('[hindi-m3u] Cron scheduler initialized (Runs every 6 hours)');
     } catch (err) {
       console.error('[cron] Failed to initialize cron schedulers:', err);
     }
