@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Key, Package, Calendar, Tag, ArrowRight, Loader2, ShieldCheck, Download } from 'lucide-react';
 import Link from 'next/link';
 import { getPublicErrorMessage } from '@/lib/publicApi';
+import LicenseKeyDisplay from '@/components/public/LicenseKeyDisplay';
 
 interface PurchaseData {
   licenses: any[];
@@ -113,9 +114,9 @@ export default function MyAccount() {
                         )}
                       </div>
 
-                      <div className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-center sm:text-right shrink-0">
-                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">License Key</p>
-                        <p className="font-mono text-lg text-white tracking-widest">{license.license_key}</p>
+                      <div className="shrink-0 mt-4 sm:mt-0">
+                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 sm:text-right hidden sm:block">License Key</p>
+                        <LicenseKeyDisplay licenseKey={license.license_key} />
                       </div>
                     </div>
                   </div>
