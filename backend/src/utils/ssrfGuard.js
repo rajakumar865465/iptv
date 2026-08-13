@@ -91,6 +91,11 @@ async function assertSafeUrl(rawUrl) {
  */
 async function safeFetch(rawUrl, { maxRedirects = 5, timeoutMs = 10000, headers = {} } = {}) {
   let currentUrl = rawUrl;
+  const fetchHeaders = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    ...headers
+  };
+
   for (let hop = 0; hop <= maxRedirects; hop++) {
     await assertSafeUrl(currentUrl);
 
@@ -98,7 +103,7 @@ async function safeFetch(rawUrl, { maxRedirects = 5, timeoutMs = 10000, headers 
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let res;
     try {
-      res = await fetch(currentUrl, { redirect: 'manual', headers, signal: controller.signal });
+      res = await fetch(currentUrl, { redirect: 'manual', headers: fetchHeaders, signal: controller.signal });
     } finally {
       clearTimeout(timer);
     }
