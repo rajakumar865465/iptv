@@ -156,6 +156,40 @@ export const startImportJob = (source_url?: string, options?: any) =>
 export const getImportJobs = () =>
   api.get('/import/jobs').then((r) => r.data.data);
 
+// --- M3U Channel Importer & Stream Health Scanner (staged import) ---
+export const fetchM3uPreview = (url: string) =>
+  api.post('/channel-import/fetch', { url }).then((r) => r.data.data);
+
+export const parseM3uSession = (payload: {
+  source_type: 'url' | 'text';
+  source_url?: string;
+  content?: string;
+  source_label?: string;
+  language?: string;
+  country?: string;
+  source_name?: string;
+}) => api.post('/channel-import/parse', payload).then((r) => r.data.data);
+
+export const startImportSessionScan = (sessionId: number | string) =>
+  api.post(`/channel-import/${sessionId}/scan`).then((r) => r.data.data);
+
+export const getImportSession = (sessionId: number | string) =>
+  api.get(`/channel-import/${sessionId}`).then((r) => r.data.data);
+
+export const getImportSessionItems = (
+  sessionId: number | string,
+  params?: Record<string, unknown>
+) => api.get(`/channel-import/${sessionId}/items`, { params }).then((r) => r.data.data);
+
+export const importSelectedChannels = (sessionId: number | string, itemIds: number[]) =>
+  api.post(`/channel-import/${sessionId}/import`, { itemIds }).then((r) => r.data.data);
+
+export const cancelImportSession = (sessionId: number | string) =>
+  api.post(`/channel-import/${sessionId}/cancel`).then((r) => r.data.data);
+
+export const listImportSessions = () =>
+  api.get('/channel-import').then((r) => r.data.data);
+
 export const createChannel = (data: Record<string, unknown>) =>
   api.post('/channels', data).then((r) => r.data.data);
 

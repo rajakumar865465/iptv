@@ -15,6 +15,7 @@ const languageController = require('../controllers/languageController');
 const notificationController = require('../controllers/notificationController');
 const adminUserController = require('../controllers/adminUserController');
 const adminChannelManagementController = require('../controllers/adminChannelManagementController');
+const channelImportController = require('../controllers/channelImportController');
 const publicController = require('../controllers/publicController');
 const adminAuthMiddleware = require('../middleware/adminAuth');
 const { authLimiter } = require('../middleware/rateLimit');
@@ -94,6 +95,18 @@ router.get('/channels-removed', adminChannelManagementController.getRemovedChann
 // ─── Channel Import ───────────────────────────────────
 router.post('/import/iptv-org', adminChannelManagementController.startImportJob);
 router.get('/import/jobs', adminChannelManagementController.getImportJobs);
+
+// ─── M3U Channel Importer & Stream Health Scanner ───────
+// Staged import: parse M3U -> scan (health + duplicate detection) -> admin
+// reviews/selects -> import. Nothing hits `channels` until the final step.
+router.post('/channel-import/fetch', channelImportController.fetchM3u);
+router.post('/channel-import/parse', channelImportController.parseAndCreateSession);
+router.post('/channel-import/:id/scan', channelImportController.startScan);
+router.get('/channel-import/:id/items', channelImportController.getSessionItems);
+router.get('/channel-import/:id', channelImportController.getSession);
+router.post('/channel-import/:id/import', channelImportController.importSelected);
+router.post('/channel-import/:id/cancel', channelImportController.cancelSession);
+router.get('/channel-import', channelImportController.listSessions);
 
 // ─── Channel Streams ──────────────────────────────
 router.get('/channel-streams/:id', channelStreamController.getChannelStreams);

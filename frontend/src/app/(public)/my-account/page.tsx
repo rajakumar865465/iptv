@@ -93,15 +93,15 @@ export default function MyAccount() {
                   <div key={license.id} className="bg-slate-900 border border-white/10 rounded-2xl p-6 relative overflow-hidden group">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-brand-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
                     
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                      <div>
+                    <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-3 mb-2">
                           <h3 className="text-lg font-bold text-white">{license.plan_name || 'Custom Plan'}</h3>
                           <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
                             license.status === 'active' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
                             'bg-slate-500/10 text-slate-400 border border-slate-500/20'
                           }`}>
-                            {license.status.toUpperCase()}
+                            {String(license.status || 'unknown').toUpperCase()}
                           </span>
                         </div>
                         <p className="text-slate-400 text-sm flex items-center gap-2">
@@ -114,9 +114,11 @@ export default function MyAccount() {
                         )}
                       </div>
 
-                      <div className="shrink-0 mt-4 sm:mt-0">
-                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 sm:text-right hidden sm:block">License Key</p>
-                        <LicenseKeyDisplay licenseKey={license.license_key} />
+                      <div className="mt-4 xl:mt-0 min-w-0 w-full xl:w-auto shrink-0">
+                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 xl:text-right hidden xl:block">License Key</p>
+                        <div className="overflow-x-auto w-full">
+                          <LicenseKeyDisplay licenseKey={license.license_key} />
+                        </div>
                       </div>
                     </div>
                   </div>

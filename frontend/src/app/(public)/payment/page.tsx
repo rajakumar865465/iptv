@@ -129,6 +129,11 @@ function PaymentForm() {
     try {
       const order = await createOrder({ plan_id: selectedPlanId, ...form, offer_price: offerPriceParam });
 
+      if (order.amount === 0) {
+        router.push(`/payment/success?order_id=${order.order_id}`);
+        return;
+      }
+
       if (!order.key_id || order.key_id === 'mock_key') {
         throw new Error('Payment gateway not configured. Please contact support.');
       }

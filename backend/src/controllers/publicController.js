@@ -236,16 +236,6 @@ exports.createOrder = async (req, res) => {
       finalPrice = op;
     }
 
-    let razorpay;
-    try { razorpay = getRazorpay(); } catch (e) {
-      return error(res, e.message, 503);
-    }
-    const rzpOrder = await razorpay.orders.create({
-      amount: Math.round(finalPrice * 100),
-      currency: 'INR',
-      notes: { plan_id: String(plan.id), email, mobile, customer_name },
-    });
-
     let userId = null;
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
       const token = req.headers.authorization.split(' ')[1];
@@ -257,6 +247,70 @@ exports.createOrder = async (req, res) => {
         console.error('Invalid token during checkout', e);
       }
     }
+
+    if (finalPrice === 0) {
+      const orderId = `FREE_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+      const licenseKey = generateLicenseKey();
+      
+      const customerEmail = email.toLowerCase().trim();
+      const now = new Date();
+      const expiresAt = new Date(now);
+      expiresAt.setDate(expiresAt.getDate() + (plan.duration_days || 1));
+
+      // 1. Insert order
+      await db.query(
+        `INSERT INTO public_orders (order_id, plan_id, customer_name, email, mobile, amount, currency, status, user_id)
+         VALUES ($1, $2, $3, $4, $5, 0, 'INR', 'paid', $6)`,
+        [orderId, plan.id, customer_name.trim(), customerEmail, mobile.trim(), userId]
+      );
+      
+      // 2. Insert license
+      let licenseId;
+      try {
+        const licenseInsert = await db.query(
+          `INSERT INTO licenses (license_key, plan_id, customer_email, status, duration_days, max_devices, user_id, activated_at, expires_at)
+           VALUES ($1, $2, $3, 'active', $4, $5, $6, $7, $8)
+           RETURNING id`,
+          [licenseKey, plan.id, customerEmail, plan.duration_days, plan.max_devices, userId, now, expiresAt]
+        );
+        licenseId = licenseInsert.rows[0].id;
+      } catch (colErr) {
+        const licenseInsert = await db.query(
+          `INSERT INTO licenses (license_key, plan_id, status, duration_days, max_devices, user_id, activated_at, expires_at)
+           VALUES ($1, $2, 'active', $3, $4, $5, $6, $7)
+           RETURNING id`,
+          [licenseKey, plan.id, plan.duration_days, plan.max_devices, userId, now, expiresAt]
+        );
+        licenseId = licenseInsert.rows[0].id;
+      }
+      
+      // 3. Link license to order
+      await db.query(
+        `UPDATE public_orders SET license_id = $1 WHERE order_id = $2`,
+        [licenseId, orderId]
+      );
+      
+      return success(res, {
+        order_id: orderId,
+        amount: 0,
+        currency: 'INR',
+        key_id: 'free_plan',
+        plan_name: plan.name,
+        customer_name,
+        email,
+        mobile,
+      }, 'Free order created');
+    }
+
+    let razorpay;
+    try { razorpay = getRazorpay(); } catch (e) {
+      return error(res, e.message, 503);
+    }
+    const rzpOrder = await razorpay.orders.create({
+      amount: Math.round(finalPrice * 100),
+      currency: 'INR',
+      notes: { plan_id: String(plan.id), email, mobile, customer_name },
+    });
 
     await db.query(
       `INSERT INTO public_orders (order_id, plan_id, customer_name, email, mobile, amount, currency, status, user_id)
