@@ -3,8 +3,7 @@ import { useState } from 'react';
 import { X, Smartphone, Mail, ArrowRight, Loader2 } from 'lucide-react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 
-// TODO: Replace with your actual Google Client ID from Google Cloud Console
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID_HERE';
+const GOOGLE_CLIENT_ID = '73771138100-in6cnnidmh4hd3ltcubls6glq4a3k0rj.apps.googleusercontent.com';
 
 export default function AuthModal({ isOpen, onClose, onSuccess }: { isOpen: boolean, onClose: () => void, onSuccess: (user: any) => void }) {
   const [method, setMethod] = useState<'select' | 'phone' | 'otp'>('select');
