@@ -12,6 +12,15 @@ declare global {
   }
 }
 
+const loadRazorpay = () => new Promise((resolve) => {
+  if (typeof window !== 'undefined' && window.Razorpay) return resolve(true);
+  const script = document.createElement('script');
+  script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+  script.onload = () => resolve(true);
+  script.onerror = () => resolve(false);
+  document.body.appendChild(script);
+});
+
 function PaymentForm() {
   const params = useSearchParams();
   const router = useRouter();
@@ -67,9 +76,13 @@ function PaymentForm() {
       return setError('Please fill all fields.');
     }
     if (!selectedPlanId) return setError('Please select a plan.');
-    if (!window.Razorpay) return setError('Payment gateway not loaded. Please refresh.');
 
     setLoading(true);
+    const scriptLoaded = await loadRazorpay();
+    if (!scriptLoaded || !window.Razorpay) {
+      setLoading(false);
+      return setError('Payment gateway not loaded. Please check your adblocker or refresh.');
+    }
     try {
       const order = await createOrder({ plan_id: selectedPlanId, ...form, offer_price: offerPriceParam });
 
@@ -114,7 +127,6 @@ function PaymentForm() {
 
   return (
     <div className="pt-24 pb-20 px-4">
-      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
       <div className="max-w-md mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-extrabold text-white mb-2">Complete Purchase</h1>
