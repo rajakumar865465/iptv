@@ -371,8 +371,38 @@ exports.me = async (req, res) => {
     if (result.rows.length === 0) {
       return error(res, 'User not found', 404);
     }
-    success(res, result.rows[0]);
+    success(res, { user: result.rows[0] });
   } catch (err) {
     error(res, 'Failed to fetch profile', 500);
+  }
+};
+
+exports.myPurchases = async (req, res) => {
+  try {
+    const licensesResult = await db.query(
+      `SELECT l.*, p.name as plan_name 
+       FROM licenses l 
+       LEFT JOIN plans p ON l.plan_id = p.id 
+       WHERE l.user_id = $1 
+       ORDER BY l.created_at DESC`,
+      [req.user.id]
+    );
+
+    const ordersResult = await db.query(
+      `SELECT o.order_id, o.amount, o.status, o.created_at, p.name as plan_name 
+       FROM public_orders o 
+       LEFT JOIN plans p ON o.plan_id = p.id 
+       WHERE o.user_id = $1 
+       ORDER BY o.created_at DESC`,
+      [req.user.id]
+    );
+
+    success(res, {
+      licenses: licensesResult.rows,
+      orders: ordersResult.rows
+    });
+  } catch (err) {
+    console.error('Failed to fetch purchases:', err);
+    error(res, 'Failed to fetch purchases', 500);
   }
 };

@@ -5,6 +5,7 @@ import Script from 'next/script';
 import { ShieldCheck, Loader2, AlertCircle, Tag } from 'lucide-react';
 import { getPublicPlans, getSevenDayOffer, createOrder, verifyPayment, getPublicErrorMessage } from '@/lib/publicApi';
 import type { Plan } from '@/lib/publicApi';
+import AuthModal from '@/components/auth/AuthModal';
 
 declare global {
   interface Window {
@@ -50,10 +51,29 @@ function PaymentForm() {
   const [form, setForm] = useState({ customer_name: '', email: '', mobile: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [user, setUser] = useState<any>(null);
+  const [authOpen, setAuthOpen] = useState(false);
 
   useEffect(() => {
+    // Check if logged in to pre-fill form
+    const token = localStorage.getItem('adminToken');
+    if (token) {
+      fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => res.json())
+        .then(data => {
+          if (data.data?.user) {
+            setUser(data.data.user);
+            setForm(prev => ({
+              customer_name: data.data.user.full_name || prev.customer_name,
+              email: data.data.user.email || prev.email,
+              mobile: data.data.user.mobile || prev.mobile,
+            }));
+          }
+        })
+        .catch(() => {});
+    }
+
     if (isOfferFlow) {
-      // Scratch card flow: fetch hidden offer plan
       getSevenDayOffer()
         .then(plan => {
           const offerAsPlan: Plan = {
@@ -74,7 +94,6 @@ function PaymentForm() {
         })
         .catch(() => setError('Failed to load offer plan. Please go back and try again.'));
     } else {
-      // Normal flow: fetch public plans
       getPublicPlans()
         .then(p => {
           setPlans(p);
@@ -89,6 +108,13 @@ function PaymentForm() {
 
   const handlePay = useCallback(async () => {
     setError('');
+    
+    // Auth Guard
+    if (!user) {
+      setAuthOpen(true);
+      return;
+    }
+
     if (!form.customer_name.trim() || !form.email.trim() || !form.mobile.trim()) {
       return setError('Please fill all fields.');
     }
@@ -144,6 +170,7 @@ function PaymentForm() {
 
   return (
     <>
+      <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} onSuccess={(u) => setUser(u)} />
       <Script id="razorpay-sdk" src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
       <div className="pt-24 pb-20 px-4">
       <div className="max-w-md mx-auto">

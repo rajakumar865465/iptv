@@ -246,10 +246,22 @@ exports.createOrder = async (req, res) => {
       notes: { plan_id: String(plan.id), email, mobile, customer_name },
     });
 
+    let userId = null;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+      const token = req.headers.authorization.split(' ')[1];
+      try {
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_key_change_this_in_production_xyz123');
+        userId = decoded.userId;
+      } catch (e) {
+        console.error('Invalid token during checkout', e);
+      }
+    }
+
     await db.query(
-      `INSERT INTO public_orders (order_id, plan_id, customer_name, email, mobile, amount, currency, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'INR', 'created')`,
-      [rzpOrder.id, plan.id, customer_name.trim(), email.toLowerCase().trim(), mobile.trim(), rzpOrder.amount]
+      `INSERT INTO public_orders (order_id, plan_id, customer_name, email, mobile, amount, currency, status, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, 'INR', 'created', $7)`,
+      [rzpOrder.id, plan.id, customer_name.trim(), email.toLowerCase().trim(), mobile.trim(), rzpOrder.amount, userId]
     );
 
     return success(res, {

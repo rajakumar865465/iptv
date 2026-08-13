@@ -54,9 +54,7 @@ async function checkHealthStatusColumn() {
  */
 function buildHealthFilter(paramIndex) {
   const statusList = WORKING_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
-  // Always allow NULL (unscanned) and 'unknown'; ALLOW_UNKNOWN kept for backwards compat
-  // FIX: Do NOT blindly allow premium channels if they are explicitly marked 'offline'.
-  let fragment = `(c.health_status IS NULL OR c.health_status IN (${statusList}) OR (c.health_status != 'offline' AND (c.health_status = 'paid_blocked_scan' OR c.is_premium = true OR c.is_paid = true)))`;
+  let fragment = `(c.health_status IS NULL OR c.health_status IN (${statusList}) OR c.is_premium = true OR c.is_paid = true)`;
   return { fragment, params: [...WORKING_STATUSES], nextIndex: paramIndex + WORKING_STATUSES.length };
 }
 
@@ -71,7 +69,7 @@ async function buildBaseConditions() {
     `c.is_removed IS NOT TRUE`,
     `c.stream_url IS NOT NULL`,
     `c.stream_url != ''`,
-    `c.is_visible_app = true`, // FIX: Respect the is_visible_app flag on the home screen!
+    `c.is_visible_app IS NOT FALSE`,
   ];
   const params = [];
   let paramIndex = 1;

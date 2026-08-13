@@ -9,7 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@react-oauth/google": "^0.13.5",
     "axios": "^1.18.1",
+    "firebase": "^12.17.1",
     "framer-motion": "^12.42.0",
     "jose": "^5.10.0",
     "jsonwebtoken": "^9.0.3",

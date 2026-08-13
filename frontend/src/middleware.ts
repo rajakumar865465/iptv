@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
-// Public paths that must never require an admin token.
 const PUBLIC_PREFIXES = [
   '/',
   '/login',
@@ -14,6 +13,7 @@ const PUBLIC_PREFIXES = [
   '/privacy',
   '/support',
   '/terms',
+  '/my-account',
 ];
 
 // Admin routes that require authentication. Keep this explicit because route
@@ -85,7 +85,12 @@ export async function middleware(req: NextRequest) {
       return redirectToLogin(req);
     }
 
-    await jwtVerify(token, new TextEncoder().encode(secret));
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
+
+    // Admin routes must have role: 'admin'
+    if (payload.role !== 'admin') {
+      return NextResponse.redirect(new URL('/', req.url));
+    }
 
     return NextResponse.next();
   } catch {

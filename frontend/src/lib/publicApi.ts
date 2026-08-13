@@ -14,6 +14,16 @@ const publicAxios = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+publicAxios.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('adminToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
+
 export interface Plan {
   id: number;
   name: string;
