@@ -154,8 +154,8 @@ export default async function HomePage() {
   const tickerOnly = tickerChannels.filter(c => !popularIds.has(c.id));
   const tickerPool = [...popularChannels, ...tickerOnly];
 
-  // Homepage shows the first 3 plans (which are ordered by sort_order), excluding the 7-day plan
-  const top3 = plans.filter(p => p.duration_days !== 7).slice(0, 3);
+  // Homepage shows the first 3 plans (which are ordered by sort_order)
+  const top3 = plans.slice(0, 3);
 
   const visibleCategories = categories.filter(cat => cat.channel_count > 0);
 

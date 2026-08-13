@@ -59,9 +59,7 @@ export default async function PricingPage() {
     // Backend not available during build, use empty
   }
 
-  const visiblePlans = dedupePlans(plans)
-    .filter(p => p.duration_days !== 7)
-    .sort((a, b) => getPlanOrder(a) - getPlanOrder(b));
+  const visiblePlans = dedupePlans(plans).sort((a, b) => getPlanOrder(a) - getPlanOrder(b));
 
   const monthlyPricePerMonth = (plan: Plan): number | null => {
     if (plan.duration_days < 30 || plan.price === 0) return null;
