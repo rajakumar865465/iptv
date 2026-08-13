@@ -12,14 +12,42 @@ declare global {
   }
 }
 
-const loadRazorpay = () => new Promise((resolve) => {
-  if (typeof window !== 'undefined' && window.Razorpay) return resolve(true);
-  const script = document.createElement('script');
-  script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-  script.onload = () => resolve(true);
-  script.onerror = () => resolve(false);
-  document.body.appendChild(script);
-});
+const loadRazorpay = () =>
+  new Promise<boolean>((resolve) => {
+    if (typeof window !== 'undefined' && window.Razorpay) return resolve(true);
+
+    const existingScript = document.querySelector<HTMLScriptElement>('script[src*="checkout.razorpay.com"]');
+    if (existingScript) {
+      if (typeof window !== 'undefined' && window.Razorpay) return resolve(true);
+      existingScript.addEventListener('load', () => resolve(true), { once: true });
+      existingScript.addEventListener('error', () => resolve(false), { once: true });
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        if (typeof window !== 'undefined' && window.Razorpay) {
+          clearInterval(interval);
+          resolve(true);
+        } else if (attempts > 20) {
+          clearInterval(interval);
+          resolve(false);
+        }
+      }, 100);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'razorpay-checkout-js';
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+
+    setTimeout(() => {
+      if (typeof window !== 'undefined' && window.Razorpay) resolve(true);
+      else resolve(false);
+    }, 8000);
+  });
 
 function PaymentForm() {
   const params = useSearchParams();
@@ -126,7 +154,9 @@ function PaymentForm() {
   }, [form, selectedPlanId, router, offerPriceParam]);
 
   return (
-    <div className="pt-24 pb-20 px-4">
+    <>
+      <Script id="razorpay-sdk" src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
+      <div className="pt-24 pb-20 px-4">
       <div className="max-w-md mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-extrabold text-white mb-2">Complete Purchase</h1>
@@ -220,6 +250,7 @@ function PaymentForm() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 
