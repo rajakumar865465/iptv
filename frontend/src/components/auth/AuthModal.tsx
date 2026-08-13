@@ -99,7 +99,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: { isOpen: bool
 
           {method === 'select' && (
             <div className="space-y-4">
-              {GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID_HERE' ? (
+              {(GOOGLE_CLIENT_ID as string) === 'YOUR_GOOGLE_CLIENT_ID_HERE' ? (
                 <button
                   disabled
                   className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-white/5 text-slate-500 rounded-xl font-medium border border-white/5 cursor-not-allowed"
