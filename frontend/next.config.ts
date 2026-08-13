@@ -17,11 +17,12 @@ const connectSrc = ["'self'", PUBLIC_API, PUBLIC_API_WS, 'ws:', 'wss:'].filter(B
 // img-src stays open because channel logos are hosted on arbitrary domains.
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: http: https:",
   "font-src 'self' data:",
-  `connect-src ${connectSrc}`,
+  `connect-src ${connectSrc} https://api.razorpay.com https://lumberjack-metrics.razorpay.com`,
+  "frame-src 'self' https://api.razorpay.com",
   "frame-ancestors 'none'",
   "object-src 'none'",
   "base-uri 'self'",
