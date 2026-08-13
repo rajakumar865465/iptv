@@ -356,22 +356,29 @@ exports.verifyPayment = async (req, res) => {
     // Insert license with customer email for admin visibility
     const customerEmail = order.email ? order.email.toLowerCase().trim() : null;
     let licenseId;
+    
+    // Auto-activate logic
+    const durationDays = order.duration_days || 30;
+    const now = new Date();
+    const expiresAt = new Date(now);
+    expiresAt.setDate(expiresAt.getDate() + durationDays);
+
     try {
       const licenseInsert = await client.query(
-        `INSERT INTO licenses (license_key, plan_id, payment_id, customer_email, status, duration_days, max_devices)
-         VALUES ($1, $2, $3, $4, 'unused', $5, $6)
+        `INSERT INTO licenses (license_key, plan_id, payment_id, customer_email, status, duration_days, max_devices, user_id, activated_at, expires_at)
+         VALUES ($1, $2, $3, $4, 'active', $5, $6, $7, $8, $9)
          RETURNING id`,
-        [licenseKey, order.plan_id, paymentId, customerEmail, order.duration_days, order.max_devices]
+        [licenseKey, order.plan_id, paymentId, customerEmail, order.duration_days, order.max_devices, order.user_id, now, expiresAt]
       );
       licenseId = licenseInsert.rows[0].id;
     } catch (colErr) {
-      // Fallback for older schema without payment_id/customer_email columns
+      // Fallback for older schema
       if (colErr.message && (colErr.message.includes('payment_id') || colErr.message.includes('customer_email'))) {
         const licenseInsert = await client.query(
-          `INSERT INTO licenses (license_key, plan_id, status, duration_days, max_devices)
-           VALUES ($1, $2, 'unused', $3, $4)
+          `INSERT INTO licenses (license_key, plan_id, status, duration_days, max_devices, user_id, activated_at, expires_at)
+           VALUES ($1, $2, 'active', $3, $4, $5, $6, $7)
            RETURNING id`,
-          [licenseKey, order.plan_id, order.duration_days, order.max_devices]
+          [licenseKey, order.plan_id, order.duration_days, order.max_devices, order.user_id, now, expiresAt]
         );
         licenseId = licenseInsert.rows[0].id;
       } else {
