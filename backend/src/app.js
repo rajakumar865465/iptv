@@ -394,7 +394,7 @@ initDatabase().then(() => {
     // iptv-org Automatic Sync
     try {
       // AUTO-SYNC DISABLED: Handled via manual admin M3U Importer
-      // const cron = require('node-cron');
+      const cron = require('node-cron');
       // const { runIptvOrgSync } = require('./services/iptvOrgSync');
       // // Sync every 6 hours
       // cron.schedule('0 */6 * * *', () => {

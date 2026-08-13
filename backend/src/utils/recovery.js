@@ -16,9 +16,9 @@ async function checkChannelsIntegrity() {
     console.log('[RECOVERY] Channels table is completely empty! Attempting automatic restore...');
     try {
       const backendDir = path.join(__dirname, '..', '..');
-      // Run the setup-indian script which seeds categories and imports indian streams
-      await execPromise('npm run setup-indian', { cwd: backendDir });
-      console.log('[RECOVERY] Successfully restored channels from canonical API source.');
+      // Disabled automatic restore so the user has full control over their channels
+      // await execPromise('npm run setup-indian', { cwd: backendDir });
+      console.log('[RECOVERY] Auto-restore is disabled. Leaving channels table empty.');
       return true; // channels restored
     } catch (err) {
       console.error('[RECOVERY] Fatal error attempting to restore channels:', err.message);
