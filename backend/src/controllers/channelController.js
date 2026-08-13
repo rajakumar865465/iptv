@@ -214,13 +214,11 @@ exports.getChannels = async (req, res) => {
         paramIndex = nextIndex;
       }
     } else if (showOffline !== 'true') {
-      // Default mode: hide clearly dead channels, show unknown/unstable.
-      // Fix #15: Removed `OR c.is_premium = true` exemption — a premium channel marked
-      // offline/geo_blocked/drm still appeared in listings and failed to play, frustrating users.
-      // Health filter now applies equally to all channels regardless of premium status.
+      // Default mode: hide clearly dead channels, but ALWAYS allow paid/premium channels
+      // even if scanner checks fail due to custom headers/token protection.
       if (hasHealthStatus) {
         const deadList = DEAD_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
-        conditions.push(`(c.health_status IS NULL OR c.health_status NOT IN (${deadList}))`);
+        conditions.push(`(c.health_status IS NULL OR c.health_status NOT IN (${deadList}) OR c.is_premium = true OR c.is_paid = true)`);
         params.push(...DEAD_STATUSES);
         paramIndex += DEAD_STATUSES.length;
       }
@@ -472,7 +470,7 @@ exports.getChannelsByCategory = async (req, res) => {
     // including offline/dead/geo-blocked ones, causing broken streams in category view.
     // Mirrors the default-mode filter in getChannels (excludes clearly dead, shows unknown).
     const healthClause = hasHealthStatus
-      ? `AND (c.health_status IS NULL OR c.health_status NOT IN (${DEAD_STATUSES.map((_, i) => `$${i + 2}`).join(', ')}))`
+      ? `AND (c.health_status IS NULL OR c.health_status NOT IN (${DEAD_STATUSES.map((_, i) => `$${i + 2}`).join(', ')}) OR c.is_premium = true OR c.is_paid = true)`
       : '';
     const params = hasHealthStatus ? [categoryId, ...DEAD_STATUSES] : [categoryId];
     const result = await db.query(

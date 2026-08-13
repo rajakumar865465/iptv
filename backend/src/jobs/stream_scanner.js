@@ -102,14 +102,12 @@ async function runHealthScan() {
           // consecutive bad scans so a single transient CDN hiccup does not evict working streams.
           const newConsecutiveFailures = scanWorking ? 0 : stream.consecutive_scan_failures + 1;
           let resolvedHealthStatus;
-          if (scanWorking) {
+          if (scanWorking || stream.is_paid || stream.is_premium) {
+            // Paid/premium streams use custom user-agents/tokens that automated node scanners fail to fetch.
+            // Always keep them online so they are never blocked or hidden.
             resolvedHealthStatus = 'online';
           } else if (newConsecutiveFailures >= OFFLINE_FAILURE_THRESHOLD) {
-            if (result.scanner_status === 'forbidden' && (stream.is_paid || stream.is_premium)) {
-              resolvedHealthStatus = 'paid_blocked_scan';
-            } else {
-              resolvedHealthStatus = result.scanner_status; // e.g. 'offline', 'geo_blocked', etc.
-            }
+            resolvedHealthStatus = result.scanner_status; // e.g. 'offline', 'geo_blocked', etc.
           } else {
             // Keep current status during the grace window; show 'unstable' if currently online
             resolvedHealthStatus = stream.health_status === 'online' ? 'unstable' : stream.health_status;
