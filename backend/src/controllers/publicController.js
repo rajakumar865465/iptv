@@ -471,7 +471,7 @@ exports.getSevenDayOffer = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT id, name, price, duration_days, max_devices
-       FROM plans WHERE slug = 'seven-days-offer' AND status = 'active' LIMIT 1`
+       FROM plans WHERE slug IN ('seven-days', 'seven-days-offer') AND status = 'active' LIMIT 1`
     );
     if (result.rows.length === 0) return error(res, 'Offer not available', 404);
     return success(res, result.rows[0]);
