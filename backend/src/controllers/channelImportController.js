@@ -20,26 +20,6 @@ const { runScanSession } = require('../jobs/channelImportScanner');
 
 const MAX_M3U_BYTES = 15 * 1024 * 1024; // 15MB safety cap on fetched playlists
 
-const CATEGORY_KEYWORD_MAP = {
-  entertainment: 652,
-  news: 647,
-  movies: 649,
-  sports: 628,
-  music: 629,
-  kids: 630,
-  documentary: 654,
-  business: 643,
-};
-
-function mapCategory(groupTitle) {
-  if (!groupTitle) return null;
-  const lower = groupTitle.toLowerCase();
-  for (const [key, id] of Object.entries(CATEGORY_KEYWORD_MAP)) {
-    if (lower.includes(key)) return id;
-  }
-  return null;
-}
-
 // --- FETCH RAW M3U FROM URL (preview only, does not create a session) ---
 exports.fetchM3u = async (req, res) => {
   try {
@@ -270,6 +250,24 @@ exports.importSelected = async (req, res) => {
 
     const summary = { imported: 0, skippedDuplicate: 0, skippedOther: 0 };
 
+    // Dynamically fetch categories for mapping
+    const categoriesRes = await client.query('SELECT id, name FROM categories');
+    const categoryMap = {};
+    let fallbackCatId = null;
+    categoriesRes.rows.forEach(r => {
+      categoryMap[r.name.toLowerCase()] = r.id;
+      if (r.name.toLowerCase() === 'general' || r.name.toLowerCase() === 'unknown') {
+        fallbackCatId = r.id;
+      }
+    });
+    if (!fallbackCatId && categoriesRes.rows.length > 0) {
+      fallbackCatId = categoriesRes.rows[0].id;
+    }
+    if (!fallbackCatId) {
+      const newCatRes = await client.query("INSERT INTO categories (name, status) VALUES ('General', 'active') RETURNING id");
+      fallbackCatId = newCatRes.rows[0].id;
+    }
+
     for (const itemId of itemIds) {
       const itemRes = await client.query(
         'SELECT * FROM channel_import_items WHERE id = $1 AND session_id = $2',
@@ -310,7 +308,21 @@ exports.importSelected = async (req, res) => {
         continue;
       }
 
-      const categoryId = mapCategory(item.group_title);
+      let categoryId = fallbackCatId;
+      if (item.group_title) {
+        const gt = item.group_title.toLowerCase();
+        if (categoryMap[gt]) {
+          categoryId = categoryMap[gt];
+        } else {
+          for (const [name, cId] of Object.entries(categoryMap)) {
+            if (gt.includes(name) || name.includes(gt)) {
+              categoryId = cId;
+              break;
+            }
+          }
+        }
+      }
+
       const insertRes = await client.query(
         `INSERT INTO channels
            (name, display_name, canonical_name, tvg_id, logo_url, category_id, language, country, source, status, stream_url, user_agent, referrer)
