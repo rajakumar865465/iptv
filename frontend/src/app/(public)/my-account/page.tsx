@@ -28,7 +28,7 @@ export default function MyAccount() {
     })
       .then(res => res.json())
       .then(res => {
-        if (res.status === 'success') {
+        if (res.success) {
           setData(res.data);
         } else {
           setError(res.message || 'Failed to load purchases');
