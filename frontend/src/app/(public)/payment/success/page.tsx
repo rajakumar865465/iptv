@@ -7,6 +7,7 @@ import { getOrderStatus } from '@/lib/publicApi';
 import type { OrderStatus } from '@/lib/publicApi';
 import LicenseKeyDisplay from '@/components/public/LicenseKeyDisplay';
 import { markTrialUsed } from '@/lib/behaviorTracker';
+import confetti from 'canvas-confetti';
 
 const ACTIVATION_STEPS = [
   'Download & install the NivaTV APK.',
@@ -31,6 +32,23 @@ function SuccessContent() {
         // Mark trial used so the scratch card offer fires on next visit
         if (data.amount === 0 || (data.duration_days !== null && data.duration_days <= 1)) {
           markTrialUsed();
+        }
+        if (data.license_key) {
+          const duration = 3 * 1000;
+          const animationEnd = Date.now() + duration;
+          const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+          
+          const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+          
+          const interval: any = setInterval(function() {
+            const timeLeft = animationEnd - Date.now();
+            if (timeLeft <= 0) {
+              return clearInterval(interval);
+            }
+            const particleCount = 50 * (timeLeft / duration);
+            confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+            confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
+          }, 250);
         }
       })
       .catch(() => setError('Could not load order details. Contact support.'))

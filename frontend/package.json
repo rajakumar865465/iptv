@@ -11,6 +11,7 @@
   "dependencies": {
     "@react-oauth/google": "^0.13.5",
     "axios": "^1.18.1",
+    "canvas-confetti": "^1.9.4",
     "firebase": "^12.17.1",
     "framer-motion": "^12.42.0",
     "jose": "^5.10.0",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
