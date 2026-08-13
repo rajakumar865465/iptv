@@ -110,8 +110,8 @@ export function computeOfferPrice(): number | null {
   score += extraPages * 10;
 
   // Higher score = more engaged = better discount
-  if (score >= 40) return 29;
-  if (score >= 20) return 39;
+  if (score >= 25) return 29;
+  if (score >= 10) return 39;
   return 49;
 }
 
