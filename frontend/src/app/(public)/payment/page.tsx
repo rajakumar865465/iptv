@@ -16,23 +16,11 @@ const loadRazorpay = () =>
   new Promise<boolean>((resolve) => {
     if (typeof window !== 'undefined' && window.Razorpay) return resolve(true);
 
+    // If script exists but Razorpay isn't loaded, it might have failed previously (e.g. adblocker).
+    // Let's remove it and try injecting a fresh one just in case they disabled their adblocker.
     const existingScript = document.querySelector<HTMLScriptElement>('script[src*="checkout.razorpay.com"]');
     if (existingScript) {
-      if (typeof window !== 'undefined' && window.Razorpay) return resolve(true);
-      existingScript.addEventListener('load', () => resolve(true), { once: true });
-      existingScript.addEventListener('error', () => resolve(false), { once: true });
-      let attempts = 0;
-      const interval = setInterval(() => {
-        attempts++;
-        if (typeof window !== 'undefined' && window.Razorpay) {
-          clearInterval(interval);
-          resolve(true);
-        } else if (attempts > 20) {
-          clearInterval(interval);
-          resolve(false);
-        }
-      }, 100);
-      return;
+      existingScript.remove();
     }
 
     const script = document.createElement('script');
@@ -43,6 +31,7 @@ const loadRazorpay = () =>
     script.onerror = () => resolve(false);
     document.body.appendChild(script);
 
+    // Safety timeout
     setTimeout(() => {
       if (typeof window !== 'undefined' && window.Razorpay) resolve(true);
       else resolve(false);
