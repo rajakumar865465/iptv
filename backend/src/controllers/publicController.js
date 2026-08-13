@@ -227,7 +227,7 @@ exports.createOrder = async (req, res) => {
 
     // Allow a scratch-card offer price for the 7-day offer plan (₹29–₹49, ending in 9)
     let finalPrice = Number(plan.price);
-    if (offer_price !== undefined && plan.slug === 'seven-days-offer') {
+    if (offer_price !== undefined && (plan.slug === 'seven-days-offer' || plan.slug === 'seven-days' || plan.slug === 'seven-days-trial')) {
       const op = Number(offer_price);
       const validOfferPrices = [29, 39, 49];
       if (!validOfferPrices.includes(op)) {
