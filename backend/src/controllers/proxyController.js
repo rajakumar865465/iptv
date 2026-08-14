@@ -325,7 +325,7 @@ async function makeProxyRequest(url, headers, redirectDepth = 0, onRequestCreate
     const client  = isHttps ? https : http;
     const agent   = isHttps ? httpsAgent : httpAgent;  // ← keepAlive pool
 
-    const req = client.request(url, { headers, agent, timeout: 6000 }, (res) => {
+    const req = client.request(url, { headers, agent, timeout: 15000 }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         // Follow redirect with incremented depth counter, re-checking SSRF on each hop
         const nextUrl = resolveUrl(url, res.headers.location);
