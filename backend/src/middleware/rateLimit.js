@@ -51,10 +51,12 @@ const refreshLimiter = rateLimit({
 const channelReportLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 3, // 3 reports per channel per IP per hour
-  keyGenerator: (req) => `${req.ip}:${req.params.id}`,
+  keyGenerator: (req) => `${req.ip || 'unknown'}:${req.params.id || '0'}`,
+  validate: { keyGeneratorIpFallback: false, ip: false },
   handler: (req, res, next, options) => {
     res.status(429).json({ success: false, message: 'Too many reports for this channel. Please try again later.' });
   },
 });
+
 
 module.exports = { standardLimiter, apiLimiter, searchLimiter, authLimiter, refreshLimiter, channelReportLimiter };
