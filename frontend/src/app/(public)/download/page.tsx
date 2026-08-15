@@ -22,16 +22,14 @@ const INSTALL_STEPS = [
 function toDirectDownloadUrl(url: string | null | undefined): string {
   if (!url) return '/downloads/app-release.apk';
   const trimmed = url.trim();
-  const driveFileMatch = trimmed.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
-  if (driveFileMatch && driveFileMatch[1]) {
-    return `https://drive.usercontent.google.com/download?id=${driveFileMatch[1]}&export=download&authuser=0`;
-  }
-  const driveIdMatch = trimmed.match(/drive\.google\.com\/(?:open|uc)\?.*id=([a-zA-Z0-9_-]+)/i);
-  if (driveIdMatch && driveIdMatch[1]) {
-    return `https://drive.usercontent.google.com/download?id=${driveIdMatch[1]}&export=download&authuser=0`;
+  if (trimmed.startsWith('/downloads/')) return trimmed;
+  // Always serve local direct APK download to avoid Google Drive virus scan warning pages
+  if (trimmed.includes('drive.google.com') || trimmed.includes('drive.usercontent.google.com')) {
+    return '/downloads/app-release.apk';
   }
   return trimmed;
 }
+
 
 export default async function DownloadPage() {
   const release = await getAppDownload().catch(() => null);
