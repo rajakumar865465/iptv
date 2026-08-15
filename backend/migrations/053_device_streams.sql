@@ -1,6 +1,6 @@
 -- Migration: Add stream tracking columns to devices table
 
-DO NOT wrap in a transaction (BEGIN/COMMIT) here as the migration runner handles it.
+-- DO NOT wrap in a transaction (BEGIN/COMMIT) here as the migration runner handles it.
 
 DO $$
 BEGIN
