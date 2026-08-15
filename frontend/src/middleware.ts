@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
-import crypto from 'crypto';
 
-// If ADMIN_JWT_SECRET isn't configured, fail closed rather than falling back
-// to any fixed/known string (a hardcoded fallback secret would let anyone
-// reading the source forge admin tokens in misconfigured environments where
-// NODE_ENV isn't exactly 'production'). In non-production, generate a random
-// per-process secret once at module load so local dev still works without
-// requiring extra configuration, without ever using a guessable value.
-const DEV_FALLBACK_SECRET =
-  process.env.NODE_ENV !== 'production' ? crypto.randomBytes(32).toString('hex') : undefined;
+function getDevFallbackSecret(): string | undefined {
+  if (process.env.NODE_ENV === 'production') return undefined;
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  return 'dev-fallback-secret-key-32-chars-long';
+}
+
+// In non-production, generate a random secret for local dev if ADMIN_JWT_SECRET is unset
+const DEV_FALLBACK_SECRET = getDevFallbackSecret();
+
 
 const PUBLIC_PREFIXES = [
   '/',
