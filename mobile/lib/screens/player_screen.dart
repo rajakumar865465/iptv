@@ -22,6 +22,7 @@ import '../widgets/channel_logo.dart';
 import '../widgets/premium_channel_card.dart';
 import '../cubits/license_cubit.dart';
 import '../utils/backend_config.dart';
+import '../services/local_hls_proxy.dart';
 
 // Temporary diagnostic logging for the "all channels reconnecting" investigation
 // (work.md). Redacts token/auth values. Safe to remove once root cause is confirmed.
@@ -238,6 +239,7 @@ VideoController? _globalWebVideoController;
 
 class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixin {
   final ApiService _api = ApiService();
+  final LocalHlsProxy _hlsProxy = LocalHlsProxy();
   // Fix #1: Use media_kit Player instead of VideoPlayerController for proper HLS support
   late final Player _player;
   late final VideoController _videoController;
@@ -290,8 +292,48 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _playerInitialized = false;
   /// Toggles the on-screen diagnostics detail view in the error overlay (Option C).
   bool _showDiagDetails = false;
+  
+  // Dynamic Buffer Scaling & RUM Telemetry
+  int _dynamicReadaheadSecs = 0;
+  int _totalBufferingMs = 0;
+  DateTime? _bufferingStartTime;
+  
+  
   Timer? _bufferTimer;
   Timer? _startupTimer;
+  Timer? _heartbeatTimer;
+
+  void _startHeartbeatTimer() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (timer) async {
+      final prefs = await SharedPreferences.getInstance();
+      final deviceId = prefs.getString(StorageKeys.deviceId) ?? 'unknown';
+      try {
+        await _api.sendStreamHeartbeat(_currentChannel.id, deviceId, 'ping');
+      } catch (e) {
+        if (e.toString().contains('Device limit reached')) {
+          timer.cancel();
+          _player.stop();
+          if (mounted) {
+            setState(() {
+              _hasError = true;
+              _streamOverlayMessage = e.toString().replaceFirst('Exception: ', '');
+            });
+          }
+        }
+      }
+    });
+  }
+
+  void _stopHeartbeatTimer() async {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+    final prefs = await SharedPreferences.getInstance();
+    final deviceId = prefs.getString(StorageKeys.deviceId) ?? 'unknown';
+    _api.sendStreamHeartbeat(_currentChannel.id, deviceId, 'stop');
+  }
+
+  Timer? _webFirstFrameTimer;
   Timer? _webFirstFrameTimer;
   Timer? _reconnectTimer;
   Timer? _stablePlaybackTimer;
@@ -523,8 +565,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   @override
   void initState() {
-    _channelTapTime = DateTime.now();
     super.initState();
+    _hlsProxy.start();
+    _channelTapTime = DateTime.now();
     _contextChannels = List<ChannelModel>.from(widget.channels);
     _currentIndex = widget.initialIndex;
     if (_currentIndex < 0 || _currentIndex >= _contextChannels.length) {
@@ -1279,6 +1322,26 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         }
         // Cache API-returned headers so the catch fallback uses the same source of truth.
         _lastApiHeaders = headersToUse;
+
+        // Concurrent Stream Limit Check
+        final prefsDeviceId = await SharedPreferences.getInstance();
+        final deviceId = prefsDeviceId.getString(StorageKeys.deviceId) ?? 'unknown';
+        try {
+          await _api.sendStreamHeartbeat(_currentChannel.id, deviceId, 'start');
+        } catch (e) {
+          if (e.toString().contains('Device limit reached')) {
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+                _hasError = true;
+                _showPreparingOverlay = false;
+                _streamOverlayMessage = e.toString().replaceFirst('Exception: ', '');
+              });
+            }
+            return;
+          }
+        }
+
         await _initializePlayer(urlToPlay, headersToUse);
       } else {
         throw Exception('Playback fetch failed');
@@ -1346,9 +1409,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (!_reportedSuccessForGeneration) {
       _reportedSuccessForGeneration = true;
       _reportPlaybackSuccess();
+      
+      // Predictive Pre-Buffering: Warm up the next channel in the list
+      _prewarmNextChannel();
     }
     
     _startAutoUpgradeTimerIfNeeded();
+    _startHeartbeatTimer();
     
     // Remember successful path!
     if (_currentStreamMeta != null) {
@@ -1356,6 +1423,29 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       if (streamId.isNotEmpty) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('pref_path_${_currentChannel.id}_$streamId', _playbackPath);
+      }
+    }
+  }
+
+  void _prewarmNextChannel() async {
+    if (_contextChannels.isEmpty) return;
+    final int next = _currentIndex + 1;
+    if (next < _contextChannels.length) {
+      final ChannelModel nextChannel = _contextChannels[next];
+      try {
+        final res = await _api.get(ApiEndpoints.channelPlaybackPath(nextChannel.id));
+        if (res['success'] == true) {
+          final data = res['data'];
+          final primary = data['primary_stream'];
+          if (primary != null) {
+             final newUrl = primary['url'] ?? primary['final_url'] ?? primary['stream_url'];
+             if (newUrl != null) {
+               _hlsProxy.prewarmPlaylist(newUrl, null);
+             }
+          }
+        }
+      } catch (e) {
+        debugPrint('Prewarm failed silently: $e');
       }
     }
   }
@@ -1433,8 +1523,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // available ahead of the playhead — buffer it aggressively (YouTube-style)
       // so short network dips never reach the screen.
       final bool isDelayedStream = url.contains('/api/smooth/');
-      final int readaheadSecs =
-          isDelayedStream ? 30 : profile.demuxerReadaheadSecs;
+      final int baseReadaheadSecs = isDelayedStream ? 30 : profile.demuxerReadaheadSecs;
+      if (_dynamicReadaheadSecs < baseReadaheadSecs) {
+         _dynamicReadaheadSecs = baseReadaheadSecs;
+      }
       final int demuxerMaxBytesMib = isDelayedStream
           ? (profile.demuxerMaxBytesMib < 96 ? 96 : profile.demuxerMaxBytesMib)
           : profile.demuxerMaxBytesMib;
@@ -1444,11 +1536,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             platform.runtimeType.toString().contains('LibmpvPlayer')) {
           // Larger readahead keeps player behind live edge, reducing segment 404s
           await (platform as dynamic).setProperty(
-              'demuxer-readahead-secs', '$readaheadSecs');
+              'demuxer-readahead-secs', '$_dynamicReadaheadSecs');
           // cache-secs is the MAX cache size — keep it much larger than readahead
           // so variable-bitrate or slow-CDN streams don't stall
           await (platform as dynamic).setProperty(
-              'cache-secs', '${readaheadSecs * 4}');
+              'cache-secs', '${_dynamicReadaheadSecs * 4}');
           await (platform as dynamic).setProperty('cache', 'yes');
           // Bound the demuxer byte buffer so live streams don't balloon RAM.
           await (platform as dynamic).setProperty(
@@ -1528,9 +1620,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           try {
             await (platform as dynamic).setProperty('video-sync', 'audio');
           } catch (_) {}
-          // Increase audio buffer for smoother A/V sync on variable-latency streams.
           try {
             await (platform as dynamic).setProperty('audio-buffer', '0.5');
+            // Fix for channels with no audio (like Zee Cinema):
+            // 1. Force software audio decoding (libavcodec) for EAC3/AC3 to bypass device hardware codec limitations
+            await (platform as dynamic).setProperty('ad', 'lavc:ac3,lavc:eac3,any');
+            // 2. Downmix 5.1/7.1 to stereo (fixes EAC3 silence on many Android devices)
+            await (platform as dynamic).setProperty('audio-channels', 'stereo');
+            // 3. Prefer Hindi/English audio tracks if multiple exist
+            await (platform as dynamic).setProperty('alang', 'hin,eng,tam,tel,mal,kan');
           } catch (_) {}
           // Deinterlace older SD IPTV channels (many Indian channels are still interlaced).
           try {
@@ -1572,7 +1670,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         'had_connection': headers.containsKey('Connection'),
       });
 
-      final media = Media(url, httpHeaders: headers.isNotEmpty ? headers : null);
+      String targetUrl = url;
+      // Route through local proxy for HLS to enable predictive prewarming & auth interception
+      if (targetUrl.contains('.m3u8')) {
+        targetUrl = _hlsProxy.getProxyUrl(targetUrl, headers.isNotEmpty ? headers : null, () async {
+          return null; 
+        });
+      }
+      final media = Media(targetUrl, httpHeaders: headers.isNotEmpty ? headers : null);
 
       // Final concurrency check before we officially bind this media to the player instance
       if (_initId != myInitId) return;
@@ -2069,6 +2174,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // treat it as a failure if buffering lasts beyond the grace period.
   void _onBufferingChanged(bool isBuffering) {
     if (isBuffering) {
+      _bufferingStartTime = DateTime.now();
       // Start a buffer-stall timer only if we were already playing (not initial load).
       // For initial load the 30-second safety timeout in _initializePlayer covers us.
       final alreadyStarted = !_isLoading;
@@ -2104,11 +2210,22 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         }
 
         // Three stalls inside a minute is strong evidence the bitrate exceeds the
-        // connection capacity — adapt like YouTube. Two was too trigger-happy: back-to-back
-        // CDN hiccups that both self-recovered counted as a capacity problem.
-        if (_bufferingEvents.length >= 3 && !_currentUrl.contains('/api/stream/transcode/')) {
-          _showNetworkSlowPrompt();
-          _bufferingEvents.clear();
+        // connection capacity — adapt like YouTube.
+        if (_bufferingEvents.length >= 3) {
+          // Dynamic Buffer Scaling: Increase buffer window gracefully
+          if (_dynamicReadaheadSecs < 120 && !kIsWeb) {
+             _dynamicReadaheadSecs = (_dynamicReadaheadSecs * 1.5).ceil().clamp(0, 120);
+             try {
+               (_player.platform as dynamic).setProperty('demuxer-readahead-secs', '$_dynamicReadaheadSecs');
+               (_player.platform as dynamic).setProperty('cache-secs', '${_dynamicReadaheadSecs * 4}');
+               debugPrint('Network stall detected. Dynamically scaling buffer to $_dynamicReadaheadSecs seconds.');
+             } catch (_) {}
+          }
+          
+          if (!_currentUrl.contains('/api/stream/transcode/')) {
+            _showNetworkSlowPrompt();
+            _bufferingEvents.clear();
+          }
         }
 
         // A stall lasting 15s means the buffer fully drained — drop one quality
@@ -2156,6 +2273,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         });
       }
     } else {
+      // RUM Telemetry calculation
+      if (_bufferingStartTime != null) {
+        _totalBufferingMs += DateTime.now().difference(_bufferingStartTime!).inMilliseconds;
+        _bufferingStartTime = null;
+      }
       // Buffering cleared - cancel stall/reconnect timers and clear loading spinner
       _bufferTimer?.cancel();
       _bufferTimer = null;
@@ -3118,6 +3240,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   void dispose() {
     // Fix #14: Dispose video player FIRST before animation controller to prevent
     // animation callbacks firing after widget is unmounted
+    _stopHeartbeatTimer();
     _bufferTimer?.cancel();
     _startupTimer?.cancel();
     _reconnectTimer?.cancel();
@@ -3149,6 +3272,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
     _controlsAnimController.dispose();
     _scrollController.dispose();
+    
+    // RUM Telemetry Report
+    if (_totalBufferingMs > 0 && _mediaOpenCount > 0) {
+       debugPrint('[RUM] Channel ${_currentChannel.id} experienced ${_totalBufferingMs}ms of buffering over $_mediaOpenCount sessions.');
+    }
+    
+    _hlsProxy.stop();
     // Fix #9: Disable wakelock when leaving player
     WakelockPlus.disable();
     if (_isFullScreen) {

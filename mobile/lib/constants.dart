@@ -68,6 +68,7 @@ class ApiEndpoints {
   static const String forgotPassword = '$auth/forgot-password';
   static const String me = '$auth/me';
   static const String refreshToken = '$auth/refresh-token';
+  static const String streamHeartbeat = '$auth/stream-heartbeat';
 
   // App Config
   static const String config = '$appConfig/config';

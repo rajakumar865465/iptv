@@ -135,5 +135,24 @@ class ApiService {
     );
     return response.data;
   }
+
+  Future<bool> sendStreamHeartbeat(int channelId, String deviceId, String action) async {
+    try {
+      final response = await post(ApiEndpoints.streamHeartbeat, {
+        'channel_id': channelId,
+        'device_id': deviceId,
+        'action': action,
+      });
+      return response['success'] == true;
+    } catch (e) {
+      if (e is DioException && e.response?.statusCode == 403) {
+        if (e.response?.data != null && e.response!.data['error'] == 'CONCURRENT_STREAM_LIMIT_REACHED') {
+          throw Exception(e.response!.data['message'] ?? 'Device limit reached.');
+        }
+      }
+      developer.log('Stream heartbeat failed: $e', name: 'ApiService');
+      return false; // Return false on generic errors so we don't interrupt playback for network drops
+    }
+  }
 }
 

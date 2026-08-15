@@ -11,3 +11,6 @@ When tasked to update the backend or deploy the backend database to the EC2 inst
 # Server Architecture Context
 - The PostgreSQL database is hosted directly on the same EC2 instance (accessible locally via port 5432) and should not be accessed remotely.
 - The Backend runs on the same EC2 instance. (Note: `.env` typically configures it for port 5000, while the frontend might use port 3000).
+
+# Project Context Rule
+- ALWAYS read `progress.md` at the start of your tasks to check the previous work and understand the current state of the app and recent bug fixes.

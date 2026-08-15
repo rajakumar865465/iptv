@@ -19,7 +19,7 @@ class BackendConfig {
 
   /// Default backend URL used for the IPTV app
   /// Update this whenever you redeploy your Node.js backend.
-  static const String baseUrl = 'http://44.206.18.189';
+  static const String baseUrl = 'http://44.206.18.189:5000';
   
   /// Base URL to fetch channel data (if not using the backend API directly)
   static bool get isConfigured => baseUrl.isNotEmpty;

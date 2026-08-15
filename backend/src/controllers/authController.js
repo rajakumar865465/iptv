@@ -406,3 +406,61 @@ exports.myPurchases = async (req, res) => {
     error(res, 'Failed to fetch purchases', 500);
   }
 };
+
+exports.streamHeartbeat = async (req, res) => {
+  try {
+    const { channel_id, device_id, action } = req.body;
+    if (!device_id || !action) return error(res, 'device_id and action are required', 400);
+
+    const userId = req.user.id;
+
+    if (action === 'stop') {
+      await db.query(
+        'UPDATE devices SET last_stream_ping_at = NULL, active_channel_id = NULL WHERE device_id = $1 AND user_id = $2',
+        [device_id, userId]
+      );
+      return success(res, { success: true });
+    }
+
+    if (action === 'start' || action === 'ping') {
+      const licenseResult = await db.query(
+        `SELECT l.max_devices
+         FROM licenses l
+         WHERE l.user_id = $1 AND l.status = 'active' AND l.expires_at > NOW()`,
+        [userId]
+      );
+
+      const maxDevices = licenseResult.rows.length > 0 ? (licenseResult.rows[0].max_devices || 1) : 1;
+
+      const activeDevicesRes = await db.query(
+        `SELECT COUNT(*) FROM devices 
+         WHERE user_id = $1 
+         AND device_id != $2 
+         AND last_stream_ping_at > NOW() - INTERVAL '60 seconds'`,
+        [userId, device_id]
+      );
+
+      const activeCount = parseInt(activeDevicesRes.rows[0].count);
+
+      if (activeCount >= maxDevices) {
+        return res.status(403).json({
+          success: false,
+          error: 'CONCURRENT_STREAM_LIMIT_REACHED',
+          message: 'You are already watching on the maximum number of devices allowed by your plan. Please stop playback on another device first.'
+        });
+      }
+
+      await db.query(
+        'UPDATE devices SET last_stream_ping_at = NOW(), active_channel_id = $1 WHERE device_id = $2 AND user_id = $3',
+        [channel_id || null, device_id, userId]
+      );
+
+      return success(res, { success: true });
+    }
+
+    return error(res, 'Invalid action', 400);
+  } catch (err) {
+    console.error('streamHeartbeat error:', err);
+    error(res, 'Failed to process heartbeat', 500);
+  }
+};
