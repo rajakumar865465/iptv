@@ -141,6 +141,20 @@ exports.getCategories = async (req, res) => {
   }
 };
 
+function toDirectDownloadUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  const trimmed = url.trim();
+  const driveFileMatch = trimmed.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
+  if (driveFileMatch && driveFileMatch[1]) {
+    return `https://drive.usercontent.google.com/download?id=${driveFileMatch[1]}&export=download&authuser=0`;
+  }
+  const driveIdMatch = trimmed.match(/drive\.google\.com\/(?:open|uc)\?.*id=([a-zA-Z0-9_-]+)/i);
+  if (driveIdMatch && driveIdMatch[1]) {
+    return `https://drive.usercontent.google.com/download?id=${driveIdMatch[1]}&export=download&authuser=0`;
+  }
+  return trimmed;
+}
+
 // GET /api/public/app/download
 exports.getAppDownload = async (req, res) => {
   try {
@@ -163,7 +177,9 @@ exports.getAppDownload = async (req, res) => {
         created_at: new Date().toISOString()
       });
     }
-    return success(res, result.rows[0]);
+    const release = result.rows[0];
+    release.apk_url = toDirectDownloadUrl(release.apk_url);
+    return success(res, release);
   } catch (err) {
     return success(res, {
       version: '1.2.1',
@@ -177,6 +193,7 @@ exports.getAppDownload = async (req, res) => {
     });
   }
 };
+
 
 // GET /api/public/settings
 const WEBSITE_KEYS = [
@@ -600,13 +617,14 @@ exports.createAppRelease = async (req, res) => {
     if (!version || !version_code || !apk_url) {
       return error(res, 'version, version_code and apk_url are required', 400);
     }
+    const cleanApkUrl = toDirectDownloadUrl(apk_url);
     if (is_latest) {
       await db.query(`UPDATE app_releases SET is_latest = false`);
     }
     const result = await db.query(
       `INSERT INTO app_releases (version, version_code, apk_url, file_size, release_notes, minimum_android_version, is_latest, force_update)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [version, version_code, apk_url, file_size || null, JSON.stringify(release_notes || []), minimum_android_version || '7.0', !!is_latest, !!force_update]
+      [version, version_code, cleanApkUrl, file_size || null, JSON.stringify(release_notes || []), minimum_android_version || '7.0', !!is_latest, !!force_update]
     );
     return success(res, result.rows[0], 'Release created', 201);
   } catch (err) {
@@ -619,6 +637,7 @@ exports.updateAppRelease = async (req, res) => {
   try {
     const { id } = req.params;
     const { version, version_code, apk_url, file_size, release_notes, minimum_android_version, is_latest, force_update } = req.body;
+    const cleanApkUrl = apk_url ? toDirectDownloadUrl(apk_url) : null;
     if (is_latest) {
       await db.query(`UPDATE app_releases SET is_latest = false WHERE id != $1`, [id]);
     }
@@ -633,7 +652,7 @@ exports.updateAppRelease = async (req, res) => {
         is_latest = COALESCE($7, is_latest),
         force_update = COALESCE($8, force_update)
        WHERE id = $9 RETURNING *`,
-      [version, version_code, apk_url, file_size, release_notes ? JSON.stringify(release_notes) : null, minimum_android_version, is_latest, force_update, id]
+      [version, version_code, cleanApkUrl, file_size, release_notes ? JSON.stringify(release_notes) : null, minimum_android_version, is_latest, force_update, id]
     );
     if (result.rows.length === 0) return error(res, 'Release not found', 404);
     return success(res, result.rows[0], 'Release updated');
@@ -641,6 +660,7 @@ exports.updateAppRelease = async (req, res) => {
     return error(res, 'Failed to update release', 500);
   }
 };
+
 
 // DELETE /api/internal/app-releases/:id
 exports.deleteAppRelease = async (req, res) => {

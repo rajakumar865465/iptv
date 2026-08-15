@@ -19,8 +19,24 @@ const INSTALL_STEPS = [
   { step: 6, text: 'Enjoy live TV!' },
 ];
 
+function toDirectDownloadUrl(url: string | null | undefined): string {
+  if (!url) return '/downloads/app-release.apk';
+  const trimmed = url.trim();
+  const driveFileMatch = trimmed.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
+  if (driveFileMatch && driveFileMatch[1]) {
+    return `https://drive.usercontent.google.com/download?id=${driveFileMatch[1]}&export=download&authuser=0`;
+  }
+  const driveIdMatch = trimmed.match(/drive\.google\.com\/(?:open|uc)\?.*id=([a-zA-Z0-9_-]+)/i);
+  if (driveIdMatch && driveIdMatch[1]) {
+    return `https://drive.usercontent.google.com/download?id=${driveIdMatch[1]}&export=download&authuser=0`;
+  }
+  return trimmed;
+}
+
 export default async function DownloadPage() {
   const release = await getAppDownload().catch(() => null);
+  const downloadUrl = release ? toDirectDownloadUrl(release.apk_url) : '/downloads/app-release.apk';
+
 
   return (
     <div className="pt-24 pb-20 px-4">
@@ -89,8 +105,10 @@ export default async function DownloadPage() {
               )}
 
               <a
-                href={release.apk_url}
-                download
+                href={downloadUrl}
+                download={downloadUrl.startsWith('http') ? undefined : 'app-release.apk'}
+                target={downloadUrl.startsWith('http') ? '_blank' : undefined}
+                rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg transition-colors shadow-lg shadow-indigo-500/20"
               >
                 <Download className="w-6 h-6" /> Download APK (v{release.version})

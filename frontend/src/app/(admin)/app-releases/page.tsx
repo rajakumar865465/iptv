@@ -276,23 +276,47 @@ export default function AppReleasesPage() {
 
             <div className="space-y-4">
               {[
-                { name: 'version', label: 'Version Name (e.g. 1.2.1)', type: 'text', placeholder: '1.2.1' },
-                { name: 'version_code', label: 'Version Code (integer, e.g. 12)', type: 'number', placeholder: '12' },
-                { name: 'apk_url', label: 'APK URL (or /downloads/app-release.apk)', type: 'text', placeholder: '/downloads/app-release.apk' },
+                { name: 'version', label: 'Version Name (e.g. 2.7 or 1.2.1)', type: 'text', placeholder: '2.7' },
+                { name: 'version_code', label: 'Version Code (integer, e.g. 27)', type: 'number', placeholder: '27' },
+                { name: 'apk_url', label: 'APK URL (Direct link, Google Drive link, or /downloads/app-release.apk)', type: 'text', placeholder: 'https://drive.google.com/file/d/...' },
                 { name: 'file_size', label: 'File Size (e.g. 96.5 MB)', type: 'text', placeholder: '96.5 MB' },
                 { name: 'minimum_android_version', label: 'Min Android Version', type: 'text', placeholder: '7.0' },
               ].map((f) => (
                 <div key={f.name}>
-                  <label className="block text-sm font-medium text-slate-300 mb-1.5">{f.label}</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-sm font-medium text-slate-300">{f.label}</label>
+                    {f.name === 'apk_url' && form.apk_url.includes('drive.usercontent.google.com') && (
+                      <span className="text-[11px] text-emerald-400 font-medium">✓ Direct Google Drive Link</span>
+                    )}
+                  </div>
                   <input
                     type={f.type}
                     placeholder={f.placeholder}
                     value={form[f.name as keyof typeof form] as string}
-                    onChange={(e) => setForm((p) => ({ ...p, [f.name]: e.target.value }))}
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      if (f.name === 'apk_url') {
+                        const driveFileMatch = val.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
+                        if (driveFileMatch && driveFileMatch[1]) {
+                          val = `https://drive.usercontent.google.com/download?id=${driveFileMatch[1]}&export=download&authuser=0`;
+                        }
+                        const driveIdMatch = val.match(/drive\.google\.com\/(?:open|uc)\?.*id=([a-zA-Z0-9_-]+)/i);
+                        if (driveIdMatch && driveIdMatch[1]) {
+                          val = `https://drive.usercontent.google.com/download?id=${driveIdMatch[1]}&export=download&authuser=0`;
+                        }
+                      }
+                      setForm((p) => ({ ...p, [f.name]: val }));
+                    }}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500 font-mono text-xs"
                   />
+                  {f.name === 'apk_url' && (
+                    <p className="text-slate-500 text-[11px] mt-1">
+                      Paste your Google Drive sharing link here — it will automatically convert to an instant direct download!
+                    </p>
+                  )}
                 </div>
               ))}
+
 
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1.5">Release Notes (one per line)</label>
