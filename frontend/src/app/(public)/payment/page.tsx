@@ -105,7 +105,6 @@ function PaymentForm() {
   }, []);
 
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
-
   const handlePay = useCallback(async () => {
     setError('');
     
@@ -171,11 +170,20 @@ function PaymentForm() {
       setError(msg);
       setLoading(false);
     }
-  }, [form, selectedPlanId, router, offerPriceParam]);
+  }, [form, selectedPlanId, router, offerPriceParam, user]);
+
+  const handleAuthSuccess = (u: any) => {
+    setUser(u);
+    setForm(prev => ({
+      customer_name: u.full_name || prev.customer_name,
+      email: u.email || prev.email,
+      mobile: u.mobile || prev.mobile,
+    }));
+  };
 
   return (
     <>
-      <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} onSuccess={(u) => setUser(u)} />
+      <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} onSuccess={handleAuthSuccess} />
       <Script id="razorpay-sdk" src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
       <div className="pt-24 pb-20 px-4">
       <div className="max-w-md mx-auto">
