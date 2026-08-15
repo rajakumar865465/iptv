@@ -270,6 +270,8 @@ router.put('/channels/:id/ui', async (req, res) => {
 router.get('/app-releases', adminAuthMiddleware, publicController.getAppReleases);
 router.post('/app-releases', adminAuthMiddleware, publicController.createAppRelease);
 router.put('/app-releases/:id', adminAuthMiddleware, publicController.updateAppRelease);
+router.delete('/app-releases/:id', adminAuthMiddleware, publicController.deleteAppRelease);
+
 
 // Website settings
 router.get('/website-settings', adminAuthMiddleware, publicController.getWebsiteSettings);

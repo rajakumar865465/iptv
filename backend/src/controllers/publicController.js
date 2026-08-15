@@ -642,6 +642,19 @@ exports.updateAppRelease = async (req, res) => {
   }
 };
 
+// DELETE /api/internal/app-releases/:id
+exports.deleteAppRelease = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(`DELETE FROM app_releases WHERE id = $1 RETURNING *`, [id]);
+    if (result.rows.length === 0) return error(res, 'Release not found', 404);
+    return success(res, result.rows[0], 'Release deleted');
+  } catch (err) {
+    return error(res, 'Failed to delete release', 500);
+  }
+};
+
+
 // GET /api/internal/website-settings
 exports.getWebsiteSettings = async (req, res) => {
   try {

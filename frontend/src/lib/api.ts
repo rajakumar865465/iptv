@@ -315,6 +315,10 @@ export const createAppRelease = (data: Record<string, unknown>) =>
 export const updateAppRelease = (id: string, data: Record<string, unknown>) =>
   api.put(`/app-releases/${id}`, data).then((r) => r.data.data);
 
+export const deleteAppRelease = (id: string) =>
+  api.delete(`/app-releases/${id}`).then((r) => r.data.data);
+
+
 // Website settings
 export const getWebsiteSettings = () =>
   api.get('/website-settings').then((r) => r.data.data);
