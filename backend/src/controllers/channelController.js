@@ -987,6 +987,34 @@ exports.getChannelPlayback = async (req, res) => {
       });
     }
 
+    // ── Entitlement guard: premium/paid channels require an authenticated
+    // user with an active, non-expired license before any stream/proxy URLs
+    // are returned. Free-tier channels keep the existing anonymous access.
+    const isPremiumChannel = channel.is_premium === true || channel.is_paid === true;
+    if (isPremiumChannel) {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Sign in required to play this premium channel.',
+          error_code: 'AUTH_REQUIRED',
+        });
+      }
+
+      const licenseRes = await db.query(
+        `SELECT 1 FROM licenses
+         WHERE user_id = $1 AND status = 'active' AND expires_at > NOW()
+         LIMIT 1`,
+        [req.user.id]
+      );
+      if (licenseRes.rows.length === 0) {
+        return res.status(403).json({
+          success: false,
+          message: 'An active subscription is required to play this premium channel.',
+          error_code: 'LICENSE_REQUIRED',
+        });
+      }
+    }
+
     // ── Helper: compile safe headers for a stream row ───────────────────────
     // Only include User-Agent when the stream row explicitly sets one — avoids
     // sending a desktop Chrome UA to CDNs that expect a mobile/native UA or no UA.

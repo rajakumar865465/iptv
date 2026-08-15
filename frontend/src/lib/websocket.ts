@@ -107,9 +107,11 @@ export function useWebSocket(url: string, onMessage?: MessageHandler) {
 export function useDashboardStats() {
   const [stats, setStats] = useState<unknown>(null);
   
-  // Use API URL for WebSocket connection (same host as backend, not Next.js dev server)
+  // Use API URL for WebSocket connection (same host as backend, not Next.js dev server).
+  // Derive ws:/wss: from the API URL's own scheme (mirrors the connect-src logic
+  // in next.config.ts) instead of hardcoding ws:, so https:// backends get wss://.
   const wsUrl = typeof window !== 'undefined'
-    ? `ws://${process.env.NEXT_PUBLIC_API_URL?.replace(/^https?:\/\//, '') || 'localhost:5000'}/ws`
+    ? `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').replace(/^http/, 'ws')}/ws`
     : '';
 
   const { isConnected: connected } = useWebSocket(wsUrl, (data) => {

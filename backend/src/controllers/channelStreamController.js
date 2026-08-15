@@ -2,6 +2,15 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const { diagnoseStream } = require('../utils/streamDiagnoser');
 
+// Defense-in-depth: reject any stream_url that isn't http(s) at write time so
+// protocol handlers like file:/concat:/etc. (which ffmpeg/curl understand)
+// can never be stored in the DB in the first place. The full DNS/IP SSRF
+// check still runs at every read/use site (streamController, streamDiagnoser,
+// proxyController).
+function isAllowedStreamUrlProtocol(url) {
+  return typeof url === 'string' && /^https?:\/\//i.test(url);
+}
+
 exports.getChannelStreams = async (req, res) => {
   try {
     const { id } = req.params;
@@ -22,6 +31,10 @@ exports.createChannelStream = async (req, res) => {
       final_url, origin, headers_json, codec_video, codec_audio, container_type, segment_type,
       playback_mode, vlc_playable, android_playable
     } = req.body;
+
+    if (!isAllowedStreamUrlProtocol(stream_url)) {
+      return error(res, 'stream_url must start with http:// or https://', 400);
+    }
 
     let parsedHeaders = null;
     if (headers_json) {
@@ -60,6 +73,10 @@ exports.updateChannelStream = async (req, res) => {
       final_url, origin, headers_json, codec_video, codec_audio, container_type, segment_type,
       playback_mode, vlc_playable, android_playable, health_status, health_reason
     } = req.body;
+
+    if (stream_url !== undefined && !isAllowedStreamUrlProtocol(stream_url)) {
+      return error(res, 'stream_url must start with http:// or https://', 400);
+    }
 
     let parsedHeaders = null;
     if (headers_json) {

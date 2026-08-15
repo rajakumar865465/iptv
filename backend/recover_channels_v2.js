@@ -25,7 +25,7 @@ function parseM3u(m3uContent) {
     const lines = m3uContent.split(/\r?\n/);
     const channels = new Map();
     let currentName = '';
-    
+
     for (const line of lines) {
         if (line.startsWith('#EXTINF')) {
             const parts = line.split(',');
@@ -47,18 +47,23 @@ async function main() {
         const iptvOrgChannels = parseM3u(iptvOrgContent);
         console.log(`Loaded ${iptvOrgChannels.size} channels from iptv-org.`);
 
+        if (!process.env.DATABASE_URL) {
+            console.error('DATABASE_URL is not set. Refusing to connect without an explicit connection string.');
+            process.exit(1);
+        }
+
         console.log('Connecting to Database...');
         const pool = new Pool({
-            connectionString: process.env.DATABASE_URL || 'postgresql://iptvdb:JdKD9dbx1wha4P5jyDMwU8NsE8z6wJNd@dpg-d8tbqf4m0tmc73c6j6hg-a.oregon-postgres.render.com/iptv_db2',
-            ssl: { rejectUnauthorized: false }
+            connectionString: process.env.DATABASE_URL,
+            ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false }
         });
 
         // Get all channels from the DB
         const result = await pool.query('SELECT id, name FROM channels');
         const dbChannels = result.rows;
-        
+
         let updatedCount = 0;
-        
+
         for (const dbChan of dbChannels) {
             const cName = cleanName(dbChan.name);
             if (iptvOrgChannels.has(cName)) {
@@ -72,7 +77,7 @@ async function main() {
                 }
             }
         }
-        
+
         await pool.end();
         console.log(`Successfully updated ${updatedCount} rows in the database.`);
     } catch (e) {

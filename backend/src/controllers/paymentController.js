@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const { generateLicenseKey } = require('../utils/helpers');
@@ -93,33 +94,40 @@ exports.createRazorpayOrder = async (req, res) => {
 };
 
 exports.verifyRazorpayPayment = async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+  if (!razorpayClient) {
+    return error(res, 'Payment gateway not configured', 503);
+  }
+
+  // Verify signature — always use the env var, never a hardcoded fallback
+  if (!process.env.RAZORPAY_KEY_SECRET) {
+    return error(res, 'Payment gateway not configured', 503);
+  }
+  const expectedSignature = crypto
+    .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+    .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+    .digest('hex');
+
+  const expectedBuf = Buffer.from(expectedSignature, 'utf8');
+  const providedBuf = Buffer.from(razorpay_signature || '', 'utf8');
+  const signaturesMatch = expectedBuf.length === providedBuf.length && crypto.timingSafeEqual(expectedBuf, providedBuf);
+
+  if (!signaturesMatch) {
+    return error(res, 'Invalid payment signature', 400);
+  }
+
+  const client = await db.pool.connect();
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-
-    if (!razorpayClient) {
-      return error(res, 'Payment gateway not configured', 503);
-    }
-
-    // Verify signature — always use the env var, never a hardcoded fallback
-    if (!process.env.RAZORPAY_KEY_SECRET) {
-      return error(res, 'Payment gateway not configured', 503);
-    }
-    const crypto = require('crypto');
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest('hex');
-
-    if (expectedSignature !== razorpay_signature) {
-      return error(res, 'Invalid payment signature', 400);
-    }
+    await client.query('BEGIN');
 
     // Get payment record
-    const paymentResult = await db.query(
-      'SELECT * FROM payments WHERE transaction_id = $1',
+    const paymentResult = await client.query(
+      'SELECT * FROM payments WHERE transaction_id = $1 FOR UPDATE',
       [razorpay_order_id]
     );
     if (paymentResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return error(res, 'Payment not found', 404);
     }
     const payment = paymentResult.rows[0];
@@ -127,12 +135,13 @@ exports.verifyRazorpayPayment = async (req, res) => {
     // Idempotency: Razorpay may retry verification/webhooks. If this payment is
     // already completed, return the existing license instead of creating a duplicate.
     if (payment.status === 'completed') {
-      const existingLicense = await db.query(
+      const existingLicense = await client.query(
         `SELECT license_key FROM licenses
          WHERE user_id = $1 AND plan_id = $2
          ORDER BY created_at DESC LIMIT 1`,
         [payment.user_id, payment.plan_id]
       );
+      await client.query('ROLLBACK');
       return success(res, {
         success: true,
         license_key: existingLicense.rows[0]?.license_key || null,
@@ -142,38 +151,45 @@ exports.verifyRazorpayPayment = async (req, res) => {
 
     // Update payment status — guard on status to avoid a race between two
     // concurrent verifications creating two licenses.
-    const updateResult = await db.query(
+    const updateResult = await client.query(
       `UPDATE payments SET status = 'completed', paid_at = NOW(), updated_at = NOW()
        WHERE id = $1 AND status <> 'completed' RETURNING *`,
       [payment.id]
     );
     if (updateResult.rows.length === 0) {
       // Another request completed it first — treat as already processed
+      await client.query('ROLLBACK');
       return success(res, { success: true, already_processed: true });
     }
 
     // Create/activate license
     const licenseKey = generateLicenseKey();
-    const planResult = await db.query('SELECT * FROM plans WHERE id = $1', [payment.plan_id]);
+    const planResult = await client.query('SELECT * FROM plans WHERE id = $1', [payment.plan_id]);
     const plan = planResult.rows[0];
     if (!plan) {
+      await client.query('ROLLBACK');
       return error(res, 'Plan not found for this payment', 404);
     }
 
-    await db.query(
+    await client.query(
       `INSERT INTO licenses (license_key, plan_id, user_id, status, duration_days, max_devices, activated_at, expires_at)
        VALUES ($1, $2, $3, 'active', $4, $5, NOW(), NOW() + INTERVAL '1 day' * $4)`,
       [licenseKey, payment.plan_id, payment.user_id, plan.duration_days, plan.max_devices]
     );
 
     // Update user status if needed
-    await db.query('UPDATE users SET status = $1 WHERE id = $2 AND status = $3',
+    await client.query('UPDATE users SET status = $1 WHERE id = $2 AND status = $3',
       ['active', payment.user_id, 'blocked']);
+
+    await client.query('COMMIT');
 
     success(res, { success: true, license_key: licenseKey });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Payment verification error:', err.message);
     error(res, 'Payment verification failed', 500);
+  } finally {
+    client.release();
   }
 };
 

@@ -1,13 +1,14 @@
 import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
+import 'storage_service.dart';
 import 'token_refresh_service.dart';
 
 import '../utils/backend_config.dart';
 
 class ApiService {
   late Dio _dio;
+  final StorageService _storage = StorageService();
 
   ApiService() {
     _dio = Dio(BaseOptions(
@@ -19,8 +20,7 @@ class ApiService {
 
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final prefs = await SharedPreferences.getInstance();
-        final token = prefs.getString(StorageKeys.token);
+        final token = await _storage.getToken();
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
@@ -69,8 +69,7 @@ class ApiService {
                 final ok = await TokenRefreshService.instance.refresh();
                 if (ok) {
                   try {
-                    final prefs = await SharedPreferences.getInstance();
-                    final newToken = prefs.getString(StorageKeys.token);
+                    final newToken = await _storage.getToken();
                     if (newToken != null) {
                       req.headers['Authorization'] = 'Bearer $newToken';
                     }
@@ -100,9 +99,7 @@ class ApiService {
   }
 
   Future<void> _clearToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(StorageKeys.token);
-    await prefs.remove(StorageKeys.refreshToken);
+    await _storage.clearAuthData();
   }
 
   Future<Map<String, dynamic>> get(String path, {Map<String, dynamic>? queryParameters}) async {

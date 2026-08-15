@@ -10,6 +10,10 @@ const http = require('http');
 const { URL } = require('url');
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
+// SSRF protection: reuse the same DNS-resolving safety check used by the
+// proxy. This module makes outbound requests to DB-sourced stream_url values,
+// so it must be validated before httpGet() ever touches the network.
+const { isSafeExternalUrl } = require('./proxyController');
 
 const TIMEOUT = 10000;
 const SEG_TIMEOUT = 12000;
@@ -142,6 +146,12 @@ function resolveUrl(base, rel) {
 
 async function checkDeep(streamUrl, customHeaders = {}) {
   if (!streamUrl || !streamUrl.startsWith('http')) return { status: 'offline', score: 0, reason: 'invalid_url' };
+
+  // SSRF guard: validate before httpGet() touches the network. Rejects
+  // private/loopback/link-local/metadata IPs and non-http(s) protocols.
+  const isSafe = await isSafeExternalUrl(streamUrl);
+  if (!isSafe) return { status: 'offline', score: 0, reason: 'ssrf_blocked_unsafe_url' };
+
   const t0 = Date.now();
   const m3u = await httpGet(streamUrl, customHeaders, false, TIMEOUT);
   if (!m3u.ok) {

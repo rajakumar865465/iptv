@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
+import crypto from 'crypto';
+
+// If ADMIN_JWT_SECRET isn't configured, fail closed rather than falling back
+// to any fixed/known string (a hardcoded fallback secret would let anyone
+// reading the source forge admin tokens in misconfigured environments where
+// NODE_ENV isn't exactly 'production'). In non-production, generate a random
+// per-process secret once at module load so local dev still works without
+// requiring extra configuration, without ever using a guessable value.
+const DEV_FALLBACK_SECRET =
+  process.env.NODE_ENV !== 'production' ? crypto.randomBytes(32).toString('hex') : undefined;
 
 const PUBLIC_PREFIXES = [
   '/',
@@ -78,8 +88,8 @@ export async function middleware(req: NextRequest) {
   }
 
   try {
-    const secret = process.env.ADMIN_JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'dev-admin-secret-change-in-production' : undefined);
-    
+    const secret = process.env.ADMIN_JWT_SECRET || DEV_FALLBACK_SECRET;
+
     if (!secret) {
       console.error('ADMIN_JWT_SECRET not set - cannot verify admin token in middleware');
       return redirectToLogin(req);

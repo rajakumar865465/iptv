@@ -960,3 +960,10 @@ exports.proxySegment = async (req, res) => {
     }
   }
 };
+
+// Exported for reuse by other modules that make outbound requests to
+// DB-sourced/user-sourced URLs (e.g. streamController, streamDiagnoser) so the
+// same SSRF protection applies at every read/use site, not just the proxy.
+module.exports.isSafeExternalUrl = isSafeExternalUrl;
+module.exports.isSafeExternalUrlCached = isSafeExternalUrlCached;
+module.exports.isPrivateIp = isPrivateIp;

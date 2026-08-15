@@ -63,3 +63,39 @@ so an APK can never ship pointing at a blank backend.
 
 Never commit a real URL into source — always pass it via `--dart-define` (or a
 CI secret for release builds).
+
+## Release signing (`android/key.properties`)
+
+Release builds are **not** signed with the debug keystore. Gradle will fail
+the build with a clear error if `android/key.properties` doesn't exist, so a
+release APK/AAB can never accidentally ship signed with the debug key.
+
+1. Generate a release keystore (do this once, and back it up somewhere safe
+   — losing it means you can never publish an update under the same app on
+   the Play Store again):
+
+   ```bash
+   keytool -genkey -v -keystore release-keystore.jks -keyalg RSA \
+     -keysize 2048 -validity 10000 -alias niva_tv_release
+   ```
+
+2. Create `android/key.properties` (this file is git-ignored — never commit
+   it) with:
+
+   ```properties
+   storePassword=<the keystore password you set above>
+   keyPassword=<the key password you set above>
+   keyAlias=niva_tv_release
+   storeFile=/absolute/or/relative/path/to/release-keystore.jks
+   ```
+
+   `storeFile` can be an absolute path or a path relative to `android/app/`.
+
+3. Build the release as usual:
+
+   ```bash
+   flutter build apk --release --dart-define=BACKEND_URL=https://35.154.128.217
+   ```
+
+For CI, write `key.properties` (and place the keystore file) from secrets
+as a build step before invoking `flutter build`, rather than committing them.

@@ -59,8 +59,16 @@ const corsOptionsDelegate = function (req, callback) {
   } else if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
     // Allow localhost origins (any port)
     corsOptions = { origin: true, credentials: true };
-  } else if (host && origin.includes(host)) {
-    // Allow requests if the Origin matches the Host (same-origin behind proxy)
+  } else if (host && (() => {
+    try {
+      return new URL(origin).host === host;
+    } catch (_) {
+      return false;
+    }
+  })()) {
+    // Allow requests if the Origin's host exactly matches the request Host
+    // (same-origin behind proxy). Uses URL parsing + strict equality to avoid
+    // substring-match bypasses like "https://realhost.com.attacker.com".
     corsOptions = { origin: true, credentials: true };
   } else if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
     corsOptions = { origin: true, credentials: true };

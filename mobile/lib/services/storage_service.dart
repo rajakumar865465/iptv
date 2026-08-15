@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/channel_model.dart';
 import '../constants.dart';
@@ -12,24 +13,25 @@ class StorageService {
   factory StorageService() => _instance;
   StorageService._internal();
 
+  // JWT access/refresh tokens are the most sensitive data this app persists,
+  // so they live in the platform-backed secure storage (Android Keystore /
+  // iOS Keychain) rather than plaintext SharedPreferences.
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+
   Future<void> saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(StorageKeys.token, token);
+    await _secureStorage.write(key: StorageKeys.token, value: token);
   }
 
   Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(StorageKeys.token);
+    return _secureStorage.read(key: StorageKeys.token);
   }
 
   Future<void> saveRefreshToken(String refreshToken) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(StorageKeys.refreshToken, refreshToken);
+    await _secureStorage.write(key: StorageKeys.refreshToken, value: refreshToken);
   }
 
   Future<String?> getRefreshToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(StorageKeys.refreshToken);
+    return _secureStorage.read(key: StorageKeys.refreshToken);
   }
 
   // Fix #24: Use real hardware device ID for stable cross-reinstall tracking
@@ -221,9 +223,9 @@ class StorageService {
   }
 
   Future<void> clearAuthData() async {
+    await _secureStorage.delete(key: StorageKeys.token);
+    await _secureStorage.delete(key: StorageKeys.refreshToken);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(StorageKeys.token);
-    await prefs.remove(StorageKeys.refreshToken);
     await prefs.remove(StorageKeys.user);
     await prefs.remove(StorageKeys.cachedChannels);
     await prefs.remove(StorageKeys.cachedCategories);
@@ -232,9 +234,9 @@ class StorageService {
   /// Full wipe — only call this on explicit user-initiated "Sign Out".
   /// Clears everything including onboarding and device ID.
   Future<void> clearAll() async {
+    await _secureStorage.delete(key: StorageKeys.token);
+    await _secureStorage.delete(key: StorageKeys.refreshToken);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(StorageKeys.token);
-    await prefs.remove(StorageKeys.refreshToken);
     await prefs.remove(StorageKeys.user);
     await prefs.remove(StorageKeys.deviceId);
     await prefs.remove(StorageKeys.isFirstLaunch);

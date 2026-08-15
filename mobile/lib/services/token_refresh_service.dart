@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../constants.dart';
 import 'auth_service.dart';
+import 'storage_service.dart';
 
 /// Single, concurrency-safe point for exchanging a stored refresh token for a
 /// fresh access token. Used by the splash screen (proactively) and by the Dio
@@ -15,6 +14,7 @@ class TokenRefreshService {
   static final TokenRefreshService instance = TokenRefreshService._internal();
 
   final AuthService _auth = AuthService();
+  final StorageService _storage = StorageService();
 
   // Tracks an in-flight refresh so concurrent callers share one network call.
   static Future<bool>? _pending;
@@ -36,17 +36,16 @@ class TokenRefreshService {
   }
 
   Future<bool> _doRefresh() async {
-    final prefs = await SharedPreferences.getInstance();
-    final refreshToken = prefs.getString(StorageKeys.refreshToken);
+    final refreshToken = await _storage.getRefreshToken();
     if (refreshToken == null || refreshToken.isEmpty) return false;
 
     try {
       final result = await _auth.refreshToken(refreshToken);
       if (result == null || result.token.isEmpty) return false;
 
-      await prefs.setString(StorageKeys.token, result.token);
+      await _storage.saveToken(result.token);
       if (result.refreshToken != null && result.refreshToken!.isNotEmpty) {
-        await prefs.setString(StorageKeys.refreshToken, result.refreshToken!);
+        await _storage.saveRefreshToken(result.refreshToken!);
       }
       _auth.setToken(result.token);
       return true;

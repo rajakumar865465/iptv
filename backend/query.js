@@ -1,5 +1,16 @@
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const { Client } = require('pg');
-const client = new Client({ connectionString: 'postgresql://iptvdb:SecureDbPass9aF2xL8qP3@35.174.78.33:5432/iptv_db' });
+
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL is not set. Refusing to connect without an explicit connection string.');
+  process.exit(1);
+}
+
+const client = new Client({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false },
+});
+
 client.connect().then(() => {
   return client.query(`
 SELECT 

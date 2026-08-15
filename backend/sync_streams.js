@@ -1,15 +1,25 @@
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const { Client } = require('pg');
-const client = new Client({ connectionString: 'postgresql://iptvdb:JdKD9dbx1wha4P5jyDMwU8NsE8z6wJNd@dpg-d8tbqf4m0tmc73c6j6hg-a.oregon-postgres.render.com/iptv_db2', ssl: { rejectUnauthorized: false } });
+
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL is not set. Refusing to connect without an explicit connection string.');
+  process.exit(1);
+}
+
+const client = new Client({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false },
+});
 
 async function main() {
     try {
         await client.connect();
-        
+
         // Find channels whose stream_url was updated to a healthy one (or updated recently)
         const result = await client.query(`
             SELECT id, stream_url FROM channels WHERE health_status = 'unknown' OR health_status = 'online'
         `);
-        
+
         let updatedCount = 0;
         for (const row of result.rows) {
             // Update the primary stream in channel_streams
@@ -18,7 +28,7 @@ async function main() {
                 SET stream_url = $1, health_status = 'unknown'
                 WHERE channel_id = $2 AND priority = 1
             `, [row.stream_url, row.id]);
-            
+
             if (updateRes.rowCount > 0) {
                 updatedCount++;
             } else {
@@ -39,7 +49,7 @@ async function main() {
                 }
             }
         }
-        
+
         console.log(`Synced ${updatedCount} channels to channel_streams.`);
     } catch (e) {
         console.error(e);

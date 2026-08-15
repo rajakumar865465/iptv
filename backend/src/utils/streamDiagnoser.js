@@ -3,6 +3,11 @@ const http = require('http');
 const { URL } = require('url');
 const { execFile, spawn } = require('child_process');
 const ffmpegPath = require('ffmpeg-static');
+// SSRF protection: reuse the same DNS-resolving safety check used by the proxy.
+// This module makes outbound requests (httpGet) and spawns ffmpeg/ffprobe
+// (probeCodecs) against a caller-supplied URL, so it must be validated once
+// up-front in diagnoseStream() before either code path runs.
+const { isSafeExternalUrl } = require('../controllers/proxyController');
 
 const UA_DEFAULT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
@@ -44,8 +49,9 @@ function httpGet(url, headers = {}, segmentMode = false, timeout = 10000, redire
       method: 'GET',
       timeout,
       headers: reqHeaders,
-      // VLC/App compatibility: ignore SSL verification errors
-      ...(parsed.protocol === 'https:' ? { rejectUnauthorized: false } : {})
+      // This module talks to third-party stream sources (not our own DB), so
+      // TLS certificate validation must stay enabled.
+      ...(parsed.protocol === 'https:' ? { rejectUnauthorized: true } : {})
     };
 
     let isResolved = false;
@@ -262,6 +268,18 @@ async function diagnoseStream(streamUrl, inputHeaders = {}) {
   if (!streamUrl || !streamUrl.startsWith('http')) {
     result.health_status = 'offline';
     result.health_reason = 'invalid_url';
+    result.android_playable = false;
+    result.vlc_playable = false;
+    return result;
+  }
+
+  // SSRF guard: validate exactly once, before either httpGet() or probeCodecs()
+  // (ffmpeg) touch the URL. Rejects private/loopback/link-local/metadata IPs
+  // and non-http(s) protocols.
+  const isSafe = await isSafeExternalUrl(streamUrl);
+  if (!isSafe) {
+    result.health_status = 'offline';
+    result.health_reason = 'ssrf_blocked_unsafe_url';
     result.android_playable = false;
     result.vlc_playable = false;
     return result;

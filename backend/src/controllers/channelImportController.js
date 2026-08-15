@@ -20,6 +20,14 @@ const { runScanSession } = require('../jobs/channelImportScanner');
 
 const MAX_M3U_BYTES = 15 * 1024 * 1024; // 15MB safety cap on fetched playlists
 
+// Defense-in-depth: reject any stream_url that is not http(s) at the point of
+// insertion into channels/channel_streams. Stops protocol handlers like
+// file:/concat:/etc. from ever being persisted, ahead of the full DNS/IP
+// SSRF check enforced at read/use time.
+function isAllowedStreamUrlProtocol(url) {
+  return typeof url === 'string' && /^https?:\/\//i.test(url);
+}
+
 // --- FETCH RAW M3U FROM URL (preview only, does not create a session) ---
 exports.fetchM3u = async (req, res) => {
   try {
@@ -277,6 +285,15 @@ exports.importSelected = async (req, res) => {
       const item = itemRes.rows[0];
 
       if (item.import_status === 'imported') { continue; } // already imported, idempotent
+
+      if (!isAllowedStreamUrlProtocol(item.stream_url)) {
+        await client.query(
+          `UPDATE channel_import_items SET import_status = 'skipped', error_message = $1 WHERE id = $2`,
+          ['stream_url must start with http:// or https://', item.id]
+        ).catch(() => {});
+        summary.skippedOther++;
+        continue;
+      }
 
       // Serialize concurrent imports of the same logical channel via an
       // advisory lock scoped to this transaction (released on COMMIT/ROLLBACK).

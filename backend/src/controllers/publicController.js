@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const Razorpay = require('razorpay');
+const { verifyToken } = require('../utils/jwt');
 
 function getRazorpay() {
   if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
@@ -240,8 +241,7 @@ exports.createOrder = async (req, res) => {
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
       const token = req.headers.authorization.split(' ')[1];
       try {
-        const jwt = require('jsonwebtoken');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_key_change_this_in_production_xyz123');
+        const decoded = verifyToken(token);
         userId = decoded.userId;
       } catch (e) {
         console.error('Invalid token during checkout', e);
@@ -353,7 +353,11 @@ exports.verifyPayment = async (req, res) => {
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest('hex');
 
-    if (expected !== razorpay_signature) {
+    const expectedBuf = Buffer.from(expected, 'utf8');
+    const providedBuf = Buffer.from(razorpay_signature, 'utf8');
+    const signaturesMatch = expectedBuf.length === providedBuf.length && crypto.timingSafeEqual(expectedBuf, providedBuf);
+
+    if (!signaturesMatch) {
       return error(res, 'Payment verification failed: invalid signature', 400);
     }
 
@@ -466,10 +470,32 @@ exports.verifyPayment = async (req, res) => {
   }
 };
 
-// GET /api/public/payments/status/:orderId
+// GET /api/public/payments/status/:orderId?email=...  (or ?mobile=...)
+// Ownership check: since this endpoint is unauthenticated/public, the caller
+// must also prove they know the contact info supplied at checkout time
+// (public_orders.email / public_orders.mobile), preventing IDOR via a
+// guessable/sequential orderId alone.
 exports.getOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
+    const email = (req.query.email || '').toString().trim().toLowerCase();
+    const mobile = (req.query.mobile || '').toString().replace(/[\s\-+]/g, '');
+
+    if (!email && !mobile) {
+      return error(res, 'email or mobile query parameter is required to verify order ownership', 400);
+    }
+
+    const conditions = ['po.order_id = $1'];
+    const params = [orderId];
+    if (email) {
+      params.push(email);
+      conditions.push(`LOWER(po.email) = $${params.length}`);
+    }
+    if (mobile) {
+      params.push(mobile);
+      conditions.push(`REPLACE(REPLACE(REPLACE(po.mobile, ' ', ''), '-', ''), '+', '') = $${params.length}`);
+    }
+
     const result = await db.query(
       `SELECT po.order_id, po.status, po.plan_id, po.amount, po.currency, po.created_at,
               l.license_key, l.status AS license_status, l.duration_days, l.max_devices,
@@ -477,8 +503,8 @@ exports.getOrderStatus = async (req, res) => {
        FROM public_orders po
        LEFT JOIN licenses l ON po.license_id = l.id
        LEFT JOIN plans p ON po.plan_id = p.id
-       WHERE po.order_id = $1`,
-      [orderId]
+       WHERE ${conditions.join(' AND ')}`,
+      params
     );
     if (result.rows.length === 0) {
       return error(res, 'Order not found', 404);

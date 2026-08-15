@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const channelController = require('../controllers/channelController');
-const { apiLimiter, searchLimiter } = require('../middleware/rateLimit');
+const { apiLimiter, searchLimiter, channelReportLimiter } = require('../middleware/rateLimit');
 
 const { optionalAuth } = require('../middleware/auth');
 
@@ -16,8 +16,12 @@ router.get('/:id/epg/upcoming', apiLimiter, channelController.getChannelEPGUpcom
 router.get('/:id/playback', apiLimiter, optionalAuth, channelController.getChannelPlayback);
 router.get('/:id/smooth-playback', apiLimiter, optionalAuth, require('../controllers/smoothPlaybackController').getSmoothPlayback);
 router.get('/:id/related', apiLimiter, channelController.getRelatedChannels);
-router.post('/:id/report-failure', apiLimiter, channelController.reportFailure);
-router.post('/:id/playback-result', apiLimiter, channelController.reportPlaybackResult);
-router.post('/:id/display-report', apiLimiter, channelController.reportChannelDisplay);
+// These telemetry endpoints influence a channel's health_status, so they get
+// optionalAuth (identifies logged-in users) plus a tight per-IP+per-channel
+// rate limit to stop a single anonymous actor from brute-forcing the
+// fail-count thresholds (mobile app also reports for users not logged in yet).
+router.post('/:id/report-failure', apiLimiter, channelReportLimiter, optionalAuth, channelController.reportFailure);
+router.post('/:id/playback-result', apiLimiter, channelReportLimiter, optionalAuth, channelController.reportPlaybackResult);
+router.post('/:id/display-report', apiLimiter, channelReportLimiter, optionalAuth, channelController.reportChannelDisplay);
 
 module.exports = router;

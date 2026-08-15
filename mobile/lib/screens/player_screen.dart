@@ -334,7 +334,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Timer? _webFirstFrameTimer;
-  Timer? _webFirstFrameTimer;
   Timer? _reconnectTimer;
   Timer? _stablePlaybackTimer;
   Timer? _positionCheckTimer;

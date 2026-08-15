@@ -44,9 +44,10 @@ exports.verifyOtp = async (req, res) => {
 
     const cleanMobile = mobile.replace(/[\s\-+]/g, '');
 
-    // Check if OTP exists and is not expired
+    // Atomically consume the OTP: DELETE...RETURNING ensures two concurrent
+    // requests with the same code can't both succeed (CWE-362 fix).
     const result = await db.query(
-      `SELECT * FROM otp_codes WHERE mobile = $1 AND code = $2 AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
+      `DELETE FROM otp_codes WHERE mobile = $1 AND code = $2 AND expires_at > NOW() RETURNING *`,
       [cleanMobile, code]
     );
 
@@ -54,7 +55,7 @@ exports.verifyOtp = async (req, res) => {
       return error(res, 'Invalid or expired OTP', 400);
     }
 
-    // OTP is valid. Delete all OTPs for this number to prevent reuse
+    // Clean up any other outstanding OTPs for this number
     await db.query(`DELETE FROM otp_codes WHERE mobile = $1`, [cleanMobile]);
 
     // Check if user exists

@@ -1,7 +1,13 @@
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegStatic = require('ffmpeg-static');
+const { URL } = require('url');
 const db = require('../config/db');
 const { verifyToken } = require('../utils/jwt');
+const { error: sendError } = require('../utils/response');
+// SSRF protection: reuse the same DNS-resolving safety check used by the proxy
+// so a malicious/compromised stream_url can't be used to reach internal
+// services or the cloud metadata endpoint via the ffmpeg transcode path.
+const { isSafeExternalUrl } = require('./proxyController');
 
 ffmpeg.setFfmpegPath(ffmpegStatic);
 
@@ -81,6 +87,24 @@ exports.transcodeStream = async (req, res) => {
 
     if (!streamUrl) {
       return res.status(404).send('No stream URL available for this channel');
+    }
+
+    // SSRF guard: only allow http(s) URLs, and reject any hostname that resolves
+    // to a private/loopback/link-local/metadata IP range. This is critical here
+    // because ffmpeg also understands protocol handlers like file:/concat:/etc.,
+    // which must never be reachable from a DB-sourced stream_url.
+    let parsedStreamUrl;
+    try {
+      parsedStreamUrl = new URL(streamUrl);
+    } catch {
+      return sendError(res, 'Invalid stream URL', 400);
+    }
+    if (parsedStreamUrl.protocol !== 'http:' && parsedStreamUrl.protocol !== 'https:') {
+      return sendError(res, 'Unsupported stream URL protocol', 400);
+    }
+    const isSafe = await isSafeExternalUrl(streamUrl);
+    if (!isSafe) {
+      return sendError(res, 'Stream URL failed security validation', 403);
     }
 
     // 3. Set resolution based on quality param

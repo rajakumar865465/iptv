@@ -4,6 +4,13 @@ const { generateAdminToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
 const { generateLicenseKey } = require('../utils/helpers');
 
+// Defense-in-depth: reject any stream_url that is not http(s) at write time.
+// This stops protocol handlers like file:/concat:/etc. from ever being
+// stored, ahead of the full DNS/IP SSRF check enforced at read/use time.
+function isAllowedStreamUrlProtocol(url) {
+  return typeof url === 'string' && /^https?:\/\//i.test(url);
+}
+
 /**
  * Helper function to log admin actions to admin_audit_logs table
  * @param {Object} req - Express request object
@@ -262,6 +269,14 @@ exports.revokeLicense = async (req, res) => {
 exports.createChannel = async (req, res) => {
   try {
     const { name, logo_url, stream_url, backup_stream_url, category_id, language, quality, status, is_featured, is_premium, sort_order, default_fit_mode, aspect_ratio_type, has_internal_black_bars, fit_note, player_display_status } = req.body;
+
+    if (stream_url !== undefined && stream_url !== null && !isAllowedStreamUrlProtocol(stream_url)) {
+      return error(res, 'stream_url must start with http:// or https://', 400);
+    }
+    if (backup_stream_url !== undefined && backup_stream_url !== null && backup_stream_url !== '' && !isAllowedStreamUrlProtocol(backup_stream_url)) {
+      return error(res, 'backup_stream_url must start with http:// or https://', 400);
+    }
+
     const result = await db.query(
       'INSERT INTO channels (name, logo_url, stream_url, backup_stream_url, category_id, language, quality, status, is_featured, is_premium, sort_order, default_fit_mode, aspect_ratio_type, has_internal_black_bars, fit_note, player_display_status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *',
       [name, logo_url, stream_url, backup_stream_url, category_id, language, quality, status, is_featured, is_premium, sort_order, default_fit_mode, aspect_ratio_type, has_internal_black_bars, fit_note, player_display_status]
@@ -340,6 +355,13 @@ exports.updateChannel = async (req, res) => {
     const keys = Object.keys(fields).filter(k => ALLOWED_FIELDS.includes(k));
     if (keys.length === 0) {
       return error(res, 'No valid fields to update', 400);
+    }
+
+    if (keys.includes('stream_url') && !isAllowedStreamUrlProtocol(fields.stream_url)) {
+      return error(res, 'stream_url must start with http:// or https://', 400);
+    }
+    if (keys.includes('backup_stream_url') && fields.backup_stream_url && !isAllowedStreamUrlProtocol(fields.backup_stream_url)) {
+      return error(res, 'backup_stream_url must start with http:// or https://', 400);
     }
 
     const values = keys.map(k => fields[k]);

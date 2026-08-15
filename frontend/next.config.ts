@@ -12,12 +12,21 @@ const PUBLIC_API_WS = PUBLIC_API.replace(/^http/, 'ws');
 const connectSrc = ["'self'", PUBLIC_API, PUBLIC_API_WS, 'ws:', 'wss:'].filter(Boolean).join(' ');
 
 // The admin token lives in a JS-accessible cookie (required by the Edge
-// middleware), so a CSP is the main XSS mitigation: it blocks external
-// scripts and limits where injected code could exfiltrate data to.
+// middleware) AND in localStorage, so this CSP is relied upon as the main
+// XSS mitigation: it blocks external scripts and limits where injected code
+// could exfiltrate data to. Any future loosening of this CSP must be
+// reviewed carefully with that in mind.
 // img-src stays open because channel logos are hosted on arbitrary domains.
+//
+// script-src still allows 'unsafe-inline' because removing it requires a
+// nonce-based CSP (a per-request nonce threaded through this headers()
+// config and the root layout's <script> tags) — that's a bigger, riskier
+// change we're deliberately not doing here. Tracked as follow-up work.
+// 'unsafe-eval' has been removed since Next.js/React/recharts/framer-motion
+// don't require it in modern versions, and it's the higher-risk directive.
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://accounts.google.com",
+  "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://accounts.google.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: http: https:",
   "font-src 'self' data:",

@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
 import '../constants.dart';
 import '../models/user_model.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/backend_config.dart';
+import 'storage_service.dart';
 
 class AuthUserResult {
   final int userId;
@@ -150,24 +150,25 @@ class AuthService {
     return null;
   }
 
+  // These delegate to StorageService (backed by FlutterSecureStorage for the
+  // actual token values) so there's a single place tokens are persisted,
+  // instead of a second independent SharedPreferences read/write path.
+  final StorageService _storage = StorageService();
+
   Future<void> saveSession(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(StorageKeys.token, token);
+    await _storage.saveToken(token);
   }
 
   Future<void> saveRefreshSession(String refreshToken) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(StorageKeys.refreshToken, refreshToken);
+    await _storage.saveRefreshToken(refreshToken);
   }
 
   Future<String?> getRefreshSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(StorageKeys.refreshToken);
+    return _storage.getRefreshToken();
   }
 
   Future<String?> getSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(StorageKeys.token);
+    return _storage.getToken();
   }
 
   Future<Map<String, dynamic>?> me() async {
@@ -192,9 +193,7 @@ class AuthService {
   }
 
   Future<void> clearSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(StorageKeys.token);
-    await prefs.remove(StorageKeys.refreshToken);
+    await _storage.clearAuthData();
     _token = null;
   }
 }

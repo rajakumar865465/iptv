@@ -99,7 +99,8 @@ exports.getSmoothPlayback = async (req, res) => {
               clean_buffer_percentage, buffer_quality_status,
               total_expected_segments, downloaded_segments,
               last_missing_segment_at, last_successful_segment_at,
-              last_source_error, active_recorder_stream_id, backup_active
+              last_source_error, active_recorder_stream_id, backup_active,
+              is_premium, is_paid
        FROM channels WHERE id = $1`,
       [id]
     );
@@ -109,6 +110,33 @@ exports.getSmoothPlayback = async (req, res) => {
 
     if (ch.is_hidden || ch.is_removed) {
       return res.status(403).json({ success: false, message: 'Channel not available', error_code: 'CHANNEL_NOT_AVAILABLE' });
+    }
+
+    // Entitlement guard — mirrors channelController.getChannelPlayback: premium/
+    // paid channels require an authenticated user with an active, non-expired
+    // license before any stream URL (including direct_live_url) is returned.
+    const isPremiumChannel = ch.is_premium === true || ch.is_paid === true;
+    if (isPremiumChannel) {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Sign in required to play this premium channel.',
+          error_code: 'AUTH_REQUIRED',
+        });
+      }
+      const licenseRes = await db.query(
+        `SELECT 1 FROM licenses
+         WHERE user_id = $1 AND status = 'active' AND expires_at > NOW()
+         LIMIT 1`,
+        [req.user.id]
+      );
+      if (licenseRes.rows.length === 0) {
+        return res.status(403).json({
+          success: false,
+          message: 'An active subscription is required to play this premium channel.',
+          error_code: 'LICENSE_REQUIRED',
+        });
+      }
     }
 
     // Determine whether Go Live (direct live) is allowed for this channel

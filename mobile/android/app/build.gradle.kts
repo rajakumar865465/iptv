@@ -1,3 +1,4 @@
+import java.io.FileInputStream
 import java.util.Base64
 import java.util.Properties
 
@@ -5,6 +6,15 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Load signing config from android/key.properties if present. This file is
+// git-ignored and must be created locally (or provided by CI) before a
+// release build can be signed. See README.md for how to generate one.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -28,12 +38,47 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Release builds must be signed with a real release keystore,
+            // configured via android/key.properties (never committed to
+            // git). We deliberately do NOT fall back to the debug keystore
+            // here — shipping a release APK signed with the debug key is a
+            // security issue (anyone with the AOSP debug key could produce
+            // an update that looks legitimately signed).
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                null
+            }
         }
+    }
+}
+
+// Fail any release build (assemble/bundle/install) if no key.properties was
+// found, instead of silently signing with the debug keystore.
+gradle.taskGraph.whenReady {
+    val releaseRun = gradle.taskGraph.allTasks.any {
+        it.path.startsWith(project.path) && it.name.contains("Release", ignoreCase = true)
+    }
+    if (releaseRun && !keystorePropertiesFile.exists()) {
+        throw GradleException(
+            "Release build requested but android/key.properties is missing.\n" +
+                "Create android/key.properties with keyAlias, keyPassword, storeFile, " +
+                "and storePassword pointing at a real release keystore — see README.md " +
+                "for instructions. Release builds must never be signed with the debug keystore."
+        )
     }
 }
 
@@ -84,7 +129,12 @@ gradle.taskGraph.whenReady {
         it.name.contains("Release", ignoreCase = true)
     }
     if (backendUrlMissing && releaseRun) {
-        println("\n[WARNING] BACKEND_URL not provided via --dart-define. Falling back to default production URL (http://44.206.18.189).")
+        throw GradleException(
+            "\n[BUILD FAILED] BACKEND_URL not provided via --dart-define.\n" +
+                "Release builds must explicitly specify the backend URL, e.g.:\n" +
+                "  flutter build apk --release --dart-define=BACKEND_URL=https://44.206.18.189\n" +
+                "An APK must never ship pointing at a blank/default backend."
+        )
     }
 }
 

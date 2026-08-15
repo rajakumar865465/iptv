@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 
 exports.activate = async (req, res) => {
+  const client = await db.pool.connect();
   try {
     // BUG-11 FIX: Accept platform from request body; don't hardcode 'android'
     const { license_key, device_id, device_name, app_version, platform } = req.body;
@@ -10,7 +11,7 @@ exports.activate = async (req, res) => {
     if (!license_key) return error(res, 'License key is required', 400);
 
     // Find license - explicitly select fields to avoid column name conflicts
-    const licenseResult = await db.query(
+    const licenseResult = await client.query(
       'SELECT l.id, l.license_key, l.user_id, l.status AS license_status, l.duration_days, l.max_devices AS license_max_devices, l.activated_at, l.expires_at, p.name as plan_name, p.duration_days AS plan_duration_days, p.max_devices AS plan_max_devices FROM licenses l LEFT JOIN plans p ON l.plan_id = p.id WHERE l.license_key = $1',
       [license_key]
     );
@@ -33,14 +34,36 @@ exports.activate = async (req, res) => {
     if (license.license_status === 'expired') return error(res, 'This license has expired', 400);
 
     // Check user status
-    const userResult = await db.query('SELECT status FROM users WHERE id = $1', [userId]);
+    const userResult = await client.query('SELECT status FROM users WHERE id = $1', [userId]);
     if (userResult.rows[0].status === 'blocked') {
       return error(res, 'Your account has been blocked. Please contact support.', 403);
     }
 
-    // Device limit check
+    // Activate license atomically: the WHERE clause guards against a concurrent
+    // request claiming the same license first (CWE-362 fix).
+    const now = new Date();
+    const durationDays = license.duration_days || license.plan_duration_days || 30;
+    const expiresAt = new Date(now);
+    expiresAt.setDate(expiresAt.getDate() + durationDays);
+
+    await client.query('BEGIN');
+
+    const activateResult = await client.query(
+      `UPDATE licenses
+       SET user_id = $1, status = 'active', activated_at = $2, expires_at = $3, updated_at = NOW()
+       WHERE id = $4 AND (user_id IS NULL OR user_id = $1)
+       RETURNING *`,
+      [userId, now, expiresAt, license.id]
+    );
+
+    if (activateResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return error(res, 'This license key has already been used by another account', 400);
+    }
+
+    // Device limit check — only runs once activation is confirmed
     if (device_id) {
-      const deviceResult = await db.query(
+      const deviceResult = await client.query(
         'SELECT COUNT(*) FROM devices WHERE user_id = $1 AND status = $2',
         [userId, 'active']
       );
@@ -48,7 +71,7 @@ exports.activate = async (req, res) => {
       // Use license table value, fall back to plan value, then default to 1
       const maxDevices = license.license_max_devices || license.plan_max_devices || 1;
 
-      const existingDevice = await db.query(
+      const existingDevice = await client.query(
         'SELECT id FROM devices WHERE user_id = $1 AND device_id = $2',
         [userId, device_id]
       );
@@ -58,7 +81,7 @@ exports.activate = async (req, res) => {
         if (currentDeviceCount >= maxDevices) {
           if (req.body.forceLogoutOldest || req.body.force_logout_oldest) {
             while (currentDeviceCount >= maxDevices) {
-              await db.query(`
+              await client.query(`
                 DELETE FROM devices 
                 WHERE id IN (
                   SELECT id FROM devices WHERE user_id = $1 ORDER BY last_active_at ASC LIMIT 1
@@ -67,6 +90,7 @@ exports.activate = async (req, res) => {
               currentDeviceCount--;
             }
           } else {
+            await client.query('ROLLBACK');
             return res.status(403).json({
               success: false,
               error: 'DEVICE_LIMIT_REACHED',
@@ -77,23 +101,14 @@ exports.activate = async (req, res) => {
       }
 
       if (existingDevice.rows.length === 0) {
-        await db.query(
+        await client.query(
           'INSERT INTO devices (user_id, license_id, device_id, device_name, app_version, platform) VALUES ($1, $2, $3, $4, $5, $6)',
           [userId, license.id, device_id, device_name || 'Unknown', app_version || '1.0.0', platform || 'android']
         );
       }
     }
 
-    // Activate license
-    const now = new Date();
-    const durationDays = license.duration_days || license.plan_duration_days || 30;
-    const expiresAt = new Date(now);
-    expiresAt.setDate(expiresAt.getDate() + durationDays);
-
-    await db.query(
-      'UPDATE licenses SET user_id = $1, status = $2, activated_at = $3, expires_at = $4, updated_at = NOW() WHERE id = $5',
-      [userId, 'active', now, expiresAt, license.id]
-    );
+    await client.query('COMMIT');
 
     const remainingDays = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
 
@@ -107,8 +122,11 @@ exports.activate = async (req, res) => {
       max_devices: license.license_max_devices || license.plan_max_devices || 1,
     }, 'License activated successfully');
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('License activation error:', err);
     error(res, 'Failed to activate license', 500);
+  } finally {
+    client.release();
   }
 };
 

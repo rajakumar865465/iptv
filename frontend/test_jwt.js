@@ -1,20 +1,38 @@
+// Manual/dev script for exercising jose's jwtVerify() against a handful of
+// malformed or edge-case token strings (undefined, "null", 2-part tokens,
+// tokens accidentally wrapped in URL-encoded quotes, etc). This is testing
+// jose's parsing/error behavior, not a specific real credential, so we
+// generate a throwaway signed token at runtime instead of committing a real
+// (or realistic-looking) JWT/secret to source control.
 const { jwtVerify } = require('jose');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+
 async function test() {
+  const throwawaySecret = crypto.randomBytes(32).toString('hex');
+  const validToken = jwt.sign(
+    { userId: 2, email: 'superadmin@example.test', role: 'admin' },
+    throwawaySecret,
+    { expiresIn: '1h' }
+  );
+
   const strings = [
     undefined,
-    "undefined",
-    "null",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsImVtYWlsIjoic3VwZXJhZG1pbkBuaXZhdHYuaW4iLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODM5Mzk5MDEsImV4cCI6MTc4NDAyNjMwMX0", // 2 parts
-    "%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsImVtYWlsIjoic3VwZXJhZG1pbkBuaXZhdHYuaW4iLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODM5Mzk5MDEsImV4cCI6MTc4NDAyNjMwMX0.hdAp9JTi49CQpGXjXe0dVi35zeaIlSe558yKqgtWCrE", // with %22
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsImVtYWlsIjoic3VwZXJhZG1pbkBuaXZhdHYuaW4iLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODM5Mzk5MDEsImV4cCI6MTc4NDAyNjMwMX0.hdAp9JTi49CQpGXjXe0dVi35zeaIlSe558yKqgtWCrE%22", // with %22 at end
+    'undefined',
+    'null',
+    validToken.split('.').slice(0, 2).join('.'), // malformed: only 2 parts
+    `%22${validToken}%22`, // malformed: wrapped in URL-encoded quotes
+    `${validToken}%22`, // malformed: trailing %22
   ];
-  for (let s of strings) {
+
+  for (const s of strings) {
     try {
-      await jwtVerify(s, new TextEncoder().encode('dummy'));
+      await jwtVerify(s, new TextEncoder().encode(throwawaySecret));
       console.log(s, '=> OK');
-    } catch(e) {
+    } catch (e) {
       console.log(s, '=>', e.code);
     }
   }
 }
+
 test();

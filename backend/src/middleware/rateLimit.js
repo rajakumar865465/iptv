@@ -42,4 +42,19 @@ const refreshLimiter = rateLimit({
   },
 });
 
-module.exports = { standardLimiter, apiLimiter, searchLimiter, authLimiter, refreshLimiter };
+// Anonymous channel-health telemetry (report-failure / playback-result / display-report)
+// can flip a channel's health_status via repeated POSTs from a single actor.
+// optionalAuth still runs first so logged-in users are identified, but since the
+// mobile app also sends these reports for users who aren't logged in yet, we
+// can't require auth outright — instead cap reports per channel per IP tightly,
+// well below the fail-count thresholds used to escalate health_status.
+const channelReportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // 3 reports per channel per IP per hour
+  keyGenerator: (req) => `${req.ip}:${req.params.id}`,
+  handler: (req, res, next, options) => {
+    res.status(429).json({ success: false, message: 'Too many reports for this channel. Please try again later.' });
+  },
+});
+
+module.exports = { standardLimiter, apiLimiter, searchLimiter, authLimiter, refreshLimiter, channelReportLimiter };
