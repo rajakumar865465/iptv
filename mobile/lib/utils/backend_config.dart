@@ -25,7 +25,7 @@ class BackendConfig {
   /// by the Gradle guard in android/app/build.gradle.kts when it's missing).
   static const String baseUrl = String.fromEnvironment(
     'BACKEND_URL',
-    defaultValue: 'https://nivatv.abrdns.com',
+    defaultValue: 'https://nivatv.luxomall.in',
   );
 
   /// Base URL to fetch channel data (if not using the backend API directly)
