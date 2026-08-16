@@ -1595,33 +1595,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             await (platform as dynamic).setProperty('load-unsafe-playlists', 'yes');
           } catch (_) {}
 
-          // Adaptive HLS bitrate: select max available bitrate for maximum sharpness,
-          // unless Data Saver mode is explicitly enabled by the user.
+          // Force libmpv to select the lowest bitrate variant initially (Fast-Start Optimization)
+          // It will upgrade later if a higher track is available and explicitly selected.
           try {
-            final isDataSaver = _playbackMode == PlaybackMode.dataSaver || _dataSaverEnabled;
-            await (platform as dynamic).setProperty('hls-bitrate', isDataSaver ? 'min' : 'max');
+            await (platform as dynamic).setProperty('hls-bitrate', 'min');
           } catch (_) {}
 
-          // High-grade edge-preserving upscaling (Spline36) to eliminate bilinear blur on modern phone screens
-          try {
-            await (platform as dynamic).setProperty('scale', 'spline36');
-            await (platform as dynamic).setProperty('cscale', 'spline36');
-            await (platform as dynamic).setProperty('dscale', 'mitchell');
-          } catch (_) {}
-
-          // Deband filter: removes color banding and block compression artifacts from SD/576p streams
-          try {
-            await (platform as dynamic).setProperty('deband', 'yes');
-            await (platform as dynamic).setProperty('deband-iterations', '2');
-            await (platform as dynamic).setProperty('deband-threshold', '48');
-            await (platform as dynamic).setProperty('deband-range', '16');
-            await (platform as dynamic).setProperty('deband-grain', '24');
-          } catch (_) {}
-
-          // Video sharpening filter for crystal clear edges, subtitles, and face detail on SD channels
-          try {
-            await (platform as dynamic).setProperty('sharpen', '0.5');
-          } catch (_) {}
 
           // 32 MB stream buffer absorbs slow CDN segment starts (HD IPTV segments).
           try {
