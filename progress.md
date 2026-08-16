@@ -17,8 +17,8 @@
 - **PostgreSQL Ownership Compatibility:** Migration 054 rewritten as a permission-safe anonymous `DO $$` block to avoid table ownership errors.
 - **Direct Local APK Hosting (Migration 055):** Hosted `app-release.apk` (v2.7, 97.4 MB) directly in `backend/public/downloads/app-release.apk` and updated the database release route so users get a 1-click instant direct download without any Google Drive virus scan warning pages.
 - **Eliminated Periodic Micro-Stutter (August 2026):** Identified and resolved background channel prewarming (`_prewarmNextChannel()`) and disruptive 15s HD track switches that caused periodic 1-2s lags on live streams. Set `cache-pause=no` and deferred secondary metadata requests to ensure 100% uninterrupted, stutter-free playback.
-- **Service Status:** Both `iptv-backend` and `iptv-frontend` are verified online and serving requests on EC2 (`44.206.18.189`).
-
-
-
-
+- **Production Domain & Mobile Connection Fix (August 2026):**
+  - Resolved `Cannot connect to server` by switching the mobile app's baseUrl to the live production Cloudflare domain `https://nivatv.luxomall.in`.
+  - Fixed `ERR_ERL_KEY_GEN_IPV6` crash loops in Express `express-rate-limit` middleware by adding IPv6 normalization (`normalizeIp`) and `validate: { trustProxy: false }`.
+  - Re-compiled release APK with `BACKEND_URL=https://nivatv.luxomall.in` and deployed directly to `https://nivatv.luxomall.in/downloads/app-release.apk`.
+- **Service Status:** Both `iptv-backend` and `iptv-frontend` are verified online and serving requests on EC2 (`44.206.18.189`) via `https://nivatv.luxomall.in`.
