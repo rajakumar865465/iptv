@@ -11,13 +11,13 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 const INSTALL_STEPS = [
-  { step: 1, text: 'Download the APK file from the button above.' },
-  { step: 2, text: 'On your Android device, go to Settings → Security → Enable "Install from Unknown Sources".' },
-  { step: 3, text: 'Open the downloaded APK file and tap Install.' },
-  { step: 4, text: 'Open the app, create an account or log in.' },
-  { step: 5, text: 'Go to License Activation and paste your license key.' },
-  { step: 6, text: 'Enjoy live TV!' },
+  { step: 1, text: 'Tap "Download APK" above to download the official NivaTV package directly.' },
+  { step: 2, text: 'Open the downloaded APK. When prompted, allow installation from this source.' },
+  { step: 3, text: 'If Google Play Protect prompts for an initial security scan, tap "Scan app" or "Install without scanning" to proceed.' },
+  { step: 4, text: 'Open NivaTV and log in or register your account.' },
+  { step: 5, text: 'Activate your license key to enjoy 500+ live HD channels with ultra-low latency!' },
 ];
+
 
 function toDirectDownloadUrl(url: string | null | undefined): string {
   if (!url) return '/downloads/app-release.apk';
