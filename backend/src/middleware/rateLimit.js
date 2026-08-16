@@ -1,8 +1,23 @@
 const rateLimit = require('express-rate-limit');
 
+// Helper: normalize IPv6-mapped IPv4 addresses (e.g. ::ffff:1.2.3.4 → 1.2.3.4)
+// and strip IPv6 brackets so keys are consistent. This prevents ERR_ERL_KEY_GEN_IPV6.
+const normalizeIp = (ip) => {
+  if (!ip) return 'unknown';
+  // Strip IPv6 brackets [::1] → ::1
+  const stripped = ip.replace(/^\[|\]$/g, '');
+  // Map ::ffff:x.x.x.x → x.x.x.x
+  const v4mapped = stripped.replace(/^::ffff:/i, '');
+  return v4mapped;
+};
+
+const ipKeyGenerator = (req) => normalizeIp(req.ip);
+
 const standardLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 3000,  // Restored to 3000 - admin polling triggers 429s otherwise
+  keyGenerator: ipKeyGenerator,
+  validate: { trustProxy: false },
   handler: (req, res, next, options) => {
     res.status(429).json({ success: false, message: 'Too many requests, please try again later.' });
   },
@@ -10,7 +25,9 @@ const standardLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5000,  // Restored to 5000 
+  max: 5000,  // Restored to 5000
+  keyGenerator: ipKeyGenerator,
+  validate: { trustProxy: false },
   handler: (req, res, next, options) => {
     res.status(429).json({ success: false, message: 'API rate limit exceeded. Please try again later.' });
   },
@@ -19,6 +36,8 @@ const apiLimiter = rateLimit({
 const searchLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 1000,  // Restored to 1000
+  keyGenerator: ipKeyGenerator,
+  validate: { trustProxy: false },
   handler: (req, res, next, options) => {
     res.status(429).json({ success: false, message: 'Too many search requests. Please slow down.' });
   },
@@ -27,6 +46,8 @@ const searchLimiter = rateLimit({
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,  // Reduced from 100 - still generous for auth attempts
+  keyGenerator: ipKeyGenerator,
+  validate: { trustProxy: false },
   handler: (req, res, next, options) => {
     res.status(429).json({ success: false, message: 'Too many auth attempts, please try again later.' });
   },
@@ -37,6 +58,8 @@ const authLimiter = rateLimit({
 const refreshLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
+  keyGenerator: ipKeyGenerator,
+  validate: { trustProxy: false },
   handler: (req, res, next, options) => {
     res.status(429).json({ success: false, message: 'Too many token refresh attempts, please try again later.' });
   },
@@ -51,8 +74,8 @@ const refreshLimiter = rateLimit({
 const channelReportLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 3, // 3 reports per channel per IP per hour
-  keyGenerator: (req) => `${req.ip || 'unknown'}:${req.params.id || '0'}`,
-  validate: { keyGeneratorIpFallback: false, ip: false },
+  keyGenerator: (req) => `${normalizeIp(req.ip)}:${req.params.id || '0'}`,
+  validate: { trustProxy: false },
   handler: (req, res, next, options) => {
     res.status(429).json({ success: false, message: 'Too many reports for this channel. Please try again later.' });
   },
