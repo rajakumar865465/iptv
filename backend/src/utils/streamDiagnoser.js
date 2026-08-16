@@ -216,6 +216,16 @@ function probeCodecs(url, headers = {}) {
       }
     });
 
+    child.on('error', (err) => {
+      cleanupAndResolve({
+        video_codec: null,
+        audio_codec: null,
+        width: null,
+        height: null,
+        error: err.message,
+      });
+    });
+
     child.on('close', () => {
       const videoMatch = output.match(/Stream #\d:\d.*Video: ([a-zA-Z0-9_]+)/i);
       const audioMatch = output.match(/Stream #\d:\d.*Audio: ([a-zA-Z0-9_]+)/i);
