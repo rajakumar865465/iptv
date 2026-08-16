@@ -154,115 +154,132 @@ exports.getHome = async (req, res) => {
     }
 
     // ── 2-5. Run all four sections in parallel for faster response ─────────
-    const [premiumResult, popularResult, featuredResult, catChannelsRes] = await Promise.all([
+    const cache = require('../utils/cache');
+    const CACHE_KEY = 'home_common_data';
+    let commonData = cache.get(CACHE_KEY);
 
-      // 2. Premium Channels
-      db.query(
-        `SELECT c.*, cat.name AS category_name
-         FROM channels c ${JOIN}
-         ${BASE_WHERE}
-           AND c.is_premium = true
-         ORDER BY
-           CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
-           COALESCE(c.popularity_score, 0) DESC,
-           COALESCE(c.sort_order, 999) ASC,
-           c.name ASC
-         LIMIT 20`,
-        bp
-      ).catch(e => { console.error('[home] premium_channels error:', e.message); return { rows: [] }; }),
+    if (!commonData) {
+      const [premiumResult, popularResult, featuredResult, catChannelsRes] = await Promise.all([
 
-      // 3. Popular Channels
-      db.query(
-        `SELECT c.*, cat.name AS category_name
-         FROM channels c ${JOIN}
-         ${BASE_WHERE}
-         ORDER BY
-           CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
-           CASE WHEN c.is_popular = true THEN 0 ELSE 1 END,
-           COALESCE(c.popularity_score, 0) DESC,
-           COALESCE(c.watch_count, 0) DESC,
-           COALESCE(c.sort_order, 999) ASC,
-           c.name ASC
-         LIMIT 20`,
-        bp
-      ).catch(e => { console.error('[home] popular_channels error:', e.message); return { rows: [] }; }),
+        // 2. Premium Channels
+        db.query(
+          `SELECT c.*, cat.name AS category_name
+           FROM channels c ${JOIN}
+           ${BASE_WHERE}
+             AND c.is_premium = true
+           ORDER BY
+             CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
+             COALESCE(c.popularity_score, 0) DESC,
+             COALESCE(c.sort_order, 999) ASC,
+             c.name ASC
+           LIMIT 20`,
+          bp
+        ).catch(e => { console.error('[home] premium_channels error:', e.message); return { rows: [] }; }),
 
-      // 4. Featured Channels
-      db.query(
-        `SELECT c.*, cat.name AS category_name
-         FROM channels c ${JOIN}
-         ${BASE_WHERE}
-           AND c.is_featured = true
-         ORDER BY
-           COALESCE(c.popularity_score, 0) DESC,
-           COALESCE(c.sort_order, 999) ASC,
-           c.name ASC
-         LIMIT 15`,
-        bp
-      ).catch(e => { console.error('[home] featured_channels error:', e.message); return { rows: [] }; }),
+        // 3. Popular Channels
+        db.query(
+          `SELECT c.*, cat.name AS category_name
+           FROM channels c ${JOIN}
+           ${BASE_WHERE}
+           ORDER BY
+             CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
+             CASE WHEN c.is_popular = true THEN 0 ELSE 1 END,
+             COALESCE(c.popularity_score, 0) DESC,
+             COALESCE(c.watch_count, 0) DESC,
+             COALESCE(c.sort_order, 999) ASC,
+             c.name ASC
+           LIMIT 20`,
+          bp
+        ).catch(e => { console.error('[home] popular_channels error:', e.message); return { rows: [] }; }),
 
-      // 5. Category Sections — single CTE query with all required fields for logo formatting
-      db.query(
-        `WITH ranked_channels AS (
+        // 4. Featured Channels
+        db.query(
+          `SELECT c.*, cat.name AS category_name
+           FROM channels c ${JOIN}
+           ${BASE_WHERE}
+             AND c.is_featured = true
+           ORDER BY
+             COALESCE(c.popularity_score, 0) DESC,
+             COALESCE(c.sort_order, 999) ASC,
+             c.name ASC
+           LIMIT 15`,
+          bp
+        ).catch(e => { console.error('[home] featured_channels error:', e.message); return { rows: [] }; }),
+
+        // 5. Category Sections — single CTE query with all required fields for logo formatting
+        db.query(
+          `WITH ranked_channels AS (
+             SELECT
+               c.*,
+               cat.name AS category_name,
+               cat.icon_url,
+               cat.sort_order AS cat_sort_order,
+               ROW_NUMBER() OVER (
+                 PARTITION BY c.category_id
+                 ORDER BY
+                   CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
+                   COALESCE(c.popularity_score, 0) DESC,
+                   COALESCE(c.watch_count, 0) DESC,
+                   COALESCE(c.sort_order, 999) ASC,
+                   c.name ASC
+               ) AS rn
+             FROM channels c
+             LEFT JOIN categories cat ON c.category_id = cat.id
+             ${BASE_WHERE}
+               AND cat.status = 'active'
+               AND c.category_id IS NOT NULL
+           )
            SELECT
-             c.*,
-             cat.name AS category_name,
+             cat.id,
+             cat.name,
              cat.icon_url,
              cat.sort_order AS cat_sort_order,
-             ROW_NUMBER() OVER (
-               PARTITION BY c.category_id
-               ORDER BY
-                 CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
-                 COALESCE(c.popularity_score, 0) DESC,
-                 COALESCE(c.watch_count, 0) DESC,
-                 COALESCE(c.sort_order, 999) ASC,
-                 c.name ASC
-             ) AS rn
-           FROM channels c
-           LEFT JOIN categories cat ON c.category_id = cat.id
-           ${BASE_WHERE}
-             AND cat.status = 'active'
-             AND c.category_id IS NOT NULL
-         )
-         SELECT
-           cat.id,
-           cat.name,
-           cat.icon_url,
-           cat.sort_order AS cat_sort_order,
-           JSON_AGG(
-             JSON_BUILD_OBJECT(
-               'id', rc.id,
-               'name', rc.name,
-               'logo_url', rc.logo_url,
-               'local_logo_url', rc.local_logo_url,
-               'logo_status', rc.logo_status,
-               'stream_url', rc.stream_url,
-               'backup_stream_url', rc.backup_stream_url,
-               'health_status', rc.health_status,
-               'category_id', rc.category_id,
-               'category_name', rc.category_name,
-               'language', rc.language,
-               'quality', rc.quality,
-               'is_premium', rc.is_premium,
-               'is_featured', rc.is_featured,
-               'is_popular', rc.is_popular,
-               'popularity_score', rc.popularity_score,
-               'watch_count', rc.watch_count,
-               'sort_order', rc.sort_order,
-               'referrer', rc.referrer,
-               'user_agent', rc.user_agent
-             ) ORDER BY rc.rn
-           ) AS channels
-         FROM categories cat
-         LEFT JOIN ranked_channels rc ON cat.id = rc.category_id AND rc.rn <= 15
-         WHERE cat.status = 'active'
-         GROUP BY cat.id
-         HAVING COUNT(rc.id) > 0
-         ORDER BY cat.sort_order ASC, cat.name ASC`,
-        bp
-      ).catch(e => { console.error('[home] categories error:', e.message); return { rows: [] }; }),
+             JSON_AGG(
+               JSON_BUILD_OBJECT(
+                 'id', rc.id,
+                 'name', rc.name,
+                 'logo_url', rc.logo_url,
+                 'local_logo_url', rc.local_logo_url,
+                 'logo_status', rc.logo_status,
+                 'stream_url', rc.stream_url,
+                 'backup_stream_url', rc.backup_stream_url,
+                 'health_status', rc.health_status,
+                 'category_id', rc.category_id,
+                 'category_name', rc.category_name,
+                 'language', rc.language,
+                 'quality', rc.quality,
+                 'is_premium', rc.is_premium,
+                 'is_featured', rc.is_featured,
+                 'is_popular', rc.is_popular,
+                 'popularity_score', rc.popularity_score,
+                 'watch_count', rc.watch_count,
+                 'sort_order', rc.sort_order,
+                 'referrer', rc.referrer,
+                 'user_agent', rc.user_agent
+               ) ORDER BY rc.rn
+             ) AS channels
+           FROM categories cat
+           LEFT JOIN ranked_channels rc ON cat.id = rc.category_id AND rc.rn <= 15
+           WHERE cat.status = 'active'
+           GROUP BY cat.id
+           HAVING COUNT(rc.id) > 0
+           ORDER BY cat.sort_order ASC, cat.name ASC`,
+          bp
+        ).catch(e => { console.error('[home] categories error:', e.message); return { rows: [] }; }),
 
-    ]);
+      ]);
+
+      commonData = {
+        premiumResult,
+        popularResult,
+        featuredResult,
+        catChannelsRes,
+      };
+      // Cache for 60 seconds to alleviate load spikes while keeping content relatively fresh
+      cache.set(CACHE_KEY, commonData, 60);
+    }
+
+    const { premiumResult, popularResult, featuredResult, catChannelsRes } = commonData;
 
     const premiumChannels  = premiumResult.rows.map(row => formatChannelRow(req, row));
     const popularChannels  = popularResult.rows.map(row => formatChannelRow(req, row));

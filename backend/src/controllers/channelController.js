@@ -151,6 +151,13 @@ function buildHealthFilter(paramIndex) {
 // Supports: categoryId, language, workingOnly, search, page, limit, premium, featured, sort
 exports.getChannels = async (req, res) => {
   try {
+    const cache = require('../utils/cache');
+    const cacheKey = 'channels_' + JSON.stringify(req.query);
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return res.json(cachedData);
+    }
+
     const {
       category,       // legacy: ILIKE on category name (keep for backwards compat)
       categoryId,     // preferred: exact category_id match
@@ -367,7 +374,7 @@ exports.getChannels = async (req, res) => {
         );
       }
 
-      return res.json({
+      const responseData = {
         success: true,
         data: formatted,
         pagination: {
@@ -386,7 +393,10 @@ exports.getChannels = async (req, res) => {
           search: search || null,
           sort: sort || 'recommended',
         },
-      });
+      };
+      
+      cache.set(cacheKey, responseData, 60);
+      return res.json(responseData);
     }
 
     const result = await db.query(
@@ -394,7 +404,9 @@ exports.getChannels = async (req, res) => {
       params
     );
     const formatted = result.rows.map(row => formatChannelRow(req, row));
-    success(res, formatted);
+    const responseData = { success: true, data: formatted };
+    cache.set(cacheKey, responseData, 60);
+    return res.json(responseData);
   } catch (err) {
     console.error('getChannels error:', err);
     error(res, 'Failed to fetch channels', 500);
