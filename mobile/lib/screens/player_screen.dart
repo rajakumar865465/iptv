@@ -1388,11 +1388,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       }
     });
 
-    _scheduleHdPromotionIfStable();
-
-    // Trigger secondary network requests only now that video is starting
-    _loadChannelData();
-    _updateMoreChannelsFromContext();
+    // Defer secondary network requests (EPG, Related Channels) to avoid CPU/network contention during initial playback
+    Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        _loadChannelData();
+        _updateMoreChannelsFromContext();
+      }
+    });
 
     setState(() {
       _isRetryingStream = false;
@@ -1408,13 +1410,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (!_reportedSuccessForGeneration) {
       _reportedSuccessForGeneration = true;
       _reportPlaybackSuccess();
-      
-      // Predictive Pre-Buffering: Warm up the next channel in the list
-      _prewarmNextChannel();
     }
     
-    _startAutoUpgradeTimerIfNeeded();
     _startHeartbeatTimer();
+
     
     // Remember successful path!
     if (_currentStreamMeta != null) {
@@ -1546,25 +1545,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               'demuxer-max-bytes', '${demuxerMaxBytesMib}MiB');
           await (platform as dynamic).setProperty(
               'demuxer-max-back-bytes', '${profile.demuxerMaxBackBytesMib}MiB');
-          // Pause on buffer underrun and rebuild before resuming — VLC-style.
-          // 2s threshold: resume as soon as a small cushion exists. The previous 8s
-          // froze playback for 8 full seconds on EVERY underrun, which on borderline
-          // connections created the exact play→freeze-8s→play→freeze loop it was
-          // meant to prevent. The deep readahead cache (cache-secs) is what protects
-          // against re-stalling, not a long pause.
-          await (platform as dynamic).setProperty('cache-pause', 'yes');
-          // 1s on mobile: shorter pause means faster recovery from micro-stalls on mobile data.
-          // 3s on web/desktop: stable connections benefit from a longer cushion before resuming.
-          final bool _isMobilePlatform = !kIsWeb &&
-              (defaultTargetPlatform == TargetPlatform.android ||
-               defaultTargetPlatform == TargetPlatform.iOS);
-          await (platform as dynamic).setProperty(
-              'cache-pause-wait', _isMobilePlatform ? '1' : '3');
-          // Start playback as soon as a small initial cushion is buffered instead of
-          // waiting for the full readahead — faster channel-open on all profiles.
-          try {
-            await (platform as dynamic).setProperty('cache-pause-initial', 'yes');
-          } catch (_) {}
+          // Seamless Live Playback: Keep playback flowing smoothly without artificial pauses
+          await (platform as dynamic).setProperty('cache-pause', 'no');
+          await (platform as dynamic).setProperty('cache-pause-initial', 'no');
+
           // Keep the player alive at stream end (HLS live streams return EOF between
           // playlist windows). Without this, media_kit disposes the player on EOF.
           await (platform as dynamic).setProperty('keep-open', 'yes');
