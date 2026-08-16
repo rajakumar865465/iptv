@@ -29,10 +29,10 @@ class LocalHlsProxy {
     if (_server != null) return;
     try {
       _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-      debugPrint('LocalHlsProxy started on port $port');
+      if (kDebugMode) debugPrint('LocalHlsProxy started on port $port');
       _server!.listen(_handleRequest);
     } catch (e) {
-      debugPrint('Failed to start LocalHlsProxy: $e');
+      if (kDebugMode) debugPrint('Failed to start LocalHlsProxy: $e');
     }
   }
 
@@ -40,7 +40,7 @@ class LocalHlsProxy {
     await _server?.close(force: true);
     _server = null;
     _segmentMap.clear();
-    debugPrint('LocalHlsProxy stopped');
+    if (kDebugMode) debugPrint('LocalHlsProxy stopped');
   }
 
   /// Returns the proxy URL to pass to media_kit
@@ -62,12 +62,12 @@ class LocalHlsProxy {
   /// Fetches and caches the playlist in the background to speed up channel switching.
   Future<void> prewarmPlaylist(String url, Map<String, String>? headers) async {
     try {
-      debugPrint('Pre-warming playlist: $url');
+      if (kDebugMode) debugPrint('Pre-warming playlist: $url');
       // Fix: Do not overwrite _currentRealUrl or _currentHeaders here, 
       // otherwise the currently playing channel will start fetching the next channel's segments!
       await _fetchAndParsePlaylist(url, overrideHeaders: headers);
     } catch (e) {
-      debugPrint('Error prewarming playlist: $e');
+      if (kDebugMode) debugPrint('Error prewarming playlist: $e');
     }
   }
 
@@ -84,7 +84,7 @@ class LocalHlsProxy {
         await request.response.close();
       }
     } catch (e) {
-      debugPrint('LocalHlsProxy error handling request: $e');
+      if (kDebugMode) debugPrint('LocalHlsProxy error handling request: $e');
       if (request.response.connectionInfo != null) {
         request.response.statusCode = HttpStatus.internalServerError;
         await request.response.close();
@@ -160,7 +160,7 @@ class LocalHlsProxy {
       }
       return rewrittenLines.join('\n') + '\n';
     } catch (e) {
-      debugPrint('Error fetching playlist: $e');
+      if (kDebugMode) debugPrint('Error fetching playlist: $e');
       return null;
     }
   }
@@ -183,11 +183,11 @@ class LocalHlsProxy {
     bool success = await _streamSegment(actualUrl, request.response);
     
     if (!success && _onTokenExpired != null) {
-      debugPrint('Segment 403 Forbidden. Triggering token refresh...');
+      if (kDebugMode) debugPrint('Segment 403 Forbidden. Triggering token refresh...');
       final newUrl = await _onTokenExpired!();
       
       if (newUrl != null && newUrl != _currentRealUrl) {
-        debugPrint('Token refreshed successfully. Reparsing playlist to update segment tokens...');
+        if (kDebugMode) debugPrint('Token refreshed successfully. Reparsing playlist to update segment tokens...');
         updateRealUrl(newUrl, _currentHeaders);
         
         await _fetchAndParsePlaylist(newUrl);
@@ -195,10 +195,10 @@ class LocalHlsProxy {
         final freshSegmentUrl = _segmentMap[key];
         
         if (freshSegmentUrl != null && freshSegmentUrl != actualUrl) {
-          debugPrint('Retrying segment download with fresh token...');
+          if (kDebugMode) debugPrint('Retrying segment download with fresh token...');
           success = await _streamSegment(freshSegmentUrl, request.response);
         } else {
-          debugPrint('Segment no longer in the live window after refresh.');
+          if (kDebugMode) debugPrint('Segment no longer in the live window after refresh.');
         }
       }
     }
@@ -240,7 +240,7 @@ class LocalHlsProxy {
       await dioResponse.data!.stream.cast<List<int>>().pipe(response);
       return true;
     } catch (e) {
-      debugPrint('Error streaming segment: $e');
+      if (kDebugMode) debugPrint('Error streaming segment: $e');
       if (response.connectionInfo != null) {
          response.statusCode = HttpStatus.internalServerError;
          await response.close();

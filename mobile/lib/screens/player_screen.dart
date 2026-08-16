@@ -51,7 +51,7 @@ void _playerDebugLog(String tag, Map<String, dynamic> fields) {
   }
   final redacted = fields.map((k, v) => MapEntry(k, redactValue(v, k)));
   final line = '[PlayerDiag][$tag] $redacted';
-  debugPrint(line);
+  if (kDebugMode) debugPrint(line);
   _globalDiagLog.add(line);
   if (_globalDiagLog.length > 80) {
     _globalDiagLog.removeRange(0, _globalDiagLog.length - 80);
@@ -1443,7 +1443,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           }
         }
       } catch (e) {
-        debugPrint('Prewarm failed silently: $e');
+        if (kDebugMode) debugPrint('Prewarm failed silently: $e');
       }
     }
   }
@@ -2199,7 +2199,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
              try {
                (_player.platform as dynamic).setProperty('demuxer-readahead-secs', '$_dynamicReadaheadSecs');
                (_player.platform as dynamic).setProperty('cache-secs', '${_dynamicReadaheadSecs * 4}');
-               debugPrint('Network stall detected. Dynamically scaling buffer to $_dynamicReadaheadSecs seconds.');
+               if (kDebugMode) debugPrint('Network stall detected. Dynamically scaling buffer to $_dynamicReadaheadSecs seconds.');
              } catch (_) {}
           }
           
@@ -3256,7 +3256,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     
     // RUM Telemetry Report
     if (_totalBufferingMs > 0 && _mediaOpenCount > 0) {
-       debugPrint('[RUM] Channel ${_currentChannel.id} experienced ${_totalBufferingMs}ms of buffering over $_mediaOpenCount sessions.');
+       if (kDebugMode) debugPrint('[RUM] Channel ${_currentChannel.id} experienced ${_totalBufferingMs}ms of buffering over $_mediaOpenCount sessions.');
     }
     
     _hlsProxy.stop();
