@@ -1,8 +1,51 @@
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const Razorpay = require('razorpay');
 const { verifyToken } = require('../utils/jwt');
+
+const downloadDir = path.join(__dirname, '..', '..', 'public', 'downloads');
+if (!fs.existsSync(downloadDir)) {
+  fs.mkdirSync(downloadDir, { recursive: true });
+}
+
+const apkStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, downloadDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, 'app-release.apk');
+  }
+});
+
+const apkUpload = multer({
+  storage: apkStorage,
+  limits: { fileSize: 350 * 1024 * 1024 }, // 350 MB max limit
+  fileFilter: (req, file, cb) => {
+    if (
+      file.originalname.toLowerCase().endsWith('.apk') ||
+      file.mimetype === 'application/vnd.android.package-archive' ||
+      file.mimetype === 'application/octet-stream'
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only .apk files are allowed!'), false);
+    }
+  }
+}).single('apk');
+
+exports.apkUploadMiddleware = (req, res, next) => {
+  apkUpload(req, res, (err) => {
+    if (err) {
+      return error(res, err.message || 'APK upload error', 400);
+    }
+    next();
+  });
+};
+
 
 function getRazorpay() {
   if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
@@ -673,6 +716,26 @@ exports.deleteAppRelease = async (req, res) => {
     return error(res, 'Failed to delete release', 500);
   }
 };
+
+// POST /api/internal/app-releases/upload
+exports.uploadApkFile = async (req, res) => {
+  try {
+    if (!req.file) {
+      return error(res, 'No APK file uploaded', 400);
+    }
+    const bytes = req.file.size;
+    const file_size = (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return success(res, {
+      apk_url: '/downloads/app-release.apk',
+      file_name: req.file.originalname,
+      file_size,
+      bytes
+    }, 'APK file uploaded successfully');
+  } catch (err) {
+    return error(res, 'Failed to process uploaded APK file', 500);
+  }
+};
+
 
 
 // GET /api/internal/website-settings

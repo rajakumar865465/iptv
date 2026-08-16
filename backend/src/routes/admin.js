@@ -269,8 +269,10 @@ router.put('/channels/:id/ui', async (req, res) => {
 // App releases
 router.get('/app-releases', adminAuthMiddleware, publicController.getAppReleases);
 router.post('/app-releases', adminAuthMiddleware, publicController.createAppRelease);
+router.post('/app-releases/upload', adminAuthMiddleware, publicController.apkUploadMiddleware, publicController.uploadApkFile);
 router.put('/app-releases/:id', adminAuthMiddleware, publicController.updateAppRelease);
 router.delete('/app-releases/:id', adminAuthMiddleware, publicController.deleteAppRelease);
+
 
 
 // Website settings

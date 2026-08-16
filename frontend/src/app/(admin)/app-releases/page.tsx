@@ -1,7 +1,7 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { Plus, Package, CheckCircle, Edit2, Trash2, AlertTriangle, RefreshCw, Sparkles } from 'lucide-react';
-import { getAppReleases, createAppRelease, updateAppRelease, deleteAppRelease, getErrorMessage } from '@/lib/api';
+import { useEffect, useState, useRef } from 'react';
+import { Plus, Package, CheckCircle, Edit2, Trash2, AlertTriangle, RefreshCw, Sparkles, UploadCloud, FileCheck, Loader2 } from 'lucide-react';
+import { getAppReleases, createAppRelease, updateAppRelease, deleteAppRelease, uploadAppReleaseApk, getErrorMessage } from '@/lib/api';
 
 interface Release {
   id: string | number;
@@ -17,11 +17,11 @@ interface Release {
 }
 
 const EMPTY_FORM = {
-  version: '1.2.1',
-  version_code: '12',
+  version: '2.7',
+  version_code: '27',
   apk_url: '/downloads/app-release.apk',
-  file_size: '96.5 MB',
-  release_notes: 'Latest stable IPTV release\nUltra-low latency streaming\n500+ Live Indian channels',
+  file_size: '97.4 MB',
+  release_notes: 'Latest v2.7 stable IPTV release\nUltra-low latency streaming\n500+ Live Indian channels',
   minimum_android_version: '7.0',
   is_latest: true,
   force_update: false,
@@ -37,6 +37,11 @@ export default function AppReleasesPage() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | number | null>(null);
   const [error, setError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedFileName, setUploadedFileName] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   const load = () => {
     setLoading(true);
@@ -59,6 +64,8 @@ export default function AppReleasesPage() {
     setEditing(null);
     setForm(EMPTY_FORM);
     setError('');
+    setUploadedFileName('');
+    setUploadProgress(0);
     setShowModal(true);
   };
 
@@ -81,10 +88,43 @@ export default function AppReleasesPage() {
       force_update: !!r.force_update,
     });
     setError('');
+    setUploadedFileName('');
+    setUploadProgress(0);
     setShowModal(true);
   };
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.apk')) {
+      return setError('Please select a valid .apk file.');
+    }
+    setError('');
+    setUploading(true);
+    setUploadProgress(0);
+    setUploadedFileName(file.name);
+
+    try {
+      const data = await uploadAppReleaseApk(file, (percent) => {
+        setUploadProgress(percent);
+      });
+      if (data && data.apk_url) {
+        setForm((p) => ({
+          ...p,
+          apk_url: data.apk_url,
+          file_size: data.file_size || p.file_size,
+        }));
+      }
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to upload APK file to server.'));
+      setUploadedFileName('');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleDelete = async (id: string | number) => {
+
     if (!confirm('Are you sure you want to delete this release version?')) return;
     setDeletingId(id);
     try {
@@ -275,13 +315,99 @@ export default function AppReleasesPage() {
             </div>
 
             <div className="space-y-4">
+              {/* Direct APK File Upload Box */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  Upload APK File Directly
+                </label>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".apk"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+
+                <div
+                  onClick={() => !uploading && fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all cursor-pointer ${
+                    uploading
+                      ? 'border-emerald-500/50 bg-emerald-950/20 cursor-not-allowed'
+                      : uploadedFileName || form.apk_url === '/downloads/app-release.apk'
+                      ? 'border-emerald-500/60 bg-emerald-900/20 hover:border-emerald-400'
+                      : 'border-slate-700 hover:border-emerald-500/50 hover:bg-slate-800/50 bg-slate-800/30'
+                  }`}
+                >
+                  {uploading ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-center gap-2 text-emerald-400 font-semibold text-sm">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Uploading APK to server ({uploadProgress}%)...</span>
+                      </div>
+                      <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700">
+                        <div
+                          className="bg-emerald-500 h-full transition-all duration-300 rounded-full"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-slate-400">{uploadedFileName}</p>
+                    </div>
+                  ) : uploadedFileName ? (
+                    <div className="flex items-center justify-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                        <FileCheck className="w-6 h-6" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-white flex items-center gap-1.5">
+                          <span>{uploadedFileName}</span>
+                          <CheckCircle className="w-4 h-4 text-emerald-400" />
+                        </p>
+                        <p className="text-xs text-emerald-400 font-medium">
+                          Uploaded & saved to server ({form.file_size}) • Click to upload new
+                        </p>
+                      </div>
+                    </div>
+                  ) : form.apk_url === '/downloads/app-release.apk' ? (
+                    <div className="flex items-center justify-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                        <FileCheck className="w-6 h-6" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-white flex items-center gap-1.5">
+                          <span>Server Hosted APK</span>
+                          <CheckCircle className="w-4 h-4 text-emerald-400" />
+                        </p>
+                        <p className="text-xs text-emerald-400 font-medium">
+                          Direct high-speed download ({form.file_size}) • Click to upload new APK
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400">
+                        <UploadCloud className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          Click or Drop your <span className="text-emerald-400">.apk</span> file here
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Upload directly to your server (Auto-detects file size)
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {[
                 { name: 'version', label: 'Version Name (e.g. 2.7 or 1.2.1)', type: 'text', placeholder: '2.7' },
                 { name: 'version_code', label: 'Version Code (integer, e.g. 27)', type: 'number', placeholder: '27' },
-                { name: 'apk_url', label: 'APK URL (Direct link, Google Drive link, or /downloads/app-release.apk)', type: 'text', placeholder: 'https://drive.google.com/file/d/...' },
-                { name: 'file_size', label: 'File Size (e.g. 96.5 MB)', type: 'text', placeholder: '96.5 MB' },
+                { name: 'apk_url', label: 'APK URL (Direct link or /downloads/app-release.apk)', type: 'text', placeholder: '/downloads/app-release.apk' },
+                { name: 'file_size', label: 'File Size (e.g. 97.4 MB)', type: 'text', placeholder: '97.4 MB' },
                 { name: 'minimum_android_version', label: 'Min Android Version', type: 'text', placeholder: '7.0' },
               ].map((f) => (
+
                 <div key={f.name}>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-sm font-medium text-slate-300">{f.label}</label>

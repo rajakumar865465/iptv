@@ -318,6 +318,21 @@ export const updateAppRelease = (id: string, data: Record<string, unknown>) =>
 export const deleteAppRelease = (id: string) =>
   api.delete(`/app-releases/${id}`).then((r) => r.data.data);
 
+export const uploadAppReleaseApk = (file: File, onProgress?: (percent: number) => void) => {
+  const formData = new FormData();
+  formData.append('apk', file);
+  return api.post('/app-releases/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (progressEvent) => {
+      if (progressEvent.total && onProgress) {
+        const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        onProgress(percent);
+      }
+    },
+  }).then((r) => r.data.data);
+};
+
+
 
 // Website settings
 export const getWebsiteSettings = () =>
