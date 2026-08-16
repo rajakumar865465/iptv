@@ -1580,10 +1580,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           } catch (_) {}
 
           // Force libmpv to select the lowest bitrate variant initially (Fast-Start Optimization)
-          // It will upgrade later if a higher track is available and explicitly selected.
-          try {
-            await (platform as dynamic).setProperty('hls-bitrate', 'min');
-          } catch (_) {}
+          // Removed because it prevents automatic scaling to high-resolution streams when bandwidth permits.
 
 
           // 32 MB stream buffer absorbs slow CDN segment starts (HD IPTV segments).
