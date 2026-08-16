@@ -16,6 +16,8 @@
 - **Rate Limit IPv6 Fix:** Resolved `ERR_ERL_KEY_GEN_IPV6` crash in `backend/src/middleware/rateLimit.js` by adding explicit validation flags.
 - **PostgreSQL Ownership Compatibility:** Migration 054 rewritten as a permission-safe anonymous `DO $$` block to avoid table ownership errors.
 - **Direct Local APK Hosting (Migration 055):** Hosted `app-release.apk` (v2.7, 97.4 MB) directly in `backend/public/downloads/app-release.apk` and updated the database release route so users get a 1-click instant direct download without any Google Drive virus scan warning pages.
+- **Video Clarity & SD Upscaling (August 2026):** Enhanced 576p/SD channel rendering on high-DPI smartphone displays by configuring `scale=spline36`, `cscale=spline36`, `deband=yes`, and `sharpen=0.5` in `player_screen.dart`. Replaced `hls-bitrate=min` with dynamic bitrate selection (`hls-bitrate=max` on non-data-saver) to ensure maximum sharpness with zero buffering.
 - **Service Status:** Both `iptv-backend` and `iptv-frontend` are verified online and serving requests on EC2 (`44.206.18.189`).
+
 
 
