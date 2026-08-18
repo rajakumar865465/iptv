@@ -3,11 +3,21 @@ import { MessageCircle, Mail, Phone, Clock, Key } from 'lucide-react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 
+// Revalidate every hour — replaces force-dynamic so Cache-Control is public.
+export const revalidate = 3600;
 export const metadata: Metadata = {
-  title: 'NivaTV Support — Help & Contact',
-  description: 'Get help with your NivaTV license, app installation, or streaming issues. WhatsApp, Telegram, and email support available.',
+  title: 'NivaTV Support — Help & Contact Us | WhatsApp & Email',
+  description: 'Get help with your NivaTV license, app installation, or streaming issues. Reach us via WhatsApp, Telegram, or email. Fast response guaranteed.',
+  robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
+  alternates: { canonical: 'https://nivatv.luxomall.in/support' },
+  openGraph: {
+    title: 'NivaTV Support — We Are Here to Help',
+    description: 'Contact NivaTV support via WhatsApp, Telegram or email for license, installation or streaming help.',
+    url: 'https://nivatv.luxomall.in/support',
+    siteName: 'NivaTV',
+    type: 'website',
+  },
 };
-export const dynamic = 'force-dynamic';
 
 const COMMON_ISSUES = [
   { issue: 'License key not working', fix: 'Make sure you are copying the full key including dashes. Keys look like NVT-XXXX-XXXX-XXXX.' },
@@ -26,8 +36,46 @@ export default async function SupportPage() {
   const telegram = settings.telegram_url;
   const phone = settings.support_phone;
 
+  const contactJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'ContactPage',
+    name: 'NivaTV Support',
+    description: 'Contact NivaTV support for help with license keys, app installation, or streaming issues.',
+    url: 'https://nivatv.luxomall.in/support',
+    mainEntity: {
+      '@type': 'Organization',
+      name: 'NivaTV',
+      url: 'https://nivatv.luxomall.in',
+      contactPoint: [
+        { '@type': 'ContactPoint', contactType: 'customer support', availableLanguage: ['Hindi', 'English'], contactOption: 'TollFree' },
+      ],
+    },
+  };
+
+  const faqJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: COMMON_ISSUES.map((item) => ({
+      '@type': 'Question',
+      name: item.issue,
+      acceptedAnswer: { '@type': 'Answer', text: item.fix },
+    })),
+  };
+
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://nivatv.luxomall.in' },
+      { '@type': 'ListItem', position: 2, name: 'Support', item: 'https://nivatv.luxomall.in/support' },
+    ],
+  };
+
   return (
     <div className="pt-24 pb-20 px-4">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(contactJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-extrabold text-white mb-3">Support</h1>

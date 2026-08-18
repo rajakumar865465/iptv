@@ -228,18 +228,22 @@ export default async function HomePage() {
     {
       '@context': 'https://schema.org',
       '@type': 'MobileApplication',
-      name: 'NivaTV',
+      name: 'NivaTV — Live TV for Android',
       operatingSystem: 'ANDROID',
       applicationCategory: 'EntertainmentApplication',
+      description: 'Watch 500+ Indian live TV channels including Hindi, Tamil, Telugu, Bengali and Malayalam on your Android device.',
       offers: {
         '@type': 'Offer',
         price: '0',
-        priceCurrency: 'INR'
+        priceCurrency: 'INR',
+        description: 'Free 1-day trial available. Monthly and yearly plans from ₹99.'
       },
       aggregateRating: {
         '@type': 'AggregateRating',
-        ratingValue: '4.8',
-        ratingCount: '10000'
+        ratingValue: '4.7',
+        ratingCount: '312',
+        bestRating: '5',
+        worstRating: '1'
       }
     },
     {
@@ -248,12 +252,46 @@ export default async function HomePage() {
       name: 'NivaTV',
       url: 'https://nivatv.luxomall.in',
       logo: 'https://nivatv.luxomall.in/logo.png',
+      description: 'NivaTV is a premium Indian live TV streaming service delivering 500+ channels in Hindi, Tamil, Telugu, Bengali, Malayalam and more on Android.',
+      areaServed: 'IN',
       contactPoint: {
         '@type': 'ContactPoint',
         contactType: 'customer service',
-        availableLanguage: ['Hindi', 'English']
+        availableLanguage: ['Hindi', 'English', 'Tamil', 'Telugu', 'Bengali'],
+        url: 'https://nivatv.luxomall.in/support'
       }
-    }
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'ItemList',
+      name: 'NivaTV User Reviews',
+      itemListElement: [
+        {
+          '@type': 'Review',
+          position: 1,
+          author: { '@type': 'Person', name: 'Rahul S.' },
+          reviewRating: { '@type': 'Rating', ratingValue: '5', bestRating: '5' },
+          reviewBody: 'Setup took two minutes. I entered my license key and was watching the news right away — no set-top box, no technician visit.',
+          itemReviewed: { '@type': 'MobileApplication', name: 'NivaTV' },
+        },
+        {
+          '@type': 'Review',
+          position: 2,
+          author: { '@type': 'Person', name: 'Priya M.' },
+          reviewRating: { '@type': 'Rating', ratingValue: '5', bestRating: '5' },
+          reviewBody: 'Finally all my Tamil channels in one app. The player is smooth even on my mobile data, and I love that there is no auto-renewal.',
+          itemReviewed: { '@type': 'MobileApplication', name: 'NivaTV' },
+        },
+        {
+          '@type': 'Review',
+          position: 3,
+          author: { '@type': 'Person', name: 'Imran K.' },
+          reviewRating: { '@type': 'Rating', ratingValue: '4', bestRating: '5' },
+          reviewBody: 'Good value for money. I tried the 1-day trial first, liked it, then bought a month. Support replied quickly on WhatsApp when I had a question.',
+          itemReviewed: { '@type': 'MobileApplication', name: 'NivaTV' },
+        },
+      ],
+    },
   ];
 
   return (

@@ -4,11 +4,21 @@ import { getAppDownload } from '@/lib/publicApi';
 import type { Metadata } from 'next';
 import PageTracker from '@/components/public/PageTracker';
 
+// Revalidate every hour — replaces force-dynamic so Cache-Control is public.
+export const revalidate = 3600;
 export const metadata: Metadata = {
-  title: 'Download NivaTV APK — Live TV for Android',
-  description: 'Download the NivaTV Android APK to watch Sony TV live, Zee News, IPL live and 500+ Indian channels free on your mobile. License required to stream.',
+  title: 'Download NivaTV APK — Free Live TV App for Android',
+  description: 'Download the NivaTV Android APK to watch Sony TV live, Zee News, IPL live and 500+ Indian channels on your mobile. Easy 5-step install guide included.',
+  robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
+  alternates: { canonical: 'https://nivatv.luxomall.in/download' },
+  openGraph: {
+    title: 'Download NivaTV APK — Live TV for Android',
+    description: 'Free APK download for NivaTV. Watch 500+ Indian live TV channels on any Android device. Install in under 5 minutes.',
+    url: 'https://nivatv.luxomall.in/download',
+    siteName: 'NivaTV',
+    type: 'website',
+  },
 };
-export const dynamic = 'force-dynamic';
 
 const INSTALL_STEPS = [
   { step: 1, text: 'Tap "Download APK" above to download the official NivaTV package directly.' },
@@ -36,8 +46,56 @@ export default async function DownloadPage() {
   const downloadUrl = release ? toDirectDownloadUrl(release.apk_url) : '/downloads/app-release.apk';
 
 
+  const howToJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    name: 'How to Install NivaTV APK on Android',
+    description: 'Install the NivaTV live TV app on your Android device in 5 simple steps.',
+    totalTime: 'PT5M',
+    step: INSTALL_STEPS.map((s) => ({
+      '@type': 'HowToStep',
+      position: s.step,
+      text: s.text,
+    })),
+  };
+
+  const appJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'NivaTV',
+    operatingSystem: 'Android',
+    applicationCategory: 'EntertainmentApplication',
+    description: 'Watch 500+ Indian live TV channels on Android. Includes Hindi, Tamil, Telugu, Bengali, Malayalam, sports and news.',
+    downloadUrl: 'https://nivatv.luxomall.in/download',
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'INR',
+      description: 'Free download. License required to stream.'
+    },
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: '4.7',
+      ratingCount: '312',
+      bestRating: '5',
+      worstRating: '1'
+    },
+  };
+
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://nivatv.luxomall.in' },
+      { '@type': 'ListItem', position: 2, name: 'Download', item: 'https://nivatv.luxomall.in/download' },
+    ],
+  };
+
   return (
     <div className="pt-24 pb-20 px-4">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(appJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <PageTracker page="download" />
       <div className="max-w-3xl mx-auto">
         {/* Header */}

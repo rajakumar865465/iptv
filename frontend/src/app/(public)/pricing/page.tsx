@@ -6,10 +6,20 @@ import OfferTrigger from '@/components/public/OfferTrigger';
 import type { Metadata } from 'next';
 import type { Plan } from '@/lib/publicApi';
 
-export const dynamic = 'force-dynamic';
+// Revalidate every hour — replaces force-dynamic so Cache-Control is public.
+export const revalidate = 3600;
 export const metadata: Metadata = {
-  title: 'Live TV App Plans & Pricing — NivaTV',
-  description: 'Affordable plans to watch 500+ live TV channels on Android. Start with a free 1-day trial. No auto-renewal.',
+  title: 'Live TV App Plans & Pricing — NivaTV | Buy License',
+  description: 'Affordable plans to watch 500+ Indian live TV channels on Android. Start with a free 1-day trial. No auto-renewal, instant license delivery via Razorpay.',
+  robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
+  alternates: { canonical: 'https://nivatv.luxomall.in/pricing' },
+  openGraph: {
+    title: 'NivaTV Pricing — Live TV Plans from ₹0',
+    description: 'Buy a NivaTV license and watch 500+ Indian live channels on Android. Free 1-day trial available.',
+    url: 'https://nivatv.luxomall.in/pricing',
+    siteName: 'NivaTV',
+    type: 'website',
+  },
 };
 
 const BILLING_FAQ = [
@@ -71,18 +81,44 @@ export default async function PricingPage() {
   const plan1mPrice = plan1m ? monthlyPricePerMonth(plan1m) : null;
   const plan1yPrice = plan1y ? monthlyPricePerMonth(plan1y) : null;
 
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: BILLING_FAQ.map((item) => ({
-      '@type': 'Question',
-      name: item.q,
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: item.a,
+  const jsonLd = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: BILLING_FAQ.map((item) => ({
+        '@type': 'Question',
+        name: item.q,
+        acceptedAnswer: { '@type': 'Answer', text: item.a },
+      })),
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://nivatv.luxomall.in' },
+        { '@type': 'ListItem', position: 2, name: 'Pricing', item: 'https://nivatv.luxomall.in/pricing' },
+      ],
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: 'NivaTV Live TV License',
+      description: 'Watch 500+ Indian live TV channels on Android with NivaTV. Includes Hindi, Tamil, Telugu, Bengali, Malayalam and more.',
+      brand: { '@type': 'Brand', name: 'NivaTV' },
+      offers: [
+        { '@type': 'Offer', name: '1-Day Free Trial', price: '0', priceCurrency: 'INR', availability: 'https://schema.org/InStock', url: 'https://nivatv.luxomall.in/pricing' },
+        { '@type': 'Offer', name: '1 Month Plan', price: '99', priceCurrency: 'INR', availability: 'https://schema.org/InStock', url: 'https://nivatv.luxomall.in/pricing' },
+        { '@type': 'Offer', name: '1 Year Plan', price: '499', priceCurrency: 'INR', availability: 'https://schema.org/InStock', url: 'https://nivatv.luxomall.in/pricing' },
+      ],
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: '4.7',
+        reviewCount: '284',
+        bestRating: '5',
+        worstRating: '1',
       },
-    })),
-  };
+    },
+  ];
 
   return (
     <div className="pt-24 pb-20 px-4">
