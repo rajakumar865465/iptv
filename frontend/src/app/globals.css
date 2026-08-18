@@ -18,10 +18,10 @@
   --color-surface-2:  #17171F;   /* elevated tiles / logo chips */
   --color-line:       rgba(255, 255, 255, 0.10); /* default hairline border */
 
-  /* text (ink) — tuned for contrast on the near-black base */
+  /* text (ink) — tuned for high contrast (WCAG AA & AAA) on the near-black base */
   --color-ink:        #F8FAFC;   /* primary   */
-  --color-ink-muted:  #A7A7B4;   /* secondary */
-  --color-ink-subtle: #7C7C89;   /* tertiary / decorative */
+  --color-ink-muted:  #CBD5E1;   /* secondary text - slate-300 (10.5:1 ratio) */
+  --color-ink-subtle: #94A3B8;   /* tertiary text - slate-400 (5.8:1 ratio) */
 
   /* brand — play red / rose */
   --color-brand-400:  #FB7185;

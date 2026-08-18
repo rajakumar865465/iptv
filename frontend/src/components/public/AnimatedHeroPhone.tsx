@@ -7,11 +7,11 @@ const FADE_MS = 500;
 
 function StatusBar() {
   return (
-    <div className="flex justify-between items-center px-3 py-[4px] text-[8px] text-white/40 bg-black shrink-0">
+    <div className="flex justify-between items-center px-3 py-[4px] text-[8px] text-slate-300 bg-black shrink-0">
       <span className="font-medium">9:41</span>
       <div className="flex items-center gap-1.5">
         <span className="text-[7px]">5G</span>
-        <div className="w-4 h-[7px] border border-white/30 rounded-sm flex items-center justify-end pr-[1px]">
+        <div className="w-4 h-[7px] border border-white/40 rounded-sm flex items-center justify-end pr-[1px]">
           <div className="w-[70%] h-full bg-green-400 rounded-[1px]" />
         </div>
       </div>
@@ -105,9 +105,9 @@ function ChannelListScreen() {
     <div className="h-full bg-[#080808] flex flex-col text-white">
       <StatusBar />
       <div className="px-3 py-2.5 bg-[#111111] border-b border-white/[0.05] shrink-0">
-        <div className="bg-white/[0.06] rounded-xl px-3 py-2 flex items-center gap-2">
-          <Search className="w-[11px] h-[11px] text-white/25" />
-          <span className="text-[8px] text-white/25">Search channels...</span>
+        <div className="bg-white/[0.08] rounded-xl px-3 py-2 flex items-center gap-2">
+          <Search className="w-[11px] h-[11px] text-slate-400" />
+          <span className="text-[8px] text-slate-300">Search channels...</span>
         </div>
       </div>
       <div className="flex gap-1.5 px-3 py-2 shrink-0 overflow-hidden">
@@ -280,17 +280,23 @@ export default function AnimatedHeroPhone() {
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2.5 mt-6">
+      <div className="flex items-center gap-1 mt-6">
         {SCREENS.map((s, i) => (
           <button
             key={s.id}
             onClick={() => handleDot(i)}
             aria-label={s.label}
-            className={`rounded-full transition-all duration-300 cursor-pointer ${i === current ? 'w-7 h-[6px] bg-brand-500' : 'w-[6px] h-[6px] bg-white/20 hover:bg-white/40'}`}
-          />
+            className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
+          >
+            <span
+              className={`block rounded-full ${
+                i === current ? 'w-7 h-[6px] bg-brand-500' : 'w-[6px] h-[6px] bg-white/30 hover:bg-white/50'
+              }`}
+            />
+          </button>
         ))}
       </div>
-      <p className="mt-2.5 text-xs text-ink-muted font-medium transition-opacity" style={{ opacity: fading ? 0 : 1, transitionDuration: `${FADE_MS}ms` }}>
+      <p className="mt-1 text-xs text-slate-300 font-medium transition-opacity" style={{ opacity: fading ? 0 : 1, transitionDuration: `${FADE_MS}ms` }}>
         {SCREENS[current].label}
       </p>
     </div>

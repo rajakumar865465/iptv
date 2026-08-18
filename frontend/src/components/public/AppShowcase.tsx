@@ -26,11 +26,11 @@ const cardVariants = {
 function StatusBar() {
   return (
     <div className="flex items-center justify-between px-4 pt-2 pb-1">
-      <span className="text-[9px] text-white/60 font-medium">9:41</span>
+      <span className="text-[9px] text-white/80 font-medium">9:41</span>
       <div className="flex items-center gap-1">
-        <Signal className="w-3 h-3 text-white/60" />
-        <Wifi className="w-3 h-3 text-white/60" />
-        <Battery className="w-3 h-3 text-white/60" />
+        <Signal className="w-3 h-3 text-white/80" />
+        <Wifi className="w-3 h-3 text-white/80" />
+        <Battery className="w-3 h-3 text-white/80" />
       </div>
     </div>
   );
@@ -41,9 +41,9 @@ function BrowseScreen() {
     <div className="flex flex-col h-full bg-surface">
       <StatusBar />
       <div className="px-3 pt-2 pb-1">
-        <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-1.5">
-          <Search className="w-3 h-3 text-white/40" />
-          <span className="text-[10px] text-white/30">Search channels...</span>
+        <div className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-1.5">
+          <Search className="w-3 h-3 text-slate-300" />
+          <span className="text-[10px] text-slate-300">Search channels...</span>
         </div>
       </div>
       <div className="flex gap-2 px-3 py-2 overflow-hidden">
@@ -51,7 +51,7 @@ function BrowseScreen() {
           <div
             key={cat}
             className={`text-[9px] px-2.5 py-1 rounded-full font-medium shrink-0 ${
-              i === 0 ? 'bg-brand-500/20 text-brand-400' : 'bg-white/5 text-white/40'
+              i === 0 ? 'bg-brand-500/20 text-brand-300' : 'bg-white/10 text-slate-300'
             }`}
           >
             {cat}
@@ -68,14 +68,14 @@ function BrowseScreen() {
         ].map((ch) => (
           <div
             key={ch.name}
-            className="flex items-center gap-2.5 bg-white/[0.03] rounded-lg px-2.5 py-2"
+            className="flex items-center gap-2.5 bg-white/[0.05] rounded-lg px-2.5 py-2"
           >
             <div className="w-7 h-7 rounded-md bg-white/10 flex items-center justify-center shrink-0">
-              <Radio className="w-3.5 h-3.5 text-white/30" />
+              <Radio className="w-3.5 h-3.5 text-slate-300" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[10px] font-semibold text-white/80">{ch.name}</div>
-              <div className="text-[8px] text-white/30">{ch.cat}</div>
+              <div className="text-[10px] font-semibold text-white">{ch.name}</div>
+              <div className="text-[8px] text-slate-300">{ch.cat}</div>
             </div>
             {ch.live && (
               <div className="flex items-center gap-1">

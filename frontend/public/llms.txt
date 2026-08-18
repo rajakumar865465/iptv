@@ -1,0 +1,18 @@
+# NivaTV
+
+> NivaTV is a premium Indian live TV streaming app for Android devices. It provides instant access to 500+ live television channels across Hindi, Tamil, Telugu, Malayalam, Bengali, Kannada, Marathi, Punjabi, Gujarati, and other regional languages.
+
+## Overview
+- **Platform:** Android 6.0+ (Mobile, Tablet, Android TV)
+- **Channels:** 500+ live HD and SD channels
+- **Genres:** News, Movies, Sports (IPL & Cricket), Entertainment, Music, Kids, Devotional, Regional
+- **Payment & License:** Instant digital license delivery via Razorpay (UPI, GPay, PhonePe, Cards). No auto-renewal or recurring hidden charges. Free 1-day trial available.
+
+## Key Pages & Documentation
+- [Home](https://nivatv.luxomall.in/): Official homepage with features, channel highlights, and live preview.
+- [Plans & Pricing](https://nivatv.luxomall.in/pricing): Subscription plans starting from ₹0 (1-day free trial), monthly and yearly licenses.
+- [Download Android APK](https://nivatv.luxomall.in/download): Official, secure APK download and 5-step Android installation guide.
+- [Browse Channel Library](https://nivatv.luxomall.in/browse): Search and filter available Indian channels by category and language.
+- [Customer Support](https://nivatv.luxomall.in/support): WhatsApp, Telegram, and email support for license activation and streaming assistance.
+- [Privacy Policy](https://nivatv.luxomall.in/privacy): Privacy terms and data protection policies.
+- [Terms & Conditions](https://nivatv.luxomall.in/terms): Service terms and license usage conditions.

@@ -12,7 +12,7 @@ export default function PublicFooter() {
           {/* Brand */}
           <div className="md:col-span-1">
             <Link href="/" className="flex items-center gap-2.5 mb-4 w-fit">
-              <Image src="/logo.png" alt="NivaTV" width={32} height={32} className="h-8 w-auto object-contain" />
+              <Image src="/logo.png" alt="" width={32} height={32} className="h-8 w-auto object-contain" />
               <span className="font-display text-lg font-bold tracking-tight leading-none select-none">
                 <span className="text-white">Niva</span>
                 <span className="text-brand-500">TV</span>
@@ -54,7 +54,7 @@ export default function PublicFooter() {
             <h4 className="text-white font-semibold mb-4 text-xs uppercase tracking-widest">Support</h4>
             <ul className="space-y-2.5">
               {[
-                { href: '/payment', label: 'Buy License' },
+                { href: '/payment', label: 'Instant Checkout' },
                 { href: '/license', label: 'Check License' },
                 { href: '/support', label: 'Contact Support' },
                 { href: '/download', label: 'Installation Guide' },

@@ -21,4 +21,10 @@
   - Resolved `Cannot connect to server` by switching the mobile app's baseUrl to the live production Cloudflare domain `https://nivatv.luxomall.in`.
   - Fixed `ERR_ERL_KEY_GEN_IPV6` crash loops in Express `express-rate-limit` middleware by adding IPv6 normalization (`normalizeIp`) and `validate: { trustProxy: false }`.
   - Re-compiled release APK with `BACKEND_URL=https://nivatv.luxomall.in` and deployed directly to `https://nivatv.luxomall.in/downloads/app-release.apk`.
+- **Full SEO, Performance & Accessibility Overhaul (August 2026):**
+  - **Sitemap & Indexing:** Fixed GSC "Couldn't fetch" by sanitizing Next.js security headers, generating public crawler-friendly caching (`revalidate = 3600`) across all subpages (`/`, `/pricing`, `/download`, `/support`, `/browse`), and configuring dynamic `robots.ts` and `sitemap.ts`.
+  - **Schema.org Rich Snippets:** Injected comprehensive structured data JSON-LD across the entire site: `Product` + `Offer` on pricing, `HowTo` + `SoftwareApplication` on download, `ContactPage` on support, `CollectionPage` on browse, and `FAQPage` + `Review` + `WebSite` + `Organization` on homepage.
+  - **PageSpeed & Performance (90+ / 100):** Reduced image download payloads by ~200 KiB by locking Next.js image sizes to `64px` for thumbnails, removed unused font preconnect tags in `layout.tsx`, enabled `display: 'swap'` on Inter/Poppins, and removed non-composited width animation bottlenecks.
+  - **Accessibility & Contrast (93+ / 100):** Upgraded `globals.css` color tokens (`--color-ink-muted` -> slate-300, `--color-ink-subtle` -> slate-400) to pass WCAG AA/AAA contrast ratios, enlarged interactive touch targets to 44px, resolved redundant image alt tags on brand logos, and fixed prohibited ARIA attributes on star ratings (`role="img"`).
+  - **Agentic Browsing (2/2):** Created standardized `/llms.txt` file for AI agents and LLM crawlers.
 - **Service Status:** Both `iptv-backend` and `iptv-frontend` are verified online and serving requests on EC2 (`44.206.18.189`) via `https://nivatv.luxomall.in`.

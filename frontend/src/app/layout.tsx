@@ -6,12 +6,14 @@ import { AuthProvider } from "@/contexts/AuthContext";
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const poppins = Poppins({
   variable: "--font-poppins",
   subsets: ["latin"],
   weight: ["600", "700", "800"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -37,10 +39,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en-IN">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      </head>
       <body className={`${inter.variable} ${poppins.variable} antialiased bg-gray-950 text-gray-100 font-sans`} suppressHydrationWarning>
         <AuthProvider>{children}</AuthProvider>
       </body>
