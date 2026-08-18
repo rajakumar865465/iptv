@@ -1,5 +1,7 @@
 import { MetadataRoute } from 'next';
 
+export const revalidate = 3600; // Revalidate sitemap every hour
+
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://nivatv.luxomall.in';
 
