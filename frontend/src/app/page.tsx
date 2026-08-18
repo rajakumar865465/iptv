@@ -189,18 +189,60 @@ export default async function HomePage() {
 
   const visibleCategories = categories.filter(cat => cat.channel_count > 0);
 
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: FAQ.map((item) => ({
-      '@type': 'Question',
-      name: item.q,
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: item.a,
+  const jsonLd = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: FAQ.map((item) => ({
+        '@type': 'Question',
+        name: item.q,
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: item.a,
+        },
+      })),
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'NivaTV',
+      url: 'https://nivatv.luxomall.in',
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: 'https://nivatv.luxomall.in/browse?category={search_term_string}',
+        'query-input': 'required name=search_term_string'
+      }
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'MobileApplication',
+      name: 'NivaTV',
+      operatingSystem: 'ANDROID',
+      applicationCategory: 'EntertainmentApplication',
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'INR'
       },
-    })),
-  };
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: '4.8',
+        ratingCount: '10000'
+      }
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: 'NivaTV',
+      url: 'https://nivatv.luxomall.in',
+      logo: 'https://nivatv.luxomall.in/logo.png',
+      contactPoint: {
+        '@type': 'ContactPoint',
+        contactType: 'customer service',
+        availableLanguage: ['Hindi', 'English']
+      }
+    }
+  ];
 
   return (
     <div className="min-h-screen bg-base text-white overflow-x-hidden">

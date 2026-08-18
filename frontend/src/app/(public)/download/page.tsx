@@ -5,8 +5,8 @@ import type { Metadata } from 'next';
 import PageTracker from '@/components/public/PageTracker';
 
 export const metadata: Metadata = {
-  title: 'Download APK — NivaTV',
-  description: 'Download the latest NivaTV APK for Android. Free to download, license required to stream.',
+  title: 'Download NivaTV APK — Live TV for Android',
+  description: 'Download the NivaTV Android APK to watch Sony TV live, Zee News, IPL live and 500+ Indian channels free on your mobile. License required to stream.',
 };
 export const dynamic = 'force-dynamic';
 

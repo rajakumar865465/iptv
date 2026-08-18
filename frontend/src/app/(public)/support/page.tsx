@@ -3,7 +3,10 @@ import { MessageCircle, Mail, Phone, Clock, Key } from 'lucide-react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Support — NivaTV' };
+export const metadata: Metadata = {
+  title: 'NivaTV Support — Help & Contact',
+  description: 'Get help with your NivaTV license, app installation, or streaming issues. WhatsApp, Telegram, and email support available.',
+};
 export const dynamic = 'force-dynamic';
 
 const COMMON_ISSUES = [

@@ -15,6 +15,7 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://nivatv.luxomall.in'),
   title: "NivaTV",
   description: "Admin panel for NivaTV",
   icons: {
@@ -29,7 +30,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en-IN">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
       <body className={`${inter.variable} ${poppins.variable} antialiased bg-gray-950 text-gray-100 font-sans`} suppressHydrationWarning>
         <AuthProvider>{children}</AuthProvider>
       </body>

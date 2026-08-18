@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
+import Image from 'next/image';
 
 interface ChannelLogoImageProps {
   src: string;
@@ -18,7 +19,6 @@ export default function ChannelLogoImage({
   containerClassName = '',
 }: ChannelLogoImageProps) {
   const [error, setError] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
 
   const initials = alt
     .split(' ')
@@ -26,15 +26,6 @@ export default function ChannelLogoImage({
     .join('')
     .slice(0, 2)
     .toUpperCase();
-
-  useEffect(() => {
-    const img = imgRef.current;
-    if (!img) return;
-    // If the image already completed loading and failed, set error state
-    if (img.complete && img.naturalWidth === 0) {
-      setError(true);
-    }
-  }, [src]);
 
   const handleError = () => {
     setError(true);
@@ -50,11 +41,12 @@ export default function ChannelLogoImage({
       )}
       {/* Show image when src exists and no error */}
       {src && !error && (
-        <img
-          ref={imgRef}
+        <Image
           src={src}
           alt={alt}
-          className={className}
+          fill
+          sizes="(max-width: 768px) 100vw, 150px"
+          className={`object-contain ${className}`}
           onError={handleError}
         />
       )}

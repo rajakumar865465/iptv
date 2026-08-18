@@ -40,6 +40,12 @@ const CSP = [
 
 const nextConfig: NextConfig = {
   compress: false,
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: '**' },
+      { protocol: 'http', hostname: '**' },
+    ],
+  },
   // Silence "multiple lockfiles" warning — our root is the frontend dir
   outputFileTracingRoot: require('path').join(__dirname),
   // Required for nginx to proxy correctly on EC2

@@ -8,8 +8,8 @@ import type { Plan } from '@/lib/publicApi';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
-  title: 'Pricing — NivaTV',
-  description: 'Simple, transparent pricing for premium Indian live TV. Daily trial, monthly and yearly plans.',
+  title: 'Live TV App Plans & Pricing — NivaTV',
+  description: 'Affordable plans to watch 500+ live TV channels on Android. Start with a free 1-day trial. No auto-renewal.',
 };
 
 const BILLING_FAQ = [
@@ -71,8 +71,25 @@ export default async function PricingPage() {
   const plan1mPrice = plan1m ? monthlyPricePerMonth(plan1m) : null;
   const plan1yPrice = plan1y ? monthlyPricePerMonth(plan1y) : null;
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: BILLING_FAQ.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: item.a,
+      },
+    })),
+  };
+
   return (
     <div className="pt-24 pb-20 px-4">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <OfferTrigger />
       <div className="max-w-5xl mx-auto">
 
