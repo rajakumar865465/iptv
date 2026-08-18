@@ -21,6 +21,7 @@ import '../services/storage_service.dart';
 import '../widgets/channel_logo.dart';
 import '../widgets/premium_channel_card.dart';
 import '../cubits/license_cubit.dart';
+import '../cubits/mini_player_cubit.dart';
 import '../utils/backend_config.dart';
 import '../services/local_hls_proxy.dart';
 
@@ -119,6 +120,8 @@ class PlayerScreen extends StatefulWidget {
   final int initialIndex;
   final PlayerSourceType sourceType;
   final ChannelSourceFilters sourceFilters;
+  final bool isMinimized;
+  final bool isOsPipMode;
 
   const PlayerScreen({
     super.key,
@@ -127,6 +130,8 @@ class PlayerScreen extends StatefulWidget {
     required this.initialIndex,
     required this.sourceType,
     required this.sourceFilters,
+    this.isMinimized = false,
+    this.isOsPipMode = false,
   });
 
   @override
@@ -298,6 +303,19 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   int _totalBufferingMs = 0;
   DateTime? _bufferingStartTime;
   
+  // Player Overlay Control & Feature States
+  bool _isLocked = false;
+  bool _showLockHud = false;
+  Timer? _lockHudTimer;
+  double _volume = 100.0;
+  double _brightness = 1.0;
+  bool _showVolumeHud = false;
+  bool _showBrightnessHud = false;
+  Timer? _hudTimer;
+  bool _isSpeedBoosted = false;
+  int _sleepTimerMinutes = 0;
+  Timer? _sleepTimer;
+  DateTime? _sleepTimerEndTime;
   
   Timer? _bufferTimer;
   Timer? _startupTimer;
@@ -532,6 +550,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // Fix A: Silent retries
   int _silentRetryCount = 0;
   
+  // Phase 7: Gentle Recovery — try pause/resume before nuking buffer
+  int _gentleRecoveryAttempts = 0;
+  
   // Fix C: Auto-retry state for Error UI
   Timer? _autoRetryTimer;
   int _autoRetryCountdown = 0;
@@ -646,6 +667,66 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _livePulseTimer = Timer.periodic(const Duration(milliseconds: 900), (_) {
       if (mounted) setState(() { _livePulseVisible = !_livePulseVisible; });
     });
+  }
+
+  @override
+  void didUpdateWidget(PlayerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.channel.id != widget.channel.id) {
+      _stopHeartbeatTimer();
+      _bufferTimer?.cancel();
+      _startupTimer?.cancel();
+      _reconnectTimer?.cancel();
+      _positionCheckTimer?.cancel();
+      _stablePlaybackTimer?.cancel();
+      
+      _player.stop();
+      
+      setState(() {
+        _channelTapTime = DateTime.now();
+        _contextChannels = List<ChannelModel>.from(widget.channels);
+        _currentIndex = widget.initialIndex;
+        if (_currentIndex < 0 || _currentIndex >= _contextChannels.length) {
+          _currentIndex = _contextChannels.indexWhere((c) => c.id == widget.channel.id);
+          if (_currentIndex < 0) {
+            _contextChannels.insert(0, widget.channel);
+            _currentIndex = 0;
+          }
+        }
+        _sourceType = widget.sourceType;
+        _sourceFilters = widget.sourceFilters;
+        
+        final limit = 50;
+        _nextPage = (_contextChannels.length ~/ limit) + 1;
+        _previousPage = 1;
+        _hasMoreBefore = false;
+        _hasMoreAfter = _sourceType == PlayerSourceType.liveTv ||
+                         _sourceType == PlayerSourceType.category ||
+                         _sourceType == PlayerSourceType.search;
+                         
+        _isLoading = true;
+        _hasError = false;
+        _isRetryingStream = false;
+        _streamOverlayMessage = '';
+        _proxyAttempted = false;
+        _directFailed = false;
+        _playbackSessionId = DateTime.now().millisecondsSinceEpoch.toString();
+        _playStartTime = null;
+
+        _startupCompleted = false;
+        _hadFailureBeforePlaying = false;
+        _lastErrorDescription = '';
+        _lastErrorReason = '';
+        _lastPlayerError = '';
+        _mediaOpenCount = 0;
+        _totalBufferingMs = 0;
+        _currentUrl = _currentChannel.streamUrl;
+        
+        StorageService().saveWatchHistory(_currentChannel);
+      });
+      
+      _loadQualitySettingsAndFetch();
+    }
   }
 
   // ------------------------ Player ------------------------
@@ -1414,6 +1495,22 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     
     _startHeartbeatTimer();
 
+    // Phase 2b: Background Buffer Build — now that first frame is on screen,
+    // boost the buffer to 15s readahead and 32MB stream buffer for smooth
+    // sustained playback (YouTube-style two-phase buffering).
+    try {
+      final platform = _player.platform;
+      if (!kIsWeb && (platform.runtimeType.toString().contains('NativePlayer') ||
+          platform.runtimeType.toString().contains('LibmpvPlayer'))) {
+        _dynamicReadaheadSecs = 15;
+        await (platform as dynamic).setProperty('demuxer-readahead-secs', '15');
+        await (platform as dynamic).setProperty('stream-buffer-size', '33554432');
+        _playerDebugLog('phase2b_buffer_boost', {'readahead': 15, 'stream_buffer': '32MB'});
+      }
+    } catch (_) {}
+
+    // Phase 5: Prefetch playback API for next 2 channels in the background
+    _prefetchAdjacentPlaybackApis();
     
     // Remember successful path!
     if (_currentStreamMeta != null) {
@@ -1425,26 +1522,24 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
   }
 
-  void _prewarmNextChannel() async {
-    if (_contextChannels.isEmpty) return;
-    final int next = _currentIndex + 1;
-    if (next < _contextChannels.length) {
-      final ChannelModel nextChannel = _contextChannels[next];
+  /// Phase 5: Prefetch playback API for the next 2 channels in the list
+  /// so channel switching is near-instant (cache hit instead of API call).
+  void _prefetchAdjacentPlaybackApis() async {
+    for (int offset = 1; offset <= 2; offset++) {
+      final idx = _currentIndex + offset;
+      if (idx >= _contextChannels.length) break;
+      final ch = _contextChannels[idx];
+      // Skip if already cached and fresh
+      final cacheAge = _playbackApiCacheTime[ch.id];
+      if (cacheAge != null && DateTime.now().difference(cacheAge).inSeconds < 60) continue;
       try {
-        final res = await _api.get(ApiEndpoints.channelPlaybackPath(nextChannel.id));
-        if (res['success'] == true) {
-          final data = res['data'];
-          final primary = data['primary_stream'];
-          if (primary != null) {
-             final newUrl = primary['url'] ?? primary['final_url'] ?? primary['stream_url'];
-             if (newUrl != null) {
-               _hlsProxy.prewarmPlaylist(newUrl, null);
-             }
-          }
+        final res = await _api.get(ApiEndpoints.channelPlaybackPath(ch.id));
+        if (res['success'] == true && res['data'] != null) {
+          _playbackApiCache[ch.id] = res['data'];
+          _playbackApiCacheTime[ch.id] = DateTime.now();
+          _playerDebugLog('prefetch_api_cached', {'channel_id': ch.id, 'offset': offset});
         }
-      } catch (e) {
-        if (kDebugMode) debugPrint('Prewarm failed silently: $e');
-      }
+      } catch (_) {}
     }
   }
 
@@ -1521,10 +1616,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // available ahead of the playhead — buffer it aggressively (YouTube-style)
       // so short network dips never reach the screen.
       final bool isDelayedStream = url.contains('/api/smooth/');
-      final int baseReadaheadSecs = isDelayedStream ? 30 : profile.demuxerReadaheadSecs;
-      if (_dynamicReadaheadSecs < baseReadaheadSecs) {
-         _dynamicReadaheadSecs = baseReadaheadSecs;
-      }
+      // Phase 2: Instant-Start Buffering — use minimal readahead to show first
+      // frame ASAP. _onStartupSuccess will boost this to 15s once playing.
+      final int fastStartReadahead = isDelayedStream ? 30 : 1;
+      _dynamicReadaheadSecs = fastStartReadahead;
       final int demuxerMaxBytesMib = isDelayedStream
           ? (profile.demuxerMaxBytesMib < 96 ? 96 : profile.demuxerMaxBytesMib)
           : profile.demuxerMaxBytesMib;
@@ -1532,13 +1627,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         final platform = _player.platform;
         if (platform.runtimeType.toString().contains('NativePlayer') ||
             platform.runtimeType.toString().contains('LibmpvPlayer')) {
-          // Larger readahead keeps player behind live edge, reducing segment 404s
+          // Phase 2: Instant-Start — minimal readahead for fast first frame
           await (platform as dynamic).setProperty(
               'demuxer-readahead-secs', '$_dynamicReadaheadSecs');
-          // cache-secs is the MAX cache size — keep it much larger than readahead
-          // so variable-bitrate or slow-CDN streams don't stall
+          // cache-secs: keep generous for background buffer building
           await (platform as dynamic).setProperty(
-              'cache-secs', '${_dynamicReadaheadSecs * 4}');
+              'cache-secs', '60');
           await (platform as dynamic).setProperty('cache', 'yes');
           // Bound the demuxer byte buffer so live streams don't balloon RAM.
           await (platform as dynamic).setProperty(
@@ -1565,10 +1659,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           //   lack a browser-like User-Agent. Web sends one automatically; libmpv
           //   does not, so we set a sensible default here as a backstop. The
           //   per-stream httpHeaders (if any) override this at the Media level.
+          // Phase 8: Connection Keep-Alive — multiple_requests=1 for HTTP keep-alive
           await (platform as dynamic).setProperty(
               'stream-lavf-o',
               'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1,'
               'reconnect_on_network_errors=1,reconnect_delay_max=5,'
+              'multiple_requests=1,'
               'timeout=30000000,tls_verify=no,'
               'user_agent=Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 '
               '(KHTML, like Gecko) NivaTV/1.2.1 Chrome/120.0 Mobile Safari/537.36');
@@ -1583,22 +1679,24 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           // Removed because it prevents automatic scaling to high-resolution streams when bandwidth permits.
 
 
-          // 32 MB stream buffer absorbs slow CDN segment starts (HD IPTV segments).
+          // Phase 2: Fast-start — 4MB stream buffer initially (expanded after first frame)
           try {
-            await (platform as dynamic).setProperty('stream-buffer-size', '33554432');
+            await (platform as dynamic).setProperty('stream-buffer-size', '4194304');
           } catch (_) {}
-          // Do not drop frames — IPTV relies on continuous frame delivery for A/V sync.
+          // Phase 4: Smart Frame Dropping — allow strategic drops to stay near live edge
+          // Prevents growing latency drift during long viewing sessions
           try {
-            await (platform as dynamic).setProperty('framedrop', 'no');
+            await (platform as dynamic).setProperty('framedrop', 'decoder+vo');
           } catch (_) {}
-          // Hardware decode where supported; auto-safe falls back to software.
+          // Phase 3: Strict Hardware Acceleration — mediacodec-copy for reliable
+          // GPU decoding with frame copy for accurate rendering on Android
           try {
-            await (platform as dynamic).setProperty('hwdec', 'auto-safe');
+            await (platform as dynamic).setProperty('hwdec', 'mediacodec-copy');
           } catch (_) {}
-          // Sync video output to audio clock for accurate A/V alignment on IPTV.
-          // Prevents gradual audio drift that builds over long viewing sessions.
+          // Phase 6: Display-Synced Rendering — interpolate frames to match
+          // display refresh rate (60/90/120Hz) for butter-smooth output
           try {
-            await (platform as dynamic).setProperty('video-sync', 'audio');
+            await (platform as dynamic).setProperty('video-sync', 'display-resample');
           } catch (_) {}
           try {
             await (platform as dynamic).setProperty('audio-buffer', '0.5');
@@ -1651,13 +1749,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         'had_connection': headers.containsKey('Connection'),
       });
 
-      String targetUrl = url;
-      // Route through local proxy for HLS to enable predictive prewarming & auth interception
-      if (targetUrl.contains('.m3u8')) {
-        targetUrl = _hlsProxy.getProxyUrl(targetUrl, headers.isNotEmpty ? headers : null, () async {
-          return null; 
-        });
-      }
+      // Phase 1: Zero-Copy Native Networking — bypass Dart proxy, pass headers
+      // directly to libmpv's native HTTP engine for zero-GC streaming.
+      // The proxy is kept as code for fallback but not used on the hot path.
+      final String targetUrl = url;
       final media = Media(targetUrl, httpHeaders: headers.isNotEmpty ? headers : null);
 
       // Final concurrency check before we officially bind this media to the player instance
@@ -2452,6 +2547,32 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     if (_recoveryInProgress) return;
     _recoveryInProgress = true;
     
+    // Phase 7: Gentle Recovery — for network hiccups (buffer_timeout,
+    // position_frozen), try pause/resume first to let libmpv's built-in
+    // reconnect recover without destroying the entire download cache.
+    final isNetworkHiccup = (reason == 'buffer_timeout' || reason == 'position_frozen');
+    if (isNetworkHiccup && _gentleRecoveryAttempts < 2 && _playStartTime != null) {
+      _gentleRecoveryAttempts++;
+      _playerDebugLog('gentle_recovery_attempt', {
+        'channel_id': _currentChannel.id,
+        'reason': reason,
+        'attempt': _gentleRecoveryAttempts,
+      });
+      try {
+        // Pause + unpause forces libmpv to retry the current segment
+        // without discarding the buffer cache
+        await _player.pause();
+        await Future.delayed(const Duration(seconds: 2));
+        if (!mounted) { _recoveryInProgress = false; return; }
+        await _player.play();
+      } catch (_) {}
+      _recoveryInProgress = false;
+      return;
+    }
+    
+    // Full recovery path — reset gentle counter
+    _gentleRecoveryAttempts = 0;
+    
     // Stop playback immediately to avoid background audio or stuck frames
     try { await _player.pause(); } catch (_) {}
     
@@ -3183,15 +3304,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   void _toggleFullScreen() {
-    setState(() { _isFullScreen = !_isFullScreen; });
-    if (_isFullScreen) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    if (!_isFullScreen) {
       SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
     } else {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     }
-    _applyContentFrameRateMatching();
     _showControlsWithTimer();
   }
 
@@ -3222,6 +3339,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     // Fix #14: Dispose video player FIRST before animation controller to prevent
     // animation callbacks firing after widget is unmounted
     _stopHeartbeatTimer();
+    _hudTimer?.cancel();
+    _lockHudTimer?.cancel();
+    _sleepTimer?.cancel();
     _bufferTimer?.cancel();
     _startupTimer?.cancel();
     _reconnectTimer?.cancel();
@@ -3266,6 +3386,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
+    
+    // Ensure the home screen snaps back to max 90/120Hz when leaving the player
+    if (Platform.isAndroid) {
+      try {
+        FlutterDisplayMode.setHighRefreshRate();
+      } catch (_) {}
+    }
     super.dispose();
   }
 
@@ -3273,51 +3400,117 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // BUILD
   // =====================================================================
 
-  @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: !_isFullScreen,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        if (_isFullScreen) {
-          _toggleFullScreen();
+    if (widget.isMinimized || widget.isOsPipMode) {
+      // In minimized or OS PiP mode, just return the video surface without scaffolding/controls
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(child: _buildVideoSurface()),
+          if (_isLoading) Positioned.fill(child: _buildLoadingOverlay()),
+          if (_hasError) Positioned.fill(child: _buildErrorOverlay()),
+        ],
+      );
+    }
+
+    return OrientationBuilder(
+      builder: (context, orientation) {
+        final isLandscape = orientation == Orientation.landscape;
+        
+        if (isLandscape && !_isFullScreen) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() { _isFullScreen = true; });
+              SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+              _applyContentFrameRateMatching();
+            }
+          });
+        } else if (!isLandscape && _isFullScreen) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() { _isFullScreen = false; });
+              SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+              _applyContentFrameRateMatching();
+              
+              Future.delayed(const Duration(milliseconds: 500), () {
+                if (mounted && !_isFullScreen) {
+                  SystemChrome.setPreferredOrientations([
+                    DeviceOrientation.portraitUp,
+                    DeviceOrientation.portraitDown,
+                    DeviceOrientation.landscapeLeft,
+                    DeviceOrientation.landscapeRight,
+                  ]);
+                }
+              });
+            }
+          });
         }
+
+        // When not minimized, intercept back button to minimize instead of popping underlying route.
+        // When minimized, let the app handle back button normally.
+        return PopScope(
+          canPop: widget.isMinimized && !_isFullScreen,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            if (_isFullScreen) {
+              _toggleFullScreen();
+            } else if (!widget.isMinimized) {
+              // Minimize instead of popping
+              context.read<MiniPlayerCubit>().minimize();
+            }
+          },
+          child: Scaffold(
+            backgroundColor: Colors.black,
+            body: _isFullScreen
+                ? _buildFullscreen()
+                : SafeArea(child: _buildPortrait()),
+          ),
+        );
       },
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: _isFullScreen
-            ? _buildFullscreen()
-            : SafeArea(child: _buildPortrait()),
-      ),
     );
   }
 
   // ---- Fullscreen ----
 
   Widget _buildFullscreen() {
-    return GestureDetector(
-      onTap: _toggleControls,
-      onDoubleTap: _onDoubleTapFitToggle,
-      behavior: HitTestBehavior.opaque,
+    return _buildGestureDetector(
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Video fills the entire screen - no SafeArea, no constraints
+          // Video fills the entire screen
           Positioned.fill(child: _buildVideoSurface()),
+          // Software Brightness Dimming Layer
+          if (_brightness < 1.0)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  color: Colors.black.withOpacity((1.0 - _brightness) * 0.85),
+                ),
+              ),
+            ),
           if (_isLoading) Positioned.fill(child: _buildLoadingOverlay()),
           if (_hasError) Positioned.fill(child: _buildErrorOverlay()),
           if (_warmingOverLive)
             Positioned(top: 0, left: 0, right: 0, child: _buildWarmingBanner()),
-          // Controls overlay - safe padding on controls only, not video
-          Positioned.fill(
-            child: FadeTransition(
-              opacity: _controlsOpacity,
-              child: IgnorePointer(
-                ignoring: !_showControls,
-                child: _buildControlsOverlay(fullscreen: true),
+          
+          // Controls / Locked Overlay
+          if (_isLocked)
+            _buildLockedOverlay()
+          else
+            Positioned.fill(
+              child: FadeTransition(
+                opacity: _controlsOpacity,
+                child: IgnorePointer(
+                  ignoring: !_showControls,
+                  child: _buildControlsOverlay(fullscreen: true),
+                ),
               ),
             ),
-          ),
+          
+          // HUD Overlays
+          if (_showBrightnessHud) _buildBrightnessHud(),
+          if (_showVolumeHud) _buildVolumeHud(),
+          if (_isSpeedBoosted) _buildSpeedBoostHud(),
           _buildSlowConnectionOverlay(),
           _buildPlayerToast(),
           if (_showDebugDiagnostics)
@@ -3342,42 +3535,54 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             aspectRatio: 16 / 9,
             child: Container(
               color: Colors.black,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _buildVideoSurface(),
-                  Positioned.fill(
-                    child: GestureDetector(
-                      onTap: _toggleControls,
-                      onDoubleTap: _onDoubleTapFitToggle,
-                      behavior: HitTestBehavior.translucent,
-                      child: const SizedBox.expand(),
-                    ),
-                  ),
-                  if (_isLoading) Positioned.fill(child: _buildLoadingOverlay()),
-                  if (_hasError) Positioned.fill(child: _buildErrorOverlay()),
-                  if (_warmingOverLive)
-                    Positioned(top: 0, left: 0, right: 0, child: _buildWarmingBanner()),
-                  if (_gapWarning && !_isLoading && !_hasError)
-                    Positioned(top: 0, left: 0, right: 0, child: _buildGapWarningBanner()),
-                  if (!_hasError && !_isLoading)
-                    Positioned.fill(
-                      child: FadeTransition(
-                        opacity: _controlsOpacity,
+              child: _buildGestureDetector(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildVideoSurface(),
+                    // Software Brightness Dimming Layer
+                    if (_brightness < 1.0)
+                      Positioned.fill(
                         child: IgnorePointer(
-                          ignoring: !_showControls,
-                          child: _buildControlsOverlay(),
+                          child: Container(
+                            color: Colors.black.withOpacity((1.0 - _brightness) * 0.85),
+                          ),
                         ),
                       ),
-                    ),
-                  _buildSlowConnectionOverlay(),
-                  _buildPlayerToast(),
-                  if (_showDebugDiagnostics)
-                     Positioned(
-                       top: 10, right: 10,
-                       child: _buildDiagnosticOverlay(),
-                     ),
+                    if (_isLoading) Positioned.fill(child: _buildLoadingOverlay()),
+                    if (_hasError) Positioned.fill(child: _buildErrorOverlay()),
+                    if (_warmingOverLive)
+                      Positioned(top: 0, left: 0, right: 0, child: _buildWarmingBanner()),
+                    if (_gapWarning && !_isLoading && !_hasError)
+                      Positioned(top: 0, left: 0, right: 0, child: _buildGapWarningBanner()),
+                    
+                    // Controls / Locked Overlay
+                    if (_isLocked)
+                      _buildLockedOverlay()
+                    else if (!_hasError && !_isLoading)
+                      Positioned.fill(
+                        child: FadeTransition(
+                          opacity: _controlsOpacity,
+                          child: IgnorePointer(
+                            ignoring: !_showControls,
+                            child: _buildControlsOverlay(),
+                          ),
+                        ),
+                      ),
+                    
+                    // HUD Overlays
+                    if (_showBrightnessHud) _buildBrightnessHud(),
+                    if (_showVolumeHud) _buildVolumeHud(),
+                    if (_isSpeedBoosted) _buildSpeedBoostHud(),
+                    _buildSlowConnectionOverlay(),
+                    _buildPlayerToast(),
+                    if (_showDebugDiagnostics)
+                       Positioned(
+                         top: 10, right: 10,
+                         child: _buildDiagnosticOverlay(),
+                       ),
                   ],
+                ),
               ),
             ),
           ),
@@ -3945,6 +4150,349 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   // ---- Pro Player Controls Overlay ----
 
+  Widget _buildGestureDetector({required Widget child}) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        if (_isLocked) {
+          _showLockNotice();
+          return;
+        }
+        _toggleControls();
+      },
+      onDoubleTapDown: (details) {
+        if (_isLocked) return;
+        final screenWidth = MediaQuery.of(context).size.width;
+        final x = details.globalPosition.dx;
+        if (x < screenWidth * 0.35) {
+          _playPreviousChannel();
+          _showPlayerToast('⏮ Previous Channel');
+        } else if (x > screenWidth * 0.65) {
+          _playNextChannel();
+          _showPlayerToast('⏭ Next Channel');
+        } else {
+          _userPaused = _player.state.playing;
+          _player.playOrPause();
+          _showControlsWithTimer();
+        }
+      },
+      onVerticalDragUpdate: (details) {
+        if (_isLocked) return;
+        final screenWidth = MediaQuery.of(context).size.width;
+        final x = details.globalPosition.dx;
+        final delta = -details.primaryDelta! / 200.0;
+        if (x < screenWidth * 0.5) {
+          _adjustBrightness(delta);
+        } else {
+          _adjustVolume(delta * 100);
+        }
+      },
+      onLongPressStart: (_) {
+        if (_isLocked) return;
+        _enableSpeedBoost(true);
+      },
+      onLongPressEnd: (_) {
+        if (_isLocked) return;
+        _enableSpeedBoost(false);
+      },
+      child: child,
+    );
+  }
+
+  void _adjustBrightness(double delta) {
+    setState(() {
+      _brightness = (_brightness + delta).clamp(0.15, 1.0);
+      _showBrightnessHud = true;
+      _showVolumeHud = false;
+    });
+    _hudTimer?.cancel();
+    _hudTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (mounted) setState(() { _showBrightnessHud = false; });
+    });
+  }
+
+  void _adjustVolume(double delta) {
+    final currentVol = _player.state.volume;
+    final newVol = (currentVol + delta).clamp(0.0, 100.0);
+    _player.setVolume(newVol);
+    setState(() {
+      _volume = newVol;
+      _showVolumeHud = true;
+      _showBrightnessHud = false;
+    });
+    _hudTimer?.cancel();
+    _hudTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (mounted) setState(() { _showVolumeHud = false; });
+    });
+  }
+
+  void _enableSpeedBoost(bool enable) {
+    if (enable) {
+      _player.setRate(1.5);
+      setState(() { _isSpeedBoosted = true; });
+      HapticFeedback.selectionClick();
+    } else {
+      _player.setRate(1.0);
+      setState(() { _isSpeedBoosted = false; });
+    }
+  }
+
+  void _showLockNotice() {
+    _lockHudTimer?.cancel();
+    setState(() { _showLockHud = true; });
+    _lockHudTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() { _showLockHud = false; });
+    });
+  }
+
+  Widget _buildLockedOverlay() {
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _showLockNotice,
+        child: AnimatedOpacity(
+          opacity: _showLockHud ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 250),
+          child: Container(
+            color: Colors.black45,
+            child: Center(
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _isLocked = false;
+                    _showLockHud = false;
+                  });
+                  _showPlayerToast('🔓 Screen Unlocked');
+                  _showControlsWithTimer();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+                  decoration: BoxDecoration(
+                    color: const Color(AppColors.surface).withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: Colors.amberAccent.withOpacity(0.6), width: 1.2),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 24, spreadRadius: 2),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.lock_rounded, color: Colors.amberAccent, size: 20),
+                      SizedBox(width: 10),
+                      Text(
+                        'Locked • Tap to Unlock',
+                        style: TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w700, letterSpacing: 0.2),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBrightnessHud() {
+    return Positioned(
+      left: 20,
+      top: 0,
+      bottom: 0,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.8),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white24, width: 0.8),
+            boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 16)],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _brightness > 0.6 ? Icons.brightness_7_rounded : (_brightness > 0.3 ? Icons.brightness_6_rounded : Icons.brightness_4_rounded),
+                color: const Color(AppColors.primary),
+                size: 22,
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 100,
+                width: 5,
+                child: RotatedBox(
+                  quarterTurns: 3,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(2.5),
+                    child: LinearProgressIndicator(
+                      value: _brightness,
+                      backgroundColor: Colors.white24,
+                      valueColor: const AlwaysStoppedAnimation<Color>(Color(AppColors.primary)),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text('${(_brightness * 100).toInt()}%', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVolumeHud() {
+    return Positioned(
+      right: 20,
+      top: 0,
+      bottom: 0,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.8),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white24, width: 0.8),
+            boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 16)],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _volume == 0 ? Icons.volume_off_rounded : (_volume < 50 ? Icons.volume_down_rounded : Icons.volume_up_rounded),
+                color: const Color(AppColors.primary),
+                size: 22,
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 100,
+                width: 5,
+                child: RotatedBox(
+                  quarterTurns: 3,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(2.5),
+                    child: LinearProgressIndicator(
+                      value: _volume / 100.0,
+                      backgroundColor: Colors.white24,
+                      valueColor: const AlwaysStoppedAnimation<Color>(Color(AppColors.primary)),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text('${_volume.toInt()}%', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpeedBoostHud() {
+    return Positioned(
+      top: 24,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.85),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(AppColors.primary).withOpacity(0.6)),
+            boxShadow: [BoxShadow(color: const Color(AppColors.primary).withOpacity(0.3), blurRadius: 12)],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.fast_forward_rounded, color: Color(AppColors.primary), size: 18),
+              SizedBox(width: 6),
+              Text('1.5X SPEED', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.8)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showSleepTimerSelector() {
+    _controlsTimer?.cancel();
+    final options = [0, 15, 30, 45, 60, 90, 120];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(AppColors.surface).withOpacity(0.98),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border(top: BorderSide(color: Colors.white.withOpacity(0.12), width: 1)),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 12),
+                Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+                const SizedBox(height: 20),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Sleep Timer', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...options.map((mins) {
+                  final isSelected = _sleepTimerMinutes == mins;
+                  final label = mins == 0 ? 'Turn Off' : '$mins minutes';
+                  return ListTile(
+                    leading: Icon(
+                      mins == 0 ? Icons.timer_off_outlined : Icons.timer_outlined,
+                      color: isSelected ? const Color(AppColors.primary) : Colors.white70,
+                    ),
+                    title: Text(label, style: TextStyle(color: isSelected ? const Color(AppColors.primary) : Colors.white, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                    trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: Color(AppColors.primary)) : null,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _setSleepTimer(mins);
+                    },
+                  );
+                }),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        );
+      },
+    ).then((_) => _showControlsWithTimer());
+  }
+
+  void _setSleepTimer(int minutes) {
+    _sleepTimer?.cancel();
+    _sleepTimerMinutes = minutes;
+    if (minutes > 0) {
+      _sleepTimerEndTime = DateTime.now().add(Duration(minutes: minutes));
+      _sleepTimer = Timer(Duration(minutes: minutes), () {
+        if (mounted) {
+          _player.pause();
+          setState(() {
+            _sleepTimerMinutes = 0;
+            _sleepTimerEndTime = null;
+          });
+          _showPlayerToast('😴 Sleep timer ended. Goodnight!');
+        }
+      });
+      _showPlayerToast('Sleep timer set for $minutes min');
+    } else {
+      _sleepTimerEndTime = null;
+      _showPlayerToast('Sleep timer turned off');
+    }
+    setState(() {});
+  }
+
   Widget _buildControlsOverlay({bool fullscreen = false}) {
     final safe = MediaQuery.of(context).padding;
     return GestureDetector(
@@ -3964,20 +4512,20 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           ),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,   // ← fix: children fill full width
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Top bar: back | NivaTV branding | Premium + ⋮
+            // Top bar: back | Channel branding (Logo + Name) | Premium + ⋮
             _buildControlsTopBar(fullscreen: fullscreen, safeTop: fullscreen ? safe.top : 0),
-            // Secondary row: LIVE badge (left) + icons (right)
+            // Secondary row: LIVE badge (left) + PiP & Lock icons (right)
             _buildSecondaryBar(fullscreen: fullscreen),
             const Spacer(),
-            // Center: ⏮ ch prev | ⏸ | ⏭ ch next   (full-width → truly centered)
+            // Center: Hero prev/play/next + Quick Actions Toolbar
             SizedBox(
               width: double.infinity,
               child: _buildCenterControls(),
             ),
             const Spacer(),
-            // Bottom: 15:30 ════●═════════════════════ 30:00
+            // Bottom: EPG program name + Scrubber track + Time
             _buildLiveProgressBar(fullscreen: fullscreen, safeBottom: fullscreen ? safe.bottom : 0),
           ],
         ),
@@ -3987,100 +4535,137 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   Widget _buildControlsTopBar({bool fullscreen = false, double safeTop = 0}) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(4, 4 + safeTop, 4, 0),
+      padding: EdgeInsets.fromLTRB(4, 4 + safeTop, 6, 0),
       child: Row(
         children: [
           // ── Back button ──────────────────────────────────────────────────────
           IconButton(
             icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-            onPressed: _isFullScreen ? _toggleFullScreen : () => Navigator.of(context).pop(),
+            onPressed: _isFullScreen ? _toggleFullScreen : () {
+              context.read<MiniPlayerCubit>().minimize();
+            },
           ),
-          // ── App branding centered ────────────────────────────────────────────
+          const SizedBox(width: 2),
+          // ── Channel Logo ──────────────────────────────────────────────────────
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              width: 32,
+              height: 32,
+              color: Colors.white.withOpacity(0.08),
+              child: ChannelLogo(
+                logoUrl: _currentChannel.logoUrl,
+                channelName: _currentChannel.name,
+                size: 32,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // ── Channel Name + Category ──────────────────────────────────────────
           Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.max,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset(
-                  'assets/images/logo.png',
-                  width: 26,
-                  height: 26,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.tv_rounded, color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 7),
-                const Text(
-                  'NivaTV',
-                  style: TextStyle(
+                Text(
+                  _currentChannel.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
+                    letterSpacing: -0.2,
                   ),
                 ),
+                if (_currentChannel.categoryName != null && _currentChannel.categoryName!.isNotEmpty)
+                  Text(
+                    _currentChannel.categoryName!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.65),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
               ],
             ),
           ),
+          const SizedBox(width: 6),
           // ── Right side: Smooth-live GO LIVE button (if applicable) ───────────
           if (_smoothPlaybackEnabled &&
               (_bufferReady || _showPreparingOverlay) &&
               _canGoLive &&
               (_directLiveUrl != null && _directLiveUrl!.isNotEmpty))
-            TextButton(
-              onPressed: () async {
-                try {
-                  _smoothWarmTimer?.cancel();
-                  _smoothWarmTimer = null;
-                  await _player.stop();
-                  await _initializePlayer(_directLiveUrl!, {});
-                  if (mounted) {
-                    setState(() {
-                      _smoothPlaybackEnabled = false;
-                      _bufferReady = false;
-                      _showPreparingOverlay = false;
-                    });
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: TextButton(
+                onPressed: () async {
+                  try {
+                    _smoothWarmTimer?.cancel();
+                    _smoothWarmTimer = null;
+                    await _player.stop();
+                    await _initializePlayer(_directLiveUrl!, {});
+                    if (mounted) {
+                      setState(() {
+                        _smoothPlaybackEnabled = false;
+                        _bufferReady = false;
+                        _showPreparingOverlay = false;
+                      });
+                    }
+                    _showPlayerToast('Switched to Live');
+                  } catch (e) {
+                    _showPlayerToast('Failed to go live');
                   }
-                  _showPlayerToast('Switched to Live');
-                } catch (e) {
-                  _showPlayerToast('Failed to go live');
-                }
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: Colors.red.withOpacity(0.9),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                minimumSize: const Size(0, 24),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                },
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.red.withOpacity(0.9),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  minimumSize: const Size(0, 24),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                ),
+                child: const Text('GO LIVE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
               ),
-              child: const Text('GO LIVE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
             ),
           // ── Premium badge ────────────────────────────────────────────────────
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2A2000),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: const Color(0xFFFFCC00).withOpacity(0.6), width: 1),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                Icon(Icons.workspace_premium_rounded, color: Color(0xFFFFCC00), size: 13),
-                SizedBox(width: 3),
-                Text('Premium', style: TextStyle(color: Color(0xFFFFCC00), fontSize: 10, fontWeight: FontWeight.w700)),
-              ],
-            ),
-          ),
-          // ── Three-dot overflow menu (Quality + Fit + Channel counter) ────────
+          Builder(builder: (ctx) {
+            final licenseState = context.watch<LicenseCubit>().state;
+            final isPrem = licenseState is LicenseActive && licenseState.license.isPremium;
+            if (!isPrem && !_isPremium) return const SizedBox.shrink();
+            return Container(
+              margin: const EdgeInsets.only(right: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF4A3B00), Color(0xFF2A2000)],
+                ),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.7), width: 0.8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.workspace_premium_rounded, color: Color(0xFFFFD700), size: 12),
+                  SizedBox(width: 3),
+                  Text('PRO', style: TextStyle(color: Color(0xFFFFD700), fontSize: 9.5, fontWeight: FontWeight.w800)),
+                ],
+              ),
+            );
+          }),
+          // ── Three-dot overflow menu ──────────────────────────────────────────
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded, color: Colors.white, size: 22),
-            color: const Color(0xFF1A1A2E),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            color: const Color(0xFF1E1E2C),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             onSelected: (value) {
               if (value == 'quality') _showQualitySelector();
               if (value == 'fit') _showFitSelector();
+              if (value == 'timer') _showSleepTimerSelector();
+              if (value == 'share') _shareChannel();
+              if (value == 'report') _reportChannel();
             },
             itemBuilder: (_) {
-              // Build quality label for display
               String qualityLabel = 'Auto';
               if (_player.state.track.video.id != 'auto' && _player.state.track.video.h != null) {
                 qualityLabel = '${_player.state.track.video.h}p';
@@ -4091,8 +4676,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                 PopupMenuItem(
                   value: 'quality',
                   child: Row(children: [
-                    const Icon(Icons.settings_suggest, color: Colors.white70, size: 18),
-                    const SizedBox(width: 10),
+                    const Icon(Icons.tune_rounded, color: Colors.white70, size: 18),
+                    const SizedBox(width: 12),
                     Text('Quality: $qualityLabel', style: const TextStyle(color: Colors.white, fontSize: 13)),
                   ]),
                 ),
@@ -4100,18 +4685,37 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                   value: 'fit',
                   child: Row(children: [
                     const Icon(Icons.aspect_ratio_rounded, color: Colors.white70, size: 18),
-                    const SizedBox(width: 10),
-                    Text('Fit: ${_getFitSubtitle()}', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                    const SizedBox(width: 12),
+                    Text('Aspect: ${_getFitSubtitle()}', style: const TextStyle(color: Colors.white, fontSize: 13)),
                   ]),
                 ),
-                if (_contextChannels.length > 1)
-                  PopupMenuItem(
-                    enabled: false,
-                    child: Text(
-                      'Channel ${_currentIndex + 1} of ${_contextChannels.length}',
-                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                PopupMenuItem(
+                  value: 'timer',
+                  child: Row(children: [
+                    const Icon(Icons.timer_outlined, color: Colors.white70, size: 18),
+                    const SizedBox(width: 12),
+                    Text(
+                      _sleepTimerMinutes > 0 ? 'Timer: ${_sleepTimerMinutes}m' : 'Sleep Timer',
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
                     ),
-                  ),
+                  ]),
+                ),
+                PopupMenuItem(
+                  value: 'share',
+                  child: Row(children: const [
+                    Icon(Icons.share_outlined, color: Colors.white70, size: 18),
+                    SizedBox(width: 12),
+                    Text('Share Channel', style: TextStyle(color: Colors.white, fontSize: 13)),
+                  ]),
+                ),
+                PopupMenuItem(
+                  value: 'report',
+                  child: Row(children: const [
+                    Icon(Icons.flag_outlined, color: Colors.white70, size: 18),
+                    SizedBox(width: 12),
+                    Text('Report Issue', style: TextStyle(color: Colors.white, fontSize: 13)),
+                  ]),
+                ),
               ];
             },
           ),
@@ -4120,13 +4724,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
-  // Secondary bar: LIVE badge (left) + action icons (right — cast placeholder, CC, fullscreen)
+  // Secondary bar: LIVE badge + Channel counter + PiP & Lock buttons
   Widget _buildSecondaryBar({bool fullscreen = false}) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
+      padding: const EdgeInsets.fromLTRB(14, 4, 10, 0),
       child: Row(
         children: [
-          // ── LIVE / Smooth-live badge (top-left) ───────────────────────────
+          // ── LIVE / Smooth-live badge ──────────────────────────────────────
           if (_smoothPlaybackEnabled && _bufferReady)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -4144,11 +4748,11 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             )
           else
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
               decoration: BoxDecoration(
                 color: Colors.red.shade700,
                 borderRadius: BorderRadius.circular(5),
-                boxShadow: [BoxShadow(color: Colors.red.withOpacity(0.5), blurRadius: 8, spreadRadius: 0)],
+                boxShadow: [BoxShadow(color: Colors.red.withOpacity(0.4), blurRadius: 8)],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -4157,27 +4761,55 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                     opacity: _livePulseVisible ? 1.0 : 0.2,
                     duration: const Duration(milliseconds: 400),
                     child: Container(
-                      width: 6, height: 6,
+                      width: 5.5, height: 5.5,
                       decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                     ),
                   ),
-                  const SizedBox(width: 5),
-                  const Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+                  const SizedBox(width: 4.5),
+                  const Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1.0)),
                 ],
               ),
             ),
+          const SizedBox(width: 8),
+          // ── Channel Counter Badge ──────────────────────────────────────────
+          if (_contextChannels.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: Text(
+                'CH ${_currentIndex + 1}/${_contextChannels.length}',
+                style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w600),
+              ),
+            ),
           const Spacer(),
-          // ── Right-side icon buttons: fullscreen ───────────────────────────
-          // (cast/CC icons can be added when functionality is available)
+          // ── PiP Button ────────────────────────────────────────────────────
           _overlayIconBtn(
-            icon: Icons.info_outline,
+            icon: Icons.picture_in_picture_alt_rounded,
+            tooltip: 'Picture in Picture',
             onTap: () {
-               setState(() { _showDebugDiagnostics = !_showDebugDiagnostics; });
+              context.read<MiniPlayerCubit>().minimize();
             },
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 6),
+          // ── Lock Button ───────────────────────────────────────────────────
+          _overlayIconBtn(
+            icon: Icons.lock_open_rounded,
+            tooltip: 'Lock Screen',
+            onTap: () {
+              setState(() {
+                _isLocked = true;
+              });
+              _showPlayerToast('🔒 Screen Locked (Tap to Unlock)');
+            },
+          ),
+          const SizedBox(width: 6),
+          // ── Fullscreen Toggle Button ──────────────────────────────────────
           _overlayIconBtn(
             icon: _isFullScreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+            tooltip: _isFullScreen ? 'Exit Fullscreen' : 'Fullscreen',
             onTap: _toggleFullScreen,
           ),
         ],
@@ -4212,75 +4844,196 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _overlayIconBtn({required IconData icon, required VoidCallback onTap}) {
+  Widget _overlayIconBtn({
+    required IconData icon,
+    required VoidCallback onTap,
+    String? tooltip,
+  }) {
+    return Tooltip(
+      message: tooltip ?? '',
+      child: GestureDetector(
+        onTap: () {
+          onTap();
+          _showControlsWithTimer();
+        },
+        child: Container(
+          width: 36, height: 36,
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.38),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white12, width: 0.8),
+          ),
+          child: Icon(icon, color: Colors.white, size: 19),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCenterControls() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Primary Row: Previous | Play/Pause | Next
+        StreamBuilder<bool>(
+          stream: _player.stream.playing,
+          builder: (context, snapshot) {
+            final isPlaying = snapshot.data ?? false;
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Previous channel
+                _centerSkipBtn(
+                  icon: Icons.skip_previous_rounded,
+                  onTap: _playPreviousChannel,
+                ),
+                const SizedBox(width: 28),
+                // Play / Pause Hero Button
+                GestureDetector(
+                  onTap: () {
+                    _userPaused = _player.state.playing;
+                    _player.playOrPause();
+                    _showControlsWithTimer();
+                  },
+                  child: Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withOpacity(0.25),
+                          Colors.white.withOpacity(0.12),
+                        ],
+                      ),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.8),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 20),
+                      ],
+                    ),
+                    child: Icon(
+                      isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 40,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 28),
+                // Next channel
+                _centerSkipBtn(
+                  icon: Icons.skip_next_rounded,
+                  onTap: _playNextChannel,
+                ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        // Secondary Quick Actions Toolbar: Volume | Brightness | Aspect | Sleep | Share
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _quickActionPill(
+                icon: _volume == 0 ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                label: '${_volume.toInt()}%',
+                onTap: () {
+                  if (_volume > 0) {
+                    _adjustVolume(-_volume);
+                  } else {
+                    _adjustVolume(80);
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              _quickActionPill(
+                icon: Icons.brightness_medium_rounded,
+                label: '${(_brightness * 100).toInt()}%',
+                onTap: () {
+                  double nextB = _brightness <= 0.35 ? 1.0 : (_brightness <= 0.65 ? 0.3 : 0.6);
+                  setState(() { _brightness = nextB; _showBrightnessHud = true; });
+                  _hudTimer?.cancel();
+                  _hudTimer = Timer(const Duration(milliseconds: 1400), () {
+                    if (mounted) setState(() { _showBrightnessHud = false; });
+                  });
+                },
+              ),
+              const SizedBox(width: 8),
+              _quickActionPill(
+                icon: Icons.aspect_ratio_rounded,
+                label: _getFitSubtitle(),
+                onTap: _onDoubleTapFitToggle,
+              ),
+              const SizedBox(width: 8),
+              _quickActionPill(
+                icon: Icons.timer_outlined,
+                label: _sleepTimerMinutes > 0 ? '${_sleepTimerMinutes}m' : 'Timer',
+                isActive: _sleepTimerMinutes > 0,
+                onTap: _showSleepTimerSelector,
+              ),
+              const SizedBox(width: 8),
+              _quickActionPill(
+                icon: Icons.share_rounded,
+                label: 'Share',
+                onTap: _shareChannel,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _quickActionPill({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isActive = false,
+  }) {
     return GestureDetector(
       onTap: () {
         onTap();
         _showControlsWithTimer();
       },
       child: Container(
-        width: 36, height: 36,
-        margin: const EdgeInsets.only(left: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5.5),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.35),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.white, size: 20),
-      ),
-    );
-  }
-
-  Widget _buildCenterControls() {
-    return StreamBuilder<bool>(
-      stream: _player.stream.playing,
-      builder: (context, snapshot) {
-        final isPlaying = snapshot.data ?? false;
-        // Row is inside a SizedBox(width: infinity) → mainAxisAlignment.center
-        // reliably places the play button at the true horizontal midpoint.
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // ── Previous channel ─────────────────────────────────────────
-            _centerSkipBtn(
-              icon: Icons.skip_previous_rounded,
-              onTap: _playPreviousChannel,
-            ),
-            const SizedBox(width: 32),
-            // ── Play / Pause (large, centred) ────────────────────────────
-            GestureDetector(
-              onTap: () {
-                _userPaused = _player.state.playing;
-                _player.playOrPause();
-                _showControlsWithTimer();
-              },
-              child: Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.20),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withOpacity(0.55), width: 2),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 20),
-                  ],
-                ),
-                child: Icon(
-                  isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  color: Colors.white,
-                  size: 42,
-                ),
-              ),
-            ),
-            const SizedBox(width: 32),
-            // ── Next channel ─────────────────────────────────────────────
-            _centerSkipBtn(
-              icon: Icons.skip_next_rounded,
-              onTap: _playNextChannel,
+          color: isActive
+              ? const Color(AppColors.primary).withOpacity(0.85)
+              : Colors.black.withOpacity(0.45),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isActive
+                ? const Color(AppColors.primary)
+                : Colors.white.withOpacity(0.18),
+            width: 0.8,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 8,
             ),
           ],
-        );
-      },
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 14),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -4291,36 +5044,18 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _showControlsWithTimer();
       },
       child: Container(
-        width: 52,
-        height: 52,
+        width: 50,
+        height: 50,
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.12),
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: Colors.white, size: 34),
+        child: Icon(icon, color: Colors.white, size: 32),
       ),
     );
   }
 
-  // Legacy alias — kept so any other call sites compile
-  Widget _controlIconButton({required IconData icon, required double size, required VoidCallback onTap}) {
-    return _centerSkipBtn(icon: icon, onTap: onTap);
-  }
-
-  // Bottom bar removed — quality/fit now live in the ⋮ overflow menu in the top bar.
-  // This stub is kept so any remaining call sites don't break.
-  Widget _buildControlsBottomBar({bool fullscreen = false, double safeBottom = 0}) =>
-      const SizedBox.shrink();
-
   // ─── Live Progress Bar ─────────────────────────────────────────────────────
-  // Shown just above the bottom control bar.
-  // Mode A (EPG): coloured fill bar with program name + start/end times.
-  // Mode B (no EPG): animated LIVE pulse bar with current time.
-  // ─── Bottom progress bar — reference design ────────────────────────────────
-  // Matches image #5: [15:30]  ════════●═══════════════  [30:00]
-  // Mode A (EPG): red fill + red dot shows elapsed programme progress.
-  //               Left label = programme start time, Right label = end time.
-  // Mode B (no EPG): full red bar at live-edge, left = current time, right hidden.
   Widget _buildLiveProgressBar({bool fullscreen = false, double safeBottom = 0}) {
     final now = DateTime.now();
     final prog = _nowPlaying;
@@ -4340,36 +5075,44 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     } else {
       pct        = 1.0;  // at live edge
       leftLabel  = DateFormat('h:mm a').format(now);
-      rightLabel = '';
+      rightLabel = 'LIVE';
     }
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, 14 + safeBottom),
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + safeBottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Programme title (EPG only) — sits just above the scrubber
-          if (programTitle != null) ...[
-            Text(
-              programTitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.1,
+          // Programme title / Channel stream status
+          Row(
+            children: [
+              const Icon(Icons.live_tv_rounded, color: Colors.redAccent, size: 14),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  programTitle != null && programTitle.isNotEmpty
+                      ? programTitle
+                      : '${_currentChannel.name} • Live Stream',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.1,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-          ],
+            ],
+          ),
+          const SizedBox(height: 8),
           // ── Scrubber track ──────────────────────────────────────────────────
           LayoutBuilder(builder: (ctx, constraints) {
             final trackW  = constraints.maxWidth;
             final dotX    = (trackW * pct).clamp(0.0, trackW);
-            const dotR    = 6.0;   // dot radius
-            const trackH  = 3.0;
+            const dotR    = 5.5;
+            const trackH  = 4.0;
 
             return SizedBox(
               height: dotR * 2,
@@ -4389,7 +5132,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                       ),
                     ),
                   ),
-                  // Red fill
+                  // Red gradient fill
                   Positioned(
                     left: 0,
                     top: dotR - trackH / 2,
@@ -4397,21 +5140,30 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                       width: dotX,
                       height: trackH,
                       decoration: BoxDecoration(
-                        color: Colors.red,
+                        gradient: const LinearGradient(
+                          colors: [Color(AppColors.primary), Colors.redAccent],
+                        ),
                         borderRadius: BorderRadius.circular(trackH / 2),
                       ),
                     ),
                   ),
-                  // Red dot at live-edge
+                  // Red glowing dot at live-edge
                   Positioned(
                     left: (dotX - dotR).clamp(0.0, trackW - dotR * 2),
                     top: 0,
                     child: Container(
                       width: dotR * 2,
                       height: dotR * 2,
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent,
                         shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.redAccent.withOpacity(0.7),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -4419,14 +5171,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               ),
             );
           }),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
           // ── Time labels under track ─────────────────────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(leftLabel,  style: const TextStyle(color: Colors.white70, fontSize: 11)),
-              if (rightLabel.isNotEmpty)
-                Text(rightLabel, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+              Text(leftLabel, style: const TextStyle(color: Colors.white70, fontSize: 10.5, fontWeight: FontWeight.w500)),
+              Text(rightLabel, style: const TextStyle(color: Colors.white70, fontSize: 10.5, fontWeight: FontWeight.w500)),
             ],
           ),
         ],

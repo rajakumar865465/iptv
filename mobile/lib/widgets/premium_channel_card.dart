@@ -97,7 +97,7 @@ class _TappableScale extends StatefulWidget {
   const _TappableScale({
     required this.child,
     required this.onTap,
-    this.scale = 0.96,
+    this.scale = 0.93,
   });
 
   @override
@@ -116,8 +116,8 @@ class _TappableScaleState extends State<_TappableScale> {
       onTapCancel: () => setState(() => _pressed = false),
       behavior: HitTestBehavior.translucent,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOut,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
         transform: Matrix4.identity()..scale(_pressed ? widget.scale : 1.0),
         transformAlignment: Alignment.center,
         child: widget.child,
@@ -917,22 +917,32 @@ class _FavoriteIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: const Color(AppColors.surfaceElevated).withOpacity(0.95),
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: const Color(AppColors.divider),
-          width: 0.8,
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      transitionBuilder: (child, animation) {
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: animation, curve: Curves.elasticOut),
+          child: child,
+        );
+      },
+      child: Container(
+        key: ValueKey<bool>(isFav),
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: const Color(AppColors.surfaceElevated).withOpacity(0.95),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: const Color(AppColors.divider),
+            width: 0.8,
+          ),
         ),
-      ),
-      child: Icon(
-        isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-        size: 16,
-        color: isFav
-            ? const Color(AppColors.brandRed)
-            : const Color(AppColors.textMuted),
+        child: Icon(
+          isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+          size: 16,
+          color: isFav
+              ? const Color(AppColors.brandRed)
+              : const Color(AppColors.textMuted),
+        ),
       ),
     );
   }

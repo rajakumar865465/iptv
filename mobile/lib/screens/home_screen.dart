@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
 import '../cubits/home_cubit.dart';
 import '../cubits/channel_cubit.dart';
+import '../cubits/mini_player_cubit.dart';
 import '../cubits/favorite_cubit.dart';
 import '../cubits/license_cubit.dart';
 import '../models/channel_model.dart';
@@ -199,21 +200,12 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     required ChannelSourceFilters filters,
   }) {
     final index = contextChannels.indexWhere((c) => c.id == channel.id);
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, anim, __) => PlayerScreen(
-          channel: channel,
-          channels: contextChannels,
-          initialIndex: index >= 0 ? index : 0,
-          sourceType: sourceType,
-          sourceFilters: filters,
-        ),
-        transitionsBuilder: (_, anim, __, child) => FadeTransition(
-          opacity: anim,
-          child: child,
-        ),
-        transitionDuration: const Duration(milliseconds: 250),
-      ),
+    context.read<MiniPlayerCubit>().play(
+      channel,
+      contextChannels: contextChannels,
+      initialIndex: index >= 0 ? index : 0,
+      sourceType: sourceType,
+      sourceFilters: filters,
     );
   }
 
@@ -382,17 +374,20 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
       height: 188,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
+        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: channels.length,
-        itemBuilder: (context, i) => PremiumChannelCard(
-          channel: channels[i],
-          variant: PremiumChannelCardVariant.featured,
-          onTap: () => _openPlayer(
+        itemBuilder: (context, i) => _StaggeredItem(
+          index: i,
+          child: PremiumChannelCard(
             channel: channels[i],
-            contextChannels: channels,
-            sourceType: sourceType,
-            filters: filters,
+            variant: PremiumChannelCardVariant.featured,
+            onTap: () => _openPlayer(
+              channel: channels[i],
+              contextChannels: channels,
+              sourceType: sourceType,
+              filters: filters,
+            ),
           ),
         ),
       ),
@@ -410,32 +405,35 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
       height: 146,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
+        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: channels.length,
         itemBuilder: (context, i) {
           final channel = channels[i];
-          return BlocBuilder<FavoriteCubit, FavoriteState>(
-            builder: (context, favState) {
-              bool isFav = false;
-              if (favState is FavoriteLoaded) {
-                isFav = favState.favorites.any((f) => f.id == channel.id);
-              }
-              return PremiumChannelCard(
-                channel: channel,
-                variant: PremiumChannelCardVariant.compact,
-                showFavorite: true,
-                isFavorite: isFav,
-                onFavoriteToggle: () =>
-                    context.read<FavoriteCubit>().toggleFavorite(channel.id, isFavorite: isFav),
-                onTap: () => _openPlayer(
+          return _StaggeredItem(
+            index: i,
+            child: BlocBuilder<FavoriteCubit, FavoriteState>(
+              builder: (context, favState) {
+                bool isFav = false;
+                if (favState is FavoriteLoaded) {
+                  isFav = favState.favorites.any((f) => f.id == channel.id);
+                }
+                return PremiumChannelCard(
                   channel: channel,
-                  contextChannels: channels,
-                  sourceType: sourceType,
-                  filters: filters,
-                ),
-              );
-            },
+                  variant: PremiumChannelCardVariant.compact,
+                  showFavorite: true,
+                  isFavorite: isFav,
+                  onFavoriteToggle: () =>
+                      context.read<FavoriteCubit>().toggleFavorite(channel.id, isFavorite: isFav),
+                  onTap: () => _openPlayer(
+                    channel: channel,
+                    contextChannels: channels,
+                    sourceType: sourceType,
+                    filters: filters,
+                  ),
+                );
+              },
+            ),
           );
         },
       ),
@@ -713,5 +711,56 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     if (n.contains('devotion') || n.contains('spiritual')) return const Color(0xFFFF8F00);
     if (n.contains('kids')) return const Color(0xFF06B6D4);
     return const Color(AppColors.primary);
+  }
+}
+
+// ─── Staggered Item ───────────────────────────────────────────────────────
+
+class _StaggeredItem extends StatefulWidget {
+  final Widget child;
+  final int index;
+
+  const _StaggeredItem({required this.child, required this.index});
+
+  @override
+  State<_StaggeredItem> createState() => _StaggeredItemState();
+}
+
+class _StaggeredItemState extends State<_StaggeredItem> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fadeAnim;
+  late final Animation<Offset> _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _fadeAnim = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _slideAnim = Tween<Offset>(begin: const Offset(0.2, 0), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+
+    Future.delayed(Duration(milliseconds: 40 * widget.index), () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fadeAnim,
+      child: SlideTransition(
+        position: _slideAnim,
+        child: widget.child,
+      ),
+    );
   }
 }

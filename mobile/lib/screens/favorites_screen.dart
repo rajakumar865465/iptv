@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../constants.dart';
 import '../cubits/favorite_cubit.dart';
+import '../cubits/mini_player_cubit.dart';
 import '../models/channel_model.dart';
 import '../widgets/favorites/favorites_empty_state.dart';
 import '../widgets/premium_channel_card.dart';
@@ -176,19 +178,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 
   void _openPlayer(ChannelModel channel, List<ChannelModel> list, int index) {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, anim, __) => PlayerScreen(
-          channel: channel,
-          channels: list,
-          initialIndex: index,
-          sourceType: PlayerSourceType.favorites,
-          sourceFilters: const ChannelSourceFilters(),
-        ),
-        transitionsBuilder: (_, anim, __, child) =>
-            FadeTransition(opacity: anim, child: child),
-        transitionDuration: const Duration(milliseconds: 220),
-      ),
+    context.read<MiniPlayerCubit>().play(
+      channel,
+      contextChannels: list,
+      initialIndex: index,
+      sourceType: PlayerSourceType.favorites,
+      sourceFilters: const ChannelSourceFilters(),
     );
   }
 }

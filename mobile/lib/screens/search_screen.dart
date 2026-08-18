@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
 import '../cubits/channel_cubit.dart';
+import '../cubits/mini_player_cubit.dart';
 import '../models/channel_model.dart';
 import '../widgets/premium_channel_card.dart';
 import '../widgets/premium_widgets.dart';
@@ -305,20 +306,13 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   void _openPlayer(ChannelModel channel, List<ChannelModel> results, int index) {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, anim, __) => PlayerScreen(
-          channel: channel,
-          channels: results,
-          initialIndex: index,
-          sourceType: PlayerSourceType.search,
-          sourceFilters: ChannelSourceFilters(
-            searchQuery: _searchController.text,
-          ),
-        ),
-        transitionsBuilder: (_, anim, __, child) =>
-            FadeTransition(opacity: anim, child: child),
-        transitionDuration: const Duration(milliseconds: 220),
+    context.read<MiniPlayerCubit>().play(
+      channel,
+      contextChannels: results,
+      initialIndex: index,
+      sourceType: PlayerSourceType.search,
+      sourceFilters: ChannelSourceFilters(
+        searchQuery: _searchController.text,
       ),
     );
   }

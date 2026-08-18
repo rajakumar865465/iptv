@@ -1,6 +1,30 @@
 import 'package:flutter/material.dart';
 import 'constants.dart';
 
+class FadeSlidePageTransitionsBuilder extends PageTransitionsBuilder {
+  const FadeSlidePageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0.0, 0.04), // Subtle slide up
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+      child: FadeTransition(
+        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+        child: child,
+      ),
+    );
+  }
+}
+
 class AppTheme {
   static ThemeData get darkTheme {
     return ThemeData(
@@ -18,6 +42,12 @@ class AppTheme {
         onSecondary: Colors.white,
         error: Color(AppColors.error),
         outline: Color(AppColors.divider),
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeSlidePageTransitionsBuilder(),
+          TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+        },
       ),
       textTheme: const TextTheme(
         displayLarge: TextStyle(

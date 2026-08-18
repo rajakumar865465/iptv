@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
 import '../cubits/channel_cubit.dart';
 import '../cubits/favorite_cubit.dart';
+import '../cubits/mini_player_cubit.dart';
 import '../models/channel_model.dart';
 import '../widgets/premium_widgets.dart';
 import '../widgets/premium_channel_card.dart';
@@ -769,16 +770,12 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
                 ? PlayerSourceType.search
                 : PlayerSourceType.liveTv);
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PlayerScreen(
-          channel: channel,
-          channels: allChannels,
-          initialIndex: index >= 0 ? index : 0,
-          sourceType: sourceType,
-          sourceFilters: filters,
-        ),
-      ),
+    context.read<MiniPlayerCubit>().play(
+      channel,
+      contextChannels: allChannels,
+      initialIndex: index >= 0 ? index : 0,
+      sourceType: sourceType,
+      sourceFilters: filters,
     );
   }
 }

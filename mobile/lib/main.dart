@@ -7,13 +7,26 @@ import 'cubits/channel_cubit.dart';
 import 'cubits/home_cubit.dart';
 import 'cubits/app_config_cubit.dart';
 import 'cubits/favorite_cubit.dart';
+import 'cubits/mini_player_cubit.dart';
 import 'screens/splash_screen.dart';
+import 'widgets/mini_player_overlay.dart';
 import 'theme.dart';
 import 'constants.dart';
+import 'dart:io';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'utils/backend_config.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Enable 90/120Hz display refresh rate on Android
+  if (Platform.isAndroid) {
+    try {
+      await FlutterDisplayMode.setHighRefreshRate();
+    } catch (e) {
+      debugPrint('Failed to set high refresh rate: $e');
+    }
+  }
   // Validate backend URL is configured before the app starts
   if (!BackendConfig.isConfigured) {
     runApp(const _BackendConfigErrorApp());
@@ -122,11 +135,20 @@ class MyApp extends StatelessWidget {
         BlocProvider(create: (context) => HomeCubit()),
         BlocProvider(create: (context) => AppConfigCubit()),
         BlocProvider(create: (context) => FavoriteCubit()),
+        BlocProvider(create: (context) => MiniPlayerCubit()),
       ],
       child: MaterialApp(
         title: 'NivaTV',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
+        builder: (context, child) {
+          return Stack(
+            children: [
+              if (child != null) child,
+              const MiniPlayerOverlay(),
+            ],
+          );
+        },
         home: const SplashScreen(),
       ),
     );

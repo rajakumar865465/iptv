@@ -87,8 +87,8 @@ class _NavItem extends StatelessWidget {
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOut,
+          duration: const Duration(milliseconds: 380),
+          curve: Curves.easeOutCubic,
           padding: EdgeInsets.symmetric(
             vertical: 6,
             horizontal: isSelected ? 10 : 0,

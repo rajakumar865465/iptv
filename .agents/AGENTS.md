@@ -14,3 +14,8 @@ When tasked to update the backend or deploy the backend database to the EC2 inst
 
 # Project Context Rule
 - ALWAYS read `progress.md` at the start of your tasks to check the previous work and understand the current state of the app and recent bug fixes.
+
+# Mobile App Build Rule
+- When building the release APK (`flutter build apk --release`), ALWAYS use the production backend URL (which is `https://nivatv.luxomall.in`).
+- Do NOT use the local testing or example IP addresses found in the `main.dart` fallback error screen text, otherwise the app will fail to connect.
+- Example command: `flutter build apk --release --dart-define=BACKEND_URL=https://nivatv.luxomall.in`

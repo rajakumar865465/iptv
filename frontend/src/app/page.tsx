@@ -22,14 +22,39 @@ import LiveChannelTicker from '@/components/public/LiveChannelTicker';
 import LanguagesStrip from '@/components/public/LanguagesStrip';
 import ComparisonTable from '@/components/public/ComparisonTable';
 import TestimonialsSection from '@/components/public/TestimonialsSection';
+import SEOContent from '@/components/public/SEOContent';
 import type { Metadata } from 'next';
 import type { Plan, Category, Channel } from '@/lib/publicApi';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
-  title: 'NivaTV - Live TV for Every Indian Home',
+  title: 'NivaTV - Live TV for Every Indian Home | Live TV Online Free on Mobile App',
   description:
-    'Watch Hindi, Bengali, Tamil, Telugu, Malayalam and 500+ Indian live channels on Android. Buy a license, download the APK and start watching.',
+    'Watch Hindi, Bengali, Tamil, Telugu, Malayalam and 500+ Indian live channels on Android. Buy a license, download the APK and start watching live tv online free on mobile app.',
+  keywords: [
+    'live tv online free on mobile', 'live tv mobile', 'live tv mobile download', 
+    'live tv mobile streaming', 'live tv mobile free', 'live tv mobile apps', 
+    'live tv mobile al', 'sony max live tv mobile apk', 'mtv live mobile tv apk', 
+    'free tv channel app for android mobile', 'all tv channel live free', 
+    'all tv channel live free mobile', 'all tv channel live free online', 
+    'live tv online free on mobile app', 'live tv online free on mobile ipl', 
+    'ipl live tv', 'ipl live tv channel', 'tata ipl live tv', 'ipl live tv free', 
+    'zee news live', 'zee news live hindi', 'zee news live today', 'zee news live marathi', 
+    'sony tv live', 'sony tv live on nivatv'
+  ],
+  openGraph: {
+    title: 'NivaTV - Live TV for Every Indian Home',
+    description: 'Watch Hindi, Bengali, Tamil, Telugu, Malayalam and 500+ Indian live channels on Android. Buy a license, download the APK and start watching.',
+    url: 'https://nivatv.luxomall.in',
+    siteName: 'NivaTV',
+    type: 'website',
+    locale: 'en_IN',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'NivaTV - Live TV for Every Indian Home',
+    description: 'Watch 500+ Indian live channels on Android.',
+  }
 };
 
 function getCategoryEmoji(name: string): string {
@@ -99,6 +124,11 @@ const FAQ = [
   { q: 'Can I use it on multiple devices?', a: 'Each plan specifies the number of devices allowed. Check the plan details before purchasing.' },
   { q: 'What payment methods are accepted?', a: 'We accept UPI, credit/debit cards, and wallets via Razorpay.' },
   { q: 'How do I activate my license?', a: 'After downloading the app, enter your license key in the activation screen. It is activated instantly.' },
+  { q: 'how to watch sony tv live', a: 'To watch Sony TV live, simply download the NivaTV app on your Android device, activate your license (start with a free trial!), and navigate to our extensive entertainment category where Sony TV streams 24/7 in high definition.' },
+  { q: 'How to watch all live TV channels for free on mobile?', a: 'You can watch all live TV channels for free on your mobile by starting a free trial with NivaTV. It grants you unrestricted access to 500+ premium Indian and regional channels without any hidden charges or commitments.' },
+  { q: 'how to watch colors tv live on mobile for free', a: 'Watching Colors TV live for free is easy with NivaTV. Install our Android app, claim your free trial, and instantly tune into Colors TV for all your favorite daily soaps, reality shows, and dramas.' },
+  { q: 'Which is the best free live TV app', a: 'NivaTV is highly rated as one of the best live TV apps because it offers an unparalleled 500+ channels, stutter-free streaming, dedicated regional categories, and a 100% free trial so you can experience premium television without any cost.' },
+  { q: 'What is the cheapest app to watch live TV?', a: 'NivaTV offers the most affordable and flexible pricing plans for premium live TV streaming in India. You can get started for free, and our paid licenses are priced significantly lower than traditional DTH cable subscriptions, with no auto-renewal.' },
 ];
 
 /* Primary call-to-action button — brand gradient, reused in hero + CTA banner */
@@ -159,8 +189,25 @@ export default async function HomePage() {
 
   const visibleCategories = categories.filter(cat => cat.channel_count > 0);
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: FAQ.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: item.a,
+      },
+    })),
+  };
+
   return (
     <div className="min-h-screen bg-base text-white overflow-x-hidden">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <PageTracker page="home" />
       <PublicHeader />
       <StickyMobileCTA />
@@ -494,6 +541,9 @@ export default async function HomePage() {
             </MotionReveal>
           </div>
         </section>
+
+        {/* ─────────────────── SEO CONTENT ─────────────────── */}
+        <SEOContent />
 
         {/* ───────────────────── FAQ ───────────────────── */}
         <section className="py-16 sm:py-24 md:py-28 bg-white/[0.02] border-t border-white/5">
