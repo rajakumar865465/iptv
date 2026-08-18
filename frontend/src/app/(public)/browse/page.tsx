@@ -89,8 +89,8 @@ export default function BrowsePage() {
     <div className="pt-24 pb-20 px-4">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-10">
-          <h1 className="text-4xl font-extrabold text-white mb-3">Channel Preview</h1>
-          <p className="text-slate-400">Browse our available channel library. Stream URLs are never exposed publicly.</p>
+          <h1 className="text-4xl font-extrabold text-white mb-3">500+ Indian Live TV Channels</h1>
+          <p className="text-slate-400">Browse Hindi, Tamil, Telugu, Bengali, Malayalam &amp; more. Stream URLs are never exposed publicly.</p>
         </div>
 
         {error && (
