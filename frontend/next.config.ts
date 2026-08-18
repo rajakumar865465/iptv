@@ -69,7 +69,11 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: '/:path*',
+        // Exclude sitemap.xml and robots.txt — Cloudflare already adds its own
+        // security headers to these files, and having both sets causes duplicate
+        // comma-separated header values (e.g. 'DENY,SAMEORIGIN') that make
+        // Google's strict sitemap parser reject the response.
+        source: '/((?!sitemap\.xml$|robots\.txt$).*)',
         headers: [
           { key: 'Content-Security-Policy', value: CSP },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
