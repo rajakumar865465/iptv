@@ -16,13 +16,19 @@ const poppins = Poppins({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://nivatv.luxomall.in'),
-  title: "NivaTV",
-  description: "Admin panel for NivaTV",
+  title: "NivaTV — Live TV for Every Indian Home",
+  description: "Watch 500+ Indian live channels including Hindi, Bengali, Tamil, Telugu and Malayalam on your Android device. Buy a license and start streaming live TV today.",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true },
+  },
   icons: {
     icon: "/logo.png",
     apple: "/logo.png",
   },
 };
+
 
 export default function RootLayout({
   children,

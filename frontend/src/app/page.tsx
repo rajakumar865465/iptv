@@ -26,7 +26,10 @@ import SEOContent from '@/components/public/SEOContent';
 import type { Metadata } from 'next';
 import type { Plan, Category, Channel } from '@/lib/publicApi';
 
-export const dynamic = 'force-dynamic';
+// Revalidate every hour so Google can cache and index this page.
+// force-dynamic would set Cache-Control: private which prevents indexing.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'NivaTV - Live TV for Every Indian Home | Live TV Online Free on Mobile App',
   description:
@@ -42,6 +45,14 @@ export const metadata: Metadata = {
     'zee news live', 'zee news live hindi', 'zee news live today', 'zee news live marathi', 
     'sony tv live', 'sony tv live on nivatv'
   ],
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true },
+  },
+  alternates: {
+    canonical: 'https://nivatv.luxomall.in',
+  },
   openGraph: {
     title: 'NivaTV - Live TV for Every Indian Home',
     description: 'Watch Hindi, Bengali, Tamil, Telugu, Malayalam and 500+ Indian live channels on Android. Buy a license, download the APK and start watching.',
@@ -56,6 +67,7 @@ export const metadata: Metadata = {
     description: 'Watch 500+ Indian live channels on Android.',
   }
 };
+
 
 function getCategoryEmoji(name: string): string {
   const map: Record<string, string> = {
