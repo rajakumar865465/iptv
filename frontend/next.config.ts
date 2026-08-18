@@ -39,8 +39,10 @@ const CSP = [
 ].join('; ');
 
 const nextConfig: NextConfig = {
-  compress: false,
+  compress: true,
   images: {
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 86400,
     remotePatterns: [
       { protocol: 'https', hostname: '**' },
       { protocol: 'http', hostname: '**' },

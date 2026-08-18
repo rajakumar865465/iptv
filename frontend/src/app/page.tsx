@@ -326,7 +326,7 @@ export default async function HomePage() {
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-8 sm:gap-10 lg:gap-12 items-center">
-              <MotionReveal className="order-1 lg:order-1">
+              <div className="order-1 lg:order-1">
                 {/* Live pill */}
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.05] border border-line backdrop-blur-sm mb-5">
                   <span className="relative flex h-2 w-2">
@@ -348,7 +348,7 @@ export default async function HomePage() {
                   Watch Hindi, Bengali, Tamil, Telugu, Malayalam and {channelsCount}+ Indian live channels on Android. Buy a license, download the APK and start watching instantly.
                 </p>
 
-                {/* Social proof — PLACEHOLDER figure, replace 10,000+ with a real number */}
+                {/* Social proof */}
                 <div className="flex items-center gap-3 mb-6 sm:mb-8">
                   <div className="flex items-center gap-0.5" aria-hidden="true">
                     {Array.from({ length: 5 }).map((_, i) => (
@@ -370,7 +370,7 @@ export default async function HomePage() {
                   <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-green-400" /> Instant delivery</span>
                   <span className="flex items-center gap-1.5"><Smartphone className="w-4 h-4 text-ink-muted" /> Android 6.0+</span>
                 </div>
-              </MotionReveal>
+              </div>
               <div className="order-2 lg:order-2 flex justify-center lg:justify-end">
                 <AnimatedHeroPhone />
               </div>
