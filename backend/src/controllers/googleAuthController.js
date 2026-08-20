@@ -7,19 +7,34 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 exports.googleLogin = async (req, res) => {
   try {
-    const { credential } = req.body;
-    if (!credential) {
-      return error(res, 'Google credential is required', 400);
+    const { credential, access_token } = req.body;
+    if (!credential && !access_token) {
+      return error(res, 'Google credential or access token is required', 400);
     }
 
-    // Verify the Google ID token
-    const ticket = await client.verifyIdToken({
-      idToken: credential,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-    
-    const payload = ticket.getPayload();
-    const { sub: googleId, email, name } = payload;
+    let googleId, email, name;
+
+    if (credential) {
+      const ticket = await client.verifyIdToken({
+        idToken: credential,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      const payload = ticket.getPayload();
+      googleId = payload.sub;
+      email = payload.email;
+      name = payload.name;
+    } else if (access_token) {
+      const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${access_token}` }
+      });
+      if (!userRes.ok) {
+        return error(res, 'Invalid Google access token', 400);
+      }
+      const userData = await userRes.json();
+      googleId = userData.sub;
+      email = userData.email;
+      name = userData.name;
+    }
 
     if (!googleId || !email) {
       return error(res, 'Invalid Google token payload', 400);

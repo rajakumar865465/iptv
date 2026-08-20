@@ -1,9 +1,32 @@
 'use client';
 import { useState } from 'react';
 import { X, Smartphone, Mail, ArrowRight, Loader2 } from 'lucide-react';
-import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
+import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 
 const GOOGLE_CLIENT_ID = '73771138100-in6cnnidmh4hd3ltcubls6glq4a3k0rj.apps.googleusercontent.com';
+
+function CustomGoogleButton({ onSuccess, onError, disabled }: { onSuccess: (token: string) => void, onError: (err: string) => void, disabled: boolean }) {
+  const login = useGoogleLogin({
+    onSuccess: (codeResponse) => {
+      onSuccess(codeResponse.access_token);
+    },
+    onError: () => onError('Google login failed')
+  });
+
+  return (
+    <button
+      type="button"
+      onClick={() => login()}
+      disabled={disabled}
+      className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-medium transition-colors border border-transparent disabled:opacity-50"
+    >
+      <svg className="w-5 h-5" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M21.35,11.1H12.18V13.83H18.69C18.36,17.64 15.19,19.27 12.19,19.27C8.36,19.27 5,16.25 5,12C5,7.9 8.2,4.73 12.2,4.73C15.29,4.73 17.1,6.7 17.1,6.7L19,4.72C19,4.72 16.56,2 12.1,2C6.42,2 2.03,6.8 2.03,12C2.03,17.05 6.36,22 12.22,22C17,22 21.6,18.33 21.6,12.73C21.6,11.67 21.35,11.1 21.35,11.1V11.1Z" />
+      </svg>
+      Continue with Google
+    </button>
+  );
+}
 
 export default function AuthModal({ isOpen, onClose, onSuccess }: { isOpen: boolean, onClose: () => void, onSuccess: (user: any) => void }) {
   const [method, setMethod] = useState<'select' | 'phone' | 'otp'>('select');
@@ -14,19 +37,19 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: { isOpen: bool
 
   if (!isOpen) return null;
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
+  const handleGoogleSuccess = async (accessToken: string) => {
     setLoading(true);
     setError('');
     try {
       const res = await fetch('/api/auth/google-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: credentialResponse.credential })
+        body: JSON.stringify({ access_token: accessToken })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Google login failed');
       
-      localStorage.setItem('adminToken', data.data.token); // Store token
+      localStorage.setItem('adminToken', data.data.token);
       onSuccess(data.data.user);
       onClose();
     } catch (err: any) {
@@ -111,18 +134,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: { isOpen: bool
                 </button>
               ) : (
                 <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                  <div className="flex justify-center w-full hover:opacity-90 transition-opacity">
-                    <GoogleLogin
-                      onSuccess={handleGoogleSuccess}
-                      onError={() => setError('Google login popup closed or failed')}
-                      useOneTap
-                      theme="filled_black"
-                      size="large"
-                      shape="rectangular"
-                      text="continue_with"
-                      width="400"
-                    />
-                  </div>
+                  <CustomGoogleButton onSuccess={handleGoogleSuccess} onError={setError} disabled={loading} />
                 </GoogleOAuthProvider>
               )}
 
