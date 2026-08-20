@@ -17,12 +17,12 @@ interface Release {
 }
 
 const EMPTY_FORM = {
-  version: '2.7',
-  version_code: '27',
+  version: '2.8.0',
+  version_code: '28',
   apk_url: '/downloads/app-release.apk',
-  file_size: '97.4 MB',
-  release_notes: 'Latest v2.7 stable IPTV release\nUltra-low latency streaming\n500+ Live Indian channels',
-  minimum_android_version: '7.0',
+  file_size: '32.5 MB',
+  release_notes: 'v2.8.0 Major Performance Release\nLightweight 32.5 MB high-speed APK\n64-bit ARM & 32-bit legacy hardware support\nZero-stutter live hardware decoding cascade\nInstant token refresh & sub-second recovery',
+  minimum_android_version: '5.0',
   is_latest: true,
   force_update: false,
 };
