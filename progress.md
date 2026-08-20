@@ -33,7 +33,12 @@
   - Updated `mobile/pubspec.yaml`, `mobile/lib/constants.dart` (`AppConstants.appVersion = '2.8.0'`), and in-app profile views.
   - Added Database Migration `056_update_app_release_v28.sql` and backend runner `scripts/run-056.js` to update public API release metadata (version `2.8.0`, size `32.5 MB`, minimum Android `5.0+`).
   - Compiled and hosted optimized `app-release.apk` (32.5 MB) and `app-release-32bit.apk` (29.3 MB).
-  - Deployed to EC2 production server via browser agent: `git pull`, migration 056 executed, Next.js rebuilt (54/54 static routes), PM2 reloaded, verified live on `https://nivatv.luxomall.in/download`.
+- **Legal Pages Redesign & Contrast Upgrade (August 2026):**
+  - Completely redesigned `Privacy Policy` (`/privacy`) and `Terms & Conditions` (`/terms`) with clean SaaS document styling.
+  - Resolved low-contrast and dark text issues: All text now renders with crisp high contrast (`text-slate-200` / `text-white`).
+  - Added sticky Table of Contents sidebar for seamless section navigation.
+  - Integrated the Open-Source Content Indexing & DMCA Takedown Disclaimer into Section 2 of the official policy body without intrusive alert banners.
+  - Deployed to EC2 production server via browser agent, verified live.
 
 
 
