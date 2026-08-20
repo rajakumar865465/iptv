@@ -28,3 +28,10 @@
   - **Accessibility & Contrast (93+ / 100):** Upgraded `globals.css` color tokens (`--color-ink-muted` -> slate-300, `--color-ink-subtle` -> slate-400) to pass WCAG AA/AAA contrast ratios, enlarged interactive touch targets to 44px, resolved redundant image alt tags on brand logos, and fixed prohibited ARIA attributes on star ratings (`role="img"`).
   - **Agentic Browsing (2/2):** Created standardized `/llms.txt` file for AI agents and LLM crawlers.
 - **Service Status:** Both `iptv-backend` and `iptv-frontend` are verified online and serving requests on EC2 (`44.206.18.189`) via `https://nivatv.luxomall.in`.
+- **Production APK Lightweight Optimization (August 2026):**
+  - Purged temporary caches, diffs, and intermediate objects.
+  - Enabled `--split-per-abi`, `--obfuscate`, and `--split-debug-info`.
+  - Slashed APK download and installation footprint from ~97.4 MB to **32.5 MB** (`arm64-v8a`) and **29.3 MB** (`armeabi-v7a`), achieving a **~66% reduction in APK size** for smooth performance on all devices.
+  - Tree-shook font assets with a 98.6% reduction.
+  - Deployed binaries directly to `backend/public/downloads/app-release.apk` and `backend/public/downloads/app-release-32bit.apk`.
+
