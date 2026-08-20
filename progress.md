@@ -33,5 +33,7 @@
   - Updated `mobile/pubspec.yaml`, `mobile/lib/constants.dart` (`AppConstants.appVersion = '2.8.0'`), and in-app profile views.
   - Added Database Migration `056_update_app_release_v28.sql` and backend runner `scripts/run-056.js` to update public API release metadata (version `2.8.0`, size `32.5 MB`, minimum Android `5.0+`).
   - Compiled and hosted optimized `app-release.apk` (32.5 MB) and `app-release-32bit.apk` (29.3 MB).
+  - Deployed to EC2 production server via browser agent: `git pull`, migration 056 executed, Next.js rebuilt (54/54 static routes), PM2 reloaded, verified live on `https://nivatv.luxomall.in/download`.
+
 
 
