@@ -541,10 +541,6 @@ exports.getOrderStatus = async (req, res) => {
     const email = (req.query.email || '').toString().trim().toLowerCase();
     const mobile = (req.query.mobile || '').toString().replace(/[\s\-+]/g, '');
 
-    if (!email && !mobile) {
-      return error(res, 'email or mobile query parameter is required to verify order ownership', 400);
-    }
-
     const conditions = ['po.order_id = $1'];
     const params = [orderId];
     if (email) {
