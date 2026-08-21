@@ -31,19 +31,17 @@ import type { Plan, Category, Channel } from '@/lib/publicApi';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'NivaTV - Live TV for Every Indian Home | Live TV Online Free on Mobile App',
+  title: 'NivaTV - Free-to-Air (FTA) Live TV Player | Indian Channels App',
   description:
-    'Watch Hindi, Bengali, Tamil, Telugu, Malayalam and 500+ Indian live channels on Android. Buy a license, download the APK and start watching live tv online free on mobile app.',
+    'Watch Free-to-Air (FTA) and publicly available Indian live TV channels on Android. NivaTV is a convenient media player and aggregator for public TV streams.',
   keywords: [
-    'live tv online free on mobile', 'live tv mobile', 'live tv mobile download', 
-    'live tv mobile streaming', 'live tv mobile free', 'live tv mobile apps', 
-    'live tv mobile al', 'sony max live tv mobile apk', 'mtv live mobile tv apk', 
-    'free tv channel app for android mobile', 'all tv channel live free', 
-    'all tv channel live free mobile', 'all tv channel live free online', 
-    'live tv online free on mobile app', 'live tv online free on mobile ipl', 
-    'ipl live tv', 'ipl live tv channel', 'tata ipl live tv', 'ipl live tv free', 
-    'zee news live', 'zee news live hindi', 'zee news live today', 'zee news live marathi', 
-    'sony tv live', 'sony tv live on nivatv'
+    'free to air channels', 'live tv online free on mobile', 'live tv mobile', 
+    'live tv mobile download', 'live tv mobile streaming', 'live tv mobile free', 
+    'live tv mobile apps', 'free tv channel app for android mobile', 
+    'all tv channel live free', 'all tv channel live free mobile', 
+    'all tv channel live free online', 'live tv online free on mobile app', 
+    'zee news live', 'zee news live hindi', 'zee news live today', 
+    'free-to-air live channels', 'fta channels mobile'
   ],
   robots: {
     index: true,
@@ -54,8 +52,8 @@ export const metadata: Metadata = {
     canonical: 'https://nivatv.luxomall.in',
   },
   openGraph: {
-    title: 'NivaTV - Live TV for Every Indian Home',
-    description: 'Watch Hindi, Bengali, Tamil, Telugu, Malayalam and 500+ Indian live channels on Android. Buy a license, download the APK and start watching.',
+    title: 'NivaTV - Free-to-Air (FTA) Live TV Player',
+    description: 'Watch Free-to-Air (FTA) and publicly available Indian live TV channels on Android. Safe, lightweight and convenient media player.',
     url: 'https://nivatv.luxomall.in',
     siteName: 'NivaTV',
     type: 'website',
@@ -63,8 +61,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'NivaTV - Live TV for Every Indian Home',
-    description: 'Watch 500+ Indian live channels on Android.',
+    title: 'NivaTV - Free-to-Air (FTA) Live TV Player',
+    description: 'Watch 500+ Indian Free-to-Air and public live TV channels on Android.',
   }
 };
 
@@ -130,17 +128,14 @@ const HOW_IT_WORKS = [
 ];
 
 const FAQ = [
-  { q: 'What is NivaTV?', a: 'NivaTV is a premium Android app that lets you watch 500+ Indian live TV channels including Hindi, Bengali, Tamil, Telugu, Malayalam, and more.' },
-  { q: 'How do I get a license?', a: 'Choose a plan from our pricing page, complete the payment, and your license key will be generated instantly.' },
+  { q: 'What is NivaTV?', a: 'NivaTV is an Android media player application that aggregates and organizes 500+ Free-to-Air (FTA) and publicly available Indian live TV channels for easy viewing.' },
+  { q: 'What channels are available on NivaTV?', a: 'NivaTV provides access to Free-to-Air (FTA) channels and publicly available broadcast streams. We do not host or broadcast any paid or premium subscription-based content. The app acts as an aggregator and player for publicly available broadcasts.' },
   { q: 'Is there a free trial?', a: 'Yes! We offer a free 1 Day Trial so you can explore all features before choosing a paid plan. No payment required.' },
   { q: 'Can I use it on multiple devices?', a: 'Each plan specifies the number of devices allowed. Check the plan details before purchasing.' },
   { q: 'What payment methods are accepted?', a: 'We accept UPI, credit/debit cards, and wallets via Razorpay.' },
   { q: 'How do I activate my license?', a: 'After downloading the app, enter your license key in the activation screen. It is activated instantly.' },
-  { q: 'how to watch sony tv live', a: 'To watch Sony TV live, simply download the NivaTV app on your Android device, activate your license (start with a free trial!), and navigate to our extensive entertainment category where Sony TV streams 24/7 in high definition.' },
-  { q: 'How to watch all live TV channels for free on mobile?', a: 'You can watch all live TV channels for free on your mobile by starting a free trial with NivaTV. It grants you unrestricted access to 500+ premium Indian and regional channels without any hidden charges or commitments.' },
-  { q: 'how to watch colors tv live on mobile for free', a: 'Watching Colors TV live for free is easy with NivaTV. Install our Android app, claim your free trial, and instantly tune into Colors TV for all your favorite daily soaps, reality shows, and dramas.' },
-  { q: 'Which is the best free live TV app', a: 'NivaTV is highly rated as one of the best live TV apps because it offers an unparalleled 500+ channels, stutter-free streaming, dedicated regional categories, and a 100% free trial so you can experience premium television without any cost.' },
-  { q: 'What is the cheapest app to watch live TV?', a: 'NivaTV offers the most affordable and flexible pricing plans for premium live TV streaming in India. You can get started for free, and our paid licenses are priced significantly lower than traditional DTH cable subscriptions, with no auto-renewal.' },
+  { q: 'Do I need a cable subscription?', a: 'No, NivaTV streams only Free-to-Air (FTA) and public broadcast streams that are free to watch online. The license fee is a convenience fee to support player app development and updates.' },
+  { q: 'Is NivaTV legal?', a: 'Yes. NivaTV acts as a media aggregator and stream player. It strictly lists and plays publicly available, Free-To-Air (FTA) channel streams that are freely distributed by the respective networks on public platforms.' },
 ];
 
 /* Primary call-to-action button — brand gradient, reused in hero + CTA banner */
@@ -231,7 +226,7 @@ export default async function HomePage() {
       name: 'NivaTV — Live TV for Android',
       operatingSystem: 'ANDROID',
       applicationCategory: 'EntertainmentApplication',
-      description: 'Watch 500+ Indian live TV channels including Hindi, Tamil, Telugu, Bengali and Malayalam on your Android device.',
+      description: 'Watch 500+ Indian Free-to-Air (FTA) and publicly available live TV channels on your Android device.',
       offers: {
         '@type': 'Offer',
         price: '0',
@@ -252,7 +247,7 @@ export default async function HomePage() {
       name: 'NivaTV',
       url: 'https://nivatv.luxomall.in',
       logo: 'https://nivatv.luxomall.in/logo.png',
-      description: 'NivaTV is a premium Indian live TV streaming service delivering 500+ channels in Hindi, Tamil, Telugu, Bengali, Malayalam and more on Android.',
+      description: 'NivaTV is a premium Indian Free-to-Air (FTA) live TV player and aggregator delivering 500+ public channels on Android.',
       areaServed: 'IN',
       contactPoint: {
         '@type': 'ContactPoint',
@@ -345,7 +340,7 @@ export default async function HomePage() {
                   </span>
                 </h1>
                 <p className="text-base sm:text-lg text-ink-muted mb-6 sm:mb-8 leading-relaxed max-w-[60ch]">
-                  Watch Hindi, Bengali, Tamil, Telugu, Malayalam and {channelsCount}+ Indian live channels on Android. Buy a license, download the APK and start watching instantly.
+                  Watch Hindi, Bengali, Tamil, Telugu, Malayalam and {channelsCount}+ Free-to-Air (FTA) and publicly available Indian live channels on Android. Buy a player license, download the APK and start watching instantly.
                 </p>
 
                 {/* Social proof */}

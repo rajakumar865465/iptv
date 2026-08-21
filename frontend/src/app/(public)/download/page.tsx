@@ -23,15 +23,15 @@ import AndroidAutoDetectBanner from './AndroidAutoDetectBanner';
 // Revalidate every hour — replaces force-dynamic so Cache-Control is public.
 export const revalidate = 3600;
 export const metadata: Metadata = {
-  title: 'Download NivaTV APK — Free Live TV App for Android',
+  title: 'Download NivaTV APK — Free-to-Air (FTA) Live TV Player',
   description:
-    'Download the NivaTV Android APK to watch Sony TV live, Zee News, IPL live and 500+ Indian channels on your mobile & TV. Ultra-fast, lightweight builds with 64-bit and 32-bit support.',
+    'Download the NivaTV Android APK to watch Free-to-Air (FTA), Zee News, public broadcasts and 500+ Indian live channels on your mobile & TV. Ultra-fast, lightweight player app.',
   robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
   alternates: { canonical: 'https://nivatv.luxomall.in/download' },
   openGraph: {
-    title: 'Download NivaTV APK — Live TV for Android',
+    title: 'Download NivaTV APK — Free-to-Air Live TV Player',
     description:
-      'Free APK download for NivaTV. Watch 500+ Indian live TV channels on any Android device. Ultra-lightweight & stutter-free.',
+      'Free APK download for NivaTV. Watch 500+ Indian Free-to-Air (FTA) and public live TV channels on any Android device. Ultra-lightweight & stutter-free.',
     url: 'https://nivatv.luxomall.in/download',
     siteName: 'NivaTV',
     type: 'website',

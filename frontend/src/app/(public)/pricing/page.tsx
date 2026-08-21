@@ -9,13 +9,13 @@ import type { Plan } from '@/lib/publicApi';
 // Revalidate every hour — replaces force-dynamic so Cache-Control is public.
 export const revalidate = 3600;
 export const metadata: Metadata = {
-  title: 'Live TV App Plans & Pricing — NivaTV | Buy License',
-  description: 'Affordable plans to watch 500+ Indian live TV channels on Android. Start with a free 1-day trial. No auto-renewal, instant license delivery via Razorpay.',
+  title: 'NivaTV Plans & Pricing — Free-to-Air (FTA) Live TV Player',
+  description: 'Affordable convenience licenses to watch 500+ Free-to-Air (FTA) and publicly available Indian live TV channels on Android. Try 1-day free trial.',
   robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
   alternates: { canonical: 'https://nivatv.luxomall.in/pricing' },
   openGraph: {
-    title: 'NivaTV Pricing — Live TV Plans from ₹0',
-    description: 'Buy a NivaTV license and watch 500+ Indian live channels on Android. Free 1-day trial available.',
+    title: 'NivaTV Pricing — Free-to-Air Live TV plans from ₹0',
+    description: 'Buy a NivaTV media player license and watch 500+ Indian Free-to-Air (FTA) live channels on Android.',
     url: 'https://nivatv.luxomall.in/pricing',
     siteName: 'NivaTV',
     type: 'website',
@@ -103,7 +103,7 @@ export default async function PricingPage() {
       '@context': 'https://schema.org',
       '@type': 'Product',
       name: 'NivaTV Live TV License',
-      description: 'Watch 500+ Indian live TV channels on Android with NivaTV. Includes Hindi, Tamil, Telugu, Bengali, Malayalam and more.',
+      description: 'Watch 500+ Indian Free-to-Air (FTA) and publicly available live TV channels on Android with NivaTV. Includes regional content.',
       brand: { '@type': 'Brand', name: 'NivaTV' },
       offers: [
         { '@type': 'Offer', name: '1-Day Free Trial', price: '0', priceCurrency: 'INR', availability: 'https://schema.org/InStock', url: 'https://nivatv.luxomall.in/pricing' },

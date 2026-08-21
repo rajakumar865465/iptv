@@ -13,8 +13,8 @@ export const metadata: Metadata = {
 
 const FEATURES = [
   {
-    icon: Tv, title: 'Live TV Channels',
-    desc: 'Stream 500+ Indian and regional live TV channels in real time. No delays, no buffering on a good connection. Channels include entertainment, news, sports, movies, kids, devotional and more.',
+    icon: Tv, title: 'Free-to-Air Live TV',
+    desc: 'Stream 500+ Free-to-Air (FTA) and publicly available Indian and regional live TV channels in real time. The app functions as a media player for publicly available broadcasts.',
   },
   {
     icon: Globe, title: 'Indian & Regional Categories',

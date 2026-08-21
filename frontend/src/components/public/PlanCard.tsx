@@ -4,21 +4,21 @@ import { Check } from 'lucide-react';
 import type { Plan } from '@/lib/publicApi';
 
 const FEATURES = [
-  'All live TV channels',
+  'Free-to-Air (FTA) channels',
+  'Publicly available streams',
   'Indian & regional content',
   'HD quality streams',
   'Regular channel updates',
-  'Instant license delivery',
   'No auto-renewal',
 ];
 
 const TRIAL_FEATURES = [
-  'All live TV channels',
+  'Free-to-Air (FTA) channels',
+  'Publicly available streams',
   'Indian & regional content',
   'HD quality streams',
   'Regular channel updates',
   'No payment required',
-  'No auto-renewal',
 ];
 
 export type PlanVariant = 'most-popular' | 'save-more' | 'best-value' | 'starter';

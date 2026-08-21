@@ -19,7 +19,7 @@ export default function PublicFooter() {
               </span>
             </Link>
             <p className="text-ink-muted text-sm leading-relaxed mb-4">
-              Premium live TV app for Indian &amp; regional channels. Watch live TV anytime on your Android device.
+              Premium Android media player for Free-to-Air (FTA) and publicly available Indian live TV channels.
             </p>
             <Link
               href="/support"
