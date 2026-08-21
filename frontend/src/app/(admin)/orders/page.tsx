@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getOrders, getOrderStats, approveOrder, rejectOrder } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CreditCard, Search, CheckCircle, XCircle, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, MessageCircle, Eye } from 'lucide-react';
+import { CreditCard, Search, CheckCircle, XCircle, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);

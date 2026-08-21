@@ -125,7 +125,7 @@ export const updatePaymentStatus = (id: string, status: string) =>
 
 // --- Manual Orders ---
 export const getOrders = (params?: Record<string, unknown>) =>
-  fetchAllPages('/orders', params);
+  api.get('/orders', { params }).then((r) => r.data.data);
 
 export const getOrderStats = () =>
   api.get('/orders/stats').then((r) => r.data.data);

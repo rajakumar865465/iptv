@@ -1,5 +1,11 @@
 const db = require('../config/db');
+const crypto = require('crypto');
 const { success, error } = require('../utils/response');
+
+function generateLicenseKey() {
+  const part = () => crypto.randomBytes(2).toString('hex').toUpperCase();
+  return `NVT-${part()}-${part()}-${part()}`;
+}
 
 exports.getOrders = async (req, res) => {
   try {
@@ -31,12 +37,12 @@ exports.getOrders = async (req, res) => {
 
     const whereStr = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
 
-    const countResult = await db.query(`SELECT COUNT(*) FROM orders o ${whereStr}`, params);
+    const countResult = await db.query(`SELECT COUNT(*) FROM public_orders o ${whereStr}`, params);
     const total = parseInt(countResult.rows[0].count, 10);
 
     const result = await db.query(
       `SELECT o.*, p.name as plan_name
-       FROM orders o 
+       FROM public_orders o 
        LEFT JOIN plans p ON o.plan_id = p.id
        ${whereStr} 
        ORDER BY o.created_at DESC 
@@ -44,10 +50,15 @@ exports.getOrders = async (req, res) => {
       [...params, limit, offset]
     );
 
-    success(res, { data: result.rows, pagination: { page, limit, total } });
+    const formattedOrders = result.rows.map(row => ({
+      ...row,
+      amount: row.amount / 100
+    }));
+
+    success(res, { data: formattedOrders, pagination: { page, limit, total } });
   } catch (err) {
-    console.error('Failed to get orders:', err);
-    error(res, 'Failed to fetch orders.', 500);
+    console.error('Failed to get public_orders:', err);
+    error(res, 'Failed to fetch public_orders.', 500);
   }
 };
 
@@ -58,7 +69,7 @@ exports.getOrderDetail = async (req, res) => {
     const result = await db.query(
       `SELECT o.*, p.name as plan_name, p.duration_days, 
               u.full_name as approved_by_name
-       FROM orders o 
+       FROM public_orders o 
        LEFT JOIN plans p ON o.plan_id = p.id
        LEFT JOIN users u ON o.approved_by = u.id
        WHERE o.id = $1`,
@@ -71,7 +82,7 @@ exports.getOrderDetail = async (req, res) => {
 
     const order = result.rows[0];
 
-    const subResult = await db.query('SELECT * FROM subscriptions WHERE order_id = $1', [id]);
+    const subResult = await db.query('SELECT * FROM licenses WHERE order_id = $1', [id]);
     
     success(res, {
       ...order,
@@ -92,7 +103,7 @@ exports.approveOrder = async (req, res) => {
     await client.query('BEGIN');
 
     // 1. Lock the order row and check status
-    const orderResult = await client.query('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [id]);
+    const orderResult = await client.query('SELECT * FROM public_orders WHERE id = $1 FOR UPDATE', [id]);
     if (orderResult.rows.length === 0) {
       await client.query('ROLLBACK');
       return error(res, 'Order not found.', 404);
@@ -110,15 +121,16 @@ exports.approveOrder = async (req, res) => {
 
     // 2. Mark order as approved
     await client.query(
-      `UPDATE orders 
+      `UPDATE public_orders 
        SET status = 'approved', approved_by = $1, approved_at = NOW(), updated_at = NOW() 
        WHERE id = $2`,
       [adminId, id]
     );
 
     // 3. Get plan details
-    const planResult = await client.query('SELECT duration_days FROM plans WHERE id = $1', [order.plan_id]);
+    const planResult = await client.query('SELECT duration_days, max_devices FROM plans WHERE id = $1', [order.plan_id]);
     const durationDays = planResult.rows[0]?.duration_days || 30;
+    const maxDevices = planResult.rows[0]?.max_devices || 1;
 
     // 4. Calculate subscription dates (stack if active)
     let startDate = new Date();
@@ -126,32 +138,39 @@ exports.approveOrder = async (req, res) => {
     
     // Check if user has an active subscription
     const existingSub = await client.query(
-      `SELECT expiry_date FROM subscriptions WHERE user_id = $1 AND status = 'active' ORDER BY expiry_date DESC LIMIT 1`,
+      `SELECT expires_at FROM licenses WHERE user_id = $1 AND status = 'active' ORDER BY expires_at DESC LIMIT 1`,
       [order.user_id]
     );
 
-    if (existingSub.rows.length > 0 && new Date(existingSub.rows[0].expiry_date) > new Date()) {
-      startDate = new Date(existingSub.rows[0].expiry_date);
+    if (existingSub.rows.length > 0 && new Date(existingSub.rows[0].expires_at) > new Date()) {
+      startDate = new Date(existingSub.rows[0].expires_at);
     }
     expiryDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
-
-    // 5. Create or update subscription
-    await client.query(
-      `INSERT INTO subscriptions (user_id, plan_id, order_id, status, start_date, expiry_date) 
-       VALUES ($1, $2, $3, 'active', $4, $5)`,
-      [order.user_id, order.plan_id, id, startDate, expiryDate]
-    );
 
     // Update user status
     if (order.user_id) {
        await client.query("UPDATE users SET status = 'active' WHERE id = $1 AND status = 'blocked'", [order.user_id]);
     }
+    
+    // Create a License record (Required for stream access checking in backend)
+    const licenseKey = generateLicenseKey();
+    const licenseInsert = await client.query(
+      `INSERT INTO licenses (license_key, plan_id, customer_email, status, duration_days, max_devices, user_id, activated_at, expires_at)
+       VALUES ($1, $2, $3, 'active', $4, $5, $6, $7, $8) RETURNING id`,
+      [
+        licenseKey, order.plan_id, order.email, durationDays, 
+        maxDevices, order.user_id, startDate, expiryDate
+      ]
+    );
+    
+    // Link the generated license back to the order
+    await client.query('UPDATE public_orders SET license_id = $1 WHERE id = $2', [licenseInsert.rows[0].id, id]);
 
     // 6. Log admin action
     await client.query(
       `INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details) 
        VALUES ($1, $2, $3, $4, $5)`,
-      [adminId, 'APPROVE_ORDER', 'orders', id, JSON.stringify({ order_id: order.order_id })]
+      [adminId, 'APPROVE_ORDER', 'public_orders', id, JSON.stringify({ order_id: order.order_id })]
     );
 
     await client.query('COMMIT');
@@ -175,7 +194,7 @@ exports.rejectOrder = async (req, res) => {
     await client.query('BEGIN');
 
     // 1. Lock the order row and check status
-    const orderResult = await client.query('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [id]);
+    const orderResult = await client.query('SELECT * FROM public_orders WHERE id = $1 FOR UPDATE', [id]);
     if (orderResult.rows.length === 0) {
       await client.query('ROLLBACK');
       return error(res, 'Order not found.', 404);
@@ -193,7 +212,7 @@ exports.rejectOrder = async (req, res) => {
 
     // 2. Mark order as rejected
     await client.query(
-      `UPDATE orders 
+      `UPDATE public_orders 
        SET status = 'rejected', rejection_reason = $1, rejected_at = NOW(), updated_at = NOW() 
        WHERE id = $2`,
       [reason || 'No reason provided', id]
@@ -203,7 +222,7 @@ exports.rejectOrder = async (req, res) => {
     await client.query(
       `INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details) 
        VALUES ($1, $2, $3, $4, $5)`,
-      [adminId, 'REJECT_ORDER', 'orders', id, JSON.stringify({ order_id: order.order_id, reason })]
+      [adminId, 'REJECT_ORDER', 'public_orders', id, JSON.stringify({ order_id: order.order_id, reason })]
     );
 
     await client.query('COMMIT');
@@ -226,19 +245,19 @@ exports.getOrderStats = async (req, res) => {
         COUNT(*) FILTER (WHERE status = 'rejected') as rejected_orders,
         SUM(amount) FILTER (WHERE status = 'approved' AND DATE(approved_at) = CURRENT_DATE) as today_revenue,
         SUM(amount) FILTER (WHERE status = 'approved') as total_revenue
-      FROM orders
+      FROM public_orders
     `);
 
-    const activeSubsResult = await db.query(`SELECT COUNT(*) as active_subscriptions FROM subscriptions WHERE status = 'active' AND expiry_date > NOW()`);
+    const activeSubsResult = await db.query(`SELECT COUNT(*) as active_licenses FROM licenses WHERE status = 'active' AND expiry_date > NOW()`);
 
     const stats = statsResult.rows[0];
     success(res, {
       pendingOrders: parseInt(stats.pending_orders) || 0,
       approvedOrders: parseInt(stats.approved_orders) || 0,
       rejectedOrders: parseInt(stats.rejected_orders) || 0,
-      todayRevenue: parseFloat(stats.today_revenue) || 0,
-      totalRevenue: parseFloat(stats.total_revenue) || 0,
-      activeSubscriptions: parseInt(activeSubsResult.rows[0].active_subscriptions) || 0
+      todayRevenue: (parseFloat(stats.today_revenue) || 0) / 100,
+      totalRevenue: (parseFloat(stats.total_revenue) || 0) / 100,
+      activeLicenses: parseInt(activeSubsResult.rows[0].active_licenses) || 0
     });
   } catch (err) {
     console.error('Failed to fetch order stats:', err);

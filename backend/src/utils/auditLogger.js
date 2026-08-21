@@ -13,6 +13,9 @@ const db = require('../config/db');
  * @param {string|null} options.reason - Reason provided by admin
  * @param {string|null} options.ip_address - Admin IP address
  * @param {string|null} options.user_agent - Admin user agent
+ * @param {Object|null} options.client - Optional pg client. Pass the caller's
+ *        transaction client when the log must commit or roll back together with
+ *        the change it describes (e.g. approving a payment). Omit for pool use.
  */
 const logAudit = async ({
   admin_id,
@@ -23,7 +26,8 @@ const logAudit = async ({
   new_value = null,
   reason = null,
   ip_address = null,
-  user_agent = null
+  user_agent = null,
+  client = null
 }) => {
   try {
     const details = {

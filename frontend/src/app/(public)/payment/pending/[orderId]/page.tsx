@@ -1,21 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { getManualOrderStatus } from '@/lib/publicApi';
 import { Clock, CheckCircle, XCircle, MessageCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
-export default function PendingPaymentPage() {
+function PendingPaymentContent() {
   const { orderId } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const email = searchParams.get('email');
   
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchStatus = async () => {
     try {
-      const data = await getManualOrderStatus(orderId as string);
+      const data = await getManualOrderStatus(orderId as string, { email: email || '' });
       setOrder(data);
       setLoading(false);
     } catch (err) {
@@ -97,6 +99,27 @@ export default function PendingPaymentPage() {
             <p className="text-slate-400 mb-6">
               Your subscription for <strong>{order.plan_name}</strong> is now active.
             </p>
+
+            {order.license_key && (
+              <div className="bg-slate-900 border border-emerald-500/30 rounded-xl p-4 mb-6">
+                <p className="text-slate-400 text-sm mb-1">Your License Key</p>
+                <div className="flex items-center justify-center gap-3">
+                  <span className="text-2xl font-mono text-emerald-400 font-bold">{order.license_key}</span>
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(order.license_key);
+                      alert('License key copied!');
+                    }}
+                    className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300"
+                    title="Copy License Key"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 mt-2">Save this key to access your stream on any device.</p>
+              </div>
+            )}
+
             <Link 
               href="/"
               className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-all"
@@ -144,5 +167,13 @@ export default function PendingPaymentPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function PendingPaymentPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen pt-32 text-center text-slate-400">Loading order status...</div>}>
+      <PendingPaymentContent />
+    </Suspense>
   );
 }

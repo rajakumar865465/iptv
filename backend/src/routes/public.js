@@ -19,8 +19,8 @@ router.post('/payments/verify', authLimiter, pub.verifyPayment);
 router.get('/payments/status/:orderId', apiLimiter, pub.getOrderStatus);
 
 // Manual Payment Flow
-router.post('/manual-orders/create', authLimiter, manualOrderController.createOrder);
-router.get('/manual-orders/:orderId', apiLimiter, manualOrderController.getOrder);
+router.post('/manual-orders/create', authLimiter, manualOrderController.createManualOrder);
+router.get('/manual-orders/:orderId', apiLimiter, manualOrderController.getManualOrder);
 router.get('/payment-mode', apiLimiter, adminOrderController.getPaymentMode);
 
 // License check — use stricter auth limiter to prevent key enumeration

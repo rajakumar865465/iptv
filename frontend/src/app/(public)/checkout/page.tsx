@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getPublicPlans, createManualOrder } from '@/lib/publicApi';
-import { QrCode, Copy, CheckCircle, Shield, AlertTriangle } from 'lucide-react';
+import { Copy, CheckCircle, Shield, AlertTriangle } from 'lucide-react';
 import type { Plan } from '@/lib/publicApi';
 
 function CheckoutContent() {
@@ -65,7 +65,7 @@ function CheckoutContent() {
         ...form,
         plan_id: plan.id,
       });
-      router.push(`/payment/pending/${res.order_id}`);
+      router.push(`/payment/pending/${res.order_id}?email=${encodeURIComponent(form.email)}`);
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Payment submission failed.');
     } finally {
