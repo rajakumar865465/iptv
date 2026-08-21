@@ -33,7 +33,7 @@ export default function TermsPage() {
   };
 
   return (
-    <div className="pt-24 pb-24 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto text-white/80">
+    <div className="pt-24 pb-24 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto text-slate-200">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <PageTracker page="terms" />
 
@@ -46,14 +46,14 @@ export default function TermsPage() {
         <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4 font-display">
           Terms &amp; Conditions
         </h1>
-        <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-white/80">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/80 font-medium">
+        <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-slate-300">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-200 font-medium">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
             Effective: August 20, 2026
           </span>
-          <span className="text-white/60">Jurisdiction: Tripura, India</span>
-          <span className="text-white/60">•</span>
-          <span className="text-white/60">Version 2.8</span>
+          <span className="text-slate-400">Jurisdiction: Tripura, India</span>
+          <span className="text-slate-500">•</span>
+          <span className="text-slate-400">Version 2.8</span>
         </div>
       </div>
 
@@ -71,16 +71,16 @@ export default function TermsPage() {
                 <a
                   key={sec.id}
                   href={`#${sec.id}`}
-                  className="group flex items-center justify-between py-2 px-3 rounded-xl text-xs sm:text-sm text-white/80 hover:text-white hover:bg-white/5 transition-colors"
+                  className="group flex items-center justify-between py-2 px-3 rounded-xl text-xs sm:text-sm text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
                 >
                   <span className="group-hover:translate-x-0.5 transition-transform">{sec.title}</span>
-                  <ChevronRight className="w-3.5 h-3.5 text-white/60 group-hover:text-indigo-400 transition-colors" />
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-400 transition-colors" />
                 </a>
               ))}
             </nav>
 
             <div className="mt-6 pt-5 border-t border-white/10">
-              <p className="text-xs text-white/60 mb-2">Have a question or request?</p>
+              <p className="text-xs text-slate-400 mb-2">Have a question or request?</p>
               <a
                 href="mailto:support@nivatv.luxomall.in"
                 className="text-xs font-semibold text-indigo-400 hover:underline block truncate"
@@ -95,7 +95,7 @@ export default function TermsPage() {
         <main className="lg:col-span-8 space-y-8">
           <section id="acceptance" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">1. Acceptance of Terms</h2>
-            <p className="text-white/80 text-sm sm:text-base leading-relaxed">
+            <p className="text-slate-200 text-sm sm:text-base leading-relaxed">
               By purchasing a license key, downloading the APK, or accessing any part of the NivaTV application and website
               (https://nivatv.luxomall.in), you explicitly agree to be bound by these Terms and Conditions and our Privacy
               Policy. If you do not agree, you must discontinue using the Service immediately.
@@ -104,11 +104,11 @@ export default function TermsPage() {
 
           <section id="platform" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">2. Open-Source Content Indexing Disclaimer</h2>
-            <p className="text-white/80 text-sm sm:text-base leading-relaxed mb-3">
+            <p className="text-slate-200 text-sm sm:text-base leading-relaxed mb-3">
               NivaTV is strictly a media player software client and search indexer designed to organize publicly available,
               open-source, and free-to-air stream links on behalf of the user.
             </p>
-            <p className="text-white/80 text-sm sm:text-base leading-relaxed">
+            <p className="text-slate-200 text-sm sm:text-base leading-relaxed">
               NivaTV does <strong>NOT</strong> host, re-transmit, archive, control, or upload any media content or
               audio/video streams on its servers. All live stream signals are broadcast by independent third-party entities
               over public networks.
@@ -117,11 +117,11 @@ export default function TermsPage() {
 
           <section id="dmca" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">3. Intellectual Property &amp; DMCA Takedowns</h2>
-            <p className="text-white/80 text-sm sm:text-base leading-relaxed mb-3">
+            <p className="text-slate-200 text-sm sm:text-base leading-relaxed mb-3">
               NivaTV strictly respects copyright and intellectual property rights. We do not claim ownership of any third-party
               logos, trademarks, channel names, or stream content displayed.
             </p>
-            <p className="text-white/80 text-sm sm:text-base leading-relaxed">
+            <p className="text-slate-200 text-sm sm:text-base leading-relaxed">
               If you are a copyright owner and believe any indexed stream link violates your copyright, notify us at{' '}
               <a href="mailto:support@nivatv.luxomall.in" className="text-indigo-400 font-semibold underline">
                 support@nivatv.luxomall.in
@@ -132,7 +132,7 @@ export default function TermsPage() {
 
           <section id="license" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">4. License Keys &amp; Device Limits</h2>
-            <p className="text-white/80 text-sm sm:text-base leading-relaxed">
+            <p className="text-slate-200 text-sm sm:text-base leading-relaxed">
               Each license key purchased is for private personal viewing only. Licenses are bound to the specific number of
               concurrent devices defined by your subscription tier. Sharing, distributing, or reselling license keys or
               attempting to circumvent device concurrency controls will result in immediate termination without refund.
@@ -141,7 +141,7 @@ export default function TermsPage() {
 
           <section id="refund" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">5. No Refund Policy</h2>
-            <p className="text-white/80 text-sm sm:text-base leading-relaxed">
+            <p className="text-slate-200 text-sm sm:text-base leading-relaxed">
               Due to the digital delivery and instantaneous activation of cryptographic license keys, all subscription
               purchases are final and non-refundable once the activation key has been delivered. If you experience technical
               connectivity issues, contact our support team for troubleshooting assistance.
@@ -150,7 +150,7 @@ export default function TermsPage() {
 
           <section id="availability" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">6. Stream Availability Disclaimer</h2>
-            <p className="text-white/80 text-sm sm:text-base leading-relaxed">
+            <p className="text-slate-200 text-sm sm:text-base leading-relaxed">
               While we strive to provide a smooth, low-latency playback platform, NivaTV does not guarantee 100% channel uptime
               or uninterrupted service. Broadcasters may change URLs, apply regional geoblocks, or cease broadcasting at their
               sole discretion. Channels may be added, replaced, or removed at any time without prior notice.
@@ -159,7 +159,7 @@ export default function TermsPage() {
 
           <section id="prohibited" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">7. Prohibited Uses</h2>
-            <p className="text-white/80 text-sm sm:text-base leading-relaxed">
+            <p className="text-slate-200 text-sm sm:text-base leading-relaxed">
               You agree not to: (a) re-broadcast, capture, or publicly display streams for commercial gain; (b) reverse engineer,
               decompile, or modify the NivaTV application; (c) bypass authentication tokens or rate limiting mechanisms; (d) use
               the Service for any unlawful purpose under the laws of India or your local jurisdiction.
@@ -168,12 +168,12 @@ export default function TermsPage() {
 
           <section id="governing" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">8. Governing Law &amp; Jurisdiction</h2>
-            <p className="text-white/80 text-sm sm:text-base leading-relaxed mb-4">
+            <p className="text-slate-200 text-sm sm:text-base leading-relaxed mb-4">
               These Terms and Conditions shall be governed by and construed in accordance with the laws of India. Any disputes
               arising in connection with the Service shall be subject to the exclusive jurisdiction of the competent courts in
               Tripura, India.
             </p>
-            <div className="p-4 bg-white/5 rounded-xl border border-white/10 text-xs sm:text-sm text-white/80">
+            <div className="p-4 bg-white/5 rounded-xl border border-white/10 text-xs sm:text-sm text-slate-300">
               For legal inquiries, contact:{' '}
               <a href="mailto:support@nivatv.luxomall.in" className="text-indigo-400 font-semibold underline">
                 support@nivatv.luxomall.in
