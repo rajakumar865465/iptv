@@ -1,5 +1,5 @@
 import { getWebsiteSettings } from '@/lib/publicApi';
-import { MessageCircle, Mail, Phone, Clock, Key } from 'lucide-react';
+import { MessageCircle, Mail, Phone, Clock, Key, MapPin, Building } from 'lucide-react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 
@@ -143,6 +143,32 @@ export default async function SupportPage() {
             <div>
               <p className="text-white font-semibold">Response Time</p>
               <p className="text-slate-400 text-sm">Usually within 2–4 hours</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Merchant & Office Address (Razorpay Compliance) */}
+        <div className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 mb-12">
+          <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            <Building className="w-5 h-5 text-indigo-400" /> Merchant Contact Details
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+            <div>
+              <p className="text-slate-400 font-medium">Business / Merchant Name</p>
+              <p className="text-white font-semibold mt-0.5">Luxomall Digital Services</p>
+            </div>
+            <div>
+              <p className="text-slate-400 font-medium">Support Contact</p>
+              <p className="text-white font-semibold mt-0.5">Phone: {phone || '+919774401306'}</p>
+              <p className="text-white font-semibold mt-0.5">Email: {email || 'support@nivatv.luxomall.in'}</p>
+            </div>
+            <div className="md:col-span-2">
+              <p className="text-slate-400 font-medium flex items-center gap-1.5"><MapPin className="w-4 h-4 text-indigo-400" /> Physical Address</p>
+              <p className="text-white font-medium mt-1 leading-relaxed">
+                Luxomall Digital Services,<br />
+                Near GMC Hospital, Bhangagarh,<br />
+                Guwahati, Assam, India - 781005
+              </p>
             </div>
           </div>
         </div>
