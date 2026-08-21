@@ -21,7 +21,7 @@ async function sendMail({ to, subject, text, html }) {
   });
 
   return await transporter.sendMail({
-    from: process.env.SMTP_FROM || `"IPTV Admin" <noreply@${process.env.SMTP_HOST}>`,
+    from: process.env.SMTP_FROM || `"NivaTV Admin" <noreply@${process.env.SMTP_HOST}>`,
     to,
     subject,
     text,

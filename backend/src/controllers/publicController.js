@@ -214,7 +214,7 @@ exports.getAppDownload = async (req, res) => {
         version_code: 12,
         apk_url: '/downloads/app-release.apk',
         file_size: '96.5 MB',
-        release_notes: ['Latest stable IPTV streaming release', 'Ultra-low latency buffering', '500+ Live Indian channels'],
+        release_notes: ['Latest stable NivaTV streaming release', 'Ultra-low latency buffering', '500+ Live Indian channels'],
         minimum_android_version: '6.0',
         force_update: false,
         created_at: new Date().toISOString()
@@ -229,7 +229,7 @@ exports.getAppDownload = async (req, res) => {
       version_code: 12,
       apk_url: '/downloads/app-release.apk',
       file_size: '96.5 MB',
-      release_notes: ['Latest stable IPTV streaming release', 'Ultra-low latency buffering', '500+ Live Indian channels'],
+      release_notes: ['Latest stable NivaTV streaming release', 'Ultra-low latency buffering', '500+ Live Indian channels'],
       minimum_android_version: '6.0',
       force_update: false,
       created_at: new Date().toISOString()
