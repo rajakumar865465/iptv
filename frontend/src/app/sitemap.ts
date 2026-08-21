@@ -5,14 +5,17 @@ export const revalidate = 3600; // Revalidate sitemap every hour
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://nivatv.luxomall.in';
 
-  // We are prioritizing the most important public routes for SEO
   const routes = [
     '',
     '/pricing',
     '/download',
     '/browse',
     '/support',
-    '/login'
+    '/features',
+    '/terms',
+    '/privacy',
+    '/refund-policy',
+    '/dmca',
   ];
 
   return routes.map((route) => ({
