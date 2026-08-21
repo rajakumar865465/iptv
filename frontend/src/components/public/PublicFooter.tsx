@@ -76,6 +76,7 @@ export default function PublicFooter() {
                 { href: '/privacy', label: 'Privacy Policy' },
                 { href: '/terms', label: 'Terms & Conditions' },
                 { href: '/refund-policy', label: 'Refund & Cancellation Policy' },
+                { href: '/dmca', label: 'DMCA & Copyright' },
               ].map(l => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-slate-400 hover:text-white text-sm transition-colors">
