@@ -53,10 +53,14 @@ const logAudit = async ({
       user_agent
     ];
 
-    await db.query(query, values);
+    await (client || db).query(query, values);
   } catch (err) {
     console.error('Failed to write audit log:', err);
-    // Don't throw - audit logging failures shouldn't break the main transaction
+    // Fire-and-forget by default: a logging failure shouldn't break the caller.
+    // But when a transaction client was passed in, the caller asked for the log
+    // and the change to be atomic — and a failed INSERT has already poisoned that
+    // transaction — so surface it instead of letting COMMIT fail confusingly.
+    if (client) throw err;
   }
 };
 
