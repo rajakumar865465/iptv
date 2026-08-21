@@ -123,6 +123,28 @@ export const getPayments = () =>
 export const updatePaymentStatus = (id: string, status: string) =>
   api.put(`/payments/${id}/status`, { status }).then((r) => r.data.data);
 
+// --- Manual Orders ---
+export const getOrders = (params?: Record<string, unknown>) =>
+  fetchAllPages('/orders', params);
+
+export const getOrderStats = () =>
+  api.get('/orders/stats').then((r) => r.data.data);
+
+export const getOrderDetail = (id: string) =>
+  api.get(`/orders/${id}`).then((r) => r.data.data);
+
+export const approveOrder = (id: string) =>
+  api.post(`/orders/${id}/approve`).then((r) => r.data.data);
+
+export const rejectOrder = (id: string, reason: string) =>
+  api.post(`/orders/${id}/reject`, { reason }).then((r) => r.data.data);
+
+export const getPaymentMode = () =>
+  api.get('/payment-mode').then((r) => r.data.data);
+
+export const setPaymentMode = (mode: string) =>
+  api.put('/payment-mode', { mode }).then((r) => r.data.data);
+
 export const getChannels = (params?: Record<string, unknown>) =>
   api.get('/channels', { params }).then((r) => r.data.data || r.data);
 

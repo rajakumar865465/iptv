@@ -1,5 +1,5 @@
 import { CheckCircle, Shield, Zap, Headphones } from 'lucide-react';
-import { getPublicPlans } from '@/lib/publicApi';
+import { getPublicPlans, getPublicPaymentMode } from '@/lib/publicApi';
 import PlanCard from '@/components/public/PlanCard';
 import FAQAccordion from '@/components/public/FAQAccordion';
 import OfferTrigger from '@/components/public/OfferTrigger';
@@ -63,8 +63,11 @@ function dedupePlans(plans: Plan[]): Plan[] {
 
 export default async function PricingPage() {
   let plans: Plan[] = [];
+  let paymentMode = 'razorpay';
   try {
-    plans = await getPublicPlans();
+    const [pRes, mRes] = await Promise.all([getPublicPlans(), getPublicPaymentMode()]);
+    plans = pRes;
+    paymentMode = mRes.mode;
   } catch {
     // Backend not available during build, use empty
   }
@@ -174,7 +177,7 @@ export default async function PricingPage() {
               : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-16'
           }>
             {visiblePlans.map(plan => (
-              <PlanCard key={plan.id} plan={plan} />
+              <PlanCard key={plan.id} plan={plan} paymentMode={paymentMode} />
             ))}
           </div>
         ) : (

@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { authLimiter, apiLimiter } = require('../middleware/rateLimit');
 const pub = require('../controllers/publicController');
+const manualOrderController = require('../controllers/manualOrderController');
+const adminOrderController = require('../controllers/adminOrderController');
 
 // Read-only public data
 router.get('/plans', apiLimiter, pub.getPlans);
@@ -15,6 +17,11 @@ router.get('/settings', apiLimiter, pub.getSettings);
 router.post('/orders/create', authLimiter, pub.createOrder);
 router.post('/payments/verify', authLimiter, pub.verifyPayment);
 router.get('/payments/status/:orderId', apiLimiter, pub.getOrderStatus);
+
+// Manual Payment Flow
+router.post('/manual-orders/create', authLimiter, manualOrderController.createOrder);
+router.get('/manual-orders/:orderId', apiLimiter, manualOrderController.getOrder);
+router.get('/payment-mode', apiLimiter, adminOrderController.getPaymentMode);
 
 // License check — use stricter auth limiter to prevent key enumeration
 router.post('/license/check', authLimiter, pub.checkLicense);

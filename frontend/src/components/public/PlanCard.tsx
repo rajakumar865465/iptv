@@ -102,9 +102,10 @@ interface Props {
   plan: Plan;
   ctaText?: string;
   variant?: PlanVariant;
+  paymentMode?: string;
 }
 
-export default function PlanCard({ plan, ctaText, variant }: Props) {
+export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorpay' }: Props) {
   // Auto-detect variant from backend flags when not explicitly passed
   const resolvedVariant = variant ?? planVariant(plan);
   const isFree = plan.price === 0;
@@ -196,7 +197,7 @@ export default function PlanCard({ plan, ctaText, variant }: Props) {
         </ul>
 
         <Link
-          href={'/payment?plan_id=' + plan.id}
+          href={paymentMode === 'manual' ? '/checkout?plan=' + plan.id : '/payment?plan_id=' + plan.id}
           className={'flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all min-h-[44px] ' + btnClass}
         >
           {buttonText}

@@ -17,6 +17,7 @@ const adminUserController = require('../controllers/adminUserController');
 const adminChannelManagementController = require('../controllers/adminChannelManagementController');
 const channelImportController = require('../controllers/channelImportController');
 const publicController = require('../controllers/publicController');
+const adminOrderController = require('../controllers/adminOrderController');
 const adminAuthMiddleware = require('../middleware/adminAuth');
 const { authLimiter } = require('../middleware/rateLimit');
 const db = require('../config/db');
@@ -74,9 +75,20 @@ router.post('/plans', planController.createPlan);
 router.put('/plans/:id', planController.updatePlan);
 router.delete('/plans/:id', planController.deletePlan);
 
-// ─── Payments ─────────────────────────────────────
+// ─── Payments & Orders ────────────────────────────
 router.get('/payments', adminController.getPayments);
 router.put('/payments/:id/status', adminController.updatePaymentStatus);
+
+// ─── Manual Orders ────────────────────────────────
+router.get('/orders', adminOrderController.getOrders);
+router.get('/orders/stats', adminOrderController.getOrderStats);
+router.get('/orders/:id', adminOrderController.getOrderDetail);
+router.post('/orders/:id/approve', adminOrderController.approveOrder);
+router.post('/orders/:id/reject', adminOrderController.rejectOrder);
+
+// ─── Payment Mode ─────────────────────────────────
+router.get('/payment-mode', adminOrderController.getPaymentMode);
+router.put('/payment-mode', adminOrderController.setPaymentMode);
 
 // ─── Channels ─────────────────────────────────────
 router.post('/channels', adminController.createChannel);

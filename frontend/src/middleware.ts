@@ -49,6 +49,7 @@ const PROTECTED_PREFIXES = [
   '/licenses',
   '/logs',
   '/notifications',
+  '/orders',
   '/payments',
   '/plans',
   '/reported-channels',

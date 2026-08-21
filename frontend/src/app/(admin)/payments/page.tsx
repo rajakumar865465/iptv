@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getPayments, updatePaymentStatus } from '@/lib/api';
+import { getPayments, updatePaymentStatus, getPaymentMode, setPaymentMode } from '@/lib/api';
 import { motion } from 'framer-motion';
 import { CreditCard, Search, CheckCircle, XCircle, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 
@@ -55,6 +55,7 @@ export default function PaymentsPage() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [page, setPage] = useState(1); const PAGE = 20;
   
+  const [paymentMode, setPaymentModeState] = useState<'manual'|'razorpay'>('razorpay');
   // Confirmation modal state
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmConfig, setConfirmConfig] = useState<{ title: string; message: string; confirmText: string; confirmVariant: 'emerald'|'rose'|'amber'; action: () => void }>({
@@ -63,9 +64,10 @@ export default function PaymentsPage() {
 
   const fetchPayments = () => {
     setLoading(true);
-    getPayments()
-      .then((d) => {
+    Promise.all([getPayments(), getPaymentMode()])
+      .then(([d, m]) => {
         setPayments(Array.isArray(d) ? (d as Payment[]) : []);
+        setPaymentModeState(m?.mode || 'razorpay');
       })
       .finally(() => setLoading(false));
   };
@@ -108,7 +110,23 @@ export default function PaymentsPage() {
           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">Payments</h1>
           <p className="text-slate-400 mt-1">{payments.length} total — ₹{totalRevenue.toLocaleString('en-IN')} collected — {pending > 0 ? <span className="text-amber-400">{pending} pending</span> : 'all processed'}</p>
         </div>
-        <button onClick={fetchPayments} className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200"><RefreshCw className="w-4 h-4" /></button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center bg-slate-800 rounded-xl p-1 border border-slate-700">
+            <button 
+              onClick={async () => { await setPaymentMode('manual'); setPaymentModeState('manual'); }}
+              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${paymentMode === 'manual' ? 'bg-cyan-500 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              Manual UPI
+            </button>
+            <button 
+              onClick={async () => { await setPaymentMode('razorpay'); setPaymentModeState('razorpay'); }}
+              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${paymentMode === 'razorpay' ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              Razorpay
+            </button>
+          </div>
+          <button onClick={fetchPayments} className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200"><RefreshCw className="w-4 h-4" /></button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

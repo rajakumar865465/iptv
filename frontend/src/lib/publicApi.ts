@@ -215,3 +215,20 @@ export interface OfferPlan {
 
 export const getSevenDayOffer = (): Promise<OfferPlan> =>
   publicAxios.get('/api/public/offers/7day').then(unwrap) as Promise<OfferPlan>;
+
+export const createManualOrder = (data: {
+  plan_id: number;
+  full_name: string;
+  email: string;
+  mobile: string;
+  utr_number: string;
+  payment_date: string;
+  payment_note?: string;
+}): Promise<any> =>
+  publicAxios.post('/api/public/manual-orders/create', data).then(unwrap);
+
+export const getManualOrderStatus = (orderId: string): Promise<any> =>
+  publicAxios.get(`/api/public/manual-orders/${orderId}`).then(unwrap);
+
+export const getPublicPaymentMode = (): Promise<{mode: 'manual'|'razorpay'}> =>
+  publicAxios.get('/api/public/payment-mode').then(unwrap) as Promise<{mode: 'manual'|'razorpay'}>;
