@@ -38,6 +38,7 @@ const navSections: NavSection[] = [
       { href: '/devices', label: 'Devices', icon: MonitorSmartphone },
       { href: '/licenses', label: 'Licenses', icon: KeyRound },
       { href: '/payments', label: 'Payments', icon: CreditCard },
+      { href: '/orders', label: 'Manual Orders', icon: CreditCard },
       { href: '/feedback', label: 'User Feedback', icon: MessageSquareWarning },
     ],
   },
