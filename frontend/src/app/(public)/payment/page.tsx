@@ -166,7 +166,8 @@ function PaymentForm() {
       });
       rzp.open();
     } catch (err: any) {
-      if (err.response?.status === 409 && err.response?.data?.error?.includes('UPI')) {
+      const errorText = err.response?.data?.error || err.response?.data?.message || '';
+      if (err.response?.status === 409 && errorText.includes('UPI')) {
         router.push(`/checkout?plan=${selectedPlanId}${offerPriceParam ? `&offer_price=${offerPriceParam}` : ''}`);
         return;
       }
