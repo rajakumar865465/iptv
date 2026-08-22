@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getOrders, getOrderStats, approveOrder, rejectOrder } from '@/lib/api';
+import { getOrders, getOrderSummary, approveOrder, rejectOrder } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CreditCard, Search, CheckCircle, XCircle, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 
@@ -25,7 +25,7 @@ export default function AdminOrdersPage() {
     setLoading(true);
     Promise.all([
       getOrders({ page, limit: LIMIT, search, status: statusFilter }),
-      getOrderStats()
+      getOrderSummary()
     ]).then(([ordersData, statsData]) => {
       setOrders(ordersData.data || []);
       setTotal(ordersData.pagination?.total || 0);

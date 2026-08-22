@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getPayments, updatePaymentStatus, getPaymentMode, setPaymentMode } from '@/lib/api';
+import { getPayments, updatePaymentStatus, getPaymentSettings, updatePaymentSettings } from '@/lib/api';
 import { motion } from 'framer-motion';
 import { CreditCard, Search, CheckCircle, XCircle, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 
@@ -64,11 +64,11 @@ export default function PaymentsPage() {
 
   const fetchPayments = () => {
     setLoading(true);
-    Promise.all([getPayments(), getPaymentMode()])
+    Promise.all([getPayments(), getPaymentSettings()])
       .then(([d, m]) => {
         setPayments(Array.isArray(d) ? (d as Payment[]) : []);
         setPaymentModeState(m?.mode || 'razorpay');
-      })
+      })})
       .finally(() => setLoading(false));
   };
 
@@ -113,13 +113,13 @@ export default function PaymentsPage() {
         <div className="flex items-center gap-4">
           <div className="flex items-center bg-slate-800 rounded-xl p-1 border border-slate-700">
             <button 
-              onClick={async () => { await setPaymentMode('manual'); setPaymentModeState('manual'); }}
+              onClick={async () => { await updatePaymentSettings({payment_mode: 'manual'}); setPaymentModeState('manual'); }}
               className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${paymentMode === 'manual' ? 'bg-cyan-500 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
             >
               Manual UPI
             </button>
             <button 
-              onClick={async () => { await setPaymentMode('razorpay'); setPaymentModeState('razorpay'); }}
+              onClick={async () => { await updatePaymentSettings({payment_mode: 'razorpay'}); setPaymentModeState('razorpay'); }}
               className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${paymentMode === 'razorpay' ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
             >
               Razorpay

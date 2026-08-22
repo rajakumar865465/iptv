@@ -1,5 +1,5 @@
 import { CheckCircle, Shield, Zap, Headphones } from 'lucide-react';
-import { getPublicPlans, getPublicPaymentMode } from '@/lib/publicApi';
+import { getPublicPlans, getPaymentConfig } from '@/lib/publicApi';
 import PlanCard from '@/components/public/PlanCard';
 import FAQAccordion from '@/components/public/FAQAccordion';
 import OfferTrigger from '@/components/public/OfferTrigger';
@@ -65,7 +65,7 @@ export default async function PricingPage() {
   let plans: Plan[] = [];
   let paymentMode = 'razorpay';
   try {
-    const [pRes, mRes] = await Promise.all([getPublicPlans(), getPublicPaymentMode()]);
+    const [pRes, mRes] = await Promise.all([getPublicPlans(), getPaymentConfig()]);
     plans = pRes;
     paymentMode = mRes.mode;
   } catch {

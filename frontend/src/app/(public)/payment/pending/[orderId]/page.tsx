@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { getManualOrderStatus } from '@/lib/publicApi';
+import { getManualOrder } from '@/lib/publicApi';
 import { Clock, CheckCircle, XCircle, MessageCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
@@ -17,7 +17,7 @@ function PendingPaymentContent() {
 
   const fetchStatus = async () => {
     try {
-      const data = await getManualOrderStatus(orderId as string, { email: email || '' });
+      const data = await getManualOrder(orderId as string, { email: email || '' });
       setOrder(data);
       setLoading(false);
     } catch (err) {
