@@ -68,7 +68,7 @@ export default function PaymentsPage() {
       .then(([d, m]) => {
         setPayments(Array.isArray(d) ? (d as Payment[]) : []);
         setPaymentModeState(m?.mode || 'razorpay');
-      })})
+      })
       .finally(() => setLoading(false));
   };
 

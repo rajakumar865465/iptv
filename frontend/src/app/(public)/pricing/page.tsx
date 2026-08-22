@@ -67,7 +67,7 @@ export default async function PricingPage() {
   try {
     const [pRes, mRes] = await Promise.all([getPublicPlans(), getPaymentConfig()]);
     plans = pRes;
-    paymentMode = mRes.mode;
+    paymentMode = mRes.payment_mode;
   } catch {
     // Backend not available during build, use empty
   }
