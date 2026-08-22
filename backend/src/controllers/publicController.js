@@ -6,6 +6,7 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const Razorpay = require('razorpay');
 const { verifyToken } = require('../utils/jwt');
+const paymentSettings = require('../services/paymentSettings');
 
 const downloadDir = path.join(__dirname, '..', '..', 'public', 'downloads');
 if (!fs.existsSync(downloadDir)) {
@@ -360,6 +361,15 @@ exports.createOrder = async (req, res) => {
         email,
         mobile,
       }, 'Free order created');
+    }
+
+    // Paid plans go through the gateway, so this path is only open when the admin
+    // has Razorpay selected as the payment mode. The manual UPI flow lives in
+    // manualOrderController; nothing about the gateway integration is removed when
+    // it is switched off.
+    const activeMode = await paymentSettings.getPaymentMode();
+    if (!paymentSettings.isFlowEnabled(activeMode, 'razorpay')) {
+      return error(res, 'Online gateway payment is currently disabled. Please refresh the page to continue with UPI.', 409);
     }
 
     let razorpay;

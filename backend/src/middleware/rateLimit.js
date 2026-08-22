@@ -81,5 +81,30 @@ const channelReportLimiter = rateLimit({
   },
 });
 
+// Manual UPI payment submissions. Each one creates a pending order that a human
+// has to review, so the ceiling is deliberately low — this is the throttle that
+// stops someone flooding the admin verification queue with bogus UTRs.
+const manualOrderLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 8,
+  keyGenerator: ipKeyGenerator,
+  validate: { trustProxy: false },
+  handler: (req, res, next, options) => {
+    res.status(429).json({ success: false, message: 'Too many payment submissions. Please try again later or contact support on WhatsApp.' });
+  },
+});
 
-module.exports = { standardLimiter, apiLimiter, searchLimiter, authLimiter, refreshLimiter, channelReportLimiter };
+// Looking up a pending order (polled by the payment-status page). Order ids are
+// random, but this still caps brute-force enumeration attempts.
+const orderLookupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  keyGenerator: ipKeyGenerator,
+  validate: { trustProxy: false },
+  handler: (req, res, next, options) => {
+    res.status(429).json({ success: false, message: 'Too many order lookups. Please wait a moment and try again.' });
+  },
+});
+
+
+module.exports = { standardLimiter, apiLimiter, searchLimiter, authLimiter, refreshLimiter, channelReportLimiter, manualOrderLimiter, orderLookupLimiter };

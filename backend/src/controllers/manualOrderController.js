@@ -18,6 +18,28 @@ const MAX_PENDING_PER_CUSTOMER = 3;
 const UTR_MIN = 6;
 const UTR_MAX = 32;
 
+// Scratch-card offer — the only case where the charged amount differs from the
+// plan's list price. Both the eligible plan and the permitted prices are fixed
+// here on the server (mirroring publicController.createOrder), so the browser
+// still cannot name its own price.
+const OFFER_PLAN_SLUGS = ['seven-days-offer', 'seven-days', 'seven-days-trial'];
+const VALID_OFFER_PRICES = [29, 39, 49];
+
+/** @returns {{amountRupees?: number, isOffer?: boolean, problem?: string}} */
+function resolveAmountRupees(plan, offerPrice) {
+  if (offerPrice === undefined || offerPrice === null || offerPrice === '') {
+    return { amountRupees: Number(plan.price), isOffer: false };
+  }
+  if (!OFFER_PLAN_SLUGS.includes(plan.slug)) {
+    return { problem: 'This plan is not eligible for an offer price' };
+  }
+  const op = Number(offerPrice);
+  if (!VALID_OFFER_PRICES.includes(op)) {
+    return { problem: 'Invalid offer price' };
+  }
+  return { amountRupees: op, isOffer: true };
+}
+
 /** Uppercase + strip everything that isn't alphanumeric, so spacing/case can't defeat dedupe. */
 function normalizeUtr(raw) {
   return String(raw ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -100,7 +122,11 @@ exports.getCheckout = async (req, res) => {
     const settings = await paymentSettings.getPaymentSettings();
     const manualProblems = paymentSettings.validateManualConfig(settings);
     const manualEnabled = paymentSettings.isFlowEnabled(settings.payment_mode, 'manual');
-    const amountRupees = Number(plan.price);
+
+    // A scratch-card offer price is validated against the server-side allowlist.
+    const resolved = resolveAmountRupees(plan, req.query.offer_price);
+    if (resolved.problem) return error(res, resolved.problem, 400);
+    const amountRupees = resolved.amountRupees;
 
     const payload = {
       plan: {
@@ -108,12 +134,14 @@ exports.getCheckout = async (req, res) => {
         name: plan.name,
         slug: plan.slug,
         price: amountRupees,
+        list_price: Number(plan.price),
         duration_days: plan.duration_days,
         max_devices: plan.max_devices,
         description: plan.description,
       },
       amount: amountRupees,
       amount_display: `₹${amountRupees.toFixed(2)}`,
+      is_offer: resolved.isOffer,
       currency: settings.payment_currency,
       payment_mode: settings.payment_mode,
       manual_available: manualEnabled && manualProblems.length === 0,
@@ -157,7 +185,7 @@ exports.getCheckout = async (req, res) => {
 exports.createManualOrder = async (req, res) => {
   const client = await db.pool.connect();
   try {
-    const { plan_id, full_name, email, mobile, utr_number, payment_date, payment_note } = req.body || {};
+    const { plan_id, full_name, email, mobile, utr_number, payment_date, payment_note, offer_price } = req.body || {};
 
     // ── Mode gate: enforced on the server, not just hidden in the UI ──
     const settings = await paymentSettings.getPaymentSettings();
@@ -210,7 +238,10 @@ exports.createManualOrder = async (req, res) => {
     const plan = await loadPlan(planId);
     if (!plan) return error(res, 'Selected plan is not available', 404);
 
-    const amountRupees = Number(plan.price);
+    const resolved = resolveAmountRupees(plan, offer_price);
+    if (resolved.problem) return error(res, resolved.problem, 400);
+
+    const amountRupees = resolved.amountRupees;
     if (!(amountRupees > 0)) {
       return error(res, 'This plan is free and does not require a UPI payment. Please claim it from the pricing page.', 400);
     }

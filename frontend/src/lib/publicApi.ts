@@ -216,19 +216,116 @@ export interface OfferPlan {
 export const getSevenDayOffer = (): Promise<OfferPlan> =>
   publicAxios.get('/api/public/offers/7day').then(unwrap) as Promise<OfferPlan>;
 
+// ─── Manual UPI payment flow ─────────────────────────────────────────────────
+// The customer pays from their own UPI app and submits the reference number.
+// That only records a *claim*; an admin still has to verify the money arrived.
+
+export type PaymentMode = 'razorpay' | 'manual' | 'both';
+
+export interface PaymentConfig {
+  payment_mode: PaymentMode;
+  /** True only when manual mode is active AND actually configured (UPI ID + WhatsApp). */
+  manual_available: boolean;
+  razorpay_available: boolean;
+  upi_id: string;
+  upi_merchant_name: string;
+  whatsapp_admin_number: string;
+  currency: string;
+  payment_qr_url: string;
+  instructions: string;
+}
+
+export interface CheckoutDetails {
+  plan: {
+    id: number;
+    name: string;
+    slug: string;
+    price: number;
+    list_price: number;
+    duration_days: number;
+    max_devices: number;
+    description: string;
+  };
+  /** Server-decided amount in rupees. Never compute this in the browser. */
+  amount: number;
+  amount_display: string;
+  is_offer: boolean;
+  currency: string;
+  payment_mode: PaymentMode;
+  manual_available: boolean;
+  razorpay_available: boolean;
+  is_free: boolean;
+  upi_id: string;
+  upi_merchant_name: string;
+  whatsapp_admin_number: string;
+  /** `upi://pay?...` deep link, built server-side from the DB amount. */
+  upi_uri: string | null;
+  /** Data-URL PNG of the UPI QR, generated server-side. */
+  qr_data_url: string | null;
+  payment_qr_url: string;
+  instructions: string;
+}
+
+export interface ManualOrder {
+  order_id: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired' | string;
+  payment_mode: string;
+  plan_name: string;
+  duration_days: number | null;
+  amount: number;
+  currency: string;
+  customer_name: string;
+  email: string;
+  mobile: string;
+  /** Masked — only the last 4 characters are ever returned. */
+  utr_number: string;
+  submitted_at: string | null;
+  created_at: string;
+  approved_at: string | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
+  license_key: string | null;
+  license_status: string | null;
+  subscription_start: string | null;
+  subscription_expiry: string | null;
+  remaining_days: number;
+  whatsapp_admin_number: string;
+}
+
+export const getPaymentConfig = (): Promise<PaymentConfig> =>
+  publicAxios.get('/api/public/payment-config').then(unwrap) as Promise<PaymentConfig>;
+
+export const getCheckoutDetails = (planId: number, offerPrice?: number): Promise<CheckoutDetails> =>
+  publicAxios
+    .get(`/api/public/checkout/${planId}`, { params: offerPrice ? { offer_price: offerPrice } : undefined })
+    .then(unwrap) as Promise<CheckoutDetails>;
+
 export const createManualOrder = (data: {
   plan_id: number;
   full_name: string;
   email: string;
   mobile: string;
   utr_number: string;
-  payment_date: string;
+  payment_date?: string;
   payment_note?: string;
-}): Promise<any> =>
-  publicAxios.post('/api/public/manual-orders/create', data).then(unwrap);
+  offer_price?: number;
+}): Promise<ManualOrder> =>
+  publicAxios.post('/api/public/manual-orders', data).then(unwrap) as Promise<ManualOrder>;
 
-export const getManualOrderStatus = (orderId: string): Promise<any> =>
-  publicAxios.get(`/api/public/manual-orders/${orderId}`).then(unwrap);
+/**
+ * Looking up an order needs the email or mobile used at checkout — an order id
+ * alone is not enough, since it travels through WhatsApp.
+ */
+export const getManualOrder = (
+  orderId: string,
+  contact: { email?: string; mobile?: string }
+): Promise<ManualOrder> =>
+  publicAxios
+    .get(`/api/public/manual-orders/${encodeURIComponent(orderId)}`, { params: contact })
+    .then(unwrap) as Promise<ManualOrder>;
 
-export const getPublicPaymentMode = (): Promise<{mode: 'manual'|'razorpay'}> =>
-  publicAxios.get('/api/public/payment-mode').then(unwrap) as Promise<{mode: 'manual'|'razorpay'}>;
+/** Builds a wa.me link that works on Android, iPhone and Desktop Web. */
+export function buildWhatsAppLink(adminNumber: string, message: string): string {
+  const digits = String(adminNumber || '').replace(/\D/g, '');
+  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+}

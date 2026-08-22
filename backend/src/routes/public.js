@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { authLimiter, apiLimiter } = require('../middleware/rateLimit');
+const { authLimiter, apiLimiter, manualOrderLimiter, orderLookupLimiter } = require('../middleware/rateLimit');
 const pub = require('../controllers/publicController');
 const manualOrderController = require('../controllers/manualOrderController');
-const adminOrderController = require('../controllers/adminOrderController');
 
 // Read-only public data
 router.get('/plans', apiLimiter, pub.getPlans);
@@ -13,15 +12,17 @@ router.get('/categories', apiLimiter, pub.getCategories);
 router.get('/app/download', apiLimiter, pub.getAppDownload);
 router.get('/settings', apiLimiter, pub.getSettings);
 
-// Payment flow — strict rate limiting
+// Razorpay gateway flow — strict rate limiting.
+// Kept intact; only reachable while the admin has Razorpay as the payment mode.
 router.post('/orders/create', authLimiter, pub.createOrder);
 router.post('/payments/verify', authLimiter, pub.verifyPayment);
 router.get('/payments/status/:orderId', apiLimiter, pub.getOrderStatus);
 
-// Manual Payment Flow
-router.post('/manual-orders/create', authLimiter, manualOrderController.createManualOrder);
-router.get('/manual-orders/:orderId', apiLimiter, manualOrderController.getManualOrder);
-router.get('/payment-mode', apiLimiter, adminOrderController.getPaymentMode);
+// Manual UPI flow — which checkout is live, server-built QR, UTR submission, status
+router.get('/payment-config', apiLimiter, manualOrderController.getPaymentConfig);
+router.get('/checkout/:planId', apiLimiter, manualOrderController.getCheckout);
+router.post('/manual-orders', manualOrderLimiter, manualOrderController.createManualOrder);
+router.get('/manual-orders/:orderId', orderLookupLimiter, manualOrderController.getManualOrder);
 
 // License check — use stricter auth limiter to prevent key enumeration
 router.post('/license/check', authLimiter, pub.checkLicense);

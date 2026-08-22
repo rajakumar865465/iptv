@@ -4,6 +4,7 @@ const { hashPassword, comparePassword } = require('../utils/password');
 const { generateToken, generateRefreshToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
 const { sendMail } = require('../utils/mailer');
+const { remainingDays } = require('../services/subscriptionService');
 
 const OTP_LIFETIME_MINUTES = 10;
 
@@ -380,26 +381,58 @@ exports.me = async (req, res) => {
 exports.myPurchases = async (req, res) => {
   try {
     const licensesResult = await db.query(
-      `SELECT l.*, p.name as plan_name 
-       FROM licenses l 
-       LEFT JOIN plans p ON l.plan_id = p.id 
-       WHERE l.user_id = $1 
+      `SELECT l.*, p.name as plan_name
+       FROM licenses l
+       LEFT JOIN plans p ON l.plan_id = p.id
+       WHERE l.user_id = $1
        ORDER BY l.created_at DESC`,
       [req.user.id]
     );
 
+    // Scoped strictly to the account id. Matching on email as well would expose a
+    // guest checkout's order (including its UTR) to anyone who later registers with
+    // that address — guests use the order-status page instead, which requires the
+    // email or mobile they typed at checkout.
     const ordersResult = await db.query(
-      `SELECT o.order_id, o.amount, o.status, o.created_at, p.name as plan_name 
-       FROM public_orders o 
-       LEFT JOIN plans p ON o.plan_id = p.id 
-       WHERE o.user_id = $1 
+      `SELECT o.order_id, o.amount, o.currency, o.status, o.payment_mode, o.created_at,
+              o.submitted_at, o.approved_at, o.rejected_at, o.rejection_reason,
+              o.utr_number, o.payment_date,
+              COALESCE(o.plan_name_snapshot, p.name) as plan_name,
+              COALESCE(o.duration_days_snapshot, p.duration_days) as duration_days
+       FROM public_orders o
+       LEFT JOIN plans p ON o.plan_id = p.id
+       WHERE o.user_id = $1
        ORDER BY o.created_at DESC`,
       [req.user.id]
     );
 
+    // Current subscription = the licence with the furthest future expiry. Expiry is
+    // judged here rather than trusting `status`, so a delayed expiry job can't keep
+    // showing a lapsed plan as active.
+    const now = new Date();
+    const activeLicense = licensesResult.rows
+      .filter(l => l.status === 'active' && l.expires_at && new Date(l.expires_at) > now)
+      .sort((a, b) => new Date(b.expires_at) - new Date(a.expires_at))[0] || null;
+
+    const subscription = activeLicense
+      ? {
+          plan_name: activeLicense.plan_name,
+          status: 'active',
+          license_key: activeLicense.license_key,
+          start_date: activeLicense.activated_at,
+          expiry_date: activeLicense.expires_at,
+          remaining_days: remainingDays(activeLicense.expires_at, now),
+          max_devices: activeLicense.max_devices,
+        }
+      : null;
+
     success(res, {
       licenses: licensesResult.rows,
-      orders: ordersResult.rows
+      // public_orders.amount is stored in paise; expose rupees for display.
+      orders: ordersResult.rows.map(o => ({ ...o, amount: Number(o.amount || 0) / 100 })),
+      subscription,
+      // A pending manual payment awaiting admin verification, if any.
+      pending_order: ordersResult.rows.find(o => o.status === 'pending')?.order_id || null,
     });
   } catch (err) {
     console.error('Failed to fetch purchases:', err);

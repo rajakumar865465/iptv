@@ -123,27 +123,31 @@ export const getPayments = () =>
 export const updatePaymentStatus = (id: string, status: string) =>
   api.put(`/payments/${id}/status`, { status }).then((r) => r.data.data);
 
-// --- Manual Orders ---
+// --- Manual UPI Orders (verification queue) ---
+// Keyed on the human-readable order_id (NIVA-...), which is what the customer
+// quotes over WhatsApp.
 export const getOrders = (params?: Record<string, unknown>) =>
   api.get('/orders', { params }).then((r) => r.data.data);
 
-export const getOrderStats = () =>
-  api.get('/orders/stats').then((r) => r.data.data);
+export const getOrderSummary = () =>
+  api.get('/orders/summary').then((r) => r.data.data);
 
-export const getOrderDetail = (id: string) =>
-  api.get(`/orders/${id}`).then((r) => r.data.data);
+export const getOrderDetail = (orderId: string) =>
+  api.get(`/orders/${encodeURIComponent(orderId)}`).then((r) => r.data.data);
 
-export const approveOrder = (id: string) =>
-  api.post(`/orders/${id}/approve`).then((r) => r.data.data);
+/** The only call that activates a subscription. Requires bank/UPI verification first. */
+export const approveOrder = (orderId: string) =>
+  api.post(`/orders/${encodeURIComponent(orderId)}/approve`).then((r) => r.data.data);
 
-export const rejectOrder = (id: string, reason: string) =>
-  api.post(`/orders/${id}/reject`, { reason }).then((r) => r.data.data);
+export const rejectOrder = (orderId: string, reason: string) =>
+  api.post(`/orders/${encodeURIComponent(orderId)}/reject`, { reason }).then((r) => r.data.data);
 
-export const getPaymentMode = () =>
-  api.get('/payment-mode').then((r) => r.data.data);
+// --- Payment mode switch (manual UPI ⇄ Razorpay) ---
+export const getPaymentSettings = () =>
+  api.get('/payment-settings').then((r) => r.data.data);
 
-export const setPaymentMode = (mode: string) =>
-  api.put('/payment-mode', { mode }).then((r) => r.data.data);
+export const updatePaymentSettings = (data: Record<string, unknown>) =>
+  api.put('/payment-settings', data).then((r) => r.data.data);
 
 export const getChannels = (params?: Record<string, unknown>) =>
   api.get('/channels', { params }).then((r) => r.data.data || r.data);

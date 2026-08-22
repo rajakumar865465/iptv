@@ -79,16 +79,19 @@ router.delete('/plans/:id', planController.deletePlan);
 router.get('/payments', adminController.getPayments);
 router.put('/payments/:id/status', adminController.updatePaymentStatus);
 
-// ─── Manual Orders ────────────────────────────────
+// ─── Manual UPI Orders (verification queue) ───────
+// Keyed on the human-readable order_id (NIVA-...), which is what appears in the
+// customer's WhatsApp message. /summary is declared before /:orderId so it is not
+// swallowed by the param route.
 router.get('/orders', adminOrderController.getOrders);
-router.get('/orders/stats', adminOrderController.getOrderStats);
-router.get('/orders/:id', adminOrderController.getOrderDetail);
-router.post('/orders/:id/approve', adminOrderController.approveOrder);
-router.post('/orders/:id/reject', adminOrderController.rejectOrder);
+router.get('/orders/summary', adminOrderController.getOrderSummary);
+router.get('/orders/:orderId', adminOrderController.getOrderDetail);
+router.post('/orders/:orderId/approve', adminOrderController.approveOrder);
+router.post('/orders/:orderId/reject', adminOrderController.rejectOrder);
 
-// ─── Payment Mode ─────────────────────────────────
-router.get('/payment-mode', adminOrderController.getPaymentMode);
-router.put('/payment-mode', adminOrderController.setPaymentMode);
+// ─── Payment mode switch (manual UPI ⇄ Razorpay) ──
+router.get('/payment-settings', adminOrderController.getPaymentSettings);
+router.put('/payment-settings', adminOrderController.updatePaymentSettings);
 
 // ─── Channels ─────────────────────────────────────
 router.post('/channels', adminController.createChannel);
