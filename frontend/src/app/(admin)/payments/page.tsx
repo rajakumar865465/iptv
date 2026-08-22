@@ -113,13 +113,13 @@ export default function PaymentsPage() {
         <div className="flex items-center gap-4">
           <div className="flex items-center bg-slate-800 rounded-xl p-1 border border-slate-700">
             <button 
-              onClick={async () => { await updatePaymentSettings({payment_mode: 'manual'}); setPaymentModeState('manual'); }}
+              onClick={async () => { try { await updatePaymentSettings({payment_mode: 'manual'}); setPaymentModeState('manual'); } catch(e: any) { alert(e.response?.data?.error || 'Failed to update payment mode'); } }}
               className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${paymentMode === 'manual' ? 'bg-cyan-500 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
             >
               Manual UPI
             </button>
             <button 
-              onClick={async () => { await updatePaymentSettings({payment_mode: 'razorpay'}); setPaymentModeState('razorpay'); }}
+              onClick={async () => { try { await updatePaymentSettings({payment_mode: 'razorpay'}); setPaymentModeState('razorpay'); } catch(e: any) { alert(e.response?.data?.error || 'Failed to update payment mode'); } }}
               className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${paymentMode === 'razorpay' ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
             >
               Razorpay
