@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getPublicPlans, createManualOrder } from '@/lib/publicApi';
+import { getPublicPlans, createManualOrder, getSevenDayOffer, getPaymentConfig } from '@/lib/publicApi';
 import { Copy, CheckCircle, Shield, AlertTriangle } from 'lucide-react';
 import type { Plan } from '@/lib/publicApi';
 
@@ -10,6 +10,7 @@ function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planId = searchParams.get('plan');
+  const offerPrice = searchParams.get('offer_price');
 
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,23 +28,34 @@ function CheckoutContent() {
   
   const [copied, setCopied] = useState(false);
 
-  // You can fetch this from env via a new API, but hardcoding for frontend is okay if injected,
-  // or just using a placeholder if we expect backend to validate.
-  // Actually, we can just use NEXT_PUBLIC_UPI_ID if we had one. Let's assume it's injected via env 
-  // or we just hardcode the display for now and allow admin to change later.
-  // We'll use a placeholder `nivatv@upi` which was asked in the plan.
-  const upiId = 'nivatv@upi';
-  const merchantName = 'NivaTV';
+  const [upiId, setUpiId] = useState('nivatv@upi');
+  const [merchantName, setMerchantName] = useState('NivaTV');
 
   useEffect(() => {
     if (!planId) {
       router.push('/pricing');
       return;
     }
-    getPublicPlans().then(plans => {
-      const p = plans.find(p => p.id.toString() === planId);
+    Promise.all([
+      getPublicPlans(),
+      getPaymentConfig().catch(() => null)
+    ]).then(async ([plans, config]) => {
+      let p = plans.find(p => p.id.toString() === planId);
+      if (!p) {
+        try {
+          const offer = await getSevenDayOffer();
+          if (offer.id.toString() === planId) {
+            p = { ...offer, duration_days: 7 } as unknown as Plan;
+          }
+        } catch(e) {}
+      }
       if (p) setPlan(p);
       else router.push('/pricing');
+      
+      if (config) {
+        if (config.upi_id) setUpiId(config.upi_id);
+        if (config.upi_merchant_name) setMerchantName(config.upi_merchant_name);
+      }
       setLoading(false);
     });
   }, [planId, router]);
@@ -64,6 +76,7 @@ function CheckoutContent() {
       const res = await createManualOrder({
         ...form,
         plan_id: plan.id,
+        ...(offerPrice && { offer_price: Number(offerPrice) }),
       });
       router.push(`/payment/pending/${res.order_id}?email=${encodeURIComponent(form.email)}`);
     } catch (err: any) {
@@ -80,7 +93,8 @@ function CheckoutContent() {
   if (!plan) return null;
 
   // Generate UPI URI
-  const upiUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${plan.price}&cu=INR`;
+  const finalPrice = offerPrice ? Number(offerPrice) : plan.price;
+  const upiUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${finalPrice}&cu=INR`;
   // Using a free QR code generator API for the URI
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUri)}`;
 
@@ -94,7 +108,7 @@ function CheckoutContent() {
           <h3 className="text-slate-400 text-sm mb-1">Selected Plan</h3>
           <div className="flex justify-between items-center">
             <span className="text-xl font-bold text-white">{plan.name}</span>
-            <span className="text-2xl font-black text-indigo-400">₹{Math.round(plan.price)}</span>
+            <span className="text-2xl font-black text-indigo-400">₹{Math.round(finalPrice)}</span>
           </div>
           <p className="text-slate-500 text-sm mt-1">{plan.duration_days} Days Access • {plan.max_devices} Device</p>
         </div>

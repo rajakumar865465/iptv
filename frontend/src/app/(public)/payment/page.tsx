@@ -166,6 +166,10 @@ function PaymentForm() {
       });
       rzp.open();
     } catch (err: any) {
+      if (err.response?.status === 409 && err.response?.data?.error?.includes('UPI')) {
+        router.push(`/checkout?plan=${selectedPlanId}${offerPriceParam ? `&offer_price=${offerPriceParam}` : ''}`);
+        return;
+      }
       const msg = getPublicErrorMessage(err, 'Failed to initiate payment. Please try again.');
       setError(msg);
       setLoading(false);
