@@ -50,6 +50,7 @@ router.post('/maintenance/run-all', maintenanceController.runAll);
 router.get('/users', adminController.getUsers);
 router.get('/users/:id', adminController.getUser);
 router.put('/users/:id/status', adminController.updateUserStatus);
+router.delete('/users/:id', adminController.deleteUser);
 
 // ─── User Feedback ────────────────────────────────
 const userFeedbackController = require('../controllers/userFeedbackController');

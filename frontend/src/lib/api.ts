@@ -81,6 +81,9 @@ export const getUser = (id: string) =>
 export const updateUserStatus = (id: string, status: string) =>
   api.put(`/users/${id}/status`, { status }).then((r) => r.data.data);
 
+export const deleteUser = (id: string) =>
+  api.delete(`/users/${id}`).then((r) => r.data.data);
+
 export const getDevices = (params?: Record<string, string>) =>
   api.get('/devices', { params }).then((r) => r.data.data);
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getUsers, getUser, getDevices, getLicenses, getPayments, updateUserStatus } from '@/lib/api';
+import { getUsers, getUser, getDevices, getLicenses, getPayments, updateUserStatus, deleteUser } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, UserCheck, UserX, Shield, Clock, X, MonitorSmartphone, KeyRound, CreditCard, MoreHorizontal, AlertTriangle } from 'lucide-react';
 
@@ -113,6 +113,22 @@ export default function UsersPage() {
           setUsers(prev => prev.map(user => user.id === u.id ? { ...user, status: newStatus } : user));
           if (selectedUser?.id === u.id) setSelectedUser(prev => prev ? { ...prev, status: newStatus } : null);
         } catch { alert('Failed to update status'); }
+      }
+    );
+  };
+
+  const handleDeleteUser = async (u: User) => {
+    requestConfirm(
+      'Delete User',
+      'Are you sure you want to permanently delete this user? This action cannot be undone and will delete all their licenses, devices, and history.',
+      'Delete',
+      'rose',
+      async () => {
+        try {
+          await deleteUser(u.id);
+          setUsers(prev => prev.filter(user => user.id !== u.id));
+          if (selectedUser?.id === u.id) setSelectedUser(null);
+        } catch { alert('Failed to delete user'); }
       }
     );
   };
@@ -231,10 +247,16 @@ export default function UsersPage() {
               <div className="p-4 border-t border-slate-700 flex justify-end gap-2 shrink-0">
                 <button onClick={() => setSelectedUser(null)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 font-semibold hover:bg-slate-700 border border-slate-700">Close</button>
                 {selectedUser?.role !== 'admin' && (
-                  <button onClick={() => selectedUser && handleStatusChange(selectedUser)}
-                    className={`px-4 py-2 rounded-xl font-semibold ${selectedUser?.status === 'active' ? 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30'}`}>
-                    {selectedUser?.status === 'active' ? 'Block User' : 'Unblock User'}
-                  </button>
+                  <>
+                    <button onClick={() => selectedUser && handleDeleteUser(selectedUser)}
+                      className="px-4 py-2 rounded-xl font-semibold bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-500/20">
+                      Delete User
+                    </button>
+                    <button onClick={() => selectedUser && handleStatusChange(selectedUser)}
+                      className={`px-4 py-2 rounded-xl font-semibold ${selectedUser?.status === 'active' ? 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30'}`}>
+                      {selectedUser?.status === 'active' ? 'Block User' : 'Unblock User'}
+                    </button>
+                  </>
                 )}
               </div>
             </motion.div>

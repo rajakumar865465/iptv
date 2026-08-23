@@ -133,6 +133,49 @@ exports.updateUserStatus = async (req, res) => {
   }
 };
 
+exports.deleteUser = async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    const { id } = req.params;
+    await client.query('BEGIN');
+    
+    // Check if user exists
+    const userResult = await client.query('SELECT * FROM users WHERE id = $1 FOR UPDATE', [id]);
+    if (userResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return error(res, 'User not found', 404);
+    }
+    
+    // Prevent deleting admins
+    if (userResult.rows[0].role === 'admin') {
+      await client.query('ROLLBACK');
+      return error(res, 'Cannot delete an admin user', 403);
+    }
+    
+    // Delete dependent records
+    await client.query('DELETE FROM watch_history WHERE user_id = $1', [id]);
+    await client.query('DELETE FROM devices WHERE user_id = $1', [id]);
+    await client.query('DELETE FROM licenses WHERE user_id = $1', [id]);
+    // Set user_id to NULL for payments to keep financial records intact
+    await client.query('UPDATE payments SET user_id = NULL WHERE user_id = $1', [id]);
+    await client.query('UPDATE public_orders SET user_id = NULL WHERE user_id = $1', [id]);
+    
+    // Delete user
+    await client.query('DELETE FROM users WHERE id = $1', [id]);
+    
+    await logAdminAction(req, req.user.id, 'delete_user', 'users', id);
+    
+    await client.query('COMMIT');
+    success(res, null, 'User deleted successfully');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('deleteUser error:', err);
+    error(res, 'Failed to delete user', 500);
+  } finally {
+    client.release();
+  }
+};
+
 // Licenses
 exports.createLicense = async (req, res) => {
   try {
