@@ -63,13 +63,15 @@
             </svg>
         </div>
         <h2>Payment Successful!</h2>
-        <p>Your license has been activated. Returning to the app...</p>
+        <p>Your license has been activated. Returning...</p>
     </div>
 
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script>
         const config = {{{RAZORPAY_CONFIG}}};
         const token = "{{TOKEN}}";
+        const verifyUrl = "{{VERIFY_URL}}";
+        const returnUrl = "{{RETURN_URL}}";
         
         const options = {
             "key": config.key,
@@ -85,12 +87,14 @@
                 document.getElementById("loading-state").classList.add("hidden");
                 document.getElementById("success-state").classList.remove("hidden");
                 
-                fetch("/api/payments/razorpay/verify", {
+                let headers = { "Content-Type": "application/json" };
+                if (token) {
+                    headers["Authorization"] = "Bearer " + token;
+                }
+
+                fetch(verifyUrl, {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": "Bearer " + token
-                    },
+                    headers: headers,
                     body: JSON.stringify({
                         razorpay_payment_id: response.razorpay_payment_id,
                         razorpay_order_id: response.razorpay_order_id,
@@ -100,20 +104,26 @@
                 .then(res => res.json())
                 .then(data => {
                     setTimeout(() => {
-                        if (window.PaymentBridge) {
+                        if (returnUrl) {
+                            window.location.href = returnUrl + "?order_id=" + response.razorpay_order_id;
+                        } else if (window.PaymentBridge) {
                             window.PaymentBridge.postMessage(JSON.stringify({ status: "success" }));
                         }
                     }, 2000);
                 })
                 .catch(err => {
-                    if (window.PaymentBridge) {
+                    if (returnUrl) {
+                        window.location.href = returnUrl + "?order_id=" + response.razorpay_order_id;
+                    } else if (window.PaymentBridge) {
                         window.PaymentBridge.postMessage(JSON.stringify({ status: "success" }));
                     }
                 });
             },
             "modal": {
                 "ondismiss": function() {
-                    if (window.PaymentBridge) {
+                    if (returnUrl) {
+                        window.location.href = returnUrl.replace("/success", "/failed") + "?order_id=" + config.order_id;
+                    } else if (window.PaymentBridge) {
                         window.PaymentBridge.postMessage(JSON.stringify({ status: "cancelled" }));
                     }
                 }

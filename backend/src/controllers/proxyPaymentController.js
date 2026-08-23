@@ -5,10 +5,10 @@ const { error } = require("../utils/response");
 
 exports.serveCheckoutPage = async (req, res) => {
   try {
-    const { order_id, token } = req.query;
+    const { order_id, token, type, return_url } = req.query;
 
-    if (!order_id || !token) {
-      return res.status(400).send("Missing order_id or token");
+    if (!order_id) {
+      return res.status(400).send("Missing order_id");
     }
 
     // Verify order exists
@@ -31,13 +31,17 @@ exports.serveCheckoutPage = async (req, res) => {
       order_id: order_id
     };
 
+    const verifyUrl = type === "public" ? "/api/public/payments/verify" : "/api/payments/razorpay/verify";
+
     // Load HTML template
     const templatePath = path.join(__dirname, "../views/proxy_checkout.html");
     let html = fs.readFileSync(templatePath, "utf8");
 
     // Inject config
     html = html.replace("{{{RAZORPAY_CONFIG}}}", JSON.stringify(config));
-    html = html.replace("{{TOKEN}}", token);
+    html = html.replace("{{TOKEN}}", token || "");
+    html = html.replace("{{VERIFY_URL}}", verifyUrl);
+    html = html.replace("{{RETURN_URL}}", return_url || "");
 
     res.setHeader("Content-Type", "text/html");
     res.send(html);

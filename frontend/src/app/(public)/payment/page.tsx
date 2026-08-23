@@ -120,11 +120,6 @@ function PaymentForm() {
     if (!selectedPlanId) return setError('Please select a plan.');
 
     setLoading(true);
-    const scriptLoaded = await loadRazorpay();
-    if (!scriptLoaded || !window.Razorpay) {
-      setLoading(false);
-      return setError('Payment gateway not loaded. Please check your adblocker or refresh.');
-    }
     try {
       const order = await createOrder({ plan_id: selectedPlanId, ...form, offer_price: offerPriceParam });
 
@@ -137,34 +132,9 @@ function PaymentForm() {
         throw new Error('Payment gateway not configured. Please contact support.');
       }
 
-      const rzp = new window.Razorpay({
-        key: order.key_id,
-        amount: order.amount,
-        currency: order.currency,
-        name: 'NivaTV',
-        description: order.plan_name,
-        order_id: order.order_id,
-        prefill: { name: order.customer_name, email: order.email, contact: order.mobile },
-        theme: { color: '#6366f1' },
-        handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
-          try {
-            await verifyPayment({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            });
-            router.push(`/payment/success?order_id=${response.razorpay_order_id}`);
-          } catch (err: any) {
-            const msg = getPublicErrorMessage(err, 'Payment verification failed. Please contact support.');
-            alert(msg);
-            router.push(`/payment/failed?order_id=${response.razorpay_order_id}`);
-          }
-        },
-        modal: {
-          ondismiss: () => setLoading(false),
-        },
-      });
-      rzp.open();
+      // Redirect to proxy checkout
+      const returnUrl = encodeURIComponent(`${window.location.origin}/payment/success`);
+      window.location.href = `https://luxomall.pdf-cropper.site/api/proxy/checkout?order_id=${order.order_id}&type=public&return_url=${returnUrl}`;
     } catch (err: any) {
       const errorText = err.response?.data?.error || err.response?.data?.message || '';
       if (err.response?.status === 409 && errorText.includes('UPI')) {
