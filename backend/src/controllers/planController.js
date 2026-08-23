@@ -5,10 +5,10 @@ exports.getPlans = async (req, res) => {
   try {
     const { page = 1, limit = 50 } = req.query;
     const offset = (page - 1) * limit;
-    const countResult = await db.query('SELECT COUNT(*) FROM plans');
+    const countResult = await db.query("SELECT COUNT(*) FROM plans WHERE status != 'deleted' OR status IS NULL");
     const total = parseInt(countResult.rows[0].count, 10);
     const result = await db.query(
-      'SELECT * FROM plans ORDER BY sort_order ASC, created_at DESC LIMIT $1 OFFSET $2',
+      "SELECT * FROM plans WHERE status != 'deleted' OR status IS NULL ORDER BY sort_order ASC, created_at DESC LIMIT $1 OFFSET $2",
       [limit, offset]
     );
     success(res, { data: result.rows, pagination: { page: parseInt(page), limit: parseInt(limit), total } });
@@ -51,9 +51,23 @@ exports.updatePlan = async (req, res) => {
 exports.deletePlan = async (req, res) => {
   try {
     const { id } = req.params;
-    await db.query('DELETE FROM plans WHERE id = $1', [id]);
+    
+    // Check if plan has active dependencies
+    const licenses = await db.query('SELECT id FROM licenses WHERE plan_id = $1 LIMIT 1', [id]);
+    const orders = await db.query('SELECT order_id FROM public_orders WHERE plan_id = $1 LIMIT 1', [id]);
+    const manualOrders = await db.query('SELECT order_id FROM manual_orders WHERE plan_id = $1 LIMIT 1', [id]);
+    
+    if (licenses.rowCount > 0 || orders.rowCount > 0 || manualOrders.rowCount > 0) {
+      // Soft delete if referenced
+      await db.query("UPDATE plans SET status = 'deleted', is_visible = false, updated_at = NOW() WHERE id = $1", [id]);
+    } else {
+      // Safe to hard delete
+      await db.query('DELETE FROM plans WHERE id = $1', [id]);
+    }
+    
     success(res, null, 'Plan deleted');
   } catch (err) {
+    console.error('Delete Plan Error:', err);
     error(res, 'Failed to delete plan', 500);
   }
 };
