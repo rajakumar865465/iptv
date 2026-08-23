@@ -53,7 +53,10 @@
     <div id="loading-state">
         <div class="loader"></div>
         <h2>Initializing Payment...</h2>
-        <p>Please wait while we connect securely.</p>
+        <p id="loading-text">Please wait while we connect securely.</p>
+        <button id="manual-btn" class="hidden" style="margin-top: 20px; padding: 12px 24px; background: #1A56DB; border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+            Open Payment Window
+        </button>
     </div>
 
     <div id="success-state" class="hidden">
@@ -130,26 +133,35 @@
             }
         };
 
-        window.onload = function() {
+        try {
+            if (typeof Razorpay === 'undefined') {
+                throw new Error("Razorpay SDK failed to load. Please disable ad-blockers and try again.");
+            }
+            const rzp = new Razorpay(options);
+            rzp.on('payment.failed', function (response) {
+                console.error(response.error);
+            });
+            rzp.open();
+
+            // If browser blocks the automatic popup, show the manual button
             setTimeout(() => {
-                try {
-                    if (typeof Razorpay === 'undefined') {
-                        throw new Error("Razorpay SDK failed to load. Please disable ad-blockers and try again.");
-                    }
-                    const rzp = new Razorpay(options);
-                    rzp.on('payment.failed', function (response) {
-                        console.error(response.error);
-                    });
-                    rzp.open();
-                } catch(err) {
-                    document.getElementById("loading-state").innerHTML = `
-                        <h2 style="color: #EF4444;">Error Loading Payment Gateway</h2>
-                        <p style="color: #EF4444;">${err.message}</p>
-                        <button onclick="window.location.reload()" style="margin-top: 15px; padding: 10px 20px; background: #1A56DB; border: none; border-radius: 8px; color: white; cursor: pointer;">Try Again</button>
-                    `;
+                const btn = document.getElementById("manual-btn");
+                if (btn) {
+                    btn.classList.remove("hidden");
+                    document.getElementById("loading-text").innerText = "If the payment window didn't open automatically, click the button below.";
+                    btn.onclick = function() {
+                        rzp.open();
+                    };
                 }
-            }, 500);
-        };
+            }, 2500);
+
+        } catch(err) {
+            document.getElementById("loading-state").innerHTML = `
+                <h2 style="color: #EF4444;">Error Loading Payment Gateway</h2>
+                <p style="color: #EF4444;">${err.message}</p>
+                <button onclick="window.location.reload()" style="margin-top: 15px; padding: 10px 20px; background: #1A56DB; border: none; border-radius: 8px; color: white; cursor: pointer;">Try Again</button>
+            `;
+        }
     </script>
 </body>
 </html>
