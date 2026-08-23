@@ -55,7 +55,7 @@ export default function PaymentsPage() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [page, setPage] = useState(1); const PAGE = 20;
   
-  const [paymentMode, setPaymentModeState] = useState<'manual'|'razorpay'>('razorpay');
+  const [paymentMode, setPaymentModeState] = useState<'manual'|'razorpay'|'both'>('razorpay');
   // Confirmation modal state
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmConfig, setConfirmConfig] = useState<{ title: string; message: string; confirmText: string; confirmVariant: 'emerald'|'rose'|'amber'; action: () => void }>({
@@ -117,6 +117,12 @@ export default function PaymentsPage() {
               className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${paymentMode === 'manual' ? 'bg-cyan-500 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
             >
               Manual UPI
+            </button>
+            <button 
+              onClick={async () => { try { await updatePaymentSettings({payment_mode: 'both'}); setPaymentModeState('both'); } catch(e: any) { alert(e.response?.data?.error || 'Failed to update payment mode'); } }}
+              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${paymentMode === 'both' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              Both
             </button>
             <button 
               onClick={async () => { try { await updatePaymentSettings({payment_mode: 'razorpay'}); setPaymentModeState('razorpay'); } catch(e: any) { alert(e.response?.data?.error || 'Failed to update payment mode'); } }}
