@@ -55,9 +55,9 @@ exports.deletePlan = async (req, res) => {
     // Check if plan has active dependencies
     const licenses = await db.query('SELECT id FROM licenses WHERE plan_id = $1 LIMIT 1', [id]);
     const orders = await db.query('SELECT order_id FROM public_orders WHERE plan_id = $1 LIMIT 1', [id]);
-    const manualOrders = await db.query('SELECT order_id FROM manual_orders WHERE plan_id = $1 LIMIT 1', [id]);
+    const payments = await db.query('SELECT id FROM payments WHERE plan_id = $1 LIMIT 1', [id]);
     
-    if (licenses.rowCount > 0 || orders.rowCount > 0 || manualOrders.rowCount > 0) {
+    if (licenses.rowCount > 0 || orders.rowCount > 0 || payments.rowCount > 0) {
       // Soft delete if referenced
       await db.query("UPDATE plans SET status = 'deleted', is_visible = false, updated_at = NOW() WHERE id = $1", [id]);
     } else {
