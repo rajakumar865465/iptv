@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getPublicPlans, createManualOrder, getSevenDayOffer, getPaymentConfig } from '@/lib/publicApi';
 import { Copy, CheckCircle, Shield, AlertTriangle } from 'lucide-react';
@@ -31,6 +32,8 @@ function CheckoutContent() {
   const [upiId, setUpiId] = useState('nivatv@upi');
   const [merchantName, setMerchantName] = useState('NivaTV');
 
+  const [paymentMode, setPaymentMode] = useState<string>('manual');
+
   useEffect(() => {
     if (!planId) {
       router.push('/pricing');
@@ -40,6 +43,15 @@ function CheckoutContent() {
       getPublicPlans(),
       getPaymentConfig().catch(() => null)
     ]).then(async ([plans, config]) => {
+      if (config) {
+        setPaymentMode(config.payment_mode || 'manual');
+        if (config.payment_mode === 'razorpay' && !config.manual_available) {
+          router.replace(`/payment?plan_id=${planId}${offerPrice ? `&offer_price=${offerPrice}` : ''}`);
+          return;
+        }
+        if (config.upi_id) setUpiId(config.upi_id);
+        if (config.upi_merchant_name) setMerchantName(config.upi_merchant_name);
+      }
       let p = plans.find(p => p.id.toString() === planId);
       if (!p) {
         try {
@@ -52,13 +64,9 @@ function CheckoutContent() {
       if (p) setPlan(p);
       else router.push('/pricing');
       
-      if (config) {
-        if (config.upi_id) setUpiId(config.upi_id);
-        if (config.upi_merchant_name) setMerchantName(config.upi_merchant_name);
-      }
       setLoading(false);
     });
-  }, [planId, router]);
+  }, [planId, router, offerPrice]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(upiId);
@@ -188,6 +196,18 @@ function CheckoutContent() {
             <Shield className="w-4 h-4" />
             <span>Secure Manual Verification</span>
           </div>
+
+          {paymentMode === 'both' && (
+            <div className="mt-4 pt-4 border-t border-slate-800 text-center">
+              <p className="text-xs text-slate-400 mb-2">Want instant automated activation?</p>
+              <Link 
+                href={`/payment?plan_id=${plan.id}${offerPrice ? `&offer_price=${offerPrice}` : ''}`}
+                className="inline-block text-xs font-semibold text-indigo-400 hover:text-indigo-300 underline"
+              >
+                Pay Online via Razorpay / Cards / Netbanking &rarr;
+              </Link>
+            </div>
+          )}
         </form>
       </div>
     </div>

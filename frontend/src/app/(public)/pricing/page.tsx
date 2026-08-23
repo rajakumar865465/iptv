@@ -6,8 +6,9 @@ import OfferTrigger from '@/components/public/OfferTrigger';
 import type { Metadata } from 'next';
 import type { Plan } from '@/lib/publicApi';
 
-// Revalidate every hour — replaces force-dynamic so Cache-Control is public.
-export const revalidate = 3600;
+// Force dynamic so payment mode switches reflect immediately
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 export const metadata: Metadata = {
   title: 'NivaTV Plans & Pricing — Free-to-Air (FTA) Live TV Player',
   description: 'Affordable convenience licenses to watch 500+ Free-to-Air (FTA) and publicly available Indian live TV channels on Android. Try 1-day free trial.',

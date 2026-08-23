@@ -2,8 +2,9 @@
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Script from 'next/script';
+import Link from 'next/link';
 import { ShieldCheck, Loader2, AlertCircle, Tag } from 'lucide-react';
-import { getPublicPlans, getSevenDayOffer, createOrder, verifyPayment, getPublicErrorMessage } from '@/lib/publicApi';
+import { getPublicPlans, getSevenDayOffer, createOrder, verifyPayment, getPublicErrorMessage, getPaymentConfig } from '@/lib/publicApi';
 import type { Plan } from '@/lib/publicApi';
 import AuthModal from '@/components/auth/AuthModal';
 
@@ -46,6 +47,7 @@ function PaymentForm() {
   const offerPriceParam = params.get('offer_price') ? parseInt(params.get('offer_price')!) : undefined;
   const isOfferFlow = !!offerPriceParam;
 
+  const [paymentMode, setPaymentMode] = useState<string>('razorpay');
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(planIdParam);
   const [form, setForm] = useState({ customer_name: '', email: '', mobile: '' });
@@ -55,6 +57,19 @@ function PaymentForm() {
   const [authOpen, setAuthOpen] = useState(false);
 
   useEffect(() => {
+    // Check payment mode first
+    getPaymentConfig()
+      .then(config => {
+        if (config) {
+          setPaymentMode(config.payment_mode || 'razorpay');
+          if (config.payment_mode === 'manual' && !config.razorpay_available) {
+            router.replace(`/checkout?plan=${planIdParam || ''}${offerPriceParam ? `&offer_price=${offerPriceParam}` : ''}`);
+            return;
+          }
+        }
+      })
+      .catch(() => {});
+
     // Check if logged in to pre-fill form
     const token = localStorage.getItem('adminToken');
     if (token) {
@@ -102,7 +117,7 @@ function PaymentForm() {
         })
         .catch(() => setError('Failed to load plans. Please refresh the page.'));
     }
-  }, []);
+  }, [isOfferFlow, offerPriceParam, planIdParam, router]);
 
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
   const handlePay = useCallback(async () => {
@@ -251,6 +266,18 @@ function PaymentForm() {
             <ShieldCheck className="w-4 h-4 text-green-500" />
             Secured by Razorpay · UPI · Cards · Netbanking
           </div>
+
+          {paymentMode === 'both' && selectedPlan && (
+            <div className="mt-4 pt-4 border-t border-white/10 text-center">
+              <p className="text-xs text-slate-400 mb-2">Prefer direct QR scan & UPI transfer?</p>
+              <Link 
+                href={`/checkout?plan=${selectedPlan.id}${offerPriceParam ? `&offer_price=${offerPriceParam}` : ''}`}
+                className="inline-block text-xs font-semibold text-cyan-400 hover:text-cyan-300 underline"
+              >
+                Pay via Manual UPI App / QR Code &rarr;
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>

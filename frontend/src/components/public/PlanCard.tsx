@@ -1,6 +1,8 @@
 'use client';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Check } from 'lucide-react';
+import { getPaymentConfig } from '@/lib/publicApi';
 import type { Plan } from '@/lib/publicApi';
 
 const FEATURES = [
@@ -106,6 +108,16 @@ interface Props {
 }
 
 export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorpay' }: Props) {
+  const [currentMode, setCurrentMode] = useState<string>(paymentMode);
+
+  useEffect(() => {
+    getPaymentConfig()
+      .then((cfg) => {
+        if (cfg?.payment_mode) setCurrentMode(cfg.payment_mode);
+      })
+      .catch(() => {});
+  }, []);
+
   // Auto-detect variant from backend flags when not explicitly passed
   const resolvedVariant = variant ?? planVariant(plan);
   const isFree = plan.price === 0;
@@ -197,7 +209,7 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
         </ul>
 
         <Link
-          href={paymentMode === 'manual' ? '/checkout?plan=' + plan.id : '/payment?plan_id=' + plan.id}
+          href={currentMode === 'manual' ? '/checkout?plan=' + plan.id : '/payment?plan_id=' + plan.id}
           className={'flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all min-h-[44px] ' + btnClass}
         >
           {buttonText}

@@ -26,9 +26,8 @@ import SEOContent from '@/components/public/SEOContent';
 import type { Metadata } from 'next';
 import type { Plan, Category, Channel } from '@/lib/publicApi';
 
-// Revalidate every hour so Google can cache and index this page.
-// force-dynamic would set Cache-Control: private which prevents indexing.
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: 'NivaTV - Free-to-Air (FTA) Live TV Player | Indian Channels App',
