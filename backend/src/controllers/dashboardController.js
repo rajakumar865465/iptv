@@ -27,7 +27,7 @@ exports.getDashboardStats = async (req, res) => {
         FROM licenses`),
       db.query(`SELECT
         COUNT(*) as total,
-        COALESCE(SUM(amount), 0) as total_revenue,
+        COALESCE(SUM(amount) FILTER (WHERE status = 'completed'), 0) as total_revenue,
         COUNT(*) FILTER (WHERE status = 'completed') as completed,
         COUNT(*) FILTER (WHERE status = 'pending') as pending
         FROM payments`),
