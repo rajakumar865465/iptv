@@ -41,6 +41,7 @@ app.set('trust proxy', 1);
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+  contentSecurityPolicy: false,
 }));
 // Restrict CORS to known origins. For mobile apps the origin is typically
 // null/undefined, so we allow that too. Tighten in production via CORS_ORIGINS env var.
