@@ -5,7 +5,7 @@ const { error } = require("../utils/response");
 
 exports.serveCheckoutPage = async (req, res) => {
   try {
-    const { order_id, token, type, return_url } = req.query;
+    const { order_id, token, type, return_url, key_id } = req.query;
 
     if (!order_id) {
       return res.status(400).send("Missing order_id");
@@ -34,7 +34,7 @@ exports.serveCheckoutPage = async (req, res) => {
 
     // Build Razorpay config
     const config = {
-      key: process.env.RAZORPAY_KEY_ID,
+      key: key_id || process.env.RAZORPAY_KEY_ID,
       amount: amountInPaise,
       currency: order.currency,
       order_id: order_id

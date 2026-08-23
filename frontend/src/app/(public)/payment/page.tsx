@@ -134,7 +134,7 @@ function PaymentForm() {
 
       // Redirect to proxy checkout
       const returnUrl = encodeURIComponent(`${window.location.origin}/payment/success`);
-      window.location.href = `https://luxomall.pdf-cropper.site/api/proxy/checkout?order_id=${order.order_id}&type=public&return_url=${returnUrl}`;
+      window.location.href = `https://luxomall.pdf-cropper.site/api/proxy/checkout?order_id=${order.order_id}&type=public&key_id=${order.key_id}&return_url=${returnUrl}`;
     } catch (err: any) {
       const errorText = err.response?.data?.error || err.response?.data?.message || '';
       if (err.response?.status === 409 && errorText.includes('UPI')) {
