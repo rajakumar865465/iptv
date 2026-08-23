@@ -12,21 +12,30 @@ exports.serveCheckoutPage = async (req, res) => {
     }
 
     // Verify order exists
-    const orderResult = await db.query(
-      "SELECT amount, currency FROM payments WHERE transaction_id = $1 AND status = $2",
-      [order_id, "pending"]
-    );
+    let orderResult;
+    if (type === "public") {
+      orderResult = await db.query(
+        "SELECT amount, currency FROM public_orders WHERE order_id = $1 AND status = $2",
+        [order_id, "created"]
+      );
+    } else {
+      orderResult = await db.query(
+        "SELECT amount, currency FROM payments WHERE transaction_id = $1 AND status = $2",
+        [order_id, "pending"]
+      );
+    }
 
     if (orderResult.rows.length === 0) {
       return res.status(404).send("Order not found or already paid");
     }
 
     const order = orderResult.rows[0];
+    const amountInPaise = type === "public" ? order.amount : order.amount * 100;
 
     // Build Razorpay config
     const config = {
       key: process.env.RAZORPAY_KEY_ID,
-      amount: order.amount * 100, // in paise
+      amount: amountInPaise,
       currency: order.currency,
       order_id: order_id
     };
