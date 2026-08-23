@@ -69,6 +69,8 @@ router.put('/licenses/:id', adminController.updateLicense);
 router.post('/licenses/:id/extend', adminController.extendLicense);
 router.post('/licenses/:id/suspend', adminController.suspendLicense);
 router.post('/licenses/:id/revoke', adminController.revokeLicense);
+router.post('/licenses/:id/expire', adminController.expireLicense);
+router.delete('/licenses/:id', adminController.deleteLicense);
 
 // ─── Plans ────────────────────────────────────────
 router.get('/plans', planController.getPlans);

@@ -308,6 +308,40 @@ exports.revokeLicense = async (req, res) => {
   }
 };
 
+exports.expireLicense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      "UPDATE licenses SET status = 'expired', updated_at = NOW() WHERE id = $1 RETURNING *",
+      [id]
+    );
+    if (result.rows.length === 0) return error(res, 'License not found', 404);
+
+    await logAdminAction(req, req.user.id, 'expire_license', 'licenses', id);
+
+    success(res, result.rows[0], 'License expired');
+  } catch (err) {
+    error(res, 'Failed to expire license', 500);
+  }
+};
+
+exports.deleteLicense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      'DELETE FROM licenses WHERE id = $1 RETURNING *',
+      [id]
+    );
+    if (result.rows.length === 0) return error(res, 'License not found', 404);
+
+    await logAdminAction(req, req.user.id, 'delete_license', 'licenses', id);
+
+    success(res, result.rows[0], 'License deleted');
+  } catch (err) {
+    error(res, 'Failed to delete license', 500);
+  }
+};
+
 // Channels
 exports.createChannel = async (req, res) => {
   try {

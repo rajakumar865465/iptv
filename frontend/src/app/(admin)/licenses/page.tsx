@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getLicenses, getPlans, createLicense, extendLicense, suspendLicense, revokeLicense, getErrorMessage } from '@/lib/api';
+import { getLicenses, getPlans, createLicense, extendLicense, suspendLicense, revokeLicense, expireLicense, deleteLicense, getErrorMessage } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, KeyRound, X, Copy, Check, Search, RefreshCw, ChevronLeft, ChevronRight, Download, AlertTriangle } from 'lucide-react';
 
@@ -235,7 +235,9 @@ export default function LicensesPage() {
                         <div className="flex items-center justify-end gap-1.5">
                           {['active','unused'].includes(l.status) && <button disabled={actionId===l.id} onClick={() => requestConfirm('Extend License', `Add 30 days to this license?`, 'Extend', 'cyan', () => act(extendLicense(l.id, 30), l.id))} className="px-2 py-1 text-xs rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/10 border border-slate-700 disabled:opacity-50">+30d</button>}
                           {l.status === 'active' && <button disabled={actionId===l.id} onClick={() => requestConfirm('Suspend License', 'This will temporarily disable the license. You can reactivate it later.', 'Suspend', 'amber', () => act(suspendLicense(l.id), l.id))} className="px-2 py-1 text-xs rounded-lg bg-slate-800 text-amber-400 hover:bg-amber-500/10 border border-slate-700 disabled:opacity-50">Suspend</button>}
+                          {l.status === 'active' && <button disabled={actionId===l.id} onClick={() => requestConfirm('Expire License', 'This will manually set the license as expired.', 'Expire', 'amber', () => act(expireLicense(l.id), l.id))} className="px-2 py-1 text-xs rounded-lg bg-slate-800 text-amber-400 hover:bg-amber-500/10 border border-slate-700 disabled:opacity-50">Expire</button>}
                           {!['revoked','expired'].includes(l.status) && <button disabled={actionId===l.id} onClick={() => requestConfirm('Revoke License', 'This will permanently revoke the license. The user will lose access immediately. This cannot be undone.', 'Revoke', 'rose', () => act(revokeLicense(l.id), l.id))} className="px-2 py-1 text-xs rounded-lg bg-slate-800 text-rose-400 hover:bg-rose-500/10 border border-slate-700 disabled:opacity-50">Revoke</button>}
+                          <button disabled={actionId===l.id} onClick={() => requestConfirm('Delete License', 'Are you sure you want to permanently delete this license? This action cannot be undone.', 'Delete', 'rose', () => act(deleteLicense(l.id), l.id))} className="px-2 py-1 text-xs rounded-lg bg-slate-800 text-rose-400 hover:bg-rose-500/10 border border-slate-700 disabled:opacity-50">Delete</button>
                         </div>
                       </td>
                     </tr>

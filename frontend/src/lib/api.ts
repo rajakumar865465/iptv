@@ -108,6 +108,12 @@ export const suspendLicense = (id: string) =>
 export const revokeLicense = (id: string) =>
   api.post(`/licenses/${id}/revoke`).then((r) => r.data.data);
 
+export const expireLicense = (id: string) =>
+  api.post(`/licenses/${id}/expire`).then((r) => r.data.data);
+
+export const deleteLicense = (id: string) =>
+  api.delete(`/licenses/${id}`).then((r) => r.data.data);
+
 export const getPlans = (params?: Record<string, unknown>) =>
   api.get('/plans', { params }).then((r) => r.data.data);
 
