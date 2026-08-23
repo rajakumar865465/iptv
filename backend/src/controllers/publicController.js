@@ -475,7 +475,7 @@ exports.verifyPayment = async (req, res) => {
        VALUES ($1, $2, 'INR', 'razorpay', $3, 'completed', $4, $5, $6, $4, $7, NOW())
        RETURNING id`,
       [
-        order.plan_id, order.amount, razorpay_payment_id, razorpay_order_id,
+        order.plan_id, order.amount / 100, razorpay_payment_id, razorpay_order_id,
         order.customer_name, order.mobile, razorpay_signature,
       ]
     );
