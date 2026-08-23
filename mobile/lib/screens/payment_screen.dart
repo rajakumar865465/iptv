@@ -4,6 +4,7 @@ import '../constants.dart';
 import '../cubits/app_config_cubit.dart';
 import '../models/license_model.dart';
 import '../services/api_service.dart';
+import 'proxy_checkout_screen.dart';
 
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
@@ -48,13 +49,42 @@ class _PaymentScreenState extends State<PaymentScreen> {
       return;
     }
     try {
-      final res = await _api.post(ApiEndpoints.manualRequest, {
+      // 1. Create order on our backend
+      final res = await _api.post('${ApiEndpoints.base}/payments/razorpay/create-order', {
         'plan_id': plan.id,
       });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(res['message'] ?? 'Purchase request created')),
+      
+      if (res['success'] == true && res['data'] != null) {
+        final orderId = res['data']['order_id'];
+        final token = await _api.getToken();
+        
+        if (!mounted || token == null) return;
+        
+        // 2. Open WebView
+        final success = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => ProxyCheckoutScreen(
+              orderId: orderId,
+              token: token,
+            ),
+          ),
         );
+        
+        // 3. Handle result
+        if (success == true) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Payment successful! Your license is active.')),
+            );
+            Navigator.of(context).pop(); // Go back to previous screen (maybe splash or home will reload)
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Payment cancelled or failed.')),
+            );
+          }
+        }
       }
     } catch (e) {
       if (mounted) {

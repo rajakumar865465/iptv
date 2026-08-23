@@ -10,6 +10,7 @@ import 'blocked_screen.dart';
 import 'force_update_screen.dart';
 import 'home_screen.dart';
 import 'license_activation_screen.dart';
+import 'license_expired_screen.dart';
 import 'login_screen.dart';
 import 'maintenance_screen.dart';
 import 'package:dio/dio.dart';
@@ -177,9 +178,13 @@ class _SplashScreenState extends State<SplashScreen> {
               MaterialPageRoute(builder: (_) => const HomeScreen()),
             );
           }
-        } else if (licenseState is LicenseExpired ||
-                   licenseState is LicenseNone ||
-                   licenseState is LicenseError) {
+        } else if (licenseState is LicenseExpired) {
+          if (context.mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const LicenseExpiredScreen()),
+            );
+          }
+        } else if (licenseState is LicenseNone || licenseState is LicenseError) {
           if (context.mounted) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),

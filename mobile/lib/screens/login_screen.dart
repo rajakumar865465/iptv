@@ -5,6 +5,7 @@ import '../cubits/auth_cubit.dart';
 import '../cubits/license_cubit.dart';
 import 'home_screen.dart';
 import 'license_activation_screen.dart';
+import 'license_expired_screen.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
 
@@ -36,6 +37,10 @@ class _LoginScreenState extends State<LoginScreen> {
       if (licenseState is LicenseActive) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      } else if (licenseState is LicenseExpired) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LicenseExpiredScreen()),
         );
       } else {
         Navigator.of(context).pushReplacement(

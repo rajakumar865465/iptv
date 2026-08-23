@@ -102,6 +102,10 @@ class ApiService {
     await _storage.clearAuthData();
   }
 
+  Future<String?> getToken() async {
+    return await _storage.getToken();
+  }
+
   Future<Map<String, dynamic>> get(String path, {Map<String, dynamic>? queryParameters}) async {
     final response = await _dio.get<Map<String, dynamic>>(path, queryParameters: queryParameters);
     return response.data ?? {};

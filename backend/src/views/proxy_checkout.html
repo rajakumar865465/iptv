@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NivaTV Secure Checkout</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #0A0A12;
+            color: #FFFFFF;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #1A56DB;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        h2 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+        p { color: #B8BCC8; font-size: 14px; text-align: center; padding: 0 20px; }
+        .hidden { display: none; }
+        
+        /* Success checkmark */
+        .success-icon {
+            width: 60px;
+            height: 60px;
+            background-color: rgba(34, 197, 94, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            color: #22C55E;
+        }
+        .success-icon svg { width: 32px; height: 32px; }
+    </style>
+</head>
+<body>
+
+    <div id="loading-state">
+        <div class="loader"></div>
+        <h2>Initializing Payment...</h2>
+        <p>Please wait while we connect securely.</p>
+    </div>
+
+    <div id="success-state" class="hidden">
+        <div class="success-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+        </div>
+        <h2>Payment Successful!</h2>
+        <p>Your license has been activated. Returning to the app...</p>
+    </div>
+
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+        const config = {{{RAZORPAY_CONFIG}}};
+        const token = "{{TOKEN}}";
+        
+        const options = {
+            "key": config.key,
+            "amount": config.amount,
+            "currency": config.currency,
+            "name": "NivaTV Premium",
+            "description": "Unlock All Channels",
+            "order_id": config.order_id,
+            "theme": {
+                "color": "#1A56DB"
+            },
+            "handler": function (response) {
+                document.getElementById("loading-state").classList.add("hidden");
+                document.getElementById("success-state").classList.remove("hidden");
+                
+                fetch("/api/payments/razorpay/verify", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer " + token
+                    },
+                    body: JSON.stringify({
+                        razorpay_payment_id: response.razorpay_payment_id,
+                        razorpay_order_id: response.razorpay_order_id,
+                        razorpay_signature: response.razorpay_signature
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    setTimeout(() => {
+                        if (window.PaymentBridge) {
+                            window.PaymentBridge.postMessage(JSON.stringify({ status: "success" }));
+                        }
+                    }, 2000);
+                })
+                .catch(err => {
+                    if (window.PaymentBridge) {
+                        window.PaymentBridge.postMessage(JSON.stringify({ status: "success" }));
+                    }
+                });
+            },
+            "modal": {
+                "ondismiss": function() {
+                    if (window.PaymentBridge) {
+                        window.PaymentBridge.postMessage(JSON.stringify({ status: "cancelled" }));
+                    }
+                }
+            }
+        };
+
+        const rzp = new Razorpay(options);
+        
+        window.onload = function() {
+            setTimeout(() => {
+                rzp.open();
+            }, 500);
+        };
+    </script>
+</body>
+</html>
