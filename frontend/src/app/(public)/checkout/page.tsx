@@ -45,7 +45,7 @@ function CheckoutContent() {
     ]).then(async ([plans, config]) => {
       if (config) {
         setPaymentMode(config.payment_mode || 'manual');
-        if (config.payment_mode === 'razorpay' && !config.manual_available) {
+        if (config.payment_mode === 'razorpay') {
           router.replace(`/payment?plan_id=${planId}${offerPrice ? `&offer_price=${offerPrice}` : ''}`);
           return;
         }

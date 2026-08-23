@@ -62,7 +62,7 @@ function PaymentForm() {
       .then(config => {
         if (config) {
           setPaymentMode(config.payment_mode || 'razorpay');
-          if (config.payment_mode === 'manual' && !config.razorpay_available) {
+          if (config.payment_mode === 'manual') {
             router.replace(`/checkout?plan=${planIdParam || ''}${offerPriceParam ? `&offer_price=${offerPriceParam}` : ''}`);
             return;
           }
