@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getChannels, getCategories, createChannel, updateChannel, deleteChannel, getChannelStreams, createChannelStream, updateChannelStream, deleteChannelStream, diagnoseChannelStream, getErrorMessage } from '@/lib/api';
+import { getChannels, getCategories, createChannel, updateChannel, deleteChannel, bulkDeleteChannels, getChannelStreams, createChannelStream, updateChannelStream, deleteChannelStream, diagnoseChannelStream, getErrorMessage } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, Trash2, Tv, Globe2, Languages, Signal, X, Pencil, List, ChevronLeft, ChevronRight, Link2, Check, XCircle, Play, Edit3, RefreshCw } from 'lucide-react';
 import ChannelLogoImage from '@/components/ChannelLogoImage';
@@ -83,6 +83,7 @@ export default function ChannelsPage() {
   const [diagnosingId, setDiagnosingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [selectedStreams, setSelectedStreams] = useState<Set<string>>(new Set());
+  const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set());
 
   const fetchChannels = (p = page, s = search, cat = catFilter) => {
     setLoading(true);
@@ -141,6 +142,21 @@ export default function ChannelsPage() {
     if (!confirm('Delete this channel? This cannot be undone.')) return;
     try { await deleteChannel(id); fetchChannels(); }
     catch { alert('Failed to delete channel'); }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedChannels.size === 0) return;
+    if (!confirm(`Delete ${selectedChannels.size} selected channels? This cannot be undone.`)) return;
+    setSaving(true);
+    try {
+      await bulkDeleteChannels(Array.from(selectedChannels));
+      setSelectedChannels(new Set());
+      fetchChannels();
+    } catch {
+      alert('Failed to delete selected channels');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAddStream = async (e: React.FormEvent) => {
@@ -487,6 +503,11 @@ export default function ChannelsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
+          {selectedChannels.size > 0 && (
+            <button onClick={handleBulkDelete} disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 font-semibold hover:bg-rose-500/20 transition-all whitespace-nowrap">
+              <Trash2 className="w-4 h-4" /><span className="hidden sm:inline">Delete ({selectedChannels.size})</span>
+            </button>
+          )}
           <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-slate-300 text-sm focus:outline-none">
             <option value="">All Categories</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -516,6 +537,17 @@ export default function ChannelsPage() {
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-slate-400 uppercase bg-slate-800/50 border-b border-slate-700/50">
                   <tr>
+                    <th className="px-6 py-4 font-semibold w-10">
+                      <input 
+                        type="checkbox" 
+                        checked={channels.length > 0 && selectedChannels.size === channels.length} 
+                        onChange={() => {
+                          if (selectedChannels.size === channels.length) setSelectedChannels(new Set());
+                          else setSelectedChannels(new Set(channels.map(c => c.id)));
+                        }}
+                        className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-cyan-500 focus:ring-cyan-500/50 cursor-pointer"
+                      />
+                    </th>
                     <th className="px-6 py-4 font-semibold">Channel</th>
                     <th className="px-6 py-4 font-semibold">Category / Lang</th>
                     <th className="px-6 py-4 font-semibold">Health</th>
@@ -525,6 +557,21 @@ export default function ChannelsPage() {
                 <tbody className="divide-y divide-slate-700/50">
                   {channels.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-800/30 transition-colors group">
+                      <td className="px-6 py-4">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedChannels.has(c.id)} 
+                          onChange={() => {
+                            setSelectedChannels(prev => {
+                              const next = new Set(prev);
+                              if (next.has(c.id)) next.delete(c.id);
+                              else next.add(c.id);
+                              return next;
+                            });
+                          }}
+                          className="w-4 h-4 rounded bg-slate-800 border-slate-600 text-cyan-500 focus:ring-cyan-500/50 cursor-pointer"
+                        />
+                      </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
@@ -559,7 +606,7 @@ export default function ChannelsPage() {
                       </td>
                     </tr>
                   ))}
-                  {channels.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500"><Signal className="w-8 h-8 mx-auto mb-2 text-slate-600" />No channels found</td></tr>}
+                  {channels.length === 0 && <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500"><Signal className="w-8 h-8 mx-auto mb-2 text-slate-600" />No channels found</td></tr>}
                 </tbody>
               </table>
             </div>

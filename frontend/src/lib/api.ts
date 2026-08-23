@@ -225,6 +225,9 @@ export const updateChannel = (id: string, data: Record<string, unknown>) =>
 export const deleteChannel = (id: string) =>
   api.delete(`/channels/${id}`).then((r) => r.data.data);
 
+export const bulkDeleteChannels = (ids: string[]) =>
+  api.post(`/channels/bulk-delete`, { ids }).then((r) => r.data.data);
+
 export const getBrokenChannels = (params?: Record<string, unknown>) =>
   api.get('/channels/broken', { params }).then((r) => r.data.data);
 

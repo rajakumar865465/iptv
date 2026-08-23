@@ -394,6 +394,23 @@ exports.deleteChannel = async (req, res) => {
   }
 };
 
+exports.bulkDeleteChannels = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return error(res, 'No channels selected', 400);
+    }
+    const result = await db.query('DELETE FROM channels WHERE id = ANY($1::int[])', [ids]);
+    
+    await logAdminAction(req, req.user.id, 'bulk_delete_channels', 'channels', null, { count: result.rowCount });
+    
+    success(res, { deleted: result.rowCount }, `${result.rowCount} channels deleted`);
+  } catch (err) {
+    console.error('bulkDeleteChannels error:', err);
+    error(res, 'Failed to bulk delete channels', 500);
+  }
+};
+
 // Admin: Duplicate channel report
 exports.getChannelDuplicates = async (req, res) => {
   try {
