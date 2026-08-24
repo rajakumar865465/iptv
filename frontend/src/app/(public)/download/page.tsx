@@ -141,8 +141,8 @@ export default async function DownloadPage() {
 
       {/* Header Section */}
       <div className="text-center mb-10 sm:mb-12">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs sm:text-sm font-semibold mb-4">
-          <Sparkles className="w-4 h-4 text-indigo-400" />
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-600 dark:text-brand-400 text-xs sm:text-sm font-semibold mb-4">
+          <Sparkles className="w-4 h-4 text-brand-500" />
           <span>Official Android Release v{appVersion}</span>
         </div>
         <h1 className="text-3xl sm:text-5xl font-extrabold text-[var(--color-ink)] tracking-tight mb-4 font-display">
@@ -159,10 +159,10 @@ export default async function DownloadPage() {
       {/* Dual Download Cards Grid */}
       <div className="grid md:grid-cols-2 gap-6 lg:gap-8 mb-12">
         {/* Card 1: Standard (64-bit) - Recommended */}
-        <div className="relative rounded-3xl bg-gradient-to-b from-indigo-950/40 via-slate-900/60 to-slate-950/90 border-2 border-indigo-500/50 p-6 sm:p-8 flex flex-col justify-between shadow-2xl shadow-indigo-500/10 overflow-hidden">
+        <div className="relative rounded-3xl bg-[var(--color-surface)] border-2 border-brand-500 p-6 sm:p-8 flex flex-col justify-between shadow-2xl shadow-brand-500/10 overflow-hidden">
           {/* Recommended Badge */}
           <div className="absolute top-0 right-0">
-            <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-bl-2xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-[var(--color-ink)] text-xs font-bold uppercase tracking-wider shadow-md">
+            <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-bl-2xl bg-gradient-to-r from-brand-600 to-brand-500 text-white text-xs font-bold uppercase tracking-wider shadow-md">
               <CheckCircle className="w-3.5 h-3.5" /> Recommended
             </span>
           </div>
@@ -170,12 +170,12 @@ export default async function DownloadPage() {
           <div>
             {/* Icon & Title */}
             <div className="flex items-center gap-4 mb-4 mt-1">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center shrink-0">
-                <Smartphone className="w-7 h-7 text-indigo-400" />
+              <div className="w-14 h-14 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center shrink-0">
+                <Smartphone className="w-7 h-7 text-brand-500" />
               </div>
               <div>
                 <h2 className="text-xl sm:text-2xl font-bold text-[var(--color-ink)]">Standard (64-bit)</h2>
-                <p className="text-indigo-300/80 text-xs sm:text-sm font-medium">
+                <p className="text-[var(--color-ink-muted)] text-xs sm:text-sm font-medium">
                   Optimized for modern Android devices
                 </p>
               </div>
@@ -189,19 +189,19 @@ export default async function DownloadPage() {
               </div>
               <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-2.5 text-center">
                 <span className="text-[var(--color-ink-muted)] text-[11px] block font-medium">File Size</span>
-                <span className="text-emerald-400 font-bold text-xs sm:text-sm">32.5 MB</span>
+                <span className="text-emerald-500 dark:text-emerald-400 font-bold text-xs sm:text-sm">32.5 MB</span>
               </div>
               <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-2.5 text-center">
                 <span className="text-[var(--color-ink-muted)] text-[11px] block font-medium">Arch</span>
-                <span className="text-indigo-300 font-bold text-xs sm:text-sm">ARM64-v8a</span>
+                <span className="text-[var(--color-ink)] font-bold text-xs sm:text-sm">ARM64-v8a</span>
               </div>
             </div>
 
             {/* Device Coverage Indicator */}
             <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-5 flex items-center gap-2.5">
-              <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+              <ShieldCheck className="w-5 h-5 text-emerald-500 dark:text-emerald-400 shrink-0" />
               <div className="text-xs text-[var(--color-ink-muted)]">
-                <strong className="text-emerald-300">Compatible with ~95% of devices</strong>: Samsung, Xiaomi, OnePlus,
+                <strong className="text-emerald-600 dark:text-emerald-400">Compatible with ~95% of devices</strong>: Samsung, Xiaomi, OnePlus,
                 Realme, Vivo, OPPO, Android TV, and Fire TV Stick.
               </div>
             </div>
@@ -209,15 +209,15 @@ export default async function DownloadPage() {
             {/* Feature Highlights */}
             <ul className="space-y-2 mb-6 text-xs sm:text-sm text-[var(--color-ink-muted)]">
               <li className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+                <Zap className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />
                 <span>Native 64-bit hardware acceleration &amp; 0-stutter playback</span>
               </li>
               <li className="flex items-center gap-2">
-                <Tv className="w-4 h-4 text-indigo-400 shrink-0" />
+                <Tv className="w-4 h-4 text-brand-500 shrink-0" />
                 <span>Full support for Smart TVs, TV boxes &amp; Tablets</span>
               </li>
               <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                <CheckCircle className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
                 <span>Clean build with stripped debug symbols for quick loading</span>
               </li>
             </ul>
@@ -227,7 +227,7 @@ export default async function DownloadPage() {
             <a
               href={standardDownloadUrl}
               download="app-release.apk"
-              className="group flex items-center justify-center gap-2.5 w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-600 hover:from-indigo-500 hover:to-indigo-600 text-[var(--color-ink)] font-bold text-base sm:text-lg transition-all shadow-xl shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.99]"
+              className="group flex items-center justify-center gap-2.5 w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-brand-600 via-brand-500 to-brand-600 hover:from-brand-500 hover:to-brand-600 text-white font-bold text-base sm:text-lg transition-all shadow-xl shadow-brand-600/20 hover:scale-[1.02] active:scale-[0.99]"
             >
               <Download className="w-5 h-5 transition-transform group-hover:-translate-y-0.5" />
               <span>Download APK (64-bit)</span>
@@ -240,7 +240,7 @@ export default async function DownloadPage() {
         </div>
 
         {/* Card 2: Legacy (32-bit) */}
-        <div className="relative rounded-3xl bg-[var(--color-surface)] border border-[var(--color-line)] p-6 sm:p-8 flex flex-col justify-between shadow-xl overflow-hidden hover:border-white/20 transition-colors">
+        <div className="relative rounded-3xl bg-[var(--color-surface)] border border-[var(--color-line)] p-6 sm:p-8 flex flex-col justify-between shadow-xl overflow-hidden hover:border-brand-500/30 transition-colors">
           <div>
             {/* Icon & Title */}
             <div className="flex items-center gap-4 mb-4 mt-1">
@@ -263,19 +263,19 @@ export default async function DownloadPage() {
               </div>
               <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-2.5 text-center">
                 <span className="text-[var(--color-ink-muted)] text-[11px] block font-medium">File Size</span>
-                <span className="text-amber-400 font-bold text-xs sm:text-sm">29.3 MB</span>
+                <span className="text-amber-500 dark:text-amber-400 font-bold text-xs sm:text-sm">29.3 MB</span>
               </div>
               <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-2.5 text-center">
                 <span className="text-[var(--color-ink-muted)] text-[11px] block font-medium">Arch</span>
-                <span className="text-[var(--color-ink-muted)] font-bold text-xs sm:text-sm">ARMeabi-v7a</span>
+                <span className="text-[var(--color-ink)] font-bold text-xs sm:text-sm">ARMeabi-v7a</span>
               </div>
             </div>
 
             {/* Device Coverage Indicator */}
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-5 flex items-center gap-2.5">
-              <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+              <AlertCircle className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0" />
               <div className="text-xs text-[var(--color-ink-muted)]">
-                <strong className="text-amber-300">Targeted for legacy architecture</strong>: Older 32-bit phones
+                <strong className="text-amber-600 dark:text-amber-500">Targeted for legacy architecture</strong>: Older 32-bit phones
                 (pre-2017) or entry-level chipsets that do not support 64-bit instruction sets.
               </div>
             </div>
@@ -301,7 +301,7 @@ export default async function DownloadPage() {
             <a
               href={legacyDownloadUrl}
               download="app-release-32bit.apk"
-              className="group flex items-center justify-center gap-2.5 w-full py-4 px-6 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-line)] hover:bg-white/15 text-[var(--color-ink)] font-bold text-base sm:text-lg border border-[var(--color-line)] transition-all hover:scale-[1.02] active:scale-[0.99]"
+              className="group flex items-center justify-center gap-2.5 w-full py-4 px-6 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-line)] hover:bg-[var(--color-surface)] text-[var(--color-ink)] font-bold text-base sm:text-lg transition-all hover:scale-[1.02] active:scale-[0.99]"
             >
               <Download className="w-5 h-5 text-[var(--color-ink-muted)]" />
               <span>Download APK (32-bit)</span>
@@ -323,7 +323,7 @@ export default async function DownloadPage() {
               <h3 className="text-2xl font-bold text-[var(--color-ink)] mt-0.5">NivaTV Version {release.version}</h3>
             </div>
             <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
                 <CheckCircle className="w-3.5 h-3.5" /> Latest Stable Build
               </span>
             </div>
@@ -340,7 +340,7 @@ export default async function DownloadPage() {
             </div>
             <div>
               <span className="text-[var(--color-ink-muted)] text-xs block mb-1">Optimized Size</span>
-              <span className="text-emerald-400 font-semibold text-sm">{release.file_size || '32.5 MB'}</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-sm">{release.file_size || '32.5 MB'}</span>
             </div>
             <div>
               <span className="text-[var(--color-ink-muted)] text-xs block mb-1">Release Date</span>
@@ -362,7 +362,7 @@ export default async function DownloadPage() {
               <ul className="grid sm:grid-cols-2 gap-2.5">
                 {release.release_notes.map((note, i) => (
                   <li key={i} className="flex items-start gap-2.5 text-[var(--color-ink-muted)] text-xs sm:text-sm">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <CheckCircle className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0 mt-0.5" />
                     <span>{note}</span>
                   </li>
                 ))}
@@ -371,8 +371,8 @@ export default async function DownloadPage() {
           )}
 
           {release.force_update && (
-            <div className="mt-6 flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs sm:text-sm p-4 rounded-2xl">
-              <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+            <div className="mt-6 flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-300 text-xs sm:text-sm p-4 rounded-2xl">
+              <AlertCircle className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0" />
               <span>Mandatory update: Older versions may experience stream disconnections due to upgraded API endpoints.</span>
             </div>
           )}
@@ -387,10 +387,10 @@ export default async function DownloadPage() {
       {/* 5-Step Installation Guide */}
       <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-3xl p-6 sm:p-10 mb-12">
         <div className="text-center max-w-xl mx-auto mb-10">
-          <span className="text-indigo-400 text-xs font-bold uppercase tracking-wider">Quick Setup</span>
+          <span className="text-brand-500 text-xs font-bold uppercase tracking-wider">Quick Setup</span>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-[var(--color-ink)] mt-1">5-Step Installation Guide</h2>
           <p className="text-[var(--color-ink-muted)] text-sm mt-2">
-            Follow these easy steps to install NivaTV on your Android phone, tablet, or Smart TV.
+            Follow these easy steps to install NivaTV on your Android phone, tablet, or Smart Smart TV.
           </p>
         </div>
 
@@ -398,10 +398,10 @@ export default async function DownloadPage() {
           {INSTALL_STEPS.map((s, index) => (
             <div
               key={s.step}
-              className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-5 flex flex-col justify-between hover:border-indigo-500/30 transition-colors"
+              className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-5 flex flex-col justify-between hover:border-brand-500/30 transition-colors"
             >
               <div>
-                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-[var(--color-ink)] font-bold text-sm flex items-center justify-center mb-4 shadow-lg shadow-indigo-600/30">
+                <div className="w-9 h-9 rounded-xl bg-brand-600 text-white font-bold text-sm flex items-center justify-center mb-4 shadow-lg shadow-brand-600/30">
                   {s.step}
                 </div>
                 <h3 className="text-[var(--color-ink)] font-bold text-sm mb-1.5">{s.title}</h3>
@@ -413,7 +413,7 @@ export default async function DownloadPage() {
       </div>
 
       {/* Buy License CTA Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-900/60 via-purple-900/40 to-slate-950 border border-indigo-500/30 p-8 sm:p-10 text-center">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-brand-600/15 to-transparent border border-brand-500/20 bg-[var(--color-surface)] p-8 sm:p-10 text-center">
         <div className="max-w-2xl mx-auto">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-[var(--color-ink)] mb-3">
             Ready to Unlock 500+ Live HD Channels?
@@ -424,13 +424,13 @@ export default async function DownloadPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               href="/pricing"
-              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-[var(--color-ink)] font-bold text-base transition-all shadow-lg shadow-indigo-600/30 hover:scale-[1.02]"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-base transition-all shadow-lg shadow-brand-600/30 hover:scale-[1.02]"
             >
               View Pricing &amp; Buy License
             </Link>
             <Link
               href="/browse"
-              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-line)] hover:bg-white/15 text-[var(--color-ink)] font-semibold text-base transition-all border border-[var(--color-line)]"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-line)] hover:bg-[var(--color-surface)] text-[var(--color-ink)] font-semibold text-base transition-all"
             >
               Explore Channels
             </Link>
