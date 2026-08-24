@@ -188,7 +188,7 @@ export default function DmcaPage() {
           </section>
 
           {/* Section 7: Designated Agent */}
-          <section id="designated-agent" className="bg-gradient-to-r from-indigo-950/40 via-surface to-surface border border-indigo-500/30 rounded-2xl p-6 sm:p-8 scroll-mt-28">
+          <section id="designated-agent" className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <h2 className="text-xl sm:text-2xl font-bold text-[var(--color-ink)] mb-4 flex items-center gap-2">
               <Mail className="w-6 h-6 text-brand-500" />
               7. Designated DMCA Agent Contact
@@ -196,7 +196,7 @@ export default function DmcaPage() {
             <p className="mb-6">
               Please direct all copyright infringement notices, DMCA inquiries, and takedown communications to our designated agent:
             </p>
-            <div className="bg-black/40 border border-[var(--color-line)] rounded-xl p-5 space-y-2 text-sm">
+            <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-5 space-y-2 text-sm">
               <p><span className="text-[var(--color-ink-muted)]">Agent / Department:</span> <span className="text-[var(--color-ink)] font-semibold">NivaTV Copyright &amp; Legal Compliance</span></p>
               <p><span className="text-[var(--color-ink-muted)]">Organization:</span> <span className="text-[var(--color-ink)] font-semibold">Luxomall Digital Services</span></p>
               <p><span className="text-[var(--color-ink-muted)]">Primary DMCA Email:</span> <a href="mailto:dmca@nivatv.luxomall.in" className="text-brand-500 font-semibold underline">dmca@nivatv.luxomall.in</a></p>

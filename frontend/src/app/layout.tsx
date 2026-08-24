@@ -40,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en-IN" suppressHydrationWarning>
+    <html lang="en-IN" className="scroll-smooth" suppressHydrationWarning>
       <head>
         <Script id="meta-pixel" strategy="afterInteractive">
           {`
