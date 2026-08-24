@@ -38,12 +38,12 @@ function PendingPaymentContent() {
   }, [orderId, order?.status]);
 
   if (loading) {
-    return <div className="min-h-screen pt-32 text-center text-slate-400">Loading order status...</div>;
+    return <div className="min-h-screen pt-32 text-center text-[var(--color-ink-muted)]">Loading order status...</div>;
   }
 
   if (!order) {
     return (
-      <div className="min-h-screen pt-32 text-center text-slate-400">
+      <div className="min-h-screen pt-32 text-center text-[var(--color-ink-muted)]">
         Order not found. <Link href="/pricing" className="text-indigo-400 underline">Return to pricing</Link>
       </div>
     );
@@ -55,7 +55,7 @@ function PendingPaymentContent() {
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMsg)}`;
 
   return (
-    <div className="min-h-screen pt-24 px-4 bg-slate-950 pb-20">
+    <div className="min-h-screen pt-24 px-4 bg-[var(--color-base)] pb-20">
       <div className="max-w-xl mx-auto">
         
         {order.status === 'pending' && (
@@ -63,14 +63,14 @@ function PendingPaymentContent() {
             <div className="w-20 h-20 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
               <Clock className="w-10 h-10 text-amber-500 animate-pulse" />
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">Verification Pending</h1>
-            <p className="text-slate-400 mb-6">
-              Your payment of <span className="text-white font-semibold">₹{order.amount}</span> with UTR <span className="text-white font-mono">{order.utr_number}</span> has been submitted.
+            <h1 className="text-3xl font-bold text-[var(--color-ink)] mb-2">Verification Pending</h1>
+            <p className="text-[var(--color-ink-muted)] mb-6">
+              Your payment of <span className="text-[var(--color-ink)] font-semibold">₹{order.amount}</span> with UTR <span className="text-[var(--color-ink)] font-mono">{order.utr_number}</span> has been submitted.
             </p>
             
-            <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 mb-8 text-left">
-              <h3 className="font-semibold text-slate-300 mb-2 text-sm uppercase tracking-wider">Next Steps:</h3>
-              <ol className="list-decimal list-inside text-slate-400 text-sm space-y-2">
+            <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-4 mb-8 text-left">
+              <h3 className="font-semibold text-[var(--color-ink-muted)] mb-2 text-sm uppercase tracking-wider">Next Steps:</h3>
+              <ol className="list-decimal list-inside text-[var(--color-ink-muted)] text-sm space-y-2">
                 <li>Take a screenshot of your successful payment.</li>
                 <li>Click the WhatsApp button below to send it to us.</li>
                 <li>Our admin will verify the payment and activate your subscription shortly.</li>
@@ -95,14 +95,14 @@ function PendingPaymentContent() {
             <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
               <CheckCircle className="w-10 h-10 text-emerald-500" />
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">Payment Approved!</h1>
-            <p className="text-slate-400 mb-6">
+            <h1 className="text-3xl font-bold text-[var(--color-ink)] mb-2">Payment Approved!</h1>
+            <p className="text-[var(--color-ink-muted)] mb-6">
               Your subscription for <strong>{order.plan_name}</strong> is now active.
             </p>
 
             {order.license_key && (
-              <div className="bg-slate-900 border border-emerald-500/30 rounded-xl p-4 mb-6">
-                <p className="text-slate-400 text-sm mb-1">Your License Key</p>
+              <div className="bg-[var(--color-surface-2)] border border-emerald-500/30 rounded-xl p-4 mb-6">
+                <p className="text-[var(--color-ink-muted)] text-sm mb-1">Your License Key</p>
                 <div className="flex items-center justify-center gap-3">
                   <span className="text-2xl font-mono text-emerald-400 font-bold">{order.license_key}</span>
                   <button 
@@ -110,7 +110,7 @@ function PendingPaymentContent() {
                       navigator.clipboard.writeText(order.license_key);
                       alert('License key copied!');
                     }}
-                    className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300"
+                    className="p-2 bg-[var(--color-surface)] hover:bg-[var(--color-surface-2)] rounded-lg text-[var(--color-ink-muted)]"
                     title="Copy License Key"
                   >
                     Copy
@@ -134,23 +134,23 @@ function PendingPaymentContent() {
             <div className="w-20 h-20 bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
               <XCircle className="w-10 h-10 text-rose-500" />
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">Payment Rejected</h1>
-            <p className="text-slate-400 mb-4">
+            <h1 className="text-3xl font-bold text-[var(--color-ink)] mb-2">Payment Rejected</h1>
+            <p className="text-[var(--color-ink-muted)] mb-4">
               We could not verify your payment.
             </p>
             {order.rejection_reason && (
-              <div className="bg-slate-900 border border-rose-500/20 text-rose-400 p-4 rounded-xl text-sm mb-6 text-left">
+              <div className="bg-[var(--color-surface-2)] border border-rose-500/20 text-rose-400 p-4 rounded-xl text-sm mb-6 text-left">
                 <strong>Reason:</strong> {order.rejection_reason}
               </div>
             )}
             <Link 
               href="/pricing"
-              className="inline-block px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all border border-slate-700"
+              className="inline-block px-8 py-3 bg-[var(--color-surface)] hover:bg-[var(--color-surface-2)] text-white rounded-xl font-bold transition-all border border-[var(--color-line)]"
             >
               Try Again
             </Link>
             
-            <div className="mt-8 pt-6 border-t border-slate-800">
+            <div className="mt-8 pt-6 border-t border-[var(--color-line)]">
               <p className="text-slate-500 text-sm mb-3">If you believe this is a mistake, contact support.</p>
               <a 
                 href={whatsappUrl} 
@@ -172,7 +172,7 @@ function PendingPaymentContent() {
 
 export default function PendingPaymentPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen pt-32 text-center text-slate-400">Loading order status...</div>}>
+    <Suspense fallback={<div className="min-h-screen pt-32 text-center text-[var(--color-ink-muted)]">Loading order status...</div>}>
       <PendingPaymentContent />
     </Suspense>
   );

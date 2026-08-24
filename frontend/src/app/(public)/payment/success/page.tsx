@@ -59,7 +59,7 @@ function SuccessContent() {
     return (
       <div className="pt-32 text-center">
         <Loader2 className="w-8 h-8 text-red-400 animate-spin mx-auto mb-3" />
-        <p className="text-slate-400">Loading your license...</p>
+        <p className="text-[var(--color-ink-muted)]">Loading your license...</p>
       </div>
     );
   }
@@ -68,9 +68,9 @@ function SuccessContent() {
     return (
       <div className="pt-24 pb-20 px-4 max-w-md mx-auto text-center">
         <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
-        <h1 className="text-2xl font-bold text-white mb-3">Something went wrong</h1>
-        <p className="text-slate-400 mb-6">{error || 'License key not found for this order. Contact support.'}</p>
-        <Link href="/support" className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-colors">
+        <h1 className="text-2xl font-bold text-[var(--color-ink)] mb-3">Something went wrong</h1>
+        <p className="text-[var(--color-ink-muted)] mb-6">{error || 'License key not found for this order. Contact support.'}</p>
+        <Link href="/support" className="px-6 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 dark:hover:bg-brand-400 text-white font-semibold text-sm transition-colors">
           Contact Support
         </Link>
       </div>
@@ -85,24 +85,24 @@ function SuccessContent() {
           <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="w-9 h-9 text-green-400" />
           </div>
-          <h1 className="text-4xl font-extrabold text-white mb-2">Payment Successful!</h1>
-          <p className="text-slate-400">Your license key is ready. Copy it and activate your app.</p>
+          <h1 className="text-4xl font-extrabold text-[var(--color-ink)] mb-2">Payment Successful!</h1>
+          <p className="text-[var(--color-ink-muted)]">Your license key is ready. Copy it and activate your app.</p>
         </div>
 
         {/* License key */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6">
-          <h2 className="text-white font-bold mb-1">Your License Key</h2>
-          <p className="text-slate-500 text-xs mb-4">Save this key — you will need it to activate the app.</p>
+        <div className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-6 mb-6">
+          <h2 className="text-[var(--color-ink)] font-bold mb-1">Your License Key</h2>
+          <p className="text-[var(--color-ink-muted)] text-xs mb-4">Save this key — you will need it to activate the app.</p>
           <LicenseKeyDisplay licenseKey={order.license_key} />
 
           <div className="grid grid-cols-2 gap-4 mt-5">
-            <div className="bg-white/5 rounded-xl p-3">
-              <p className="text-slate-500 text-xs mb-0.5">Plan</p>
-              <p className="text-white font-semibold text-sm">{order.plan_name}</p>
+            <div className="bg-[var(--color-surface)] rounded-xl p-3">
+              <p className="text-[var(--color-ink-muted)] text-xs mb-0.5">Plan</p>
+              <p className="text-[var(--color-ink)] font-semibold text-sm">{order.plan_name}</p>
             </div>
-            <div className="bg-white/5 rounded-xl p-3">
-              <p className="text-slate-500 text-xs mb-0.5">Duration</p>
-              <p className="text-white font-semibold text-sm">
+            <div className="bg-[var(--color-surface)] rounded-xl p-3">
+              <p className="text-[var(--color-ink-muted)] text-xs mb-0.5">Duration</p>
+              <p className="text-[var(--color-ink)] font-semibold text-sm">
                 {order.duration_days && order.duration_days >= 365
                   ? `${Math.round(order.duration_days / 365)} Year`
                   : order.duration_days && order.duration_days >= 30
@@ -110,27 +110,27 @@ function SuccessContent() {
                   : `${order.duration_days} Days`}
               </p>
             </div>
-            <div className="bg-white/5 rounded-xl p-3">
-              <p className="text-slate-500 text-xs mb-0.5">Max Devices</p>
-              <p className="text-white font-semibold text-sm">{order.max_devices} Device{(order.max_devices ?? 0) > 1 ? 's' : ''}</p>
+            <div className="bg-[var(--color-surface)] rounded-xl p-3">
+              <p className="text-[var(--color-ink-muted)] text-xs mb-0.5">Max Devices</p>
+              <p className="text-[var(--color-ink)] font-semibold text-sm">{order.max_devices} Device{(order.max_devices ?? 0) > 1 ? 's' : ''}</p>
             </div>
-            <div className="bg-white/5 rounded-xl p-3">
-              <p className="text-slate-500 text-xs mb-0.5">Status</p>
+            <div className="bg-[var(--color-surface)] rounded-xl p-3">
+              <p className="text-[var(--color-ink-muted)] text-xs mb-0.5">Status</p>
               <p className="text-green-400 font-semibold text-sm capitalize">{order.license_status}</p>
             </div>
           </div>
         </div>
 
         {/* Activation steps */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6">
-          <h2 className="text-white font-bold mb-5">How to Activate</h2>
+        <div className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-6 mb-6">
+          <h2 className="text-[var(--color-ink)] font-bold mb-5">How to Activate</h2>
           <ol className="space-y-3">
             {ACTIVATION_STEPS.map((step, i) => (
               <li key={i} className="flex items-start gap-3">
-                <span className="w-6 h-6 shrink-0 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">
+                <span className="w-6 h-6 shrink-0 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center mt-0.5">
                   {i + 1}
                 </span>
-                <span className="text-slate-300 text-sm leading-relaxed">{step}</span>
+                <span className="text-[var(--color-ink-muted)] text-sm leading-relaxed">{step}</span>
               </li>
             ))}
           </ol>
@@ -138,13 +138,13 @@ function SuccessContent() {
 
         {/* Action buttons */}
         <div className="flex flex-col sm:flex-row gap-3">
-          <Link href="/download" className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-colors">
+          <Link href="/download" className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 dark:hover:bg-brand-400 text-white font-semibold text-sm transition-colors">
             <Download className="w-4 h-4" /> Download APK
           </Link>
-          <Link href="/license" className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm transition-colors border border-white/10">
+          <Link href="/license" className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--color-surface-2)] hover:bg-[var(--color-surface)] text-[var(--color-ink)] font-semibold text-sm transition-colors border border-[var(--color-line)]">
             <Key className="w-4 h-4" /> Check License Status
           </Link>
-          <Link href="/support" className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm transition-colors border border-white/10">
+          <Link href="/support" className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--color-surface-2)] hover:bg-[var(--color-surface)] text-[var(--color-ink)] font-semibold text-sm transition-colors border border-[var(--color-line)]">
             <Headphones className="w-4 h-4" /> Contact Support
           </Link>
         </div>
@@ -155,7 +155,7 @@ function SuccessContent() {
 
 export default function PaymentSuccessPage() {
   return (
-    <Suspense fallback={<div className="pt-32 text-center text-slate-400">Loading...</div>}>
+    <Suspense fallback={<div className="pt-32 text-center text-[var(--color-ink-muted)]">Loading...</div>}>
       <SuccessContent />
     </Suspense>
   );
