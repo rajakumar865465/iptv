@@ -43,27 +43,27 @@ export default function PrivacyPage() {
   };
 
   return (
-    <div className="pt-24 pb-24 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto text-slate-200">
+    <div className="pt-24 pb-24 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto text-[var(--color-ink-muted)]">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <PageTracker page="privacy" />
 
       {/* Header */}
-      <div className="border-b border-white/10 pb-8 mb-10">
-        <div className="flex items-center gap-2 text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-3">
+      <div className="border-b border-[var(--color-line)] pb-8 mb-10">
+        <div className="flex items-center gap-2 text-brand-500 text-xs font-semibold uppercase tracking-wider mb-3">
           <ShieldCheck className="w-4 h-4" />
           <span>Legal &amp; Compliance Center</span>
         </div>
-        <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4 font-display">
+        <h1 className="text-3xl sm:text-5xl font-extrabold text-[var(--color-ink)] tracking-tight mb-4 font-display">
           Privacy Policy
         </h1>
-        <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-slate-300">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-200 font-medium">
+        <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-[var(--color-ink-muted)]">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-surface-2)] border border-[var(--color-line)] text-[var(--color-ink-muted)] font-medium">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
             Effective: August 20, 2026
           </span>
-          <span className="text-slate-400">Jurisdiction: Tripura, India</span>
+          <span className="text-[var(--color-ink-muted)]">Jurisdiction: Tripura, India</span>
           <span className="text-slate-500">•</span>
-          <span className="text-slate-400">Version 2.8</span>
+          <span className="text-[var(--color-ink-muted)]">Version 2.8</span>
         </div>
       </div>
 
@@ -71,9 +71,9 @@ export default function PrivacyPage() {
       <div className="grid lg:grid-cols-12 gap-8 lg:gap-12">
         {/* Sticky Table of Contents Sidebar */}
         <aside className="lg:col-span-4">
-          <div className="lg:sticky lg:top-28 bg-[#121218] border border-white/10 rounded-2xl p-5 shadow-xl">
-            <h2 className="text-white font-bold text-sm uppercase tracking-wider mb-4 pb-2 border-b border-white/10 flex items-center gap-2">
-              <FileText className="w-4 h-4 text-indigo-400" />
+          <div className="lg:sticky lg:top-28 bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-5 shadow-xl">
+            <h2 className="text-[var(--color-ink)] font-bold text-sm uppercase tracking-wider mb-4 pb-2 border-b border-[var(--color-line)] flex items-center gap-2">
+              <FileText className="w-4 h-4 text-brand-500" />
               <span>Table of Contents</span>
             </h2>
             <nav className="space-y-1">
@@ -81,19 +81,19 @@ export default function PrivacyPage() {
                 <a
                   key={sec.id}
                   href={`#${sec.id}`}
-                  className="group flex items-center justify-between py-2 px-3 rounded-xl text-xs sm:text-sm text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+                  className="group flex items-center justify-between py-2 px-3 rounded-xl text-xs sm:text-sm text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-surface-2)] transition-colors"
                 >
                   <span className="group-hover:translate-x-0.5 transition-transform">{sec.title}</span>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-400 transition-colors" />
+                  <ChevronRight className="w-3.5 h-3.5 text-[var(--color-ink-muted)] group-hover:text-brand-500 transition-colors" />
                 </a>
               ))}
             </nav>
 
-            <div className="mt-6 pt-5 border-t border-white/10">
-              <p className="text-xs text-slate-400 mb-2">Need legal or DMCA assistance?</p>
+            <div className="mt-6 pt-5 border-t border-[var(--color-line)]">
+              <p className="text-xs text-[var(--color-ink-muted)] mb-2">Need legal or DMCA assistance?</p>
               <a
                 href="mailto:support@nivatv.luxomall.in"
-                className="text-xs font-semibold text-indigo-400 hover:underline block truncate"
+                className="text-xs font-semibold text-brand-500 hover:underline block truncate"
               >
                 support@nivatv.luxomall.in
               </a>
@@ -104,46 +104,46 @@ export default function PrivacyPage() {
         {/* Main Legal Content */}
         <main className="lg:col-span-8 space-y-8">
           {/* Section 1: Definitions */}
-          <section id="definitions" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
+          <section id="definitions" className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <div className="flex items-center gap-3 mb-4">
-              <Scale className="w-5 h-5 text-indigo-400 shrink-0" />
-              <h2 className="text-xl sm:text-2xl font-bold text-white">1. Interpretation and Definitions</h2>
+              <Scale className="w-5 h-5 text-brand-500 shrink-0" />
+              <h2 className="text-xl sm:text-2xl font-bold text-[var(--color-ink)]">1. Interpretation and Definitions</h2>
             </div>
-            <p className="text-slate-200 text-sm sm:text-base leading-relaxed mb-4">
+            <p className="text-[var(--color-ink-muted)] text-sm sm:text-base leading-relaxed mb-4">
               This Privacy Policy describes Our policies and procedures on the collection, use, and disclosure of Your
               information when You use the Service and tells You about Your privacy rights and how the law protects You.
             </p>
-            <p className="text-slate-200 text-sm sm:text-base leading-relaxed mb-6">
+            <p className="text-[var(--color-ink-muted)] text-sm sm:text-base leading-relaxed mb-6">
               We use Your Personal Data to provide and improve the Service. By accessing or using the Service, You agree to the
               collection and use of information in accordance with this Privacy Policy.
             </p>
 
-            <h3 className="text-base font-bold text-white mb-3">Definitions for this Policy:</h3>
-            <div className="space-y-3 text-xs sm:text-sm text-slate-200">
-              <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                <strong className="text-white">Account:</strong> A unique account created for You to access Our Service or
+            <h3 className="text-base font-bold text-[var(--color-ink)] mb-3">Definitions for this Policy:</h3>
+            <div className="space-y-3 text-xs sm:text-sm text-[var(--color-ink-muted)]">
+              <div className="p-3 bg-[var(--color-surface-2)] rounded-xl border border-[var(--color-line)]">
+                <strong className="text-[var(--color-ink)]">Account:</strong> A unique account created for You to access Our Service or
                 specific features thereof.
               </div>
-              <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                <strong className="text-white">Application:</strong> Refers to <em>NivaTV</em>, the software application
+              <div className="p-3 bg-[var(--color-surface-2)] rounded-xl border border-[var(--color-line)]">
+                <strong className="text-[var(--color-ink)]">Application:</strong> Refers to <em>NivaTV</em>, the software application
                 provided by the Company.
               </div>
-              <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                <strong className="text-white">Company:</strong> Refers to <em>NivaTV</em> (&quot;We&quot;, &quot;Us&quot;, or
+              <div className="p-3 bg-[var(--color-surface-2)] rounded-xl border border-[var(--color-line)]">
+                <strong className="text-[var(--color-ink)]">Company:</strong> Refers to <em>NivaTV</em> (&quot;We&quot;, &quot;Us&quot;, or
                 &quot;Our&quot;), situated and operating in <strong>Tripura, India</strong>.
               </div>
-              <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                <strong className="text-white">Device:</strong> Any device capable of accessing the Service, including
+              <div className="p-3 bg-[var(--color-surface-2)] rounded-xl border border-[var(--color-line)]">
+                <strong className="text-[var(--color-ink)]">Device:</strong> Any device capable of accessing the Service, including
                 Android smartphones, tablets, TV boxes, smart displays, or PCs.
               </div>
-              <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                <strong className="text-white">Personal Data:</strong> Any information that identifies or can reasonably be
+              <div className="p-3 bg-[var(--color-surface-2)] rounded-xl border border-[var(--color-line)]">
+                <strong className="text-[var(--color-ink)]">Personal Data:</strong> Any information that identifies or can reasonably be
                 linked to an identified individual.
               </div>
-              <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                <strong className="text-white">Service:</strong> Refers to the NivaTV mobile app and the website accessible
+              <div className="p-3 bg-[var(--color-surface-2)] rounded-xl border border-[var(--color-line)]">
+                <strong className="text-[var(--color-ink)]">Service:</strong> Refers to the NivaTV mobile app and the website accessible
                 at{' '}
-                <a href="https://nivatv.luxomall.in" className="text-indigo-400 hover:underline">
+                <a href="https://nivatv.luxomall.in" className="text-brand-500 hover:underline">
                   https://nivatv.luxomall.in
                 </a>
                 .
@@ -152,28 +152,28 @@ export default function PrivacyPage() {
           </section>
 
           {/* Section 2: Content & Open-Source Indexing */}
-          <section id="disclaimer" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
+          <section id="disclaimer" className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <div className="flex items-center gap-3 mb-4">
-              <ShieldCheck className="w-5 h-5 text-indigo-400 shrink-0" />
-              <h2 className="text-xl sm:text-2xl font-bold text-white">2. Content &amp; Open-Source Indexing Policy</h2>
+              <ShieldCheck className="w-5 h-5 text-brand-500 shrink-0" />
+              <h2 className="text-xl sm:text-2xl font-bold text-[var(--color-ink)]">2. Content &amp; Open-Source Indexing Policy</h2>
             </div>
-            <p className="text-slate-200 text-sm sm:text-base leading-relaxed mb-4">
+            <p className="text-[var(--color-ink-muted)] text-sm sm:text-base leading-relaxed mb-4">
               NivaTV operates strictly as an open-source media player software client and indexer for freely accessible,
               publicly broadcast stream feeds.
             </p>
-            <div className="space-y-3 text-xs sm:text-sm text-slate-200">
-              <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                <strong className="text-white block mb-1">Platform Neutrality &amp; Hosting</strong>
+            <div className="space-y-3 text-xs sm:text-sm text-[var(--color-ink-muted)]">
+              <div className="p-3 bg-[var(--color-surface-2)] rounded-xl border border-[var(--color-line)]">
+                <strong className="text-[var(--color-ink)] block mb-1">Platform Neutrality &amp; Hosting</strong>
                 NivaTV does not own, produce, host, broadcast, or transmit any video streams or copyrighted media directly.
                 All indexed streams originate from public third-party servers.
               </div>
-              <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                <strong className="text-white block mb-1">No Uptime Guarantee</strong>
+              <div className="p-3 bg-[var(--color-surface-2)] rounded-xl border border-[var(--color-line)]">
+                <strong className="text-[var(--color-ink)] block mb-1">No Uptime Guarantee</strong>
                 We do not guarantee the continuous availability, quality, or stability of any third-party stream URLs. Stream
                 feeds are subject to alteration or termination by their originating broadcasters without notice.
               </div>
-              <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                <strong className="text-white block mb-1">Intellectual Property &amp; Takedowns</strong>
+              <div className="p-3 bg-[var(--color-surface-2)] rounded-xl border border-[var(--color-line)]">
+                <strong className="text-[var(--color-ink)] block mb-1">Intellectual Property &amp; Takedowns</strong>
                 We respect intellectual property rights. If a copyright holder submits a valid takedown request for any
                 indexed stream link, we will immediately disable and remove access from our catalog upon verification.
               </div>
@@ -181,19 +181,19 @@ export default function PrivacyPage() {
           </section>
 
           {/* Section 3: Collection */}
-          <section id="collection" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
+          <section id="collection" className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <div className="flex items-center gap-3 mb-4">
-              <Database className="w-5 h-5 text-indigo-400 shrink-0" />
-              <h2 className="text-xl sm:text-2xl font-bold text-white">3. Information We Collect</h2>
+              <Database className="w-5 h-5 text-brand-500 shrink-0" />
+              <h2 className="text-xl sm:text-2xl font-bold text-[var(--color-ink)]">3. Information We Collect</h2>
             </div>
 
-            <div className="space-y-4 text-xs sm:text-sm text-slate-200">
+            <div className="space-y-4 text-xs sm:text-sm text-[var(--color-ink-muted)]">
               <div>
-                <h3 className="text-white font-bold text-sm sm:text-base mb-1.5">A. Personal Data</h3>
+                <h3 className="text-[var(--color-ink)] font-bold text-sm sm:text-base mb-1.5">A. Personal Data</h3>
                 <p className="leading-relaxed mb-2">
                   When purchasing a subscription, creating an account, or seeking support, We may collect:
                 </p>
-                <ul className="list-disc list-inside space-y-1 text-slate-300 ml-2">
+                <ul className="list-disc list-inside space-y-1 text-[var(--color-ink-muted)] ml-2">
                   <li>Full name</li>
                   <li>Email address</li>
                   <li>Mobile phone number (for OTP authentication and license delivery)</li>
@@ -201,7 +201,7 @@ export default function PrivacyPage() {
               </div>
 
               <div>
-                <h3 className="text-white font-bold text-sm sm:text-base mb-1.5">B. Device Identifiers &amp; Usage Data</h3>
+                <h3 className="text-[var(--color-ink)] font-bold text-sm sm:text-base mb-1.5">B. Device Identifiers &amp; Usage Data</h3>
                 <p className="leading-relaxed">
                   When You access the Service via mobile devices, We automatically collect hardware identifiers (UUID /
                   Android ID), app version, IP address, and connection timestamps. Hardware identifiers are used exclusively to
@@ -210,7 +210,7 @@ export default function PrivacyPage() {
               </div>
 
               <div>
-                <h3 className="text-white font-bold text-sm sm:text-base mb-1.5">C. Cookies &amp; Local Storage</h3>
+                <h3 className="text-[var(--color-ink)] font-bold text-sm sm:text-base mb-1.5">C. Cookies &amp; Local Storage</h3>
                 <p className="leading-relaxed">
                   We use essential session tokens and local storage strictly to remember your active login state and license
                   keys. We do not deploy third-party advertising cookies or cross-site tracking pixels.
@@ -220,39 +220,39 @@ export default function PrivacyPage() {
           </section>
 
           {/* Section 4: Usage & SMS Notice */}
-          <section id="usage" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
+          <section id="usage" className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <div className="flex items-center gap-3 mb-4">
-              <FileText className="w-5 h-5 text-indigo-400 shrink-0" />
-              <h2 className="text-xl sm:text-2xl font-bold text-white">4. How We Use Your Data</h2>
+              <FileText className="w-5 h-5 text-brand-500 shrink-0" />
+              <h2 className="text-xl sm:text-2xl font-bold text-[var(--color-ink)]">4. How We Use Your Data</h2>
             </div>
-            <p className="text-slate-200 text-sm sm:text-base leading-relaxed mb-3">
+            <p className="text-[var(--color-ink-muted)] text-sm sm:text-base leading-relaxed mb-3">
               We process Personal Data under valid legal bases for the following purposes:
             </p>
-            <ul className="space-y-2 text-xs sm:text-sm text-slate-300 mb-6">
+            <ul className="space-y-2 text-xs sm:text-sm text-[var(--color-ink-muted)] mb-6">
               <li>
-                <strong className="text-white">• Service Provision:</strong> Delivering and validating digital license keys,
+                <strong className="text-[var(--color-ink)]">• Service Provision:</strong> Delivering and validating digital license keys,
                 maintaining active playback sessions.
               </li>
               <li>
-                <strong className="text-white">• Account Management:</strong> Facilitating secure sign-in via password, OTP, or
+                <strong className="text-[var(--color-ink)]">• Account Management:</strong> Facilitating secure sign-in via password, OTP, or
                 Google OAuth.
               </li>
               <li>
-                <strong className="text-white">• Customer Support:</strong> Resolving technical inquiries and subscription
+                <strong className="text-[var(--color-ink)]">• Customer Support:</strong> Resolving technical inquiries and subscription
                 requests.
               </li>
               <li>
-                <strong className="text-white">• Security &amp; Fraud Prevention:</strong> Protecting system integrity and
+                <strong className="text-[var(--color-ink)]">• Security &amp; Fraud Prevention:</strong> Protecting system integrity and
                 preventing unauthorized license cloning.
               </li>
             </ul>
 
-            <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-              <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm mb-1.5">
+            <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-4">
+              <div className="flex items-center gap-2 text-[var(--color-ink)] font-bold text-xs sm:text-sm mb-1.5">
                 <Smartphone className="w-4 h-4 text-emerald-400" />
                 <span>Text Messages (SMS) &amp; Mobile Data Privacy</span>
               </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <p className="text-xs text-[var(--color-ink-muted)] leading-relaxed">
                 Mobile phone numbers collected for OTP verification are used solely for authentication and critical account
                 alerts. <strong>No mobile phone information is ever sold, rented, or shared with third-party advertisers or
                 marketing agencies.</strong>
@@ -261,39 +261,39 @@ export default function PrivacyPage() {
           </section>
 
           {/* Section 5: Retention & Security */}
-          <section id="retention" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
+          <section id="retention" className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <div className="flex items-center gap-3 mb-4">
-              <Lock className="w-5 h-5 text-indigo-400 shrink-0" />
-              <h2 className="text-xl sm:text-2xl font-bold text-white">5. Data Retention &amp; Security</h2>
+              <Lock className="w-5 h-5 text-brand-500 shrink-0" />
+              <h2 className="text-xl sm:text-2xl font-bold text-[var(--color-ink)]">5. Data Retention &amp; Security</h2>
             </div>
-            <p className="text-slate-200 text-sm sm:text-base leading-relaxed mb-3">
+            <p className="text-[var(--color-ink-muted)] text-sm sm:text-base leading-relaxed mb-3">
               We retain Personal Data only for as long as necessary to fulfill the operational purposes described herein:
             </p>
-            <ul className="space-y-1.5 text-xs sm:text-sm text-slate-300 mb-4">
+            <ul className="space-y-1.5 text-xs sm:text-sm text-[var(--color-ink-muted)] mb-4">
               <li>• Account records: Retained during the active subscription plus up to 24 months for audit compliance.</li>
               <li>• Support correspondence: Retained for up to 24 months to track resolution quality.</li>
               <li>• Diagnostic server logs: Automatically rotated and purged on a scheduled basis.</li>
             </ul>
-            <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
+            <p className="text-[var(--color-ink-muted)] text-xs sm:text-sm leading-relaxed">
               We enforce industry-standard security measures, including TLS/HTTPS data in transit, bcrypt password hashing, and
               role-based database access controls.
             </p>
           </section>
 
           {/* Section 6: User Rights */}
-          <section id="rights" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
+          <section id="rights" className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <div className="flex items-center gap-3 mb-4">
-              <Eye className="w-5 h-5 text-indigo-400 shrink-0" />
-              <h2 className="text-xl sm:text-2xl font-bold text-white">6. Your Rights &amp; Data Deletion</h2>
+              <Eye className="w-5 h-5 text-brand-500 shrink-0" />
+              <h2 className="text-xl sm:text-2xl font-bold text-[var(--color-ink)]">6. Your Rights &amp; Data Deletion</h2>
             </div>
-            <p className="text-slate-200 text-sm sm:text-base leading-relaxed mb-3">
+            <p className="text-[var(--color-ink-muted)] text-sm sm:text-base leading-relaxed mb-3">
               You have the right to access, update, or request the permanent deletion of your personal information from our
               systems.
             </p>
-            <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 text-xs sm:text-sm text-slate-200">
-              <strong className="text-white block mb-1">To request account or data deletion:</strong>
+            <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 text-xs sm:text-sm text-[var(--color-ink-muted)]">
+              <strong className="text-[var(--color-ink)] block mb-1">To request account or data deletion:</strong>
               Email{' '}
-              <a href="mailto:support@nivatv.luxomall.in" className="text-indigo-400 font-semibold underline">
+              <a href="mailto:support@nivatv.luxomall.in" className="text-brand-500 font-semibold underline">
                 support@nivatv.luxomall.in
               </a>{' '}
               with the subject &quot;Data Deletion Request&quot; from your registered email. Requests are verified and completed
@@ -302,37 +302,37 @@ export default function PrivacyPage() {
           </section>
 
           {/* Section 7: DMCA & Contact */}
-          <section id="dmca" className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 scroll-mt-28">
+          <section id="dmca" className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-6 sm:p-8 scroll-mt-28">
             <div className="flex items-center gap-3 mb-4">
-              <Mail className="w-5 h-5 text-indigo-400 shrink-0" />
-              <h2 className="text-xl sm:text-2xl font-bold text-white">7. DMCA Inquiries &amp; Contact Us</h2>
+              <Mail className="w-5 h-5 text-brand-500 shrink-0" />
+              <h2 className="text-xl sm:text-2xl font-bold text-[var(--color-ink)]">7. DMCA Inquiries &amp; Contact Us</h2>
             </div>
-            <p className="text-slate-200 text-sm sm:text-base leading-relaxed mb-4">
+            <p className="text-[var(--color-ink-muted)] text-sm sm:text-base leading-relaxed mb-4">
               If you have any questions regarding this Privacy Policy, or if you are a copyright owner requesting a channel
               delisting, please reach out to us:
             </p>
             <div className="grid sm:grid-cols-2 gap-4 text-xs sm:text-sm">
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                <span className="text-slate-400 block mb-1">Official Legal Email</span>
+              <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-4">
+                <span className="text-[var(--color-ink-muted)] block mb-1">Official Legal Email</span>
                 <a
                   href="mailto:support@nivatv.luxomall.in"
-                  className="text-white font-bold hover:text-indigo-400 transition-colors"
+                  className="text-[var(--color-ink)] font-bold hover:text-brand-500 transition-colors"
                 >
                   support@nivatv.luxomall.in
                 </a>
               </div>
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                <span className="text-slate-400 block mb-1">Support Portal</span>
+              <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-4">
+                <span className="text-[var(--color-ink-muted)] block mb-1">Support Portal</span>
                 <Link
                   href="/support"
-                  className="text-indigo-400 font-bold hover:underline inline-flex items-center gap-1"
+                  className="text-brand-500 font-bold hover:underline inline-flex items-center gap-1"
                 >
                   <span>nivatv.luxomall.in/support</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </Link>
               </div>
             </div>
-            <p className="text-xs text-slate-400 mt-5">
+            <p className="text-xs text-[var(--color-ink-muted)] mt-5">
               Operating entity: NivaTV, Tripura, India. Governed by applicable Indian Information Technology (IT) Rules and
               Digital Personal Data Protection standards.
             </p>

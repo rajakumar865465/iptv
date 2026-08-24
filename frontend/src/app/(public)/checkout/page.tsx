@@ -109,16 +109,16 @@ function CheckoutContent() {
   return (
     <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 py-8">
       {/* Left Column - Payment Info & QR */}
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-xl">
-        <h2 className="text-2xl font-bold text-white mb-6">Complete Your Payment</h2>
+      <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl p-6 shadow-xl">
+        <h2 className="text-2xl font-bold text-[var(--color-ink)] mb-6">Complete Your Payment</h2>
         
-        <div className="bg-slate-800 rounded-xl p-4 mb-6 border border-slate-700">
-          <h3 className="text-slate-400 text-sm mb-1">Selected Plan</h3>
+        <div className="bg-[var(--color-surface)] rounded-xl p-4 mb-6 border border-[var(--color-line)]">
+          <h3 className="text-[var(--color-ink-muted)] text-sm mb-1">Selected Plan</h3>
           <div className="flex justify-between items-center">
-            <span className="text-xl font-bold text-white">{plan.name}</span>
-            <span className="text-2xl font-black text-indigo-400">₹{Math.round(finalPrice)}</span>
+            <span className="text-xl font-bold text-[var(--color-ink)]">{plan.name}</span>
+            <span className="text-2xl font-black text-brand-500">₹{Math.round(finalPrice)}</span>
           </div>
-          <p className="text-slate-500 text-sm mt-1">{plan.duration_days} Days Access • {plan.max_devices} Device</p>
+          <p className="text-[var(--color-ink-muted)] text-sm mt-1">{plan.duration_days} Days Access • {plan.max_devices} Device</p>
         </div>
 
         <div className="flex flex-col items-center bg-white rounded-xl p-6 mb-6">
@@ -130,14 +130,14 @@ function CheckoutContent() {
           </div>
         </div>
 
-        <div className="bg-slate-800 rounded-xl p-4 flex items-center justify-between border border-slate-700">
+        <div className="bg-[var(--color-surface)] rounded-xl p-4 flex items-center justify-between border border-[var(--color-line)]">
           <div>
-            <p className="text-slate-400 text-xs mb-1">Or Pay to UPI ID</p>
-            <p className="text-white font-mono">{upiId}</p>
+            <p className="text-[var(--color-ink-muted)] text-xs mb-1">Or Pay to UPI ID</p>
+            <p className="text-[var(--color-ink)] font-mono">{upiId}</p>
           </div>
           <button 
             onClick={handleCopy}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-200 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface)] rounded-lg text-sm text-[var(--color-ink)] transition-colors"
           >
             {copied ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
             {copied ? 'Copied' : 'Copy'}
@@ -146,9 +146,9 @@ function CheckoutContent() {
       </div>
 
       {/* Right Column - Submission Form */}
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-xl">
-        <h2 className="text-xl font-bold text-white mb-4">Submit Payment Details</h2>
-        <p className="text-slate-400 text-sm mb-6">
+      <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl p-6 shadow-xl">
+        <h2 className="text-xl font-bold text-[var(--color-ink)] mb-4">Submit Payment Details</h2>
+        <p className="text-[var(--color-ink-muted)] text-sm mb-6">
           After making the payment, enter your Transaction ID (UTR) below to activate your subscription.
         </p>
 
@@ -161,48 +161,48 @@ function CheckoutContent() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-slate-400 text-sm mb-1.5">Full Name</label>
-            <input required type="text" value={form.full_name} onChange={e => setForm({...form, full_name: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="e.g. Rahul Kumar" />
+            <label className="block text-[var(--color-ink-muted)] text-sm mb-1.5">Full Name</label>
+            <input required type="text" value={form.full_name} onChange={e => setForm({...form, full_name: e.target.value})} className="w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl px-4 py-2.5 text-[var(--color-ink)] focus:outline-none focus:border-brand-500" placeholder="e.g. Rahul Kumar" />
           </div>
           
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-slate-400 text-sm mb-1.5">Email</label>
-              <input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="your@email.com" />
+              <label className="block text-[var(--color-ink-muted)] text-sm mb-1.5">Email</label>
+              <input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl px-4 py-2.5 text-[var(--color-ink)] focus:outline-none focus:border-brand-500" placeholder="your@email.com" />
             </div>
             <div>
-              <label className="block text-slate-400 text-sm mb-1.5">Mobile Number</label>
-              <input required type="tel" value={form.mobile} onChange={e => setForm({...form, mobile: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="10-digit number" />
+              <label className="block text-[var(--color-ink-muted)] text-sm mb-1.5">Mobile Number</label>
+              <input required type="tel" value={form.mobile} onChange={e => setForm({...form, mobile: e.target.value})} className="w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl px-4 py-2.5 text-[var(--color-ink)] focus:outline-none focus:border-brand-500" placeholder="10-digit number" />
             </div>
           </div>
 
           <div>
-            <label className="block text-slate-400 text-sm mb-1.5">Transaction ID / UTR Number</label>
-            <input required type="text" value={form.utr_number} onChange={e => setForm({...form, utr_number: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 font-mono" placeholder="12-digit UTR (e.g. 312345678901)" />
-            <p className="text-slate-500 text-xs mt-1.5">Find this in your payment app history (labeled as UTR or Ref No).</p>
+            <label className="block text-[var(--color-ink-muted)] text-sm mb-1.5">Transaction ID / UTR Number</label>
+            <input required type="text" value={form.utr_number} onChange={e => setForm({...form, utr_number: e.target.value})} className="w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl px-4 py-2.5 text-[var(--color-ink)] focus:outline-none focus:border-brand-500 font-mono" placeholder="12-digit UTR (e.g. 312345678901)" />
+            <p className="text-[var(--color-ink-muted)] text-xs mt-1.5">Find this in your payment app history (labeled as UTR or Ref No).</p>
           </div>
 
           <div className="pt-4">
             <button 
               type="submit" 
               disabled={submitting}
-              className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20 flex justify-center items-center gap-2"
+              className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 dark:hover:bg-brand-400 disabled:opacity-50 text-white rounded-xl font-bold transition-all shadow-lg shadow-brand-500/20 flex justify-center items-center gap-2"
             >
               {submitting ? 'Submitting...' : 'Submit Payment'}
             </button>
           </div>
 
-          <div className="flex items-center justify-center gap-2 text-slate-500 text-xs mt-4">
+          <div className="flex items-center justify-center gap-2 text-[var(--color-ink-muted)] text-xs mt-4">
             <Shield className="w-4 h-4" />
             <span>Secure Manual Verification</span>
           </div>
 
           {paymentMode === 'both' && (
-            <div className="mt-4 pt-4 border-t border-slate-800 text-center">
-              <p className="text-xs text-slate-400 mb-2">Want instant automated activation?</p>
+            <div className="mt-4 pt-4 border-t border-[var(--color-line)] text-center">
+              <p className="text-xs text-[var(--color-ink-muted)] mb-2">Want instant automated activation?</p>
               <Link 
                 href={`/payment?plan_id=${plan.id}${offerPrice ? `&offer_price=${offerPrice}` : ''}`}
-                className="inline-block text-xs font-semibold text-indigo-400 hover:text-indigo-300 underline"
+                className="inline-block text-xs font-semibold text-brand-500 hover:text-brand-400 underline"
               >
                 Pay Online via Razorpay / Cards / Netbanking &rarr;
               </Link>
@@ -216,8 +216,8 @@ function CheckoutContent() {
 
 export default function CheckoutPage() {
   return (
-    <div className="min-h-screen pt-24 px-4 bg-slate-950">
-      <Suspense fallback={<div className="text-center text-slate-400 py-10">Loading...</div>}>
+    <div className="min-h-screen pt-24 px-4 bg-[var(--color-base)]">
+      <Suspense fallback={<div className="text-center text-[var(--color-ink-muted)] py-10">Loading...</div>}>
         <CheckoutContent />
       </Suspense>
     </div>
