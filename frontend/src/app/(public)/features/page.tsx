@@ -67,42 +67,56 @@ export default function FeaturesPage() {
     <div className="pt-24 pb-20 px-4">
       <PageTracker page="features" />
       <div className="max-w-6xl mx-auto">
+
+        {/* ── Page heading ── */}
         <div className="text-center mb-14">
-          <h1 className="text-5xl font-extrabold text-white mb-4">App Features</h1>
-          <p className="text-slate-400 text-lg max-w-xl mx-auto">
+          <h1 className="text-5xl font-extrabold text-[var(--color-ink)] mb-4">App Features</h1>
+          <p className="text-[var(--color-ink-subtle)] text-lg max-w-xl mx-auto">
             Built specifically for Indian viewers who want a reliable, fast and beautiful live TV experience.
           </p>
         </div>
 
+        {/* ── Feature grid ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
           {FEATURES.map(f => {
             const Icon = f.icon;
             return (
-              <div key={f.title} className="flex gap-5 bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-indigo-500/30 transition-colors">
-                  <div className="w-12 h-12 shrink-0 rounded-xl bg-indigo-600/15 flex items-center justify-center">
-                  <Icon className="w-6 h-6 text-indigo-400" />
+              <div
+                key={f.title}
+                className="flex gap-5 bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-6 hover:border-brand-500/30 hover:shadow-card-hover transition-all duration-300 shadow-card"
+              >
+                <div className="w-12 h-12 shrink-0 rounded-xl bg-brand-500/10 flex items-center justify-center">
+                  <Icon className="w-6 h-6 text-brand-500" />
                 </div>
                 <div>
-                  <h3 className="text-white font-bold mb-2">{f.title}</h3>
-                  <p className="text-slate-400 text-sm leading-relaxed">{f.desc}</p>
+                  <h3 className="text-[var(--color-ink)] font-bold mb-2">{f.title}</h3>
+                  <p className="text-[var(--color-ink-muted)] text-sm leading-relaxed">{f.desc}</p>
                 </div>
               </div>
             );
           })}
         </div>
 
-        <div className="text-center bg-gradient-to-r from-indigo-600/15 to-transparent border border-indigo-500/20 rounded-2xl p-8">
-          <h2 className="text-2xl font-bold text-white mb-3">Ready to get started?</h2>
-          <p className="text-slate-400 mb-6">Choose a plan and start watching live TV today.</p>
+        {/* ── CTA banner ── */}
+        <div className="text-center bg-gradient-to-r from-brand-600/15 to-transparent border border-brand-500/20 rounded-2xl p-8">
+          <h2 className="text-2xl font-bold text-[var(--color-ink)] mb-3">Ready to get started?</h2>
+          <p className="text-[var(--color-ink-muted)] mb-6">Choose a plan and start watching live TV today.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/pricing" className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-colors">
+            <Link
+              href="/pricing"
+              className="px-8 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-semibold transition-colors shadow-lg shadow-brand-600/20"
+            >
               View Pricing
             </Link>
-            <Link href="/download" className="flex items-center justify-center gap-2 px-8 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors border border-white/10">
+            <Link
+              href="/download"
+              className="flex items-center justify-center gap-2 px-8 py-3 rounded-xl bg-[var(--color-surface-2)] hover:bg-[var(--color-surface)] text-[var(--color-ink)] font-semibold transition-colors border border-[var(--color-line)]"
+            >
               Download APK <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
+
       </div>
     </div>
   );
