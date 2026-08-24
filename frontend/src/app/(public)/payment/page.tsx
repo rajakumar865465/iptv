@@ -178,11 +178,11 @@ function PaymentForm() {
       <div className="pt-24 pb-20 px-4">
       <div className="max-w-md mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-white mb-2">Complete Purchase</h1>
-          <p className="text-slate-400 text-sm">Your license key will be shown immediately after payment.</p>
+          <h1 className="text-3xl font-extrabold text-[var(--color-ink)] mb-2">Complete Purchase</h1>
+          <p className="text-[var(--color-ink-muted)] text-sm">Your license key will be shown immediately after payment.</p>
         </div>
 
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-5">
+        <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl p-6 space-y-5">
 
           {/* Offer banner */}
           {isOfferFlow && selectedPlan && (
@@ -190,7 +190,7 @@ function PaymentForm() {
               <Tag className="w-5 h-5 text-amber-400 shrink-0" />
               <div>
                 <p className="text-amber-300 font-bold text-sm">Special Scratch Card Offer</p>
-                <p className="text-slate-400 text-xs">
+                <p className="text-[var(--color-ink-muted)] text-xs">
                   {selectedPlan.duration_days} Days Access ·{' '}
                   <span className="line-through text-slate-500 mr-1">₹{Math.round(selectedPlan.regular_price ?? 49)}</span>
                   <span className="text-amber-400 font-semibold">₹{offerPriceParam}</span>
@@ -202,11 +202,11 @@ function PaymentForm() {
           {/* Plan selector — only shown in normal flow */}
           {!isOfferFlow && (
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Select Plan</label>
+              <label className="block text-sm font-medium text-[var(--color-ink-muted)] mb-2">Select Plan</label>
               <select
                 value={selectedPlanId ?? ''}
                 onChange={e => setSelectedPlanId(parseInt(e.target.value))}
-                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500/50"
+                className="w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl px-4 py-3 text-[var(--color-ink)] text-sm focus:outline-none focus:border-brand-500"
               >
                 {plans.map(p => (
                   <option key={p.id} value={p.id}>
@@ -219,9 +219,9 @@ function PaymentForm() {
 
           {/* Selected plan summary */}
           {selectedPlan && !isOfferFlow && (
-            <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-xl px-4 py-3 text-sm">
-              <span className="text-indigo-400 font-semibold">{selectedPlan.name}</span>
-              <span className="text-slate-400 ml-2">· ₹{Math.round(selectedPlan.price)} · {selectedPlan.max_devices} device{selectedPlan.max_devices > 1 ? 's' : ''}</span>
+            <div className="bg-brand-500/10 border border-brand-500/20 rounded-xl px-4 py-3 text-sm">
+              <span className="text-brand-500 font-semibold">{selectedPlan.name}</span>
+              <span className="text-[var(--color-ink-muted)] ml-2">· ₹{Math.round(selectedPlan.price)} · {selectedPlan.max_devices} device{selectedPlan.max_devices > 1 ? 's' : ''}</span>
             </div>
           )}
 
@@ -232,19 +232,19 @@ function PaymentForm() {
             { name: 'mobile', label: 'Mobile Number', type: 'tel', placeholder: '9999999999' },
           ].map(f => (
             <div key={f.name}>
-              <label className="block text-sm font-medium text-slate-300 mb-2">{f.label}</label>
+              <label className="block text-sm font-medium text-[var(--color-ink-muted)] mb-2">{f.label}</label>
               <input
                 type={f.type}
                 placeholder={f.placeholder}
                 value={form[f.name as keyof typeof form]}
                 onChange={e => setForm(prev => ({ ...prev, [f.name]: e.target.value }))}
-                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-indigo-500/50"
+                className="w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl px-4 py-3 text-[var(--color-ink)] placeholder:text-[var(--color-ink-subtle)] text-sm focus:outline-none focus:border-brand-500"
               />
             </div>
           ))}
 
           {error && (
-            <div className="flex items-center gap-2 bg-indigo-600/10 border border-indigo-500/30 text-indigo-400 text-sm px-4 py-3 rounded-xl">
+            <div className="flex items-center gap-2 bg-brand-500/10 border border-brand-500/30 text-brand-500 text-sm px-4 py-3 rounded-xl">
               <AlertCircle className="w-4 h-4 shrink-0" /> {error}
             </div>
           )}
@@ -252,7 +252,7 @@ function PaymentForm() {
           <button
             onClick={handlePay}
             disabled={loading || !selectedPlan}
-            className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-base transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-brand-500 hover:bg-brand-600 dark:hover:bg-brand-400 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-base transition-colors"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
             {loading
@@ -268,11 +268,11 @@ function PaymentForm() {
           </div>
 
           {paymentMode === 'both' && selectedPlan && (
-            <div className="mt-4 pt-4 border-t border-white/10 text-center">
-              <p className="text-xs text-slate-400 mb-2">Prefer direct QR scan & UPI transfer?</p>
+            <div className="mt-4 pt-4 border-t border-[var(--color-line)] text-center">
+              <p className="text-xs text-[var(--color-ink-muted)] mb-2">Prefer direct QR scan & UPI transfer?</p>
               <Link 
                 href={`/checkout?plan=${selectedPlan.id}${offerPriceParam ? `&offer_price=${offerPriceParam}` : ''}`}
-                className="inline-block text-xs font-semibold text-cyan-400 hover:text-cyan-300 underline"
+                className="inline-block text-xs font-semibold text-brand-500 hover:text-brand-600 dark:hover:text-brand-400 underline"
               >
                 Pay via Manual UPI App / QR Code &rarr;
               </Link>
@@ -287,7 +287,7 @@ function PaymentForm() {
 
 export default function PaymentPage() {
   return (
-    <Suspense fallback={<div className="pt-32 text-center text-slate-400">Loading...</div>}>
+    <Suspense fallback={<div className="pt-32 text-center text-[var(--color-ink-muted)]">Loading...</div>}>
       <PaymentForm />
     </Suspense>
   );

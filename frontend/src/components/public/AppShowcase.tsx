@@ -221,10 +221,10 @@ function PhoneFrame({ screen, title, subtitle }: PhoneFrameProps) {
       </div>
       {/* Label */}
       <div className="mt-5 text-center">
-        <p className="text-sm sm:text-base font-semibold text-white group-hover:text-brand-400 transition-colors duration-300">
+        <p className="text-sm sm:text-base font-semibold text-[var(--color-ink)] group-hover:text-brand-400 transition-colors duration-300">
           {title}
         </p>
-        <p className="text-xs text-slate-500 mt-1 group-hover:text-slate-400 transition-colors duration-300">
+        <p className="text-xs text-[var(--color-ink-muted)] mt-1 group-hover:text-[var(--color-ink)] transition-colors duration-300">
           {subtitle}
         </p>
       </div>
@@ -240,7 +240,7 @@ export default function AppShowcase() {
   ];
 
   return (
-    <section className="py-10 sm:py-16 md:py-24 bg-white/[0.02]">
+    <section className="py-10 sm:py-16 md:py-24 bg-[var(--color-base)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -249,10 +249,10 @@ export default function AppShowcase() {
           transition={{ duration: 0.6 }}
           className="text-center mb-8 sm:mb-16"
         >
-          <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-white mb-3 sm:mb-4">
+          <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-[var(--color-ink)] mb-3 sm:mb-4">
             Your TV, Your Way
           </h2>
-          <p className="text-ink-muted text-sm sm:text-lg max-w-2xl mx-auto">
+          <p className="text-[var(--color-ink-muted)] text-sm sm:text-lg max-w-2xl mx-auto">
             Browse channels, watch live sports, and manage your license all in one app
           </p>
         </motion.div>

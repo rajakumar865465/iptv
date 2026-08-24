@@ -54,7 +54,7 @@ export default function LicensePage() {
             value={key}
             onChange={e => setKey(e.target.value.toUpperCase())}
             onKeyDown={e => e.key === 'Enter' && handleCheck()}
-            className="w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl px-4 py-3 text-[var(--color-ink)] font-mono placeholder-slate-600 text-sm focus:outline-none focus:border-brand-500/50 mb-4"
+            className="w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl px-4 py-3 text-[var(--color-ink)] font-mono placeholder:text-[var(--color-ink-subtle)] text-sm focus:outline-none focus:border-brand-500/50 mb-4"
           />
           <button
             onClick={handleCheck}
