@@ -3,6 +3,7 @@ import { Inter, Poppins } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -39,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en-IN">
+    <html lang="en-IN" suppressHydrationWarning>
       <head>
         <Script id="meta-pixel" strategy="afterInteractive">
           {`
@@ -56,11 +57,16 @@ export default function RootLayout({
           `}
         </Script>
       </head>
-      <body className={`${inter.variable} ${poppins.variable} antialiased bg-gray-950 text-gray-100 font-sans`} suppressHydrationWarning>
+      <body
+        className={`${inter.variable} ${poppins.variable} antialiased font-sans`}
+        suppressHydrationWarning
+      >
         <noscript>
           <img height="1" width="1" style={{ display: "none" }} src="https://www.facebook.com/tr?id=1389534106435145&ev=PageView&noscript=1" alt="" />
         </noscript>
-        <AuthProvider>{children}</AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

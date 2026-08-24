@@ -85,8 +85,8 @@ function getCategoryEmoji(name: string): string {
 /* ── Channel card: glass tile + live pulse + brand glow on hover ─ */
 function ChannelCard({ channel }: { channel: Channel }) {
   return (
-    <div className="group relative bg-white/[0.04] border border-line backdrop-blur-sm rounded-2xl p-4 flex items-center gap-3.5 hover:border-brand-500/30 hover:bg-brand-500/[0.06] hover:shadow-[0_0_40px_-12px] hover:shadow-brand-500/45 transition-all duration-300 min-w-[220px] sm:min-w-0">
-      <div className="w-11 h-11 rounded-xl bg-surface-2 border border-white/5 flex items-center justify-center shrink-0 overflow-hidden">
+    <div className="group relative bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-4 flex items-center gap-3.5 hover:border-brand-500/30 hover:bg-brand-500/[0.04] hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 min-w-[220px] sm:min-w-0 shadow-card">
+      <div className="w-11 h-11 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-line)] flex items-center justify-center shrink-0 overflow-hidden">
         <ChannelLogoImage
           src={channel.logo_url || ''}
           alt={channel.name}
@@ -97,7 +97,7 @@ function ChannelCard({ channel }: { channel: Channel }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-sm font-semibold text-white truncate">{channel.name}</span>
+          <span className="text-sm font-semibold text-[var(--color-ink)] truncate">{channel.name}</span>
           <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-bold text-live bg-live/10 border border-live/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full rounded-full bg-live/70 animate-ping" />
@@ -107,12 +107,12 @@ function ChannelCard({ channel }: { channel: Channel }) {
           </span>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
-          {channel.category && <span className="text-[10px] text-ink-muted bg-white/[0.05] px-1.5 py-0.5 rounded">{channel.category}</span>}
-          {channel.language && <span className="text-[10px] text-ink-subtle">{channel.language}</span>}
+          {channel.category && <span className="text-[10px] text-[var(--color-ink-muted)] bg-[var(--color-surface-2)] px-1.5 py-0.5 rounded">{channel.category}</span>}
+          {channel.language && <span className="text-[10px] text-[var(--color-ink-subtle)]">{channel.language}</span>}
         </div>
       </div>
       <div className="w-8 h-8 rounded-full bg-brand-600/10 border border-brand-500/20 flex items-center justify-center shrink-0 group-hover:bg-brand-600 group-hover:border-brand-500 transition-all">
-        <Play className="w-3.5 h-3.5 text-brand-400 group-hover:text-white group-hover:fill-white transition-all" />
+        <Play className="w-3.5 h-3.5 text-brand-500 group-hover:text-white group-hover:fill-white transition-all" />
       </div>
     </div>
   );
@@ -153,7 +153,7 @@ function SecondaryCTA({ href, children }: { href: string; children: React.ReactN
   return (
     <Link
       href={href}
-      className="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 !text-white font-extrabold text-sm sm:text-base border border-slate-500 hover:border-white/60 shadow-lg shadow-black/40 backdrop-blur-sm transition-all min-h-[44px]"
+      className="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 rounded-xl bg-[var(--color-surface-2)] hover:bg-[var(--color-surface)] text-[var(--color-ink)] font-extrabold text-sm sm:text-base border border-[var(--color-line)] hover:border-[var(--color-ink-subtle)]/40 shadow-card hover:shadow-card-hover backdrop-blur-sm transition-all min-h-[44px]"
     >
       {children}
     </Link>
@@ -289,7 +289,7 @@ export default async function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-base text-white overflow-x-hidden">
+    <div className="min-h-screen bg-[var(--color-base)] text-[var(--color-ink)] overflow-x-hidden">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -300,11 +300,12 @@ export default async function HomePage() {
 
       <main>
         {/* ───────────────────────── HERO ───────────────────────── */}
-        <section className="relative pt-24 sm:pt-28 md:pt-36 pb-14 sm:pb-20 md:pb-28 overflow-hidden">
-          {/* Layered cinematic background: masked grid + static brand aurora */}
+        <section className="relative pt-24 sm:pt-28 md:pt-36 pb-14 sm:pb-20 md:pb-28 overflow-hidden noise-texture">
+          {/* Layered cinematic background: brand aurora + light mode warm gradient */}
           <div className="pointer-events-none absolute inset-0 -z-10">
+            {/* Dark mode: subtle grid */}
             <div
-              className="absolute inset-0 opacity-[0.05]"
+              className="absolute inset-0 opacity-[0.04] [data-theme='light']_&:opacity-0"
               style={{
                 backgroundImage:
                   'linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)',
@@ -313,32 +314,33 @@ export default async function HomePage() {
                 WebkitMaskImage: 'radial-gradient(ellipse 70% 55% at 50% 28%, #000 55%, transparent 100%)',
               }}
             />
+            {/* Brand aurora orbs — beautiful in both dark and light */}
             <div className="absolute -top-[12%] left-1/2 -translate-x-1/2 w-[75%] h-[55%] bg-brand-600/20 blur-[130px] rounded-full" />
-            <div className="absolute top-[8%] right-[-8%] w-[38%] h-[48%] bg-brand-500/12 blur-[120px] rounded-full" />
-            <div className="absolute bottom-[-10%] left-[-6%] w-[32%] h-[42%] bg-brand-700/12 blur-[120px] rounded-full" />
+            <div className="absolute top-[8%] right-[-8%] w-[38%] h-[48%] bg-brand-500/10 blur-[120px] rounded-full" />
+            <div className="absolute bottom-[-10%] left-[-6%] w-[32%] h-[42%] bg-brand-700/10 blur-[120px] rounded-full" />
           </div>
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-8 sm:gap-10 lg:gap-12 items-center">
               <div className="order-1 lg:order-1">
                 {/* Live pill */}
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.05] border border-line backdrop-blur-sm mb-5">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--color-surface)] border border-[var(--color-line)] backdrop-blur-sm mb-5 shadow-card">
                   <span className="relative flex h-2 w-2">
                     <span className="absolute inline-flex h-full w-full rounded-full bg-live/70 animate-ping" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-live" />
                   </span>
-                  <span className="text-xs font-semibold text-ink-muted">
+                  <span className="text-xs font-semibold text-[var(--color-ink-muted)]">
                     LIVE • {channelsCount}+ channels streaming now
                   </span>
                 </div>
 
-                <h1 className="font-display text-[30px] leading-[1.1] sm:text-5xl md:text-6xl lg:text-7xl font-extrabold sm:leading-[1.05] mb-4 sm:mb-6 text-balance">
+                <h1 className="font-display text-[30px] leading-[1.1] sm:text-5xl md:text-6xl lg:text-7xl font-extrabold sm:leading-[1.05] mb-4 sm:mb-6 text-balance text-[var(--color-ink)]">
                   Live TV for Every{' '}
                   <span className="bg-gradient-to-r from-brand-400 via-brand-500 to-brand-400 bg-clip-text text-transparent">
                     Indian Home
                   </span>
                 </h1>
-                <p className="text-base sm:text-lg text-ink-muted mb-6 sm:mb-8 leading-relaxed max-w-[60ch]">
+                <p className="text-base sm:text-lg text-[var(--color-ink-muted)] mb-6 sm:mb-8 leading-relaxed max-w-[60ch]">
                   Watch Hindi, Bengali, Tamil, Telugu, Malayalam and {channelsCount}+ Free-to-Air (FTA) and publicly available Indian live channels on Android. Buy a player license, download the APK and start watching instantly.
                 </p>
 
@@ -349,8 +351,8 @@ export default async function HomePage() {
                       <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
                     ))}
                   </div>
-                  <span className="text-sm text-ink-muted">
-                    Loved by <span className="font-semibold text-white">10,000+</span> viewers across India
+                  <span className="text-sm text-[var(--color-ink-muted)]">
+                    Loved by <span className="font-semibold text-[var(--color-ink)]">10,000+</span> viewers across India
                   </span>
                 </div>
 
@@ -359,10 +361,10 @@ export default async function HomePage() {
                   <SecondaryCTA href="/download"><Download className="w-4 h-4 sm:w-5 sm:h-5" /> Download APK</SecondaryCTA>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:text-sm text-ink-muted">
-                  <span className="flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-green-400" /> Secured by Razorpay</span>
-                  <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-green-400" /> Instant delivery</span>
-                  <span className="flex items-center gap-1.5"><Smartphone className="w-4 h-4 text-ink-muted" /> Android 6.0+</span>
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:text-sm text-[var(--color-ink-muted)]">
+                  <span className="flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-green-500" /> Secured by Razorpay</span>
+                  <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-green-500" /> Instant delivery</span>
+                  <span className="flex items-center gap-1.5"><Smartphone className="w-4 h-4 text-[var(--color-ink-subtle)]" /> Android 6.0+</span>
                 </div>
               </div>
               <div className="order-2 lg:order-2 flex justify-center lg:justify-end">
@@ -380,7 +382,7 @@ export default async function HomePage() {
         )}
 
         {/* ───────────────────── TRUST STRIP ───────────────────── */}
-        <section className="py-10 sm:py-14 border-y border-white/5 bg-white/[0.02]">
+        <section className="py-10 sm:py-14 border-y border-[var(--color-line)] bg-[var(--color-surface-2)]/40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
               {[
@@ -390,10 +392,10 @@ export default async function HomePage() {
                 { icon: RefreshCw, value: 'No Auto',          label: 'Renewal' },
               ].map(({ icon: Icon, value, label }) => (
                 <MotionReveal key={label} className="h-full">
-                  <div className="text-center p-4 sm:p-5 rounded-2xl bg-white/[0.04] border border-line backdrop-blur-sm h-full">
-                    <Icon className="w-6 h-6 sm:w-7 sm:h-7 text-brand-400 mx-auto mb-2" />
-                    <div className="font-display text-xl sm:text-3xl font-extrabold text-white">{value}</div>
-                    <div className="text-xs sm:text-sm text-ink-muted mt-0.5">{label}</div>
+                  <div className="text-center p-4 sm:p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-line)] shadow-card h-full">
+                    <Icon className="w-6 h-6 sm:w-7 sm:h-7 text-brand-500 mx-auto mb-2" />
+                    <div className="font-display text-xl sm:text-3xl font-extrabold text-[var(--color-ink)]">{value}</div>
+                    <div className="text-xs sm:text-sm text-[var(--color-ink-muted)] mt-0.5">{label}</div>
                   </div>
                 </MotionReveal>
               ))}
@@ -447,7 +449,7 @@ export default async function HomePage() {
 
         {/* ─────────────────── CATEGORIES ─────────────────── */}
         {visibleCategories.length > 0 && (
-          <section className="py-16 sm:py-24 md:py-28 bg-white/[0.02] border-y border-white/5">
+          <section className="py-16 sm:py-24 md:py-28 bg-[var(--color-surface-2)]/40 border-y border-[var(--color-line)]">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <MotionReveal>
                 <SectionHeading
@@ -463,16 +465,16 @@ export default async function HomePage() {
                     <Link
                       href={`/browse?category=${encodeURIComponent(slug)}`}
                       key={cat.id}
-                      className="group p-4 rounded-2xl bg-white/[0.04] border border-line backdrop-blur-sm hover:border-brand-500/30 hover:bg-brand-500/[0.05] hover:shadow-[0_0_36px_-14px] hover:shadow-brand-500/45 hover:-translate-y-0.5 transition-all"
+                      className="group p-4 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-line)] shadow-card hover:border-brand-500/30 hover:bg-brand-500/[0.04] hover:shadow-card-hover hover:-translate-y-1 transition-all"
                     >
                       <div className="flex items-center justify-between">
                         <div className="text-2xl">{getCategoryEmoji(cat.name)}</div>
-                        <span className="text-[10px] text-brand-400 bg-brand-500/10 border border-brand-500/20 px-2 py-0.5 rounded-full font-semibold">
+                        <span className="text-[10px] text-brand-500 bg-brand-500/10 border border-brand-500/20 px-2 py-0.5 rounded-full font-semibold">
                           {cat.channel_count}
                         </span>
                       </div>
-                      <h3 className="font-semibold text-white text-sm mt-3 mb-1 group-hover:text-brand-400 transition-colors truncate">{cat.name}</h3>
-                      <p className="text-[11px] text-ink-subtle">{cat.channel_count} channels</p>
+                      <h3 className="font-semibold text-[var(--color-ink)] text-sm mt-3 mb-1 group-hover:text-brand-500 transition-colors truncate">{cat.name}</h3>
+                      <p className="text-[11px] text-[var(--color-ink-subtle)]">{cat.channel_count} channels</p>
                     </Link>
                   );
                 })}
@@ -501,12 +503,12 @@ export default async function HomePage() {
                 { icon: Headphones,  title: 'Real Human Support', desc: 'Help via WhatsApp, Telegram or email — from people who actually use the app.' },
               ].map((item, i) => (
                 <MotionReveal key={item.title} delay={i * 0.06}>
-                  <div className="p-5 sm:p-6 rounded-2xl bg-white/[0.04] border border-line backdrop-blur-sm hover:border-brand-500/25 hover:bg-brand-500/[0.04] hover:shadow-[0_0_40px_-16px] hover:shadow-brand-500/40 transition-all h-full">
+                  <div className="p-5 sm:p-6 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-line)] shadow-card hover:border-brand-500/25 hover:bg-brand-500/[0.03] hover:shadow-card-hover hover:-translate-y-1 transition-all h-full">
                     <div className="w-12 h-12 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mb-4">
-                      <item.icon className="w-6 h-6 text-brand-400" />
+                      <item.icon className="w-6 h-6 text-brand-500" />
                     </div>
-                    <h3 className="font-display font-bold text-white text-base sm:text-lg mb-1.5">{item.title}</h3>
-                    <p className="text-sm text-ink-muted leading-relaxed">{item.desc}</p>
+                    <h3 className="font-display font-bold text-[var(--color-ink)] text-base sm:text-lg mb-1.5">{item.title}</h3>
+                    <p className="text-sm text-[var(--color-ink-muted)] leading-relaxed">{item.desc}</p>
                   </div>
                 </MotionReveal>
               ))}
@@ -515,7 +517,7 @@ export default async function HomePage() {
         </section>
 
         {/* ─────────────────── COMPARISON TABLE ─────────────────── */}
-        <section className="py-16 sm:py-24 md:py-28 bg-white/[0.02] border-y border-white/5">
+        <section className="py-16 sm:py-24 md:py-28 bg-[var(--color-surface-2)]/40 border-y border-[var(--color-line)]">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <MotionReveal>
               <SectionHeading
@@ -553,8 +555,8 @@ export default async function HomePage() {
                       )}
                     </div>
                     <div className="pb-6 sm:pb-8">
-                      <h3 className="font-display font-bold text-white text-base sm:text-lg mb-1">{step.title}</h3>
-                      <p className="text-ink-muted text-sm leading-relaxed">{step.desc}</p>
+                      <h3 className="font-display font-bold text-[var(--color-ink)] text-base sm:text-lg mb-1">{step.title}</h3>
+                      <p className="text-[var(--color-ink-muted)] text-sm leading-relaxed">{step.desc}</p>
                     </div>
                   </div>
                 </MotionReveal>
@@ -564,7 +566,7 @@ export default async function HomePage() {
         </section>
 
         {/* ─────────────────── TESTIMONIALS ─────────────────── */}
-        <section className="py-16 sm:py-24 md:py-28 bg-white/[0.02] border-y border-white/5">
+        <section className="py-16 sm:py-24 md:py-28 bg-[var(--color-surface-2)]/40 border-y border-[var(--color-line)]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <MotionReveal>
               <SectionHeading
@@ -608,15 +610,15 @@ export default async function HomePage() {
         <section className="py-16 sm:py-24 md:py-28">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <MotionReveal>
-              <div className="relative overflow-hidden rounded-3xl border border-brand-500/20 bg-gradient-to-br from-brand-600/20 via-brand-700/10 to-transparent p-8 sm:p-12 md:p-16 text-center">
+              <div className="relative overflow-hidden rounded-3xl border border-brand-500/25 bg-gradient-to-br from-brand-600/20 via-brand-700/10 to-[var(--color-surface)] p-8 sm:p-12 md:p-16 text-center shadow-card-lg">
                 <div className="pointer-events-none absolute inset-0 -z-10">
-                  <div className="absolute top-[-30%] left-1/2 -translate-x-1/2 w-[60%] h-[80%] bg-brand-600/30 blur-[100px] rounded-full" />
+                  <div className="absolute top-[-30%] left-1/2 -translate-x-1/2 w-[60%] h-[80%] bg-brand-600/25 blur-[100px] rounded-full" />
                 </div>
-                <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-brand-400 mx-auto mb-4" />
-                <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-white mb-3 sm:mb-4 text-balance">
+                <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-brand-500 mx-auto mb-4" />
+                <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-[var(--color-ink)] mb-3 sm:mb-4 text-balance">
                   Ready to start watching?
                 </h2>
-                <p className="text-ink-muted text-sm sm:text-lg mb-6 sm:mb-8 max-w-2xl mx-auto">
+                <p className="text-[var(--color-ink-muted)] text-sm sm:text-lg mb-6 sm:mb-8 max-w-2xl mx-auto">
                   Join thousands of users streaming {channelsCount}+ live channels on Android. Your license arrives instantly.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
@@ -632,7 +634,7 @@ export default async function HomePage() {
         <SEOContent />
 
         {/* ───────────────────── FAQ ───────────────────── */}
-        <section className="py-16 sm:py-24 md:py-28 bg-white/[0.02] border-t border-white/5">
+        <section className="py-16 sm:py-24 md:py-28 bg-[var(--color-surface-2)]/40 border-t border-[var(--color-line)]">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             <MotionReveal>
               <SectionHeading

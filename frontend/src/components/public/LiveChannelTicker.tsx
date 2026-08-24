@@ -12,12 +12,12 @@ interface LiveChannelTickerProps {
 /* Render a single channel pill. Kept tiny so two rows stay legible. */
 function ChannelPill({ channel }: { channel: Channel }) {
   return (
-    <div className="flex items-center gap-2.5 shrink-0 px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-line hover:border-brand-500/30 hover:bg-brand-500/[0.06] transition-colors">
+    <div className="flex items-center gap-2.5 shrink-0 px-3.5 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-line)] hover:border-brand-500/30 hover:bg-brand-500/[0.05] transition-colors shadow-card">
       <span className="relative flex h-2 w-2 shrink-0">
         <span className="absolute inline-flex h-full w-full rounded-full bg-live/60 animate-ping" />
         <span className="relative inline-flex h-2 w-2 rounded-full bg-live" />
       </span>
-      <div className="w-7 h-7 rounded-lg bg-surface-2 flex items-center justify-center shrink-0 overflow-hidden">
+      <div className="w-7 h-7 rounded-lg bg-[var(--color-surface-2)] flex items-center justify-center shrink-0 overflow-hidden">
         <ChannelLogoImage
           src={channel.logo_url || ''}
           alt={channel.name}
@@ -26,7 +26,7 @@ function ChannelPill({ channel }: { channel: Channel }) {
           containerClassName="w-full h-full"
         />
       </div>
-      <span className="text-xs sm:text-sm font-semibold text-slate-200 whitespace-nowrap">
+      <span className="text-xs sm:text-sm font-semibold text-[var(--color-ink-muted)] whitespace-nowrap">
         {channel.name}
       </span>
     </div>
@@ -80,8 +80,8 @@ export default function LiveChannelTicker({ channels }: LiveChannelTickerProps) 
   return (
     <div className="marquee-pause relative overflow-hidden py-6 sm:py-8">
       {/* Edge fades so channels slide in/out instead of clipping hard */}
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 sm:w-32 bg-gradient-to-r from-base to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 sm:w-32 bg-gradient-to-l from-base to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 sm:w-32 bg-gradient-to-r from-[var(--color-base)] to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 sm:w-32 bg-gradient-to-l from-[var(--color-base)] to-transparent" />
 
       <div className="space-y-3">
         {rows.map((row, i) => renderRow(row, i % 2 === 1))}

@@ -38,7 +38,7 @@ function Stars({ rating }: { rating: number }) {
       {Array.from({ length: 5 }).map((_, i) => (
         <Star
           key={i}
-          className={`w-4 h-4 ${i < rating ? 'fill-amber-400 text-amber-400' : 'text-white/20'}`}
+          className={`w-4 h-4 ${i < rating ? 'fill-amber-400 text-amber-400' : 'text-[var(--color-line)]'}`}
           aria-hidden="true"
         />
       ))}
@@ -52,20 +52,20 @@ export default function TestimonialsSection() {
       {TESTIMONIALS.map(t => (
         <figure
           key={t.name}
-          className="relative p-5 sm:p-6 rounded-2xl bg-white/[0.04] border border-line backdrop-blur-sm hover:border-brand-500/25 hover:bg-brand-500/[0.04] hover:shadow-[0_0_40px_-16px] hover:shadow-brand-500/40 transition-all overflow-hidden"
+          className="relative p-5 sm:p-6 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-line)] shadow-card hover:shadow-card-hover hover:border-brand-500/25 hover:-translate-y-1 transition-all overflow-hidden"
         >
           {/* Watermark quote mark */}
-          <Quote className="absolute top-4 right-4 w-10 h-10 text-white/[0.04] rotate-180" />
+          <Quote className="absolute top-4 right-4 w-10 h-10 text-[var(--color-line)] rotate-180 opacity-50" />
 
           <div className="flex items-center justify-between mb-4">
             <Stars rating={t.rating} />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-brand-400 bg-brand-500/10 border border-brand-500/20 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-brand-500 bg-brand-500/10 border border-brand-500/20 px-2 py-0.5 rounded-full">
               {t.plan}
             </span>
           </div>
 
-          <blockquote className="text-sm sm:text-[15px] text-slate-300 leading-relaxed mb-5 relative z-10">
-            “{t.quote}”
+          <blockquote className="text-sm sm:text-[15px] text-[var(--color-ink-muted)] leading-relaxed mb-5 relative z-10">
+            "{t.quote}"
           </blockquote>
 
           <figcaption className="flex items-center gap-3">
@@ -73,8 +73,8 @@ export default function TestimonialsSection() {
               {t.name.charAt(0)}
             </div>
             <div>
-              <div className="text-sm font-semibold text-white">{t.name}</div>
-              <div className="text-xs text-ink-muted">{t.location}</div>
+              <div className="text-sm font-semibold text-[var(--color-ink)]">{t.name}</div>
+              <div className="text-xs text-[var(--color-ink-subtle)]">{t.location}</div>
             </div>
           </figcaption>
         </figure>

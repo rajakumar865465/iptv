@@ -21,7 +21,7 @@ export default function FAQAccordion({ items }: Props) {
         return (
           <div
             key={i}
-            className="rounded-xl border border-line bg-white/[0.04] overflow-hidden transition-colors hover:border-brand-500/30"
+            className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] shadow-card overflow-hidden transition-all hover:border-brand-500/30"
           >
             <h3 className="m-0">
               <button
@@ -32,10 +32,10 @@ export default function FAQAccordion({ items }: Props) {
                 id={`faq-trigger-${i}`}
                 className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-4 min-h-[44px] text-left cursor-pointer"
               >
-                <span className="font-medium text-white text-sm">{item.q}</span>
+                <span className="font-medium text-[var(--color-ink)] text-sm">{item.q}</span>
                 <ChevronDown
                   aria-hidden="true"
-                  className={`w-5 h-5 text-ink-muted shrink-0 transition-transform duration-200 ${
+                  className={`w-5 h-5 text-[var(--color-ink-subtle)] shrink-0 transition-transform duration-200 ${
                     isOpen ? 'rotate-180' : ''
                   }`}
                 />
@@ -50,7 +50,7 @@ export default function FAQAccordion({ items }: Props) {
               }`}
             >
               <div className="overflow-hidden">
-                <p className="px-4 sm:px-5 pb-4 text-ink-muted text-sm leading-relaxed">{item.a}</p>
+                <p className="px-4 sm:px-5 pb-4 text-[var(--color-ink-muted)] text-sm leading-relaxed border-t border-[var(--color-line)]">{item.a}</p>
               </div>
             </div>
           </div>

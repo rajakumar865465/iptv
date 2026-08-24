@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Menu, X, Key, Download } from 'lucide-react';
 
 import AuthModal from '@/components/auth/AuthModal';
+import ThemeToggle from '@/components/ThemeToggle';
 
 const navLinks = [
   { href: '/', label: 'Home' },
@@ -66,7 +67,9 @@ export default function PublicHeader() {
       
       <header
         className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
-          scrolled ? 'bg-black/90 backdrop-blur-xl border-b border-white/10 shadow-lg' : 'bg-transparent'
+          scrolled
+            ? 'bg-[var(--color-surface)]/90 backdrop-blur-xl border-b border-[var(--color-line)] shadow-sm'
+            : 'bg-transparent'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -75,7 +78,7 @@ export default function PublicHeader() {
             <Link href="/" className="flex items-center gap-2 shrink-0">
               <Image src="/logo.png" alt="" width={40} height={40} className="h-9 w-auto object-contain" priority />
               <span className="font-display text-xl font-bold tracking-tight leading-none select-none hidden sm:block">
-                <span className="text-white">Niva</span>
+                <span className="text-[var(--color-ink)]">Niva</span>
                 <span className="text-brand-500">TV</span>
               </span>
             </Link>
@@ -86,30 +89,37 @@ export default function PublicHeader() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-colors group ${
                     pathname === link.href
-                      ? 'text-brand-400 bg-brand-500/10'
-                      : 'text-slate-300 hover:text-white hover:bg-white/5'
+                      ? 'text-brand-500 bg-brand-500/10'
+                      : 'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]'
                   }`}
                 >
                   {link.label}
+                  {/* Animated underline on active link */}
+                  {pathname === link.href && (
+                    <span className="absolute bottom-0.5 left-3 right-3 h-0.5 bg-brand-500 rounded-full" />
+                  )}
                 </Link>
               ))}
             </nav>
 
-            {/* Desktop CTA & Auth */}
-            <div className="hidden md:flex items-center gap-3">
+            {/* Desktop CTA, Theme Toggle & Auth */}
+            <div className="hidden md:flex items-center gap-2">
+              {/* Theme toggle */}
+              <ThemeToggle />
+
               {!user ? (
                 <>
                   <button
                     onClick={() => setAuthOpen(true)}
-                    className="px-4 py-2 text-slate-300 hover:text-white text-sm font-medium transition-colors"
+                    className="px-4 py-2 text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] text-sm font-medium transition-colors"
                   >
                     Log In
                   </button>
                   <Link
                     href="/pricing"
-                    className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors"
+                    className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-all shadow-lg shadow-brand-600/20 hover:shadow-brand-500/30 hover:-translate-y-px"
                   >
                     Buy Now
                   </Link>
@@ -118,22 +128,22 @@ export default function PublicHeader() {
                 <div className="relative">
                   <button
                     onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-white/10 transition-colors"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--color-surface-2)] hover:bg-[var(--color-surface)] border border-[var(--color-line)] transition-colors"
                   >
                     <div className="w-6 h-6 rounded-full bg-brand-500 flex items-center justify-center text-xs font-bold text-white">
                       {user.full_name?.charAt(0).toUpperCase() || 'U'}
                     </div>
-                    <span className="text-sm font-medium text-white max-w-[100px] truncate">
+                    <span className="text-sm font-medium text-[var(--color-ink)] max-w-[100px] truncate">
                       {user.full_name || user.mobile || 'User'}
                     </span>
                   </button>
                   
                   {dropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-white/10 rounded-xl shadow-2xl py-1 overflow-hidden">
-                      <Link href="/my-account" onClick={() => setDropdownOpen(false)} className="block px-4 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-800">
+                    <div className="absolute right-0 mt-2 w-48 bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl shadow-card-lg py-1 overflow-hidden">
+                      <Link href="/my-account" onClick={() => setDropdownOpen(false)} className="block px-4 py-2 text-sm text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-surface-2)] transition-colors">
                         My Dashboard
                       </Link>
-                      <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-800">
+                      <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-[var(--color-surface-2)] transition-colors">
                         Sign Out
                       </button>
                     </div>
@@ -142,20 +152,23 @@ export default function PublicHeader() {
               )}
             </div>
 
-          {/* Mobile menu toggle */}
-          <button
-            className="md:hidden text-slate-300 hover:text-white p-2 -mr-2"
-            onClick={() => setMenuOpen(o => !o)}
-            aria-label="Toggle menu"
-          >
-            {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          {/* Mobile: theme toggle + menu toggle */}
+          <div className="md:hidden flex items-center gap-1">
+            <ThemeToggle />
+            <button
+              className="text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] p-2 -mr-2 transition-colors"
+              onClick={() => setMenuOpen(o => !o)}
+              aria-label="Toggle menu"
+            >
+              {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Mobile menu - full screen overlay */}
       {menuOpen && (
-        <div className="md:hidden fixed inset-0 top-14 bg-black/95 backdrop-blur-xl z-40 overflow-y-auto">
+        <div className="md:hidden fixed inset-0 top-14 bg-[var(--color-base)]/98 backdrop-blur-xl z-40 overflow-y-auto border-t border-[var(--color-line)]">
           <div className="px-5 pt-6 pb-10">
             <nav className="space-y-1">
               {navLinks.map(link => (
@@ -165,8 +178,8 @@ export default function PublicHeader() {
                   onClick={() => setMenuOpen(false)}
                   className={`block px-4 py-3.5 rounded-xl text-base font-medium transition-colors ${
                     pathname === link.href
-                      ? 'text-brand-400 bg-brand-500/10'
-                      : 'text-slate-300 hover:text-white hover:bg-white/5'
+                      ? 'text-brand-500 bg-brand-500/10'
+                      : 'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]'
                   }`}
                 >
                   {link.label}
@@ -177,14 +190,14 @@ export default function PublicHeader() {
               <Link
                 href="/pricing"
                 onClick={() => setMenuOpen(false)}
-                className="flex items-center justify-center gap-2 w-full px-4 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-base font-bold transition-colors"
+                className="flex items-center justify-center gap-2 w-full px-4 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-base font-bold transition-colors shadow-lg shadow-brand-600/25"
               >
                 <Key className="w-5 h-5" /> Buy License
               </Link>
               <Link
                 href="/download"
                 onClick={() => setMenuOpen(false)}
-                className="flex items-center justify-center gap-2 w-full px-4 py-3.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-base font-bold border border-white/10 transition-colors"
+                className="flex items-center justify-center gap-2 w-full px-4 py-3.5 rounded-xl bg-[var(--color-surface-2)] hover:bg-[var(--color-surface)] text-[var(--color-ink)] text-base font-bold border border-[var(--color-line)] transition-colors"
               >
                 <Download className="w-5 h-5" /> Download APK
               </Link>

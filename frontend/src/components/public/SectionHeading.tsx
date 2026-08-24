@@ -40,11 +40,11 @@ export default function SectionHeading({
           )}
         </div>
       )}
-      <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-white leading-tight text-balance">
+      <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-[var(--color-ink)] leading-tight text-balance">
         {title}
       </h2>
       {subtitle && (
-        <p className="text-ink-muted text-sm sm:text-lg mt-2 sm:mt-3 leading-relaxed text-balance">
+        <p className="text-[var(--color-ink-muted)] text-sm sm:text-lg mt-2 sm:mt-3 leading-relaxed text-balance">
           {subtitle}
         </p>
       )}

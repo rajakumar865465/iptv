@@ -76,28 +76,29 @@ function monthlyPrice(plan: Plan): number | null {
   return Math.round(plan.price / (plan.duration_days / 30));
 }
 
+// Card backgrounds — work in both dark & light mode via CSS tokens
 const cardClasses: Record<PlanVariant, string> = {
   'most-popular':
-    'bg-gradient-to-b from-brand-600/25 via-brand-600/10 to-transparent border-brand-500/60 shadow-xl shadow-brand-500/15',
+    'bg-gradient-to-b from-brand-600/20 via-brand-600/8 to-[var(--color-surface)] border-brand-500/50 shadow-xl shadow-brand-500/10',
   'save-more':
-    'bg-gradient-to-b from-green-600/15 via-green-600/5 to-transparent border-green-500/40',
+    'bg-gradient-to-b from-green-600/12 via-green-600/4 to-[var(--color-surface)] border-green-500/35',
   'best-value':
-    'bg-gradient-to-b from-amber-500/15 via-amber-500/5 to-transparent border-amber-500/40',
-  starter: 'bg-white/5 border-white/10 hover:border-white/25',
+    'bg-gradient-to-b from-amber-500/12 via-amber-500/4 to-[var(--color-surface)] border-amber-500/35',
+  starter: 'bg-[var(--color-surface)] border-[var(--color-line)] hover:border-[var(--color-ink-subtle)]/30',
 };
 
 const priceColor: Record<PlanVariant, string> = {
-  'most-popular': 'text-brand-400',
-  'save-more': 'text-green-400',
-  'best-value': 'text-amber-400',
-  starter: 'text-white',
+  'most-popular': 'text-brand-500',
+  'save-more': 'text-green-500',
+  'best-value': 'text-amber-500',
+  starter: 'text-[var(--color-ink)]',
 };
 
 const iconColor: Record<PlanVariant, string> = {
-  'most-popular': 'text-brand-400',
-  'save-more': 'text-green-400',
-  'best-value': 'text-amber-400',
-  starter: 'text-green-400',
+  'most-popular': 'text-brand-500',
+  'save-more': 'text-green-500',
+  'best-value': 'text-amber-500',
+  starter: 'text-green-500',
 };
 
 interface Props {
@@ -126,7 +127,8 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
   const features = isFree ? TRIAL_FEATURES : FEATURES;
   const buttonText = ctaText || getCtaText(plan, resolvedVariant);
 
-  const wrapperClass = 'relative rounded-2xl border flex flex-col transition-all duration-300 hover:-translate-y-1 overflow-hidden ' +
+  const wrapperClass =
+    'relative rounded-2xl border flex flex-col transition-all duration-300 hover:-translate-y-1.5 overflow-hidden shadow-card hover:shadow-card-hover ' +
     cardClasses[resolvedVariant];
   const priceCls = priceColor[resolvedVariant];
   const iconCls = iconColor[resolvedVariant];
@@ -144,15 +146,19 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
     badgeClass = 'bg-amber-500 text-black';
   }
 
-  let offerBadgeClass = 'bg-white/10 text-slate-300';
+  let offerBadgeClass = 'bg-[var(--color-surface-2)] text-[var(--color-ink-muted)] border border-[var(--color-line)]';
   if (resolvedVariant === 'most-popular') offerBadgeClass = 'bg-brand-600 text-white';
   else if (resolvedVariant === 'save-more') offerBadgeClass = 'bg-green-600 text-white';
   else if (resolvedVariant === 'best-value') offerBadgeClass = 'bg-amber-500 text-black';
 
-  let btnClass = 'bg-white/10 hover:bg-white/20 text-white border border-white/10';
-  if (resolvedVariant === 'most-popular') btnClass = 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-500/20';
-  else if (resolvedVariant === 'save-more') btnClass = 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/20';
-  else if (resolvedVariant === 'best-value') btnClass = 'bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20';
+  let btnClass =
+    'bg-[var(--color-surface-2)] hover:bg-[var(--color-line)] text-[var(--color-ink)] border border-[var(--color-line)]';
+  if (resolvedVariant === 'most-popular')
+    btnClass = 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-500/20';
+  else if (resolvedVariant === 'save-more')
+    btnClass = 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/20';
+  else if (resolvedVariant === 'best-value')
+    btnClass = 'bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20';
 
   return (
     <div className={wrapperClass}>
@@ -171,15 +177,15 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
           )}
         </div>
 
-        <h3 className="text-lg font-bold text-white mb-1">{plan.name}</h3>
-        <p className="text-slate-300 text-sm mb-1">{planSubtitle(plan)}</p>
-        <p className="text-slate-400 text-xs mb-4">
+        <h3 className="text-lg font-bold text-[var(--color-ink)] mb-1">{plan.name}</h3>
+        <p className="text-[var(--color-ink-muted)] text-sm mb-1">{planSubtitle(plan)}</p>
+        <p className="text-[var(--color-ink-subtle)] text-xs mb-4">
           {formatDuration(plan.duration_days)} &bull; {plan.max_devices} {plan.max_devices > 1 ? 'Devices' : 'Device'}
         </p>
 
         <div className="mb-1">
           {hasOffer && (
-            <p className="text-slate-500 text-sm line-through mb-0.5">
+            <p className="text-[var(--color-ink-subtle)] text-sm line-through mb-0.5">
               {'₹' + Math.round(plan.regular_price!) + ' regular price'}
             </p>
           )}
@@ -188,20 +194,20 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
               {isFree ? 'Free' : '₹' + Math.round(plan.price)}
             </span>
             {!isFree && (
-              <span className="text-slate-400 text-sm mb-1">launch price</span>
+              <span className="text-[var(--color-ink-subtle)] text-sm mb-1">launch price</span>
             )}
           </div>
         </div>
 
         {monthlyPrice(plan) !== null && (
-          <p className="text-slate-400 text-sm mb-3">
+          <p className="text-[var(--color-ink-subtle)] text-sm mb-3">
             {'Only ₹' + monthlyPrice(plan) + '/month'}
           </p>
         )}
 
         <ul className="space-y-2 mb-6 flex-1">
           {features.map(f => (
-            <li key={f} className="flex items-center gap-2 text-sm text-slate-300">
+            <li key={f} className="flex items-center gap-2 text-sm text-[var(--color-ink-muted)]">
               <Check className={'w-4 h-4 shrink-0 ' + iconCls} />
               {f}
             </li>
