@@ -38,7 +38,6 @@
   - Resolved low-contrast and dark text issues: All text now renders with crisp high contrast (`text-slate-200` / `text-white`).
   - Added sticky Table of Contents sidebar for seamless section navigation.
   - Integrated the Open-Source Content Indexing & DMCA Takedown Disclaimer into Section 2 of the official policy body without intrusive alert banners.
-  - Deployed to EC2 production server via browser agent, verified live.
-
-
-
+- **Google Search Console Merchant Listings Fix (August 2026):**
+  - Resolved "Merchant listings: 1 invalid item detected" in Google Search Console on `/pricing`.
+  - Enriched `Product` and `Offer` Schema.org JSON-LD with mandatory Merchant listing properties: product image array (`/opengraph-image.jpg`, `/logo.png`), SKU/MPN identifiers, `priceValidUntil`, `itemCondition: NewCondition`, `hasMerchantReturnPolicy` (7-day full refund window), and digital `shippingDetails` (₹0 immediate delivery).
