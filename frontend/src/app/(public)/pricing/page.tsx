@@ -282,15 +282,15 @@ export default async function PricingPage() {
           <div className="inline-flex items-center gap-2 bg-indigo-600/15 border border-indigo-500/30 rounded-full px-4 py-1.5 text-indigo-400 text-sm font-medium mb-4">
             Launch Pricing — Limited Time
           </div>
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-white mb-4">Simple, Honest Pricing</h1>
-          <p className="text-slate-400 text-base sm:text-lg max-w-xl mx-auto mb-3">
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-[var(--color-ink)] mb-4">Simple, Honest Pricing</h1>
+          <p className="text-[var(--color-ink-muted)] text-base sm:text-lg max-w-xl mx-auto mb-3">
             Try free for a day, go monthly, or save big with a full year. No auto-renewal, no hidden charges.
           </p>
-          <p className="text-slate-500 text-sm">License activates immediately inside the app after payment.</p>
+          <p className="text-[var(--color-ink-subtle)] text-sm">License activates immediately inside the app after payment.</p>
         </div>
 
         {/* Trust micro-lines */}
-        <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-8 text-sm text-slate-400">
+        <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-8 text-sm text-[var(--color-ink-muted)]">
           {TRUST_LINES.map(t => (
             <span key={t} className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />{t}
@@ -300,14 +300,14 @@ export default async function PricingPage() {
 
         {/* Recommendation strip */}
         {(plan1mPrice || plan1yPrice) && (
-          <div className="max-w-2xl mx-auto bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 mb-10 text-center">
+          <div className="max-w-2xl mx-auto bg-[var(--color-surface-2)]/50 border border-slate-700/50 rounded-xl p-4 mb-10 text-center">
             {plan1mPrice && (
-              <p className="text-slate-300 text-sm">
+              <p className="text-[var(--color-ink-muted)] text-sm">
                 <span className="text-indigo-400 font-semibold">Most Popular:</span> 1 Month plan for regular viewers — only ₹{plan1mPrice}/month
               </p>
             )}
             {plan1yPrice && (
-              <p className="text-slate-400 text-xs mt-1">
+              <p className="text-[var(--color-ink-muted)] text-xs mt-1">
                 <span className="text-amber-400 font-semibold">Best value:</span> 1 Year plan — only ₹{plan1yPrice}/month, save the most
               </p>
             )}
@@ -326,7 +326,7 @@ export default async function PricingPage() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-16 text-slate-500 mb-16">
+          <div className="text-center py-16 text-[var(--color-ink-subtle)] mb-16">
             <p className="text-lg font-medium">Plans loading...</p>
             <p className="text-sm mt-2">If plans do not appear, please refresh the page.</p>
           </div>
@@ -337,10 +337,10 @@ export default async function PricingPage() {
           {TRUST.map(t => {
             const Icon = t.icon;
             return (
-              <div key={t.title} className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+              <div key={t.title} className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-4 text-center">
                 <Icon className="w-6 h-6 text-indigo-400 mx-auto mb-2" />
-                <h3 className="text-white text-sm font-semibold mb-1">{t.title}</h3>
-                <p className="text-slate-400 text-xs leading-relaxed">{t.desc}</p>
+                <h3 className="text-[var(--color-ink)] text-sm font-semibold mb-1">{t.title}</h3>
+                <p className="text-[var(--color-ink-muted)] text-xs leading-relaxed">{t.desc}</p>
               </div>
             );
           })}
@@ -348,7 +348,7 @@ export default async function PricingPage() {
 
         {/* Billing FAQ */}
         <div className="max-w-2xl mx-auto">
-          <h2 className="text-2xl font-bold text-white text-center mb-8">Billing Questions</h2>
+          <h2 className="text-2xl font-bold text-[var(--color-ink)] text-center mb-8">Billing Questions</h2>
           <FAQAccordion items={BILLING_FAQ} />
         </div>
 
