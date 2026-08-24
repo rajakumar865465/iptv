@@ -78,8 +78,8 @@ export default async function SupportPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-extrabold text-white mb-3">Support</h1>
-          <p className="text-slate-400">We typically respond within a few hours. Choose the fastest way to reach us.</p>
+          <h1 className="text-4xl font-extrabold text-[var(--color-ink)] mb-3">Support</h1>
+          <p className="text-[var(--color-ink-muted)]">We typically respond within a few hours. Choose the fastest way to reach us.</p>
         </div>
 
         {/* Contact options */}
@@ -88,12 +88,12 @@ export default async function SupportPage() {
             <a
               href={`https://wa.me/${whatsapp.replace(/\D/g, '')}`}
               target="_blank" rel="noreferrer"
-              className="flex items-center gap-4 bg-green-600/10 border border-green-500/30 rounded-2xl p-5 hover:bg-green-600/15 transition-colors"
+              className="flex items-center gap-4 bg-green-500/10 border border-green-500/20 rounded-2xl p-5 hover:bg-green-500/15 transition-colors"
             >
-              <MessageCircle className="w-8 h-8 text-green-400 shrink-0" />
+              <MessageCircle className="w-8 h-8 text-green-600 dark:text-green-400 shrink-0" />
               <div>
-                <p className="text-white font-semibold">WhatsApp</p>
-                <p className="text-slate-400 text-sm">{whatsapp}</p>
+                <p className="text-[var(--color-ink)] font-semibold">WhatsApp</p>
+                <p className="text-[var(--color-ink-muted)] text-sm">{whatsapp}</p>
               </div>
             </a>
           )}
@@ -101,12 +101,12 @@ export default async function SupportPage() {
           {email && (
             <a
               href={`mailto:${email}`}
-              className="flex items-center gap-4 bg-blue-600/10 border border-blue-500/30 rounded-2xl p-5 hover:bg-blue-600/15 transition-colors"
+              className="flex items-center gap-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl p-5 hover:bg-blue-500/15 transition-colors"
             >
-              <Mail className="w-8 h-8 text-blue-400 shrink-0" />
+              <Mail className="w-8 h-8 text-blue-600 dark:text-blue-400 shrink-0" />
               <div>
-                <p className="text-white font-semibold">Email</p>
-                <p className="text-slate-400 text-sm break-all">{email}</p>
+                <p className="text-[var(--color-ink)] font-semibold">Email</p>
+                <p className="text-[var(--color-ink-muted)] text-sm break-all">{email}</p>
               </div>
             </a>
           )}
@@ -115,12 +115,12 @@ export default async function SupportPage() {
             <a
               href={telegram}
               target="_blank" rel="noreferrer"
-              className="flex items-center gap-4 bg-sky-600/10 border border-sky-500/30 rounded-2xl p-5 hover:bg-sky-600/15 transition-colors"
+              className="flex items-center gap-4 bg-sky-500/10 border border-sky-500/20 rounded-2xl p-5 hover:bg-sky-500/15 transition-colors"
             >
-              <MessageCircle className="w-8 h-8 text-sky-400 shrink-0" />
+              <MessageCircle className="w-8 h-8 text-sky-600 dark:text-sky-400 shrink-0" />
               <div>
-                <p className="text-white font-semibold">Telegram</p>
-                <p className="text-slate-400 text-sm">Join our Telegram group</p>
+                <p className="text-[var(--color-ink)] font-semibold">Telegram</p>
+                <p className="text-[var(--color-ink-muted)] text-sm">Join our Telegram group</p>
               </div>
             </a>
           )}
@@ -128,43 +128,43 @@ export default async function SupportPage() {
           {phone && (
             <a
               href={`tel:${phone}`}
-              className="flex items-center gap-4 bg-purple-600/10 border border-purple-500/30 rounded-2xl p-5 hover:bg-purple-600/15 transition-colors"
+              className="flex items-center gap-4 bg-purple-500/10 border border-purple-500/20 rounded-2xl p-5 hover:bg-purple-500/15 transition-colors"
             >
-              <Phone className="w-8 h-8 text-purple-400 shrink-0" />
+              <Phone className="w-8 h-8 text-purple-600 dark:text-purple-400 shrink-0" />
               <div>
-                <p className="text-white font-semibold">Phone / Call</p>
-                <p className="text-slate-400 text-sm">{phone}</p>
+                <p className="text-[var(--color-ink)] font-semibold">Phone / Call</p>
+                <p className="text-[var(--color-ink-muted)] text-sm">{phone}</p>
               </div>
             </a>
           )}
 
-          <div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-2xl p-5">
-            <Clock className="w-8 h-8 text-slate-400 shrink-0" />
+          <div className="flex items-center gap-4 bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-5">
+            <Clock className="w-8 h-8 text-[var(--color-ink-muted)] shrink-0" />
             <div>
-              <p className="text-white font-semibold">Response Time</p>
-              <p className="text-slate-400 text-sm">Usually within 2–4 hours</p>
+              <p className="text-[var(--color-ink)] font-semibold">Response Time</p>
+              <p className="text-[var(--color-ink-muted)] text-sm">Usually within 2–4 hours</p>
             </div>
           </div>
         </div>
 
         {/* Merchant & Office Address (Razorpay Compliance) */}
-        <div className="bg-[#121218] border border-white/10 rounded-2xl p-6 sm:p-8 mb-12">
-          <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <Building className="w-5 h-5 text-indigo-400" /> Merchant Contact Details
+        <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl p-6 sm:p-8 mb-12">
+          <h2 className="text-xl font-bold text-[var(--color-ink)] mb-4 flex items-center gap-2">
+            <Building className="w-5 h-5 text-brand-500" /> Merchant Contact Details
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
             <div>
-              <p className="text-slate-400 font-medium">Business / Merchant Name</p>
-              <p className="text-white font-semibold mt-0.5">Luxomall Digital Services</p>
+              <p className="text-[var(--color-ink-muted)] font-medium">Business / Merchant Name</p>
+              <p className="text-[var(--color-ink)] font-semibold mt-0.5">Luxomall Digital Services</p>
             </div>
             <div>
-              <p className="text-slate-400 font-medium">Support Contact</p>
-              <p className="text-white font-semibold mt-0.5">Phone: {phone || '+919774401306'}</p>
-              <p className="text-white font-semibold mt-0.5">Email: {email || 'support@nivatv.luxomall.in'}</p>
+              <p className="text-[var(--color-ink-muted)] font-medium">Support Contact</p>
+              <p className="text-[var(--color-ink)] font-semibold mt-0.5">Phone: {phone || '+919774401306'}</p>
+              <p className="text-[var(--color-ink)] font-semibold mt-0.5">Email: {email || 'support@nivatv.luxomall.in'}</p>
             </div>
             <div className="md:col-span-2">
-              <p className="text-slate-400 font-medium flex items-center gap-1.5"><MapPin className="w-4 h-4 text-indigo-400" /> Physical Address</p>
-              <p className="text-white font-medium mt-1 leading-relaxed">
+              <p className="text-[var(--color-ink-muted)] font-medium flex items-center gap-1.5"><MapPin className="w-4 h-4 text-brand-500" /> Physical Address</p>
+              <p className="text-[var(--color-ink)] font-medium mt-1 leading-relaxed">
                 Luxomall Digital Services,<br />
                 Near GMC Hospital, Bhangagarh,<br />
                 Guwahati, Assam, India - 781005
@@ -175,24 +175,24 @@ export default async function SupportPage() {
 
         {/* Common issues */}
         <div className="mb-10">
-          <h2 className="text-2xl font-bold text-white mb-6">Common Issues & Quick Fixes</h2>
+          <h2 className="text-2xl font-bold text-[var(--color-ink)] mb-6">Common Issues & Quick Fixes</h2>
           <div className="space-y-4">
             {COMMON_ISSUES.map(item => (
-              <div key={item.issue} className="bg-white/5 border border-white/10 rounded-xl p-5">
-                <p className="text-white font-semibold text-sm mb-1">❓ {item.issue}</p>
-                <p className="text-slate-400 text-sm leading-relaxed">✅ {item.fix}</p>
+              <div key={item.issue} className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl p-5">
+                <p className="text-[var(--color-ink)] font-semibold text-sm mb-1">❓ {item.issue}</p>
+                <p className="text-[var(--color-ink-muted)] text-sm leading-relaxed">✅ {item.fix}</p>
               </div>
             ))}
           </div>
         </div>
 
         {/* License check CTA */}
-        <div className="bg-gradient-to-r from-indigo-600/15 to-transparent border border-indigo-500/20 rounded-2xl p-6 flex items-center gap-4">
-          <Key className="w-8 h-8 text-indigo-400 shrink-0" />
+        <div className="bg-gradient-to-r from-brand-600/15 to-transparent border border-brand-500/20 bg-[var(--color-surface)] rounded-2xl p-6 flex items-center gap-4">
+          <Key className="w-8 h-8 text-brand-500 shrink-0" />
           <div>
-            <p className="text-white font-semibold mb-1">Check Your License Status</p>
-            <p className="text-slate-400 text-sm mb-3">Verify your license key, activation status and expiry date.</p>
-            <Link href="/license" className="text-sm text-indigo-400 hover:text-blue-300 font-medium underline underline-offset-2">
+            <p className="text-[var(--color-ink)] font-semibold mb-1">Check Your License Status</p>
+            <p className="text-[var(--color-ink-muted)] text-sm mb-3">Verify your license key, activation status and expiry date.</p>
+            <Link href="/license" className="text-sm text-brand-600 dark:text-brand-400 hover:text-brand-500 font-medium underline underline-offset-2">
               Go to License Check →
             </Link>
           </div>
@@ -201,3 +201,4 @@ export default async function SupportPage() {
     </div>
   );
 }
+
