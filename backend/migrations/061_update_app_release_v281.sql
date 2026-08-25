@@ -7,30 +7,33 @@ BEGIN
         INSERT INTO app_releases (
             version, 
             version_code, 
-            release_date, 
-            force_update, 
-            changelog, 
-            download_url, 
+            apk_url, 
             file_size, 
-            min_os_version
+            release_notes, 
+            minimum_android_version, 
+            is_latest, 
+            force_update
         ) VALUES (
             '2.8.1',
             30,
-            CURRENT_TIMESTAMP,
-            true, -- Force update to ensure users get the Google Auth fix
-            '• Fixed Google Sign-In on Android\n• Performance optimizations and bug fixes',
             '/downloads/app-release.apk',
             '34.6 MB',
-            '5.0'
+            '["Fixed Google Sign-In on Android", "Performance optimizations and bug fixes"]'::jsonb,
+            '5.0',
+            true,
+            true
         );
     ELSE
         UPDATE app_releases SET
             force_update = true,
-            changelog = '• Fixed Google Sign-In on Android\n• Performance optimizations and bug fixes',
-            download_url = '/downloads/app-release.apk',
+            is_latest = true,
+            release_notes = '["Fixed Google Sign-In on Android", "Performance optimizations and bug fixes"]'::jsonb,
+            apk_url = '/downloads/app-release.apk',
             file_size = '34.6 MB',
-            release_date = CURRENT_TIMESTAMP,
             version_code = 30
         WHERE version = '2.8.1';
     END IF;
+    
+    -- Ensure older versions are no longer marked as latest
+    UPDATE app_releases SET is_latest = false WHERE version != '2.8.1';
 END $$;
