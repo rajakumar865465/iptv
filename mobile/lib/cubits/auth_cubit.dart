@@ -98,8 +98,11 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> loginWithGoogle({String? deviceId, String? deviceName, bool forceLogoutOldest = false}) async {
     emit(AuthLoading());
     try {
-      // google_sign_in v7: use singleton instance, call initialize once, then authenticate
-      await GoogleSignIn.instance.initialize();
+      // google_sign_in v7: serverClientId (Web Client ID) must be passed explicitly
+      // on Android when no google-services.json is present (clientConfigurationError fix).
+      await GoogleSignIn.instance.initialize(
+        serverClientId: '73771138100-in6cnnidmh4hd3ltcubls6glq4a3k0rj.apps.googleusercontent.com',
+      );
       final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate();
 
       final String? idToken = googleUser.authentication.idToken;
