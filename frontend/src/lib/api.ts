@@ -115,7 +115,7 @@ export const deleteLicense = (id: string) =>
   api.delete(`/licenses/${id}`).then((r) => r.data.data);
 
 export const getPlans = (params?: Record<string, unknown>) =>
-  api.get('/plans', { params }).then((r) => r.data.data);
+  api.get('/plans', { params }).then((r) => Array.isArray(r.data.data) ? r.data.data : (r.data.data?.data || []));
 
 export const createPlan = (data: Record<string, unknown>) =>
   api.post('/plans', data).then((r) => r.data.data);
