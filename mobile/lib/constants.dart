@@ -4,7 +4,7 @@ class AppConstants {
   // AppConstants.baseUrl previously pointed to the emulator (10.0.2.2:5000) which
   // breaks on real devices. BackendConfig is the single source of truth for the URL.
   static const String apiVersion = 'v1';
-  static const String appVersion = '2.8.0'; // Synchronized with pubspec.yaml
+  static const String appVersion = '2.8.1'; // Synchronized with pubspec.yaml
   static const int connectTimeout = 30000;
   static const int receiveTimeout = 30000;
 }
