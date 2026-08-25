@@ -3,6 +3,7 @@ import { getPublicPlans, getPaymentConfig } from '@/lib/publicApi';
 import PlanCard from '@/components/public/PlanCard';
 import FAQAccordion from '@/components/public/FAQAccordion';
 import OfferTrigger from '@/components/public/OfferTrigger';
+import CountdownTimer from '@/components/public/CountdownTimer';
 import type { Metadata } from 'next';
 import type { Plan } from '@/lib/publicApi';
 
@@ -279,12 +280,12 @@ export default async function PricingPage() {
 
         {/* Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 bg-indigo-600/15 border border-indigo-500/30 rounded-full px-4 py-1.5 text-indigo-400 text-sm font-bold mb-4">
+          <div className="inline-flex items-center gap-2 bg-indigo-600/15 border border-indigo-500/30 rounded-full px-4 py-1.5 text-indigo-400 text-sm font-bold mb-4 shadow-lg shadow-indigo-500/10">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full rounded-full bg-indigo-400 animate-ping opacity-75"></span>
               <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-500"></span>
             </span>
-            Launch Pricing — Valid for the next 42 subscribers only!
+            Launch pricing expires in <CountdownTimer /> — Only 42 left!
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-[var(--color-ink)] mb-4">Simple, Honest Pricing</h1>
           <p className="text-[var(--color-ink-muted)] text-base sm:text-lg max-w-xl mx-auto mb-3">

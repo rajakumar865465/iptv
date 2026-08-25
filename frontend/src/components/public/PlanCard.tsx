@@ -43,13 +43,8 @@ export function planVariant(plan: Plan): PlanVariant {
 
 function getCtaText(plan: Plan, variant: PlanVariant): string {
   if (plan.price === 0) return 'Start Free Trial';
-  if (variant === 'most-popular') return plan.duration_days === 30 ? 'Get Monthly Plan' : 'Get Most Popular';
-  if (variant === 'save-more') return 'Save with 6 Months';
-  if (variant === 'best-value') return 'Get Best Value';
-  if (plan.duration_days === 1) return 'Try for 1 Day';
-  if (plan.duration_days === 7) return 'Try for a Week';
-  if (plan.duration_days === 30) return 'Start Monthly';
-  return 'Get Launch Offer';
+  if (variant === 'best-value') return 'Unlock 500+ Channels Now';
+  return 'Start Watching Instantly';
 }
 
 function planSubtitle(plan: Plan): string {
@@ -184,18 +179,15 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
         </p>
 
         <div className="mb-1">
-          {hasOffer && (
-            <p className="text-[var(--color-ink-subtle)] text-sm line-through mb-0.5">
-              {'₹' + Math.round(plan.regular_price!) + ' regular price'}
-            </p>
-          )}
-          <div className="flex items-end gap-2">
+          <div className="flex items-end gap-2 flex-wrap">
+            {hasOffer && !isFree && (
+              <span className="text-2xl text-red-500/80 line-through font-bold decoration-2">
+                {'₹' + Math.round(plan.regular_price!)}
+              </span>
+            )}
             <span className={'text-4xl font-extrabold ' + priceCls}>
               {isFree ? 'Free' : '₹' + Math.round(plan.price)}
             </span>
-            {!isFree && (
-              <span className="text-[var(--color-ink-subtle)] text-sm mb-1">launch price</span>
-            )}
           </div>
         </div>
 
@@ -232,6 +224,11 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
         </ul>
 
         <div className="flex flex-col gap-2 mt-auto">
+          {!isFree && plan.duration_days >= 365 && (
+            <p className="text-center text-xs font-bold text-amber-500 mb-0.5">
+              ⭐ Chosen by 82% of families
+            </p>
+          )}
           <Link
             href={currentMode === 'manual' ? '/checkout?plan=' + plan.id : '/payment?plan_id=' + plan.id}
             className={'flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm sm:text-base transition-all min-h-[44px] ' + btnClass}
