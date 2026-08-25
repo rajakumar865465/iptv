@@ -142,7 +142,7 @@ function PrimaryCTA({ href, children, className = '' }: { href: string; children
   return (
     <Link
       href={href}
-      className={`inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-white font-bold text-sm sm:text-base shadow-lg shadow-brand-600/25 hover:shadow-brand-500/40 hover:-translate-y-0.5 transition-all min-h-[44px] ${className}`}
+      className={`inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 rounded-xl bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white font-bold text-sm sm:text-base shadow-lg shadow-green-600/25 hover:shadow-green-500/40 hover:-translate-y-0.5 transition-all min-h-[44px] ${className}`}
     >
       {children}
     </Link>
@@ -381,6 +381,22 @@ export default async function HomePage() {
           </section>
         )}
 
+        {/* ─────────────────── TESTIMONIALS ─────────────────── */}
+        <section className="py-16 sm:py-24 md:py-28 bg-[var(--color-surface-2)]/40 border-y border-[var(--color-line)]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <MotionReveal>
+              <SectionHeading
+                eyebrow="Loved by viewers"
+                title={<>What our <span className="text-brand-400">users say</span></>}
+                subtitle="Real feedback from people watching NivaTV every day"
+              />
+            </MotionReveal>
+            <div className="mt-8 sm:mt-10">
+              <TestimonialsSection />
+            </div>
+          </div>
+        </section>
+
         {/* ───────────────────── TRUST STRIP ───────────────────── */}
         <section className="py-10 sm:py-14 border-y border-[var(--color-line)] bg-[var(--color-surface-2)]/40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -561,22 +577,6 @@ export default async function HomePage() {
                   </div>
                 </MotionReveal>
               ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ─────────────────── TESTIMONIALS ─────────────────── */}
-        <section className="py-16 sm:py-24 md:py-28 bg-[var(--color-surface-2)]/40 border-y border-[var(--color-line)]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <MotionReveal>
-              <SectionHeading
-                eyebrow="Loved by viewers"
-                title={<>What our <span className="text-brand-400">users say</span></>}
-                subtitle="Real feedback from people watching NivaTV every day"
-              />
-            </MotionReveal>
-            <div className="mt-8 sm:mt-10">
-              <TestimonialsSection />
             </div>
           </div>
         </section>

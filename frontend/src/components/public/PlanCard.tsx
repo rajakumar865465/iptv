@@ -200,12 +200,29 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
         </div>
 
         {monthlyPrice(plan) !== null && (
-          <p className="text-[var(--color-ink-subtle)] text-sm mb-3">
-            {'Only ₹' + monthlyPrice(plan) + '/month'}
-          </p>
+          <div className="mb-3 flex flex-col items-start gap-1">
+            <p className="text-[var(--color-ink-subtle)] text-sm font-semibold">
+              {'Only ₹' + monthlyPrice(plan) + '/month'}
+            </p>
+            {plan.duration_days >= 365 && plan.max_devices > 1 && (
+              <>
+                <p className="text-green-500 font-bold text-xs bg-green-500/10 px-2 py-0.5 rounded">
+                  Family Plan - Just ₹{(monthlyPrice(plan)! / plan.max_devices).toFixed(1)}/mo per device!
+                </p>
+                <p className="text-amber-500 font-bold text-xs mt-0.5">
+                  Save ₹{(69 * 12 * plan.max_devices) - plan.price} a year!
+                </p>
+              </>
+            )}
+            {plan.duration_days === 30 && (
+              <p className="text-amber-500 font-bold text-xs mt-0.5">
+                Costs less than a cup of cutting chai!
+              </p>
+            )}
+          </div>
         )}
 
-        <ul className="space-y-2 mb-6 flex-1">
+        <ul className="space-y-2 mb-6 flex-1 mt-2">
           {features.map(f => (
             <li key={f} className="flex items-center gap-2 text-sm text-[var(--color-ink-muted)]">
               <Check className={'w-4 h-4 shrink-0 ' + iconCls} />
@@ -214,12 +231,19 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
           ))}
         </ul>
 
-        <Link
-          href={currentMode === 'manual' ? '/checkout?plan=' + plan.id : '/payment?plan_id=' + plan.id}
-          className={'flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all min-h-[44px] ' + btnClass}
-        >
-          {buttonText}
-        </Link>
+        <div className="flex flex-col gap-2 mt-auto">
+          <Link
+            href={currentMode === 'manual' ? '/checkout?plan=' + plan.id : '/payment?plan_id=' + plan.id}
+            className={'flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm sm:text-base transition-all min-h-[44px] ' + btnClass}
+          >
+            {buttonText}
+          </Link>
+          {isFree && (
+            <p className="text-center text-[10px] text-[var(--color-ink-subtle)] px-2">
+              Try it for 24 Hours, 100% Free.<br/>No Credit Card Required.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

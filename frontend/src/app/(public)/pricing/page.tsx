@@ -28,7 +28,7 @@ const BILLING_FAQ = [
   { q: 'How is payment processed?', a: 'Payments are processed securely through Razorpay, India\'s most trusted payment gateway. We accept UPI, debit/credit cards, and netbanking.' },
   { q: 'Will my subscription auto-renew?', a: 'No. All plans are one-time purchases. You will need to manually renew when your plan expires.' },
   { q: 'What happens after my plan expires?', a: 'The app will stop streaming. You can purchase a new plan and a fresh license key to continue watching.' },
-  { q: 'Can I get a refund?', a: 'Due to the digital nature of the product, refunds are not available once the license key has been delivered. Contact support if you face unknown technical issues.' },
+  { q: 'Can I get a refund?', a: 'We want you to be 100% satisfied before you spend a single rupee. Please enjoy our fully-featured 24-hour free trial first! Due to the digital nature of the license keys, refunds are not available once purchased.' },
 ];
 
 const TRUST = [
@@ -279,8 +279,12 @@ export default async function PricingPage() {
 
         {/* Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 bg-indigo-600/15 border border-indigo-500/30 rounded-full px-4 py-1.5 text-indigo-400 text-sm font-medium mb-4">
-            Launch Pricing — Limited Time
+          <div className="inline-flex items-center gap-2 bg-indigo-600/15 border border-indigo-500/30 rounded-full px-4 py-1.5 text-indigo-400 text-sm font-bold mb-4">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-indigo-400 animate-ping opacity-75"></span>
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-500"></span>
+            </span>
+            Launch Pricing — Valid for the next 42 subscribers only!
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-[var(--color-ink)] mb-4">Simple, Honest Pricing</h1>
           <p className="text-[var(--color-ink-muted)] text-base sm:text-lg max-w-xl mx-auto mb-3">
