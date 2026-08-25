@@ -140,7 +140,7 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
     badgeText = 'Most Popular';
     badgeClass = 'bg-brand-600 text-white';
   } else if (resolvedVariant === 'save-more') {
-    badgeText = 'Save More';
+    badgeText = 'Save More — 6 Months';
     badgeClass = 'bg-green-600 text-white';
   } else if (resolvedVariant === 'best-value') {
     badgeText = 'Best Value';
@@ -233,6 +233,11 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
           {!isFree && plan.duration_days >= 365 && (
             <p className="text-center text-xs font-bold text-amber-500 mb-0.5">
               ⭐ Chosen by 82% of families
+            </p>
+          )}
+          {!isFree && plan.duration_days === 180 && (
+            <p className="text-center text-xs font-bold text-green-500 mb-0.5">
+              💰 Save 50% vs paying monthly!
             </p>
           )}
           <Link
