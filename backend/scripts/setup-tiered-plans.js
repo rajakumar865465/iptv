@@ -2,6 +2,14 @@ const db = require('../src/config/db');
 
 async function fixPlans() {
   try {
+    console.log('Resolving any naming conflicts...');
+    // Rename existing plans that have these names to avoid unique constraint errors
+    await db.query(`
+      UPDATE plans 
+      SET name = name || '_old_' || id 
+      WHERE name IN ('Starter', 'Pro', 'Plus')
+    `);
+
     // 1. Starter Plan (30 days)
     const r1 = await db.query(`
       UPDATE plans 
