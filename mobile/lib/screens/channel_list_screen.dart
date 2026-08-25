@@ -5,6 +5,7 @@ import '../constants.dart';
 import '../cubits/channel_cubit.dart';
 import '../cubits/favorite_cubit.dart';
 import '../cubits/mini_player_cubit.dart';
+import '../cubits/license_cubit.dart';
 import '../models/channel_model.dart';
 import '../widgets/premium_widgets.dart';
 import '../widgets/premium_channel_card.dart';
@@ -283,6 +284,17 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
     final showQuick = !_hasSearch && !_hasActiveFilters;
     final entries = _buildEntries(channels, _selectedSort);
 
+    final licenseState = context.read<LicenseCubit>().state;
+    final bool hasPro = licenseState is LicenseActive && licenseState.license.hasProAccess;
+    final bool hasPlus = licenseState is LicenseActive && licenseState.license.hasPlusAccess;
+
+    bool isChannelLocked(ChannelModel c) {
+      if (c.channelTier == 'free') return false;
+      if (c.channelTier == 'plus' && !hasPlus) return true;
+      if (c.channelTier == 'pro' && !hasPro) return true;
+      return false;
+    }
+
     return RefreshIndicator(
       color: const Color(AppColors.primary),
       backgroundColor: const Color(AppColors.surface),
@@ -342,7 +354,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
             )
           else ...[
             // Quick discovery strips — pinned on top, hidden while searching/filtering.
-            if (showQuick) ..._buildQuickSlivers(channels),
+            if (showQuick) ..._buildQuickSlivers(channels, isChannelLocked),
 
             if (showQuick)
               const SliverToBoxAdapter(
@@ -365,7 +377,18 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
                       padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
                       child: ChannelDirectoryRow(
                         channel: channel,
-                        onTap: () => _openPlayer(channel),
+                        isLocked: isChannelLocked(channel),
+                        onTap: () {
+                          if (isChannelLocked(channel)) {
+                            // Show upgrade popup?
+                            // Wait, the API returns 403 anyway, which might trigger an error.
+                            // But maybe we should handle it gracefully here?
+                            // Actually, just let it open the player, and the player will get the 403 and handle it.
+                            _openPlayer(channel);
+                          } else {
+                            _openPlayer(channel);
+                          }
+                        },
                       ),
                     );
                   },
@@ -506,7 +529,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
 
   // ── Quick discovery strips ────────────────────────────────────────────────
 
-  List<Widget> _buildQuickSlivers(List<ChannelModel> channels) {
+  List<Widget> _buildQuickSlivers(List<ChannelModel> channels, bool Function(ChannelModel) isLocked) {
     final widgets = <Widget>[];
 
     // ⭐ Favourites — from FavoriteCubit (hidden when empty).
@@ -522,6 +545,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
               Icons.star_rounded,
               const Color(AppColors.premiumGold),
               favState.favorites.take(15).toList(),
+              isLocked,
             );
           },
         ),
@@ -539,6 +563,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
             Icons.local_fire_department_rounded,
             const Color(AppColors.warning),
             watched.take(15).toList(),
+            isLocked,
           ),
         ),
       );
@@ -555,6 +580,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
             Icons.fiber_new_rounded,
             const Color(AppColors.success),
             recent.take(15).toList(),
+            isLocked,
           ),
         ),
       );
@@ -568,6 +594,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
     IconData icon,
     Color iconColor,
     List<ChannelModel> list,
+    bool Function(ChannelModel) isLocked,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -583,6 +610,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
             itemBuilder: (_, i) => PremiumChannelCard(
               channel: list[i],
               variant: PremiumChannelCardVariant.compact,
+              isLocked: isLocked(list[i]),
               onTap: () => _openPlayer(list[i]),
             ),
           ),

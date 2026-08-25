@@ -34,6 +34,7 @@ class PremiumChannelCard extends StatelessWidget {
   final bool? isFavorite;
   final VoidCallback? onFavoriteToggle;
   final EdgeInsetsGeometry? margin;
+  final bool isLocked;
 
   const PremiumChannelCard({
     super.key,
@@ -44,43 +45,70 @@ class PremiumChannelCard extends StatelessWidget {
     this.isFavorite,
     this.onFavoriteToggle,
     this.margin,
+    this.isLocked = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return _TappableScale(
       onTap: onTap,
-      child: switch (variant) {
-        PremiumChannelCardVariant.compact => _CompactCard(
-            channel: channel,
-            showFavorite: showFavorite,
-            isFavorite: isFavorite,
-            onFavoriteToggle: onFavoriteToggle,
-            margin: margin,
-          ),
-        PremiumChannelCardVariant.featured => _FeaturedCard(
-            channel: channel,
-            margin: margin,
-          ),
-        PremiumChannelCardVariant.grid => _GridCard(
-            channel: channel,
-            showFavorite: showFavorite,
-            isFavorite: isFavorite,
-            onFavoriteToggle: onFavoriteToggle,
-            margin: margin,
-          ),
-        PremiumChannelCardVariant.related => _RelatedCard(
-            channel: channel,
-            margin: margin,
-          ),
-        PremiumChannelCardVariant.list => _ListCard(
-            channel: channel,
-            showFavorite: showFavorite,
-            isFavorite: isFavorite,
-            onFavoriteToggle: onFavoriteToggle,
-            margin: margin,
-          ),
-      },
+      child: Stack(
+        children: [
+          switch (variant) {
+            PremiumChannelCardVariant.compact => _CompactCard(
+                channel: channel,
+                showFavorite: showFavorite,
+                isFavorite: isFavorite,
+                onFavoriteToggle: onFavoriteToggle,
+                margin: margin,
+                isLocked: isLocked,
+              ),
+            PremiumChannelCardVariant.featured => _FeaturedCard(
+                channel: channel,
+                margin: margin,
+                isLocked: isLocked,
+              ),
+            PremiumChannelCardVariant.grid => _GridCard(
+                channel: channel,
+                showFavorite: showFavorite,
+                isFavorite: isFavorite,
+                onFavoriteToggle: onFavoriteToggle,
+                margin: margin,
+                isLocked: isLocked,
+              ),
+            PremiumChannelCardVariant.related => _RelatedCard(
+                channel: channel,
+                margin: margin,
+                isLocked: isLocked,
+              ),
+            PremiumChannelCardVariant.list => _ListCard(
+                channel: channel,
+                showFavorite: showFavorite,
+                isFavorite: isFavorite,
+                onFavoriteToggle: onFavoriteToggle,
+                margin: margin,
+                isLocked: isLocked,
+              ),
+          },
+          if (isLocked)
+            Positioned.fill(
+              child: Container(
+                margin: margin ?? EdgeInsets.zero,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(variant == PremiumChannelCardVariant.list ? 14 : 20),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.lock_rounded,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -501,6 +529,7 @@ class _GridCard extends StatelessWidget {
   final bool? isFavorite;
   final VoidCallback? onFavoriteToggle;
   final EdgeInsetsGeometry? margin;
+  final bool isLocked;
 
   const _GridCard({
     required this.channel,
@@ -508,6 +537,7 @@ class _GridCard extends StatelessWidget {
     this.isFavorite,
     this.onFavoriteToggle,
     this.margin,
+    this.isLocked = false,
   });
 
   @override

@@ -236,6 +236,17 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
       state.categories.isNotEmpty;
 
   Widget _buildContent(HomeLoaded state) {
+    final licenseState = context.read<LicenseCubit>().state;
+    final bool hasPro = licenseState is LicenseActive && licenseState.license.hasProAccess;
+    final bool hasPlus = licenseState is LicenseActive && licenseState.license.hasPlusAccess;
+
+    bool isChannelLocked(ChannelModel c) {
+      if (c.channelTier == 'free') return false;
+      if (c.channelTier == 'plus' && !hasPlus) return true;
+      if (c.channelTier == 'pro' && !hasPro) return true;
+      return false;
+    }
+
     return RefreshIndicator(
       color: const Color(AppColors.primary),
       backgroundColor: const Color(AppColors.surface),
@@ -289,7 +300,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
           if (!_hasAnySection(state))
             SliverToBoxAdapter(
               child: BlocBuilder<ChannelCubit, ChannelState>(
-                builder: (context, cs) => _buildChannelFallback(cs),
+                builder: (context, cs) => _buildChannelFallback(cs, isChannelLocked),
               ),
             ),
 
@@ -308,6 +319,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                 state.popularChannels.take(14).toList(),
                 PlayerSourceType.homePopular,
                 const ChannelSourceFilters(sort: 'popular'),
+                isChannelLocked,
               ),
             ),
           ],
@@ -327,6 +339,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                 state.continueWatching,
                 PlayerSourceType.homeFeatured,
                 const ChannelSourceFilters(),
+                isChannelLocked,
               ),
             ),
           ],
@@ -353,6 +366,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                   categoryId: section.id,
                   categoryName: section.name,
                 ),
+                isChannelLocked,
               ),
             ),
           ],
@@ -369,6 +383,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     List<ChannelModel> channels,
     PlayerSourceType sourceType,
     ChannelSourceFilters filters,
+    bool Function(ChannelModel) isLocked,
   ) {
     return SizedBox(
       height: 188,
@@ -382,6 +397,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
           child: PremiumChannelCard(
             channel: channels[i],
             variant: PremiumChannelCardVariant.featured,
+            isLocked: isLocked(channels[i]),
             onTap: () => _openPlayer(
               channel: channels[i],
               contextChannels: channels,
@@ -400,6 +416,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     List<ChannelModel> channels,
     PlayerSourceType sourceType,
     ChannelSourceFilters filters,
+    bool Function(ChannelModel) isLocked,
   ) {
     return SizedBox(
       height: 146,
@@ -423,6 +440,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                   variant: PremiumChannelCardVariant.compact,
                   showFavorite: true,
                   isFavorite: isFav,
+                  isLocked: isLocked(channel),
                   onFavoriteToggle: () =>
                       context.read<FavoriteCubit>().toggleFavorite(channel.id, isFavorite: isFav),
                   onTap: () => _openPlayer(
@@ -442,7 +460,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
 
   // ─── Channel fallback (when /api/home returns no sections) ───────────────
 
-  Widget _buildChannelFallback(ChannelState channelState) {
+  Widget _buildChannelFallback(ChannelState channelState, bool Function(ChannelModel) isLocked) {
     if (channelState is ChannelLoading) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -485,6 +503,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
             channels.take(14).toList(),
             PlayerSourceType.homePopular,
             const ChannelSourceFilters(sort: 'popular'),
+            isLocked,
           ),
           for (final entry in sortedEntries.take(6)) ...[
             const SizedBox(height: 12),
@@ -498,6 +517,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
               entry.value.take(12).toList(),
               PlayerSourceType.category,
               ChannelSourceFilters(categoryName: entry.key),
+              isLocked,
             ),
           ],
           const SizedBox(height: 32),

@@ -30,6 +30,7 @@ class ChannelModel {
   final int? channelNumber;
   final String? genre;
   final DateTime? createdAt;
+  final String channelTier;
 
   ChannelModel({
     required this.id,
@@ -63,6 +64,7 @@ class ChannelModel {
     this.channelNumber,
     this.genre,
     this.createdAt,
+    this.channelTier = 'free',
   });
 
   /// True if this channel is likely playable (shown when workingOnly=true)
@@ -147,6 +149,7 @@ class ChannelModel {
       channelNumber: json['channel_number'] == null ? null : parseInt(json['channel_number']),
       genre: parseString(json['genre']),
       createdAt: json['created_at'] == null ? null : DateTime.tryParse(json['created_at'].toString()),
+      channelTier: json['channel_tier'] ?? 'free',
     );
   }
 
@@ -183,6 +186,7 @@ class ChannelModel {
       'channel_number': channelNumber,
       'genre': genre,
       'created_at': createdAt?.toIso8601String(),
+      'channel_tier': channelTier,
     };
   }
 }

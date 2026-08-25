@@ -94,7 +94,7 @@ exports.login = async (req, res) => {
     try {
       // Get license status first (needed for device limit check)
       const licenseResult = await db.query(
-        `SELECT l.*, p.name as plan_name FROM licenses l
+        `SELECT l.*, p.name as plan_name, p.plan_tier FROM licenses l
          LEFT JOIN plans p ON l.plan_id = p.id
          WHERE l.user_id = $1 AND l.status IN ('active', 'trial', 'pending_payment')
          ORDER BY l.expires_at DESC LIMIT 1`,
@@ -178,6 +178,7 @@ exports.login = async (req, res) => {
         id: license.id,
         status: license.status,
         plan_name: license.plan_name,
+        plan_tier: license.plan_tier || 'free',
         expires_at: license.expires_at,
         remaining_days: license.expires_at ? Math.ceil((new Date(license.expires_at) - now) / (1000 * 60 * 60 * 24)) : 0,
       } : null,
@@ -381,7 +382,7 @@ exports.me = async (req, res) => {
 exports.myPurchases = async (req, res) => {
   try {
     const licensesResult = await db.query(
-      `SELECT l.*, p.name as plan_name
+      `SELECT l.*, p.name as plan_name, p.plan_tier
        FROM licenses l
        LEFT JOIN plans p ON l.plan_id = p.id
        WHERE l.user_id = $1

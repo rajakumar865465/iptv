@@ -19,13 +19,13 @@ exports.getPlans = async (req, res) => {
 
 exports.createPlan = async (req, res) => {
   try {
-    const { name, price, duration_days, max_devices, description, is_visible, status, sort_order } = req.body;
+    const { name, price, duration_days, max_devices, description, is_visible, status, sort_order, plan_tier } = req.body;
     if (!name || price === undefined || !duration_days) {
       return error(res, 'name, price and duration_days are required', 400);
     }
     const result = await db.query(
-      'INSERT INTO plans (name, price, duration_days, max_devices, description, is_visible, status, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [name, price, duration_days, max_devices || 1, description || '', is_visible !== false, status || 'active', sort_order || 0]
+      'INSERT INTO plans (name, price, duration_days, max_devices, description, is_visible, status, sort_order, plan_tier) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      [name, price, duration_days, max_devices || 1, description || '', is_visible !== false, status || 'active', sort_order || 0, plan_tier || 'plus']
     );
     success(res, result.rows[0], 'Plan created', 201);
   } catch (err) {
@@ -37,10 +37,10 @@ exports.createPlan = async (req, res) => {
 exports.updatePlan = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, price, duration_days, max_devices, description, status, is_visible, sort_order } = req.body;
+    const { name, price, duration_days, max_devices, description, status, is_visible, sort_order, plan_tier } = req.body;
     const result = await db.query(
-      'UPDATE plans SET name = $1, price = $2, duration_days = $3, max_devices = $4, description = $5, status = $6, is_visible = $7, sort_order = $8, updated_at = NOW() WHERE id = $9 RETURNING *',
-      [name, price, duration_days, max_devices, description, status, is_visible, sort_order, id]
+      'UPDATE plans SET name = $1, price = $2, duration_days = $3, max_devices = $4, description = $5, status = $6, is_visible = $7, sort_order = $8, plan_tier = $9, updated_at = NOW() WHERE id = $10 RETURNING *',
+      [name, price, duration_days, max_devices, description, status, is_visible, sort_order, plan_tier || 'plus', id]
     );
     success(res, result.rows[0], 'Plan updated');
   } catch (err) {

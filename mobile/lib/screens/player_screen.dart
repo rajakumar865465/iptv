@@ -1432,17 +1432,70 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         'error': e.toString(),
       });
       if (mounted) {
+        String msg = 'Playback service unavailable.\nPlease try again later.';
+        
+        // Handle 403 upgrade_required specifically
+        if (e is DioException && e.response?.statusCode == 403) {
+          final data = e.response?.data;
+          if (data != null && data['error_code'] == 'upgrade_required') {
+            msg = data['message'] ?? 'Upgrade your plan to watch this channel.';
+            // We can also trigger the upgrade dialog directly
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _showUpgradeDialog(msg);
+            });
+          } else {
+             msg = data?['message'] ?? msg;
+          }
+        }
+
         setState(() {
           _isLoading = false;
           _hasError = true;
           _showPreparingOverlay = false;
-          _streamOverlayMessage = 'Playback service unavailable.\nPlease try again later.';
+          _streamOverlayMessage = msg;
         });
       }
       return;
     } finally {
       _initializationInProgress = false;
     }
+  }
+
+  void _showUpgradeDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(AppColors.surface),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.workspace_premium, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('Upgrade Required', style: TextStyle(color: Colors.white, fontSize: 20)),
+          ],
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(AppColors.primary)),
+            onPressed: () {
+              Navigator.pop(context);
+              // Handle navigation to upgrade/plans screen
+              ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please contact support to upgrade your plan.')));
+            },
+            child: const Text('Upgrade', style: TextStyle(color: Colors.white)),
+          )
+        ],
+      ),
+    );
   }
 
   void _onStartupSuccess(String sourceTrigger, int generation) async {
@@ -6066,10 +6119,21 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
+  bool _isChannelLocked(ChannelModel c) {
+    if (c.channelTier == 'free') return false;
+    final licenseState = context.read<LicenseCubit>().state;
+    final bool hasPro = licenseState is LicenseActive && licenseState.license.hasProAccess;
+    final bool hasPlus = licenseState is LicenseActive && licenseState.license.hasPlusAccess;
+    if (c.channelTier == 'plus' && !hasPlus) return true;
+    if (c.channelTier == 'pro' && !hasPro) return true;
+    return false;
+  }
+
   Widget _buildRelatedCard(ChannelModel ch) {
     return PremiumChannelCard(
       channel: ch,
       variant: PremiumChannelCardVariant.related,
+      isLocked: _isChannelLocked(ch),
       onTap: () => _playChannel(ch),
     );
   }
@@ -6185,6 +6249,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       channel: ch,
       variant: PremiumChannelCardVariant.list,
       margin: EdgeInsets.zero,
+      isLocked: _isChannelLocked(ch),
       onTap: () => _playChannel(ch),
     );
   }

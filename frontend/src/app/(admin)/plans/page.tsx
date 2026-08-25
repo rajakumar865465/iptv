@@ -15,9 +15,10 @@ interface Plan {
   is_visible: boolean;
   status: string;
   sort_order?: number;
+  plan_tier?: string;
 }
 
-const emptyForm = { name: '', price: 0, duration_days: 30, max_devices: 1, description: '', is_visible: true, status: 'active', sort_order: 0 };
+const emptyForm = { name: '', price: 0, duration_days: 30, max_devices: 1, description: '', is_visible: true, status: 'active', sort_order: 0, plan_tier: 'plus' };
 
 export default function PlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -40,7 +41,7 @@ export default function PlansPage() {
 
   const openCreate = () => { setForm(emptyForm); setEditId(null); setShowModal(true); };
   const openEdit = (p: Plan) => {
-    setForm({ name: p.name, price: p.price, duration_days: p.duration_days, max_devices: p.max_devices, description: p.description || '', is_visible: p.is_visible, status: p.status, sort_order: p.sort_order || 0 });
+    setForm({ name: p.name, price: p.price, duration_days: p.duration_days, max_devices: p.max_devices, description: p.description || '', is_visible: p.is_visible, status: p.status, sort_order: p.sort_order || 0, plan_tier: p.plan_tier || 'plus' });
     setEditId(p.id);
     setShowModal(true);
   };
@@ -143,6 +144,14 @@ export default function PlansPage() {
                       <option value="inactive">Inactive</option>
                     </select>
                   </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Plan Tier</label>
+                    <select value={form.plan_tier} onChange={(e) => setForm({ ...form, plan_tier: e.target.value })} className={inputCls}>
+                      <option value="starter">Starter (Free tier only)</option>
+                      <option value="pro">Pro (Free + Pro)</option>
+                      <option value="plus">Plus (All channels)</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</label>
@@ -202,6 +211,10 @@ export default function PlansPage() {
                 <ul className="space-y-2 text-sm text-slate-400 mb-6 flex-1">
                   <li className="flex items-center gap-2"><CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />{p.duration_days} Days access</li>
                   <li className="flex items-center gap-2"><CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />{p.max_devices} Device{p.max_devices > 1 ? 's' : ''}</li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    Tier: <span className="text-emerald-400 font-medium capitalize">{p.plan_tier || 'Plus'}</span>
+                  </li>
                   {p.description && <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />{p.description}</li>}
                 </ul>
                 <div className="flex gap-2 pt-4 border-t border-slate-700/50">

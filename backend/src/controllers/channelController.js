@@ -999,6 +999,42 @@ exports.getChannelPlayback = async (req, res) => {
       });
     }
 
+    // ── Enforce Channel Tier ──────────────────────────────────────────────
+    // If the channel requires a specific tier, verify the user's license.
+    if (channel.channel_tier === 'pro' || channel.channel_tier === 'plus') {
+      let allowed = false;
+      if (req.user) {
+        // Look up the user's active license and plan tier
+        const licenseRes = await db.query(
+          `SELECT p.plan_tier 
+           FROM licenses l 
+           JOIN plans p ON l.plan_id = p.id 
+           WHERE l.user_id = $1 
+             AND l.status IN ('active', 'trial') 
+             AND l.expires_at > NOW() 
+           ORDER BY p.price DESC LIMIT 1`,
+          [req.user.id]
+        );
+        
+        if (licenseRes.rows.length > 0) {
+          const planTier = licenseRes.rows[0].plan_tier;
+          if (channel.channel_tier === 'plus' && planTier === 'plus') {
+            allowed = true;
+          } else if (channel.channel_tier === 'pro' && (planTier === 'pro' || planTier === 'plus')) {
+            allowed = true;
+          }
+        }
+      }
+
+      if (!allowed) {
+        return res.status(403).json({
+          success: false,
+          message: 'This channel requires an upgraded plan.',
+          error_code: 'upgrade_required',
+        });
+      }
+    }
+
     // ── Entitlement guard: premium/paid channels require an authenticated
     // user with an active, non-expired license before any stream/proxy URLs
     // are returned. Free-tier channels keep the existing anonymous access.

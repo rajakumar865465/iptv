@@ -3,6 +3,7 @@ class LicenseModel {
   final String licenseKey;
   final String status;
   final String? planName;
+  final String planTier;
   final int? durationDays;
   final int? maxDevices;
   final DateTime? activatedAt;
@@ -14,6 +15,7 @@ class LicenseModel {
     required this.licenseKey,
     required this.status,
     this.planName,
+    this.planTier = 'free',
     this.durationDays,
     this.maxDevices,
     this.activatedAt,
@@ -27,6 +29,7 @@ class LicenseModel {
       licenseKey: json['license_key'],
       status: json['status'],
       planName: json['plan_name'],
+      planTier: json['plan_tier'] ?? 'free',
       durationDays: json['duration_days'],
       maxDevices: json['max_devices'],
       activatedAt: json['activated_at'] != null ? DateTime.parse(json['activated_at']) : null,
@@ -40,6 +43,8 @@ class LicenseModel {
   bool get isRevoked => status == 'revoked';
   bool get isPremium => durationDays != null && durationDays! > 1;
   bool get isSuspended => status == 'suspended';
+  bool get hasProAccess => planTier == 'pro' || planTier == 'plus';
+  bool get hasPlusAccess => planTier == 'plus';
 }
 
 class PlanModel {

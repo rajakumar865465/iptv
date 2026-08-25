@@ -345,7 +345,13 @@ exports.deleteLicense = async (req, res) => {
 // Channels
 exports.createChannel = async (req, res) => {
   try {
-    const { name, logo_url, stream_url, backup_stream_url, category_id, language, quality, status, is_featured, is_premium, sort_order, default_fit_mode, aspect_ratio_type, has_internal_black_bars, fit_note, player_display_status } = req.body;
+    const {
+      name, logo_url, stream_url, backup_stream_url, category_id, language,
+      quality, status, is_featured, is_premium, sort_order, default_fit_mode,
+      aspect_ratio_type, has_internal_black_bars, fit_note, player_display_status, channel_tier
+    } = req.body;
+
+    if (!name || !stream_url) return error(res, 'name and stream_url are required', 400);
 
     if (stream_url !== undefined && stream_url !== null && !isAllowedStreamUrlProtocol(stream_url)) {
       return error(res, 'stream_url must start with http:// or https://', 400);
@@ -355,8 +361,8 @@ exports.createChannel = async (req, res) => {
     }
 
     const result = await db.query(
-      'INSERT INTO channels (name, logo_url, stream_url, backup_stream_url, category_id, language, quality, status, is_featured, is_premium, sort_order, default_fit_mode, aspect_ratio_type, has_internal_black_bars, fit_note, player_display_status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *',
-      [name, logo_url, stream_url, backup_stream_url, category_id, language, quality, status, is_featured, is_premium, sort_order, default_fit_mode, aspect_ratio_type, has_internal_black_bars, fit_note, player_display_status]
+      'INSERT INTO channels (name, logo_url, stream_url, backup_stream_url, category_id, language, quality, status, is_featured, is_premium, sort_order, default_fit_mode, aspect_ratio_type, has_internal_black_bars, fit_note, player_display_status, channel_tier) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *',
+      [name, logo_url, stream_url, backup_stream_url, category_id, language, quality, status, is_featured, is_premium, sort_order, default_fit_mode, aspect_ratio_type, has_internal_black_bars, fit_note, player_display_status, channel_tier || 'free']
     );
 
     await logAdminAction(req, req.user.id, 'create_channel', 'channels', result.rows[0].id, { name, category_id, language });
@@ -426,7 +432,7 @@ exports.updateChannel = async (req, res) => {
       'language', 'quality', 'status', 'is_featured', 'is_premium',
       'sort_order', 'user_agent', 'referrer', 'country', 'local_logo_url',
       'health_status', 'playback_mode', 'default_fit_mode', 'aspect_ratio_type',
-      'has_internal_black_bars', 'fit_note', 'player_display_status'
+      'has_internal_black_bars', 'fit_note', 'player_display_status', 'channel_tier'
     ];
 
     const keys = Object.keys(fields).filter(k => ALLOWED_FIELDS.includes(k));

@@ -10,7 +10,7 @@ interface Channel {
   id: string; name: string; logo_url: string; stream_url: string;
   category_id: string; category_name: string; language: string; quality: string;
   status: string; health_status: string; is_premium: boolean; is_featured: boolean;
-  sort_order: number; backup_stream_url: string;
+  sort_order: number; backup_stream_url: string; channel_tier?: string;
 }
 interface Category { id: string; name: string; }
 interface ChannelListResponse { data?: Channel[]; pagination?: { total?: number; active?: number }; }
@@ -37,7 +37,7 @@ interface Stream {
   vlc_playable?: boolean;
 }
 
-const emptyForm = { name: '', stream_url: '', backup_stream_url: '', logo_url: '', category_id: '', language: 'Hindi', quality: 'HD', status: 'active', is_premium: false, is_featured: false, sort_order: 0 };
+const emptyForm = { name: '', stream_url: '', backup_stream_url: '', logo_url: '', category_id: '', language: 'Hindi', quality: 'HD', status: 'active', is_premium: false, is_featured: false, sort_order: 0, channel_tier: 'free' };
 
 function HealthBadge({ status }: { status: string }) {
   const c: Record<string, string> = { online: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400', offline: 'bg-rose-500/10 border-rose-500/20 text-rose-400', unstable: 'bg-amber-500/10 border-amber-500/20 text-amber-400' };
@@ -112,7 +112,7 @@ export default function ChannelsPage() {
   const openCreate = () => { setForm(emptyForm); setModal('create'); };
   const openEdit = (c: Channel) => {
     setEditChannel(c);
-    setForm({ name: c.name, stream_url: c.stream_url || '', backup_stream_url: c.backup_stream_url || '', logo_url: c.logo_url || '', category_id: c.category_id || '', language: c.language || 'Hindi', quality: c.quality || 'HD', status: c.status, is_premium: c.is_premium, is_featured: c.is_featured, sort_order: c.sort_order || 0 });
+    setForm({ name: c.name, stream_url: c.stream_url || '', backup_stream_url: c.backup_stream_url || '', logo_url: c.logo_url || '', category_id: c.category_id || '', language: c.language || 'Hindi', quality: c.quality || 'HD', status: c.status, is_premium: c.is_premium, is_featured: c.is_featured, sort_order: c.sort_order || 0, channel_tier: c.channel_tier || 'free' });
     setModal('edit');
   };
   const openStreams = async (c: Channel) => {
@@ -287,6 +287,13 @@ export default function ChannelsPage() {
             <div className="space-y-1"><label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</label>
               <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className={ic}>
                 <option value="active">Active</option><option value="inactive">Inactive</option>
+              </select>
+            </div>
+            <div className="space-y-1"><label className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Channel Tier</label>
+              <select value={form.channel_tier} onChange={(e) => setForm({ ...form, channel_tier: e.target.value })} className={ic}>
+                <option value="free">Free</option>
+                <option value="pro">Pro</option>
+                <option value="plus">Plus</option>
               </select>
             </div>
             <div className="space-y-1"><label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Sort Order</label><input type="number" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })} className={ic} /></div>
@@ -587,6 +594,13 @@ export default function ChannelsPage() {
                             <p className="font-semibold text-slate-200 group-hover:text-cyan-400 transition-colors line-clamp-1">{c.name}</p>
                             <div className="flex gap-1.5 mt-1">
                               <span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">{c.quality||'HD'}</span>
+                              {c.channel_tier && c.channel_tier !== 'free' && (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border capitalize ${
+                                  c.channel_tier === 'pro' 
+                                    ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+                                    : 'text-fuchsia-400 bg-fuchsia-500/10 border-fuchsia-500/20'
+                                }`}>{c.channel_tier}</span>
+                              )}
                               {c.is_premium && <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">Premium</span>}
                               {c.is_featured && <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">Featured</span>}
                             </div>

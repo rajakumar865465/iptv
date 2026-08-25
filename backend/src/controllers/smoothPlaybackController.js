@@ -100,7 +100,7 @@ exports.getSmoothPlayback = async (req, res) => {
               total_expected_segments, downloaded_segments,
               last_missing_segment_at, last_successful_segment_at,
               last_source_error, active_recorder_stream_id, backup_active,
-              is_premium, is_paid
+              is_premium, is_paid, channel_tier
        FROM channels WHERE id = $1`,
       [id]
     );
@@ -110,6 +110,40 @@ exports.getSmoothPlayback = async (req, res) => {
 
     if (ch.is_hidden || ch.is_removed) {
       return res.status(403).json({ success: false, message: 'Channel not available', error_code: 'CHANNEL_NOT_AVAILABLE' });
+    }
+
+    // ── Enforce Channel Tier ──────────────────────────────────────────────
+    if (ch.channel_tier === 'pro' || ch.channel_tier === 'plus') {
+      let allowed = false;
+      if (req.user) {
+        const licenseRes = await db.query(
+          `SELECT p.plan_tier 
+           FROM licenses l 
+           JOIN plans p ON l.plan_id = p.id 
+           WHERE l.user_id = $1 
+             AND l.status IN ('active', 'trial') 
+             AND l.expires_at > NOW() 
+           ORDER BY p.price DESC LIMIT 1`,
+          [req.user.id]
+        );
+        
+        if (licenseRes.rows.length > 0) {
+          const planTier = licenseRes.rows[0].plan_tier;
+          if (ch.channel_tier === 'plus' && planTier === 'plus') {
+            allowed = true;
+          } else if (ch.channel_tier === 'pro' && (planTier === 'pro' || planTier === 'plus')) {
+            allowed = true;
+          }
+        }
+      }
+
+      if (!allowed) {
+        return res.status(403).json({
+          success: false,
+          message: 'This channel requires an upgraded plan.',
+          error_code: 'upgrade_required',
+        });
+      }
     }
 
     // Entitlement guard — mirrors channelController.getChannelPlayback: premium/

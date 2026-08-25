@@ -246,7 +246,7 @@ router.put('/channels/:id/ui', async (req, res) => {
     const {
       is_featured, is_premium, is_popular,
       sort_order, category_sort_order,
-      show_on_home, home_section_enabled, status,
+      show_on_home, home_section_enabled, status, channel_tier
     } = req.body;
 
     const setClauses = [];
@@ -261,6 +261,7 @@ router.put('/channels/:id/ui', async (req, res) => {
     if (show_on_home !== undefined) { setClauses.push(`show_on_home = $${pi++}`); params.push(show_on_home); }
     if (home_section_enabled !== undefined) { setClauses.push(`home_section_enabled = $${pi++}`); params.push(home_section_enabled); }
     if (status !== undefined)      { setClauses.push(`status = $${pi++}`); params.push(status); }
+    if (channel_tier !== undefined) { setClauses.push(`channel_tier = $${pi++}`); params.push(channel_tier); }
 
     if (setClauses.length === 0) {
       return res.status(400).json({ success: false, message: 'No fields to update' });
@@ -270,7 +271,7 @@ router.put('/channels/:id/ui', async (req, res) => {
     params.push(id);
 
     const result = await db.query(
-      `UPDATE channels SET ${setClauses.join(', ')} WHERE id = $${pi} RETURNING id, name, is_featured, is_premium, is_popular, sort_order, show_on_home, status`,
+      `UPDATE channels SET ${setClauses.join(', ')} WHERE id = $${pi} RETURNING id, name, is_featured, is_premium, is_popular, sort_order, show_on_home, status, channel_tier`,
       params
     );
 

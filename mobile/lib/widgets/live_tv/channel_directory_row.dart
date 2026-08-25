@@ -17,12 +17,14 @@ class ChannelDirectoryRow extends StatelessWidget {
   final ChannelModel channel;
   final VoidCallback onTap;
   final bool showFavorite;
+  final bool isLocked;
 
   const ChannelDirectoryRow({
     super.key,
     required this.channel,
     required this.onTap,
     this.showFavorite = true,
+    this.isLocked = false,
   });
 
   bool get _offline {
@@ -131,12 +133,23 @@ class ChannelDirectoryRow extends StatelessWidget {
               if (_offline)
                 const _OfflineChip()
               else ...[
-                if (channel.isPremium)
-                  const _ProChip()
-                else if (channel.qualityLabel.isNotEmpty && channel.qualityLabel != 'SD')
-                  QualityBadge(channel.qualityLabel),
-                const SizedBox(width: 6),
-                const LiveBadge(small: true),
+                if (isLocked)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: const Icon(Icons.lock_rounded, size: 10, color: Colors.white),
+                  )
+                else ...[
+                  if (channel.isPremium)
+                    const _ProChip()
+                  else if (channel.qualityLabel.isNotEmpty && channel.qualityLabel != 'SD')
+                    QualityBadge(channel.qualityLabel),
+                  const SizedBox(width: 6),
+                  const LiveBadge(small: true),
+                ]
               ],
 
               // Favorite toggle
