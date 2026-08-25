@@ -26,7 +26,7 @@
  */
 
 const GLOBAL_CATEGORIES = [
-  'Doordarshan', 'Entertainment', 'Movies', 'News', 'Sports', 'Music',
+  'Doordarshan', 'Entertainment', 'Movies', 'News', 'Sports', 'Music', 'Documentary',
   'Devotional', 'Kids', 'Education', 'Business', 'Regional', 'Lifestyle', 'General',
 ];
 
@@ -347,7 +347,7 @@ function detectCategory(hay, currentCat) {
     'english news': 'News', 'business news': 'Business',
     // NOTE: 'international news' is deliberately NOT mapped — that bucket is mostly
     // foreign entertainment (AMC, Bravo, PBS, SYFY…), not news. Let keywords decide.
-    'hindi entertainment': null, // too unreliable — needs keyword hit
+    'hindi entertainment': 'Entertainment', 'documentary': 'Documentary', 'religious': 'Devotional', 'international': 'General',
   };
   if (cl in cleanOld && cleanOld[cl]) {
     return { category: cleanOld[cl], confidence: 'medium', reason: `old category "${currentCat}"` };
