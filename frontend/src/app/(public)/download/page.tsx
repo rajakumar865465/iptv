@@ -79,8 +79,8 @@ function toDirectDownloadUrl(url: string | null | undefined): string {
 
 export default async function DownloadPage() {
   const release = await getAppDownload().catch(() => null);
-  const standardDownloadUrl = release ? toDirectDownloadUrl(release.apk_url) : '/downloads/app-release.apk';
-  const legacyDownloadUrl = '/downloads/app-release-32bit.apk';
+  const standardDownloadUrl = '/downloads/NivaTV_arm64_v2.8.1.apk';
+  const legacyDownloadUrl = '/downloads/NivaTV_arm32_v2.8.1.apk';
   const appVersion = release?.version || '1.2.1';
 
   const howToJsonLd = {
@@ -226,7 +226,7 @@ export default async function DownloadPage() {
           <div>
             <a
               href={standardDownloadUrl}
-              download="app-release.apk"
+              download="NivaTV_arm64_v2.8.1.apk"
               className="group flex items-center justify-center gap-2.5 w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-brand-600 via-brand-500 to-brand-600 hover:from-brand-500 hover:to-brand-600 text-white font-bold text-base sm:text-lg transition-all shadow-xl shadow-brand-600/20 hover:scale-[1.02] active:scale-[0.99]"
             >
               <Download className="w-5 h-5 transition-transform group-hover:-translate-y-0.5" />
@@ -300,7 +300,7 @@ export default async function DownloadPage() {
           <div>
             <a
               href={legacyDownloadUrl}
-              download="app-release-32bit.apk"
+              download="NivaTV_arm32_v2.8.1.apk"
               className="group flex items-center justify-center gap-2.5 w-full py-4 px-6 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-line)] hover:bg-[var(--color-surface)] text-[var(--color-ink)] font-bold text-base sm:text-lg transition-all hover:scale-[1.02] active:scale-[0.99]"
             >
               <Download className="w-5 h-5 text-[var(--color-ink-muted)]" />
@@ -440,3 +440,4 @@ export default async function DownloadPage() {
     </div>
   );
 }
+
