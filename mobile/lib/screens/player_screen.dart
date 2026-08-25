@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -1435,8 +1436,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         String msg = 'Playback service unavailable.\nPlease try again later.';
         
         // Handle 403 upgrade_required specifically
-        if (e is DioException && e.response?.statusCode == 403) {
-          final data = e.response?.data;
+        if (e is DioException && (e as DioException).response?.statusCode == 403) {
+          final data = (e as DioException).response?.data;
           if (data != null && data['error_code'] == 'upgrade_required') {
             msg = data['message'] ?? 'Upgrade your plan to watch this channel.';
             // We can also trigger the upgrade dialog directly

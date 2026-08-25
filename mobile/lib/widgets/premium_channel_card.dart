@@ -270,6 +270,7 @@ class _CompactCard extends StatelessWidget {
   final bool? isFavorite;
   final VoidCallback? onFavoriteToggle;
   final EdgeInsetsGeometry? margin;
+  final bool isLocked;
 
   const _CompactCard({
     required this.channel,
@@ -277,6 +278,7 @@ class _CompactCard extends StatelessWidget {
     this.isFavorite,
     this.onFavoriteToggle,
     this.margin,
+      this.isLocked = false,
   });
 
   @override
@@ -401,10 +403,12 @@ class _CompactCard extends StatelessWidget {
 class _FeaturedCard extends StatelessWidget {
   final ChannelModel channel;
   final EdgeInsetsGeometry? margin;
+  final bool isLocked;
 
   const _FeaturedCard({
     required this.channel,
     this.margin,
+      this.isLocked = false,
   });
 
   @override
@@ -705,10 +709,12 @@ class _GridCard extends StatelessWidget {
 class _RelatedCard extends StatelessWidget {
   final ChannelModel channel;
   final EdgeInsetsGeometry? margin;
+  final bool isLocked;
 
   const _RelatedCard({
     required this.channel,
     this.margin,
+      this.isLocked = false,
   });
 
   @override
@@ -789,6 +795,7 @@ class _ListCard extends StatelessWidget {
   final bool? isFavorite;
   final VoidCallback? onFavoriteToggle;
   final EdgeInsetsGeometry? margin;
+  final bool isLocked;
 
   const _ListCard({
     required this.channel,
@@ -796,6 +803,7 @@ class _ListCard extends StatelessWidget {
     this.isFavorite,
     this.onFavoriteToggle,
     this.margin,
+      this.isLocked = false,
   });
 
   @override
