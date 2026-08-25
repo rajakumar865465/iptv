@@ -202,7 +202,7 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
                   Family Plan - Just ₹{(monthlyPrice(plan)! / plan.max_devices).toFixed(1)}/mo per device!
                 </p>
                 <p className="text-amber-500 font-bold text-xs mt-0.5">
-                  Save ₹{(69 * 12 * plan.max_devices) - plan.price} a year!
+                  Save ₹{(99 * 12 * plan.max_devices) - plan.price} a year!
                 </p>
               </>
             )}
