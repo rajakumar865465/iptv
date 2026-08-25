@@ -83,8 +83,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 const SizedBox(height: 16),
                 TextField(controller: _emailController, decoration: const InputDecoration(hintText: 'Email'), keyboardType: TextInputType.emailAddress),
                 const SizedBox(height: 16),
-                TextField(controller: _mobileController, decoration: const InputDecoration(hintText: 'Mobile Number'), keyboardType: TextInputType.phone),
-                const SizedBox(height: 16),
+                
                 TextField(
                   controller: _passwordController,
                   decoration: InputDecoration(
@@ -96,59 +95,22 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                   obscureText: _obscurePassword,
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _confirmPasswordController,
-                  decoration: InputDecoration(
-                    hintText: 'Confirm Password',
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
-                    ),
-                  ),
-                  obscureText: _obscureConfirm,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _agreedToTerms,
-                      onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
-                      activeColor: const Color(AppColors.primary),
-                    ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
-                        child: Text(
-                          'I agree to the Terms of Service and Privacy Policy',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
-                        ),
+                                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.g_mobiledata, size: 28),
+                      label: const Text('Sign in with Google'),
+                      onPressed: state is AuthLoading ? null : () => context.read<AuthCubit>().loginWithGoogle(),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: const BorderSide(color: Colors.grey),
+                        foregroundColor: Colors.white,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (!_validate()) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please fill all fields, match passwords, and agree to terms')),
-                        );
-                        return;
-                      }
-                      context.read<AuthCubit>().signup(
-                            _nameController.text,
-                            _emailController.text,
-                            _mobileController.text,
-                            _passwordController.text,
-                          );
-                    },
-                    child: const Text('Sign Up'),
                   ),
-                ),
-                const SizedBox(height: 16),
+const SizedBox(height: 16),
+                
                 Center(
                   child: TextButton(
                     onPressed: () {

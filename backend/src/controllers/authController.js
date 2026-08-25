@@ -23,7 +23,7 @@ exports.signup = async (req, res) => {
       return error(res, 'Invalid email address', 400);
     }
     const cleanMobile = (mobile || '').replace(/[\s\-+]/g, '');
-    if (!/^\d{9,15}$/.test(cleanMobile)) {
+    if (cleanMobile && !/^\d{9,15}$/.test(cleanMobile)) {
       return error(res, 'Invalid mobile number', 400);
     }
     if (!password || password.length < 6 || password.length > 128) {
@@ -32,7 +32,7 @@ exports.signup = async (req, res) => {
 
     // Check if user exists using cleanMobile for consistent lookup
     const existing = await db.query(
-      'SELECT id FROM users WHERE email = $1 OR mobile = $2',
+      'SELECT id FROM users WHERE email = $1 OR (mobile = $2 AND $2 != \'\')',
       [email, cleanMobile]
     );
     if (existing.rows.length > 0) {

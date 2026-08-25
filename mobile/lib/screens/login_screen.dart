@@ -186,7 +186,21 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text('Forgot Password?'),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                                    const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.g_mobiledata, size: 28),
+                      label: const Text('Sign in with Google'),
+                      onPressed: state is AuthLoading ? null : () => context.read<AuthCubit>().loginWithGoogle(),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: const BorderSide(color: Colors.grey),
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+const SizedBox(height: 16),
                   Center(
                     child: TextButton(
                       onPressed: () {
