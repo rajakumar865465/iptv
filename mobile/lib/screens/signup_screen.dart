@@ -101,7 +101,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     child: OutlinedButton.icon(
                       icon: const Icon(Icons.g_mobiledata, size: 28),
                       label: const Text('Sign in with Google'),
-                      onPressed: state is AuthLoading ? null : () => context.read<AuthCubit>().loginWithGoogle(),
+                      onPressed: context.read<AuthCubit>().state is AuthLoading ? null : () => context.read<AuthCubit>().loginWithGoogle(),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         side: const BorderSide(color: Colors.grey),

@@ -94,6 +94,45 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
+  
+  Future<void> loginWithGoogle({String? deviceId, String? deviceName, bool forceLogoutOldest = false}) async {
+    emit(AuthLoading());
+    try {
+      // google_sign_in v7: use singleton instance, call initialize once, then authenticate
+      await GoogleSignIn.instance.initialize();
+      final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate();
+
+      final String? idToken = googleUser.authentication.idToken;
+
+      if (idToken == null) {
+        throw Exception('Failed to get Google ID token');
+      }
+
+      final actualDeviceId = deviceId ?? await _storage.getDeviceId();
+      final result = await _authService.googleLogin(
+        idToken: idToken,
+        deviceId: actualDeviceId,
+        deviceName: deviceName,
+        forceLogoutOldest: forceLogoutOldest,
+      );
+      
+      if (result != null) {
+        await _storage.saveToken(result.token);
+        if (result.refreshToken != null && result.refreshToken!.isNotEmpty) {
+          await _storage.saveRefreshToken(result.refreshToken!);
+        }
+        emit(AuthAuthenticated());
+      }
+    } catch (e) {
+      if (e.toString().contains('DEVICE_LIMIT_REACHED')) {
+        emit(AuthDeviceLimitReached('', '', e.toString()));
+      } else {
+        emit(AuthError(e.toString().replaceAll('Exception: ', '')));
+      }
+    }
+  }
+
+
   Future<void> signup(String fullName, String email, String mobile, String password) async {
     emit(AuthLoading());
     try {

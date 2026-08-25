@@ -37,6 +37,7 @@ export function planVariant(plan: Plan): PlanVariant {
   if (plan.is_popular) return 'most-popular';
   // Sensible fallback only when no flags are set
   if (plan.duration_days >= 365) return 'best-value';
+  if (plan.duration_days === 180) return 'save-more';
   if (plan.duration_days === 30) return 'most-popular';
   return 'starter';
 }

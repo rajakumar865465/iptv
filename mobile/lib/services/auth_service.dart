@@ -67,6 +67,30 @@ class AuthService {
     return _parseAuthResponse(response.data);
   }
 
+  
+  Future<AuthUserResult?> googleLogin({
+    required String idToken,
+    required String deviceId,
+    String? deviceName,
+    bool forceLogoutOldest = false,
+  }) async {
+    try {
+      final response = await _dio.post('${ApiEndpoints.auth}/google-login', data: {
+        'credential': idToken,
+        'device_id': deviceId,
+        'device_name': deviceName ?? 'Unknown Device',
+        'app_version': AppConstants.appVersion,
+        'forceLogoutOldest': forceLogoutOldest,
+      });
+      return _parseAuthResponse(response.data);
+    } catch (e) {
+      if (e is DioException && e.response?.data != null) {
+        throw Exception(e.response!.data['message'] ?? 'Google login failed');
+      }
+      rethrow;
+    }
+  }
+
   Future<AuthUserResult?> login({
     required String email,
     required String password,
