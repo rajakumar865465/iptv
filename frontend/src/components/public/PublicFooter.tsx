@@ -12,8 +12,8 @@ export default function PublicFooter() {
           {/* Brand */}
           <div className="md:col-span-1">
             <Link href="/" className="flex items-center gap-2.5 mb-4 w-fit">
-              <Image src="/logo.png" alt="" width={32} height={32} className="h-8 w-auto object-contain" />
-              <span className="font-display text-lg font-bold tracking-tight leading-none select-none">
+              <Image src="/logo.png" alt="NivaTV Logo" width={48} height={48} className="h-10 sm:h-12 w-auto object-contain" />
+              <span className="font-display text-xl font-bold tracking-tight leading-none select-none">
                 <span className="text-[var(--color-ink)]">Niva</span>
                 <span className="text-brand-500">TV</span>
               </span>

@@ -76,8 +76,8 @@ export default function PublicHeader() {
           <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2 shrink-0">
-              <Image src="/logo.png" alt="" width={40} height={40} className="h-9 w-auto object-contain" priority />
-              <span className="font-display text-xl font-bold tracking-tight leading-none select-none hidden sm:block">
+              <Image src="/logo.png" alt="NivaTV Logo" width={56} height={56} className="h-12 sm:h-14 w-auto object-contain" priority />
+              <span className="font-display text-2xl font-bold tracking-tight leading-none select-none hidden sm:block">
                 <span className="text-[var(--color-ink)]">Niva</span>
                 <span className="text-brand-500">TV</span>
               </span>
