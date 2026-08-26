@@ -101,8 +101,10 @@ class AuthCubit extends Cubit<AuthState> {
       // google_sign_in v7: serverClientId (Web Client ID) must be passed explicitly
       // on Android when no google-services.json is present (clientConfigurationError fix).
       await GoogleSignIn.instance.initialize(
+        clientId: '73771138100-in6cnnidmh4hd3ltcubls6glq4a3k0rj.apps.googleusercontent.com',
         serverClientId: '73771138100-in6cnnidmh4hd3ltcubls6glq4a3k0rj.apps.googleusercontent.com',
       );
+      
       final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate();
 
       final String? idToken = googleUser.authentication.idToken;
@@ -127,8 +129,11 @@ class AuthCubit extends Cubit<AuthState> {
         emit(AuthAuthenticated());
       }
     } catch (e) {
-      if (e.toString().contains('DEVICE_LIMIT_REACHED')) {
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('device_limit_reached')) {
         emit(AuthDeviceLimitReached('', '', e.toString()));
+      } else if (errorStr.contains('canceled') || errorStr.contains('cancelled') || errorStr.contains('sign_in_canceled')) {
+        emit(AuthInitial());
       } else {
         emit(AuthError(e.toString().replaceAll('Exception: ', '')));
       }
