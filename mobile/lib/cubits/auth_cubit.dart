@@ -23,7 +23,8 @@ class AuthDeviceLimitReached extends AuthState {
   final String email;
   final String password;
   final String message;
-  AuthDeviceLimitReached(this.email, this.password, this.message);
+  final bool isGoogleLogin;
+  AuthDeviceLimitReached(this.email, this.password, this.message, {this.isGoogleLogin = false});
 }
 
 class AuthCubit extends Cubit<AuthState> {
@@ -105,9 +106,14 @@ class AuthCubit extends Cubit<AuthState> {
         serverClientId: '73771138100-in6cnnidmh4hd3ltcubls6glq4a3k0rj.apps.googleusercontent.com',
       );
       
-      final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate();
+      final GoogleSignInAccount? googleUser = await GoogleSignIn.instance.authenticate();
+      if (googleUser == null) {
+        emit(AuthInitial());
+        return;
+      }
 
-      final String? idToken = googleUser.authentication.idToken;
+      final GoogleSignInAuthentication auth = await googleUser.authentication;
+      final String? idToken = auth.idToken;
 
       if (idToken == null) {
         throw Exception('Failed to get Google ID token');
@@ -131,7 +137,7 @@ class AuthCubit extends Cubit<AuthState> {
     } catch (e) {
       final errorStr = e.toString().toLowerCase();
       if (errorStr.contains('device_limit_reached')) {
-        emit(AuthDeviceLimitReached('', '', e.toString()));
+        emit(AuthDeviceLimitReached('', '', e.toString(), isGoogleLogin: true));
       } else if (errorStr.contains('canceled') || errorStr.contains('cancelled') || errorStr.contains('sign_in_canceled')) {
         emit(AuthInitial());
       } else {

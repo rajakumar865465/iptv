@@ -67,6 +67,36 @@ class _SignupScreenState extends State<SignupScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(state.message)),
             );
+          } else if (state is AuthDeviceLimitReached) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: const Color(AppColors.surface),
+                title: const Text('Device Limit Reached', style: TextStyle(color: Colors.white)),
+                content: Text(state.message, style: const TextStyle(color: Colors.white70)),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      if (state.isGoogleLogin) {
+                        context.read<AuthCubit>().loginWithGoogle(forceLogoutOldest: true);
+                      } else {
+                        context.read<AuthCubit>().login(
+                          state.email,
+                          state.password,
+                          forceLogoutOldest: true,
+                        );
+                      }
+                    },
+                    child: const Text('Logout Oldest', style: TextStyle(color: Color(AppColors.primary))),
+                  ),
+                ],
+              ),
+            );
           }
         },
         child: SafeArea(

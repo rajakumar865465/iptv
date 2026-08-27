@@ -81,11 +81,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextButton(
                     onPressed: () {
                       Navigator.pop(ctx);
-                      context.read<AuthCubit>().login(
-                        state.email,
-                        state.password,
-                        forceLogoutOldest: true,
-                      );
+                      if (state.isGoogleLogin) {
+                        context.read<AuthCubit>().loginWithGoogle(forceLogoutOldest: true);
+                      } else {
+                        context.read<AuthCubit>().login(
+                          state.email,
+                          state.password,
+                          forceLogoutOldest: true,
+                        );
+                      }
                     },
                     child: const Text('Logout Oldest', style: TextStyle(color: Color(AppColors.primary))),
                   ),
