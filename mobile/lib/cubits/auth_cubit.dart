@@ -99,10 +99,9 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> loginWithGoogle({String? deviceId, String? deviceName, bool forceLogoutOldest = false}) async {
     emit(AuthLoading());
     try {
-      // google_sign_in v7: serverClientId (Web Client ID) must be passed explicitly
-      // on Android when no google-services.json is present (clientConfigurationError fix).
+      // In google_sign_in v7+, serverClientId must be the Web Client ID.
+      // Do not specify clientId on Android to prevent clientConfigurationError.
       await GoogleSignIn.instance.initialize(
-        clientId: '73771138100-in6cnnidmh4hd3ltcubls6glq4a3k0rj.apps.googleusercontent.com',
         serverClientId: '73771138100-in6cnnidmh4hd3ltcubls6glq4a3k0rj.apps.googleusercontent.com',
       );
       
@@ -115,8 +114,8 @@ class AuthCubit extends Cubit<AuthState> {
       final GoogleSignInAuthentication auth = await googleUser.authentication;
       final String? idToken = auth.idToken;
 
-      if (idToken == null) {
-        throw Exception('Failed to get Google ID token');
+      if (idToken == null || idToken.isEmpty) {
+        throw Exception('Failed to get Google authentication token. Please try again.');
       }
 
       final actualDeviceId = deviceId ?? await _storage.getDeviceId();
@@ -132,13 +131,18 @@ class AuthCubit extends Cubit<AuthState> {
         if (result.refreshToken != null && result.refreshToken!.isNotEmpty) {
           await _storage.saveRefreshToken(result.refreshToken!);
         }
+        if (result.user != null) {
+          await _storage.saveUser(result.user!);
+        }
         emit(AuthAuthenticated());
+      } else {
+        emit(AuthError('Google Sign-In failed'));
       }
     } catch (e) {
       final errorStr = e.toString().toLowerCase();
       if (errorStr.contains('device_limit_reached')) {
         emit(AuthDeviceLimitReached('', '', e.toString(), isGoogleLogin: true));
-      } else if (errorStr.contains('canceled') || errorStr.contains('cancelled') || errorStr.contains('sign_in_canceled')) {
+      } else if (errorStr.contains('canceled') || errorStr.contains('cancelled') || errorStr.contains('sign_in_canceled') || errorStr.contains('user_cancelled')) {
         emit(AuthInitial());
       } else {
         emit(AuthError(e.toString().replaceAll('Exception: ', '')));

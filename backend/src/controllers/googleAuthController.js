@@ -2,8 +2,9 @@ const db = require('../config/db');
 const { generateToken, generateRefreshToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
 const { OAuth2Client } = require('google-auth-library');
-
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const DEFAULT_GOOGLE_CLIENT_ID = '73771138100-in6cnnidmh4hd3ltcubls6glq4a3k0rj.apps.googleusercontent.com';
+const googleClientId = process.env.GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
+const client = new OAuth2Client(googleClientId);
 
 exports.googleLogin = async (req, res) => {
   try {
@@ -15,9 +16,14 @@ exports.googleLogin = async (req, res) => {
     let googleId, email, name;
 
     if (credential) {
+      const activeClientId = process.env.GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
+      const audiences = [activeClientId];
+      if (!audiences.includes(DEFAULT_GOOGLE_CLIENT_ID)) {
+        audiences.push(DEFAULT_GOOGLE_CLIENT_ID);
+      }
       const ticket = await client.verifyIdToken({
         idToken: credential,
-        audience: process.env.GOOGLE_CLIENT_ID,
+        audience: audiences,
       });
       const payload = ticket.getPayload();
       googleId = payload.sub;
@@ -142,7 +148,7 @@ exports.googleLogin = async (req, res) => {
     }, 'Login successful');
 
   } catch (err) {
-    console.error('Google login error:', err);
-    return error(res, 'Google authentication failed', 401);
+    console.error('Google login error:', err.message, err.stack);
+    return error(res, err.message ? `Google authentication failed: ${err.message}` : 'Google authentication failed', 401);
   }
 };

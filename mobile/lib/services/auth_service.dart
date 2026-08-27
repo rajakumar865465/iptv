@@ -69,19 +69,26 @@ class AuthService {
 
   
   Future<AuthUserResult?> googleLogin({
-    required String idToken,
+    String? idToken,
+    String? accessToken,
     required String deviceId,
     String? deviceName,
     bool forceLogoutOldest = false,
   }) async {
     try {
-      final response = await _dio.post('${ApiEndpoints.auth}/google-login', data: {
-        'credential': idToken,
+      final payload = <String, dynamic>{
         'device_id': deviceId,
         'device_name': deviceName ?? 'Unknown Device',
         'app_version': AppConstants.appVersion,
         'forceLogoutOldest': forceLogoutOldest,
-      });
+      };
+      if (idToken != null && idToken.isNotEmpty) {
+        payload['credential'] = idToken;
+      }
+      if (accessToken != null && accessToken.isNotEmpty) {
+        payload['access_token'] = accessToken;
+      }
+      final response = await _dio.post('${ApiEndpoints.auth}/google-login', data: payload);
       return _parseAuthResponse(response.data);
     } catch (e) {
       if (e is DioException && e.response?.data != null) {
