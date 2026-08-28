@@ -15,6 +15,7 @@ import 'constants.dart';
 import 'dart:io';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'utils/backend_config.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +28,16 @@ void main() async {
       debugPrint('Failed to set high refresh rate: $e');
     }
   }
+  // Initialize Google Sign-In (v7+)
+  // Do not specify clientId on Android to prevent clientConfigurationError.
+  try {
+    await GoogleSignIn.instance.initialize(
+      serverClientId: '73771138100-in6cnnidmh4hd3ltcubls6glq4a3k0rj.apps.googleusercontent.com',
+    );
+  } catch (e) {
+    debugPrint('Google Sign-In init failed: $e');
+  }
+
   // Validate backend URL is configured before the app starts
   if (!BackendConfig.isConfigured) {
     runApp(const _BackendConfigErrorApp());
