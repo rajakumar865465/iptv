@@ -21,6 +21,22 @@
           }
         },
         {
+          "client_id": "73771138100-u2lfb2qm2dcqsqpjvq3brqlfvqvdqmp9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.iptv.iptv_app",
+            "certificate_hash": "2f8d2f604712c8f90c76f2b5c84906aeb43ae16c"
+          }
+        },
+        {
+          "client_id": "73771138100-u2lfb2qm2dcqsqpjvq3brqlfvqvdqmp9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.iptv.iptv_app",
+            "certificate_hash": "387bf637f12630ce5f309c69b4226a062329e573"
+          }
+        },
+        {
           "client_id": "73771138100-in6cnnidmh4hd3ltcubls6glq4a3k0rj.apps.googleusercontent.com",
           "client_type": 3
         }

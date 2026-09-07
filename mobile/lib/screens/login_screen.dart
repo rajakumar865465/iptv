@@ -63,8 +63,13 @@ class _LoginScreenState extends State<LoginScreen> {
           if (state is AuthAuthenticated) {
             _navigateAfterLogin(context);
           } else if (state is AuthError) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message)),
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: Colors.redAccent,
+                duration: const Duration(seconds: 5),
+              ),
             );
           } else if (state is AuthDeviceLimitReached) {
             showDialog(
@@ -99,6 +104,9 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         },
         builder: (context, state) {
+          final isGoogleLoading = state is AuthLoading && state.isGoogle;
+          final isEmailLoading = state is AuthLoading && !state.isGoogle;
+
           return SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
@@ -170,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               }
                               context.read<AuthCubit>().login(email, password);
                             },
-                      child: state is AuthLoading
+                      child: isEmailLoading
                           ? const SizedBox(
                               height: 20,
                               width: 20,
@@ -190,12 +198,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text('Forgot Password?'),
                     ),
                   ),
-                                    const SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      icon: const Icon(Icons.g_mobiledata, size: 28),
-                      label: const Text('Sign in with Google'),
+                      icon: isGoogleLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.g_mobiledata, size: 28),
+                      label: Text(isGoogleLoading ? 'Connecting to Google...' : 'Sign in with Google'),
                       onPressed: state is AuthLoading ? null : () => context.read<AuthCubit>().loginWithGoogle(),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),

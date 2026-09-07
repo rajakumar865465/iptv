@@ -17,13 +17,17 @@ exports.googleLogin = async (req, res) => {
 
     if (credential) {
       const activeClientId = process.env.GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
-      const audiences = [activeClientId];
-      if (!audiences.includes(DEFAULT_GOOGLE_CLIENT_ID)) {
-        audiences.push(DEFAULT_GOOGLE_CLIENT_ID);
-      }
+      const audiences = [
+        activeClientId,
+        DEFAULT_GOOGLE_CLIENT_ID,
+        '73771138100-u2lfb2qm2dcqsqpjvq3brqlfvqvdqmp9.apps.googleusercontent.com',
+        '73771138100-tkp8rhpqfdfupq7be13hoh7kaui2em5l.apps.googleusercontent.com',
+      ];
+      const uniqueAudiences = [...new Set(audiences.filter(Boolean))];
+
       const ticket = await client.verifyIdToken({
         idToken: credential,
-        audience: audiences,
+        audience: uniqueAudiences,
       });
       const payload = ticket.getPayload();
       googleId = payload.sub;

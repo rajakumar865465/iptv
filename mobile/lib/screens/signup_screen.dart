@@ -57,15 +57,20 @@ class _SignupScreenState extends State<SignupScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: BlocListener<AuthCubit, AuthState>(
+      body: BlocConsumer<AuthCubit, AuthState>(
         listener: (context, state) {
           if (state is AuthAuthenticated) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),
             );
           } else if (state is AuthError) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message)),
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: Colors.redAccent,
+                duration: const Duration(seconds: 5),
+              ),
             );
           } else if (state is AuthDeviceLimitReached) {
             showDialog(
@@ -99,39 +104,48 @@ class _SignupScreenState extends State<SignupScreen> {
             );
           }
         },
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Create Account', style: Theme.of(context).textTheme.headlineLarge),
-                const SizedBox(height: 8),
-                Text('Join us for the best live TV experience', style: Theme.of(context).textTheme.bodyMedium),
-                const SizedBox(height: 24),
-                TextField(controller: _nameController, decoration: const InputDecoration(hintText: 'Full Name')),
-                const SizedBox(height: 16),
-                TextField(controller: _emailController, decoration: const InputDecoration(hintText: 'Email'), keyboardType: TextInputType.emailAddress),
-                const SizedBox(height: 16),
-                
-                TextField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    hintText: 'Password',
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+        builder: (context, state) {
+          final isGoogleLoading = state is AuthLoading && state.isGoogle;
+
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Create Account', style: Theme.of(context).textTheme.headlineLarge),
+                  const SizedBox(height: 8),
+                  Text('Join us for the best live TV experience', style: Theme.of(context).textTheme.bodyMedium),
+                  const SizedBox(height: 24),
+                  TextField(controller: _nameController, decoration: const InputDecoration(hintText: 'Full Name')),
+                  const SizedBox(height: 16),
+                  TextField(controller: _emailController, decoration: const InputDecoration(hintText: 'Email'), keyboardType: TextInputType.emailAddress),
+                  const SizedBox(height: 16),
+                  
+                  TextField(
+                    controller: _passwordController,
+                    decoration: InputDecoration(
+                      hintText: 'Password',
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      ),
                     ),
+                    obscureText: _obscurePassword,
                   ),
-                  obscureText: _obscurePassword,
-                ),
-                                  const SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      icon: const Icon(Icons.g_mobiledata, size: 28),
-                      label: const Text('Sign in with Google'),
-                      onPressed: context.read<AuthCubit>().state is AuthLoading ? null : () => context.read<AuthCubit>().loginWithGoogle(),
+                      icon: isGoogleLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.g_mobiledata, size: 28),
+                      label: Text(isGoogleLoading ? 'Connecting to Google...' : 'Sign in with Google'),
+                      onPressed: state is AuthLoading ? null : () => context.read<AuthCubit>().loginWithGoogle(),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         side: const BorderSide(color: Colors.grey),
@@ -139,22 +153,22 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                     ),
                   ),
-const SizedBox(height: 16),
-                
-                Center(
-                  child: TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (_) => const LoginScreen()),
-                      );
-                    },
-                    child: const Text('Already have an account? Sign In'),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(builder: (_) => const LoginScreen()),
+                        );
+                      },
+                      child: const Text('Already have an account? Sign In'),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

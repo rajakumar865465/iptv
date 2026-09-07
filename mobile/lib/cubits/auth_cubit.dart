@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'dart:convert';
 import 'package:dio/dio.dart';
@@ -11,7 +12,10 @@ import '../services/token_refresh_service.dart';
 abstract class AuthState {}
 
 class AuthInitial extends AuthState {}
-class AuthLoading extends AuthState {}
+class AuthLoading extends AuthState {
+  final bool isGoogle;
+  AuthLoading({this.isGoogle = false});
+}
 class AuthAuthenticated extends AuthState {}
 class AuthUnauthenticated extends AuthState {}
 class AuthError extends AuthState {
@@ -97,27 +101,58 @@ class AuthCubit extends Cubit<AuthState> {
 
   
   Future<void> loginWithGoogle({String? deviceId, String? deviceName, bool forceLogoutOldest = false}) async {
-    emit(AuthLoading());
+    emit(AuthLoading(isGoogle: true));
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn.instance.authenticate();
-      if (googleUser == null) {
-        emit(AuthInitial());
-        return;
+      // 1. Clear any cached Google session before authenticating
+      try {
+        await GoogleSignIn.instance.signOut();
+      } catch (signOutErr) {
+        developer.log('GoogleSignIn signOut warning: $signOutErr');
       }
 
-      final GoogleSignInAuthentication auth = await googleUser.authentication;
-      final String? idToken = auth.idToken;
+      // 2. Start interactive authentication with timeout protection
+      final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate().timeout(
+        const Duration(seconds: 40),
+        onTimeout: () => throw Exception('Google Sign-In timed out. Please try again.'),
+      );
 
+      developer.log('Google Sign-In account selected: ${googleUser.email}');
+
+      // 3. Obtain authentication tokens
+      final GoogleSignInAuthentication auth = googleUser.authentication;
+      String? idToken = auth.idToken;
+      String? accessToken;
+
+      // 4. Fallback to client authorization if idToken is not provided
       if (idToken == null || idToken.isEmpty) {
-        throw Exception('Failed to get Google authentication token. Please try again.');
+        developer.log('idToken is empty, requesting client authorization for scopes...');
+        try {
+          final clientAuth = await googleUser.authorizationClient.authorizationForScopes([
+            'email',
+            'profile',
+            'openid',
+          ]).timeout(const Duration(seconds: 15));
+          accessToken = clientAuth?.accessToken;
+          developer.log('Client authorization fallback returned token: ${accessToken != null}');
+        } catch (authErr) {
+          developer.log('Fallback authorization error: $authErr');
+        }
+      }
+
+      if ((idToken == null || idToken.isEmpty) && (accessToken == null || accessToken.isEmpty)) {
+        throw Exception('Google did not return an authentication token. Please verify Google Cloud Console configuration.');
       }
 
       final actualDeviceId = deviceId ?? await _storage.getDeviceId();
       final result = await _authService.googleLogin(
         idToken: idToken,
+        accessToken: accessToken,
         deviceId: actualDeviceId,
         deviceName: deviceName,
         forceLogoutOldest: forceLogoutOldest,
+      ).timeout(
+        const Duration(seconds: 25),
+        onTimeout: () => throw Exception('Server login timed out. Please check your network connection.'),
       );
       
       if (result != null) {
@@ -130,16 +165,27 @@ class AuthCubit extends Cubit<AuthState> {
         }
         emit(AuthAuthenticated());
       } else {
-        emit(AuthError('Google Sign-In failed'));
+        emit(AuthError('Google Sign-In failed on server'));
       }
     } catch (e) {
+      developer.log('loginWithGoogle error: $e');
       final errorStr = e.toString().toLowerCase();
+
       if (errorStr.contains('device_limit_reached')) {
         emit(AuthDeviceLimitReached('', '', e.toString(), isGoogleLogin: true));
-      } else if (errorStr.contains('canceled') || errorStr.contains('cancelled') || errorStr.contains('sign_in_canceled') || errorStr.contains('user_cancelled')) {
+      } else if (errorStr.contains('account reauth failed') ||
+                 errorStr.contains('code: 16') ||
+                 errorStr.contains('developer_error') ||
+                 errorStr.contains('clientconfigurationerror') ||
+                 errorStr.contains('status_code: 10')) {
+        emit(AuthError('Google Sign-In configuration error: Please verify your Google Cloud Console OAuth setup and SHA-1 certificate.'));
+      } else if (errorStr.contains('user_cancelled') ||
+                 errorStr.contains('sign_in_canceled') ||
+                 (errorStr.contains('canceled') && !errorStr.contains('exception'))) {
+        // Pure user back-press cancellation without account selection
         emit(AuthInitial());
       } else {
-        emit(AuthError(e.toString().replaceAll('Exception: ', '')));
+        emit(AuthError(e.toString().replaceAll('Exception: ', '').replaceAll('GoogleSignInException: ', '').trim()));
       }
     }
   }
