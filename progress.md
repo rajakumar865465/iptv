@@ -46,4 +46,18 @@
   - Upgraded backend `channelImportController.parseAndCreateSession` to automatically detect URL lists in pasted content or bulk URL fields, safely fetch all playlists in parallel, deduplicate streams, and insert in parameter-safe chunked batches (200 items per query).
   - Added language auto-detection from ISO code playlist URLs (e.g. `bho.m3u` -> `Bhojpuri`, `tam.m3u` -> `Tamil`, `tel.m3u` -> `Telugu`, `urd.m3u` -> `Urdu`, `ory.m3u` -> `Odia`, `hin.m3u` -> `Hindi`).
   - Upgraded frontend admin import UI with a multi-URL textarea, dynamic URL counter, quick language preset buttons (Hindi, Bhojpuri, Tamil, Telugu, Urdu, Odia, Bengali, Punjabi), and a 1-click "Load Indian Pack" button.
-
+- **Google Sign-In Loop & Authentication Fix (September 2026):**
+  - **Identified Core Failure Causes:**
+    1. Silent exception swallowing in `AuthCubit`: `errorStr.contains('canceled')` was catching Credential Manager code 16 / Account reauth failures and silently emitting `AuthInitial()`, returning to the login screen with zero error message.
+    2. Missing timeout: In Android Credential Manager, delayed callbacks left `state is AuthLoading` active indefinitely ("came same state again loading").
+    3. Missing pre-sign-in session clearing: Google Sign-In v7+ requires `signOut()` prior to `authenticate()` to avoid stale credential reuse.
+    4. Missing access token fallback: If `idToken` was empty, the app did not request authorization scopes for an `accessToken`.
+  - **Mobile App Upgrades:**
+    - Upgraded `mobile/lib/cubits/auth_cubit.dart` with pre-clear `signOut()`, 40s timeout protection on `authenticate()`, 25s timeout on server API call, and fallback to `authorizationForScopes(['email', 'profile', 'openid'])` to obtain `accessToken`.
+    - Differentiated genuine user dismissals from configuration/Google Play Services rejections (`code: 16`, `developer_error`, `reauth failed`) so users receive actionable messages.
+    - Added dedicated visual loading spinners (`isGoogleLoading`) to both `LoginScreen` and `SignupScreen` on the "Sign in with Google" button.
+    - Updated `mobile/android/app/google-services.json` to map both Android OAuth client IDs (`u2lfb2qm...`, `tkp8rhpq...`) and certificate fingerprints (Release `2f8d2f60...`, Debug `387bf637...`).
+  - **Backend Upgrades:**
+    - Upgraded `backend/src/controllers/googleAuthController.js` to verify ID tokens against all project audiences (`activeClientId`, `DEFAULT_GOOGLE_CLIENT_ID`, and Android client IDs) with deduplication.
+  - **Compiled Production Release APKs:**
+    - Recompiled production split APKs with `BACKEND_URL=https://nivatv.luxomall.in` (`app-release.apk` 33.0 MB, `app-release-32bit.apk` 29.8 MB) and copied to `backend/public/downloads/`.
