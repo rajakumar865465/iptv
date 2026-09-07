@@ -104,6 +104,52 @@ export default function ChannelImportPage() {
   const [parsing, setParsing] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'success' | ''; text: string }>({ type: '', text: '' });
 
+  // Preset languages for quick bulk selection
+  const PRESET_LANGUAGES = [
+    { name: 'Hindi', code: 'hin', url: 'https://iptv-org.github.io/iptv/languages/hin.m3u' },
+    { name: 'Bhojpuri', code: 'bho', url: 'https://iptv-org.github.io/iptv/languages/bho.m3u' },
+    { name: 'Tamil', code: 'tam', url: 'https://iptv-org.github.io/iptv/languages/tam.m3u' },
+    { name: 'Telugu', code: 'tel', url: 'https://iptv-org.github.io/iptv/languages/tel.m3u' },
+    { name: 'Urdu', code: 'urd', url: 'https://iptv-org.github.io/iptv/languages/urd.m3u' },
+    { name: 'Odia', code: 'ory', url: 'https://iptv-org.github.io/iptv/languages/ory.m3u' },
+    { name: 'Bengali', code: 'ben', url: 'https://iptv-org.github.io/iptv/languages/ben.m3u' },
+    { name: 'Punjabi', code: 'pan', url: 'https://iptv-org.github.io/iptv/languages/pan.m3u' },
+    { name: 'Malayalam', code: 'mal', url: 'https://iptv-org.github.io/iptv/languages/mal.m3u' },
+  ];
+
+  const PRESET_INDIAN_PACK = [
+    'https://iptv-org.github.io/iptv/languages/hin.m3u',
+    'https://iptv-org.github.io/iptv/languages/bho.m3u',
+    'https://iptv-org.github.io/iptv/languages/tam.m3u',
+    'https://iptv-org.github.io/iptv/languages/tel.m3u',
+    'https://iptv-org.github.io/iptv/languages/urd.m3u',
+    'https://iptv-org.github.io/iptv/languages/ory.m3u',
+  ];
+
+  const sourceUrlsList = useMemo(() => {
+    return sourceUrl
+      .split(/[\r\n,]+/)
+      .map((s) => s.trim())
+      .filter((s) => /^https?:\/\//i.test(s));
+  }, [sourceUrl]);
+
+  const pastedUrlsCount = useMemo(() => {
+    const matches = pastedContent.match(/https?:\/\/[^\s"',]+/gi);
+    return matches ? matches.length : 0;
+  }, [pastedContent]);
+
+  const togglePreset = (url: string) => {
+    setSourceUrl((prev) => {
+      const lines = prev.split(/[\r\n]+/).map((s) => s.trim()).filter(Boolean);
+      if (lines.includes(url)) {
+        const remaining = lines.filter((l) => l !== url);
+        return remaining.length ? remaining.join('\n') : '';
+      } else {
+        return [...lines, url].join('\n');
+      }
+    });
+  };
+
   // --- Session/scan state ---
   const [session, setSession] = useState<ImportSession | null>(null);
   const [scanModalOpen, setScanModalOpen] = useState(false);
@@ -130,17 +176,22 @@ export default function ChannelImportPage() {
 
   // ---------- Step 1: Parse ----------
   const handleFetchAndParse = async () => {
+    if (!sourceUrl.trim()) return;
     setParsing(true);
     setMessage({ type: '', text: '' });
     try {
+      const isBulk = sourceUrlsList.length > 1;
       const res = await parseM3uSession({
-        source_type: 'url',
-        source_url: sourceUrl,
-        source_label: sourceLabel,
+        source_type: isBulk ? 'bulk_urls' : 'url',
+        source_url: sourceUrl.trim(),
+        source_label: sourceLabel || (isBulk ? `Bulk Import (${sourceUrlsList.length} Playlists)` : 'M3U URL'),
         language,
         country,
         source_name: 'iptv-org',
       });
+      if (res.warning) {
+        setMessage({ type: 'success', text: `Loaded ${res.total_found} channels. Note: ${res.warning}` });
+      }
       await loadSessionAndStartScan(res.session_id);
     } catch (err) {
       setMessage({ type: 'error', text: getErrorMessage(err, 'Failed to fetch/parse M3U') });
@@ -150,20 +201,24 @@ export default function ChannelImportPage() {
 
   const handleParsePasted = async () => {
     if (!pastedContent.trim()) {
-      setMessage({ type: 'error', text: 'Paste some M3U content first' });
+      setMessage({ type: 'error', text: 'Paste some M3U content or URLs first' });
       return;
     }
     setParsing(true);
     setMessage({ type: '', text: '' });
     try {
+      const isUrlList = pastedUrlsCount > 0 && !pastedContent.includes('#EXTM3U') && !pastedContent.includes('#EXTINF');
       const res = await parseM3uSession({
-        source_type: 'text',
+        source_type: isUrlList ? 'bulk_urls' : 'text',
         content: pastedContent,
-        source_label: sourceLabel || 'Pasted M3U',
+        source_label: sourceLabel || (isUrlList ? `Bulk Import (${pastedUrlsCount} URLs)` : 'Pasted Content'),
         language,
         country,
-        source_name: 'manual-paste',
+        source_name: isUrlList ? 'bulk-paste' : 'manual-paste',
       });
+      if (res.warning) {
+        setMessage({ type: 'success', text: `Loaded ${res.total_found} channels. Note: ${res.warning}` });
+      }
       await loadSessionAndStartScan(res.session_id);
     } catch (err) {
       setMessage({ type: 'error', text: getErrorMessage(err, 'Failed to parse M3U content') });
@@ -307,44 +362,101 @@ export default function ChannelImportPage() {
       {/* Source input */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-            <LinkIcon className="w-4 h-4 text-purple-400" /> M3U URL
-          </h2>
-          <input
-            type="url"
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+              <LinkIcon className="w-4 h-4 text-purple-400" /> M3U URL(s) / Bulk Import
+            </h2>
+            {sourceUrlsList.length > 0 && (
+              <span className="text-[11px] text-purple-400 font-mono bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full">
+                {sourceUrlsList.length} {sourceUrlsList.length === 1 ? 'URL' : 'URLs'}
+              </span>
+            )}
+          </div>
+          <textarea
             value={sourceUrl}
             onChange={(e) => setSourceUrl(e.target.value)}
-            placeholder="https://iptv-org.github.io/iptv/languages/hin.m3u"
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-purple-500"
+            placeholder={'https://iptv-org.github.io/iptv/languages/hin.m3u\nhttps://iptv-org.github.io/iptv/languages/bho.m3u\n(Enter single or multiple M3U URLs, one per line)'}
+            rows={4}
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-purple-500 resize-y"
           />
+
+          {/* Quick presets */}
+          <div className="space-y-1.5 pt-1 border-t border-slate-800/60">
+            <div className="text-[11px] font-semibold text-slate-400 uppercase flex items-center justify-between">
+              <span>Quick Language Presets</span>
+              <button
+                type="button"
+                onClick={() => setSourceUrl(PRESET_INDIAN_PACK.join('\n'))}
+                className="text-purple-400 hover:text-purple-300 text-[11px] font-semibold underline cursor-pointer"
+              >
+                Load Indian Pack (6 Languages)
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {PRESET_LANGUAGES.map((p) => {
+                const isSelected = sourceUrl.includes(p.url);
+                return (
+                  <button
+                    key={p.code}
+                    type="button"
+                    onClick={() => togglePreset(p.url)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-purple-600/30 text-purple-300 border-purple-500/50'
+                        : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:text-slate-200'
+                    }`}
+                  >
+                    {isSelected ? '✓ ' : '+ '} {p.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <button
             onClick={handleFetchAndParse}
-            disabled={parsing || !sourceUrl}
-            className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            disabled={parsing || !sourceUrl.trim()}
+            className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
           >
             {parsing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CloudDownload className="w-4 h-4" />}
-            Fetch &amp; Analyze
+            {parsing
+              ? `Fetching & Parsing ${sourceUrlsList.length > 1 ? `${sourceUrlsList.length} Playlists...` : 'M3U...'}`
+              : `Fetch & Analyze ${sourceUrlsList.length > 1 ? `(${sourceUrlsList.length} Playlists)` : ''}`}
           </button>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-purple-400" /> Or Paste M3U Content
-          </h2>
-          <textarea
-            value={pastedContent}
-            onChange={(e) => setPastedContent(e.target.value)}
-            placeholder={'#EXTM3U\n#EXTINF:-1 tvg-id="..." group-title="Hindi",Channel Name\nhttps://example.com/live/stream.m3u8'}
-            rows={4}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-purple-500"
-          />
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-purple-400" /> Or Paste M3U Content / URLs
+              </h2>
+              {pastedUrlsCount > 0 && (
+                <span className="text-[11px] text-cyan-400 font-mono bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-full">
+                  {pastedUrlsCount} {pastedUrlsCount === 1 ? 'URL' : 'URLs'} detected
+                </span>
+              )}
+            </div>
+            <textarea
+              value={pastedContent}
+              onChange={(e) => setPastedContent(e.target.value)}
+              placeholder={'Paste #EXTM3U playlist content:\n#EXTM3U\n#EXTINF:-1,Channel Name\nhttps://example.com/live.m3u8\n\nOR paste multiple M3U playlist URLs (one per line):\nhttps://iptv-org.github.io/iptv/languages/bho.m3u\nhttps://iptv-org.github.io/iptv/languages/ory.m3u\nhttps://iptv-org.github.io/iptv/languages/tam.m3u'}
+              rows={8}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-purple-500 resize-y"
+            />
+            <p className="text-[11px] text-slate-400">
+              💡 Supports raw <code className="text-slate-300">#EXTM3U</code> content, stream links, or multiple <code className="text-slate-300">.m3u</code> URLs. All will be fetched and combined seamlessly.
+            </p>
+          </div>
           <button
             onClick={handleParsePasted}
             disabled={parsing || !pastedContent.trim()}
-            className="w-full py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            className="w-full py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
           >
             {parsing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-            Parse Channels
+            {parsing
+              ? 'Parsing Content / URLs...'
+              : `Parse Channels ${pastedUrlsCount > 1 ? `(${pastedUrlsCount} URLs)` : ''}`}
           </button>
         </div>
       </div>

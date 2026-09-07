@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:media_kit/media_kit.dart';
 import 'cubits/auth_cubit.dart';
@@ -21,7 +22,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Enable 90/120Hz display refresh rate on Android
-  if (Platform.isAndroid) {
+  if (!kIsWeb && Platform.isAndroid) {
     try {
       await FlutterDisplayMode.setHighRefreshRate();
     } catch (e) {

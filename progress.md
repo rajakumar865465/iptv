@@ -41,3 +41,9 @@
 - **Google Search Console Merchant Listings Fix (August 2026):**
   - Resolved "Merchant listings: 1 invalid item detected" in Google Search Console on `/pricing`.
   - Enriched `Product` and `Offer` Schema.org JSON-LD with mandatory Merchant listing properties: product image array (`/opengraph-image.jpg`, `/logo.png`), SKU/MPN identifiers, `priceValidUntil`, `itemCondition: NewCondition`, `hasMerchantReturnPolicy` (7-day full refund window), and digital `shippingDetails` (₹0 immediate delivery).
+- **Admin Panel Bulk M3U Channel Importer Fix (September 2026):**
+  - Resolved `Failed to parse M3U: Content does not look like a valid M3U playlist` crash when pasting multiple M3U URLs or plain stream links in `/channel-import`.
+  - Upgraded backend `channelImportController.parseAndCreateSession` to automatically detect URL lists in pasted content or bulk URL fields, safely fetch all playlists in parallel, deduplicate streams, and insert in parameter-safe chunked batches (200 items per query).
+  - Added language auto-detection from ISO code playlist URLs (e.g. `bho.m3u` -> `Bhojpuri`, `tam.m3u` -> `Tamil`, `tel.m3u` -> `Telugu`, `urd.m3u` -> `Urdu`, `ory.m3u` -> `Odia`, `hin.m3u` -> `Hindi`).
+  - Upgraded frontend admin import UI with a multi-URL textarea, dynamic URL counter, quick language preset buttons (Hindi, Bhojpuri, Tamil, Telugu, Urdu, Odia, Bengali, Punjabi), and a 1-click "Load Indian Pack" button.
+

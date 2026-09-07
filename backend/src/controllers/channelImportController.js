@@ -15,7 +15,7 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const { logAudit } = require('../utils/auditLogger');
 const { safeFetch } = require('../utils/ssrfGuard');
-const { parseM3u } = require('../utils/m3uParser');
+const { parseM3u, detectLanguageFromUrl } = require('../utils/m3uParser');
 const { runScanSession } = require('../jobs/channelImportScanner');
 
 const MAX_M3U_BYTES = 15 * 1024 * 1024; // 15MB safety cap on fetched playlists
@@ -49,87 +49,203 @@ exports.fetchM3u = async (req, res) => {
   }
 };
 
-// --- PARSE M3U CONTENT (from URL or pasted text) INTO A NEW IMPORT SESSION ---
+// --- PARSE M3U CONTENT (from URL, multiple URLs, or pasted text) INTO A NEW IMPORT SESSION ---
 exports.parseAndCreateSession = async (req, res) => {
   try {
-    const { source_type, source_url, content, source_label, language, country, source_name } = req.body;
+    const { source_type, source_url, source_urls, content, source_label, language, country, source_name } = req.body;
     const adminId = req.user.id;
 
-    let rawContent = content;
-    if (source_type === 'url') {
-      if (!source_url) return error(res, 'source_url is required', 400);
-      const fetchRes = await safeFetch(source_url, { timeoutMs: 15000 });
-      if (!fetchRes.ok) return error(res, `Failed to fetch M3U (HTTP ${fetchRes.status})`, 502);
-      rawContent = await fetchRes.text();
-      if (Buffer.byteLength(rawContent, 'utf8') > MAX_M3U_BYTES) {
-        return error(res, 'M3U file is too large', 413);
+    // 1. Gather all potential playlist URLs from source_urls, source_url, or pasted content
+    const urlsToFetch = [];
+
+    if (Array.isArray(source_urls)) {
+      for (const u of source_urls) {
+        if (typeof u === 'string' && /^https?:\/\//i.test(u.trim())) {
+          const clean = u.trim();
+          if (!urlsToFetch.includes(clean)) urlsToFetch.push(clean);
+        }
       }
     }
 
-    if (!rawContent || !rawContent.trim()) {
-      return error(res, 'No M3U content to parse', 400);
+    if (source_url && typeof source_url === 'string') {
+      const parts = source_url.split(/[\r\n,]+/).map((s) => s.trim()).filter(Boolean);
+      for (const p of parts) {
+        if (/^https?:\/\//i.test(p) && !urlsToFetch.includes(p)) {
+          urlsToFetch.push(p);
+        }
+      }
     }
 
-    const defaults = { language, country, source: source_name || 'm3u-import' };
-    let items;
-    try {
-      items = parseM3u(rawContent, defaults);
-    } catch (parseErr) {
-      return error(res, `Failed to parse M3U: ${parseErr.message}`, 400);
+    let rawContent = typeof content === 'string' ? content.trim() : '';
+    let isPastedRawM3u = false;
+
+    // If content has #EXTM3U or #EXTINF, it is raw M3U text
+    if (rawContent && (rawContent.includes('#EXTM3U') || rawContent.includes('#EXTINF'))) {
+      isPastedRawM3u = true;
+    } else if (rawContent) {
+      // Content does not have #EXTM3U / #EXTINF.
+      // Check if it contains URLs (e.g. list of M3U playlist URLs pasted in textarea)
+      const urlMatches = rawContent.match(/https?:\/\/[^\s"',]+/gi);
+      if (urlMatches && urlMatches.length > 0) {
+        for (const u of urlMatches) {
+          const clean = u.trim().replace(/[,;]+$/, '');
+          if (!urlsToFetch.includes(clean)) {
+            urlsToFetch.push(clean);
+          }
+        }
+      }
     }
 
-    if (!items.length) {
-      return error(res, 'No valid channels found in the M3U content', 400);
+    let items = [];
+    const fetchErrors = [];
+
+    // 2. Fetch playlists if URLs are provided
+    if (urlsToFetch.length > 0) {
+      for (const u of urlsToFetch) {
+        try {
+          const fetchRes = await safeFetch(u, { timeoutMs: 15000 });
+          if (!fetchRes.ok) {
+            throw new Error(`HTTP ${fetchRes.status}`);
+          }
+          const text = await fetchRes.text();
+          if (Buffer.byteLength(text, 'utf8') > MAX_M3U_BYTES) {
+            throw new Error('Playlist exceeds 15MB limit');
+          }
+
+          // Auto-detect language from URL (e.g. bho.m3u -> Bhojpuri)
+          const detectedLang = detectLanguageFromUrl(u);
+          const playlistDefaults = {
+            language: detectedLang || language || '',
+            country: country || 'IN',
+            source: source_name || u,
+          };
+
+          const playlistItems = parseM3u(text, playlistDefaults);
+          if (playlistItems.length > 0) {
+            items.push(...playlistItems);
+          }
+        } catch (err) {
+          console.warn(`[ChannelImport] Failed to fetch/parse ${u}:`, err.message);
+          fetchErrors.push(`${u} (${err.message})`);
+        }
+      }
+
+      if (!items.length) {
+        if (fetchErrors.length) {
+          return error(res, `Failed to fetch/parse M3U URL(s): ${fetchErrors.join('; ')}`, 400);
+        }
+        return error(res, 'No valid channels found in the provided M3U URL(s)', 400);
+      }
+    } else {
+      // 3. Fallback: Parse raw pasted content directly
+      if (!rawContent) {
+        return error(res, 'No M3U content or valid URL provided to parse', 400);
+      }
+
+      const defaults = { language: language || '', country: country || 'IN', source: source_name || 'manual-paste' };
+      try {
+        items = parseM3u(rawContent, defaults);
+      } catch (parseErr) {
+        return error(res, `Failed to parse M3U: ${parseErr.message}`, 400);
+      }
+
+      if (!items.length) {
+        return error(res, 'No valid channels found in the M3U content', 400);
+      }
     }
+
+    // 4. In-memory de-duplication by normalized stream URL
+    const seenUrls = new Set();
+    const uniqueItems = [];
+    for (const it of items) {
+      const key = it.stream_url_normalized || it.stream_url;
+      if (!seenUrls.has(key)) {
+        seenUrls.add(key);
+        uniqueItems.push(it);
+      }
+    }
+    items = uniqueItems;
+
+    const effectiveSourceType = urlsToFetch.length > 1 ? 'bulk_urls' : (urlsToFetch.length === 1 ? 'url' : 'text');
+    const effectiveSourceUrl = urlsToFetch.length ? urlsToFetch.join('\n') : (source_url || null);
+    const effectiveSourceLabel =
+      source_label ||
+      (urlsToFetch.length > 1
+        ? `Bulk Import (${urlsToFetch.length} playlists)`
+        : urlsToFetch.length === 1
+        ? urlsToFetch[0].split('/').pop() || 'M3U URL'
+        : 'Pasted M3U');
 
     const sessionRes = await db.query(
       `INSERT INTO channel_import_sessions
          (admin_id, source_type, source_url, source_label, default_language, default_country, status, total_found)
        VALUES ($1, $2, $3, $4, $5, $6, 'parsed', $7)
        RETURNING *`,
-      [adminId, source_type === 'url' ? 'url' : 'text', source_url || null, source_label || null, language || null, country || null, items.length]
+      [adminId, effectiveSourceType, effectiveSourceUrl, effectiveSourceLabel, language || null, country || null, items.length]
     );
     const session = sessionRes.rows[0];
 
-    // Bulk insert items
-    const values = [];
-    const params = [];
-    let p = 1;
-    for (const it of items) {
-      values.push(
-        `($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`
-      );
-      params.push(
-        session.id,
-        it.channel_name,
-        it.name_normalized,
-        it.tvg_id,
-        it.tvg_name,
-        it.tvg_logo,
-        it.group_title,
-        it.language,
-        it.country,
-        it.source,
-        it.stream_url,
-        it.stream_url_normalized,
-        it.user_agent
+    // 5. Chunked batch insert into channel_import_items (max 200 items per query)
+    const BATCH_SIZE = 200;
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+      const chunk = items.slice(i, i + BATCH_SIZE);
+      const values = [];
+      const params = [];
+      let p = 1;
+      for (const it of chunk) {
+        values.push(
+          `($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`
+        );
+        params.push(
+          session.id,
+          it.channel_name,
+          it.name_normalized,
+          it.tvg_id,
+          it.tvg_name,
+          it.tvg_logo,
+          it.group_title,
+          it.language,
+          it.country,
+          it.source,
+          it.stream_url,
+          it.stream_url_normalized,
+          it.user_agent
+        );
+      }
+
+      await db.query(
+        `INSERT INTO channel_import_items
+           (session_id, channel_name, name_normalized, tvg_id, tvg_name, tvg_logo, group_title, language, country, source, stream_url, stream_url_normalized, user_agent)
+         VALUES ${values.join(', ')}`,
+        params
       );
     }
 
-    await db.query(
-      `INSERT INTO channel_import_items
-         (session_id, channel_name, name_normalized, tvg_id, tvg_name, tvg_logo, group_title, language, country, source, stream_url, stream_url_normalized, user_agent)
-       VALUES ${values.join(', ')}`,
-      params
-    );
-
     await logAudit({
-      admin_id: adminId, action: 'channel_import_session_created', target_type: 'channel_import_session', target_id: session.id,
-      new_value: { source_type, source_url, total_found: items.length },
-      ip_address: req.ip, user_agent: req.get('User-Agent'),
+      admin_id: adminId,
+      action: 'channel_import_session_created',
+      target_type: 'channel_import_session',
+      target_id: session.id,
+      new_value: {
+        source_type: effectiveSourceType,
+        total_found: items.length,
+        urls_count: urlsToFetch.length,
+        errors_count: fetchErrors.length,
+      },
+      ip_address: req.ip,
+      user_agent: req.get('User-Agent'),
     });
 
-    success(res, { session_id: session.id, total_found: items.length }, 'Parsed successfully');
+    const warningMsg = fetchErrors.length ? ` (${fetchErrors.length} playlist URL(s) could not be reached)` : '';
+    success(
+      res,
+      {
+        session_id: session.id,
+        total_found: items.length,
+        warning: fetchErrors.length ? fetchErrors.join('; ') : null,
+      },
+      `Parsed ${items.length} channels successfully${warningMsg}`
+    );
   } catch (err) {
     console.error('[ChannelImport] parseAndCreateSession error:', err);
     error(res, `Failed to parse M3U: ${err.message}`, 500);

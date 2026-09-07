@@ -196,8 +196,9 @@ export const fetchM3uPreview = (url: string) =>
   api.post('/channel-import/fetch', { url }).then((r) => r.data.data);
 
 export const parseM3uSession = (payload: {
-  source_type: 'url' | 'text';
+  source_type: 'url' | 'text' | 'bulk_urls';
   source_url?: string;
+  source_urls?: string[];
   content?: string;
   source_label?: string;
   language?: string;
