@@ -52,12 +52,11 @@ function getPlanOrder(plan: Plan): number {
 }
 
 function dedupePlans(plans: Plan[]): Plan[] {
-  const seen = new Set<string>();
+  const seen = new Set<number>();
   const out: Plan[] = [];
   for (const plan of plans) {
-    const key = `${plan.duration_days}-${plan.price === 0 ? 'free' : 'paid'}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (seen.has(plan.id)) continue;
+    seen.add(plan.id);
     out.push(plan);
   }
   return out;
@@ -74,7 +73,14 @@ export default async function PricingPage() {
     // Backend not available during build, use empty
   }
 
-  const visiblePlans = dedupePlans(plans).sort((a, b) => getPlanOrder(a) - getPlanOrder(b));
+  const visiblePlans = dedupePlans(plans).sort((a, b) => {
+    if (a.sort_order !== undefined && b.sort_order !== undefined && a.sort_order !== b.sort_order) {
+      return a.sort_order - b.sort_order;
+    }
+    if (a.price === 0) return -1;
+    if (b.price === 0) return 1;
+    return a.price - b.price;
+  });
 
   const monthlyPricePerMonth = (plan: Plan): number | null => {
     if (plan.duration_days < 30 || plan.price === 0) return null;

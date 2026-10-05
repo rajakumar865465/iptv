@@ -40,7 +40,6 @@ export function planVariant(plan: Plan): PlanVariant {
   // Sensible fallback only when no flags are set
   if (plan.duration_days >= 365) return 'best-value';
   if (plan.duration_days === 180) return 'save-more';
-  if (plan.duration_days === 30) return 'most-popular';
   return 'starter';
 }
 
@@ -51,6 +50,7 @@ function getCtaText(plan: Plan, variant: PlanVariant): string {
 }
 
 function planSubtitle(plan: Plan): string {
+  if (plan.description && plan.description.trim()) return plan.description.trim();
   if (plan.price === 0) return 'Try the app free — no payment needed';
   if (plan.duration_days === 1) return 'Quick 24-hour trial to explore';
   if (plan.duration_days === 7) return 'Try the app for one week';
@@ -243,9 +243,14 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
                 </p>
               </>
             )}
-            {plan.duration_days === 30 && (
+            {plan.duration_days === 30 && plan.price <= 50 && (
               <p className="text-amber-500 font-bold text-xs mt-0.5">
                 Costs less than a cup of cutting chai!
+              </p>
+            )}
+            {plan.duration_days === 30 && plan.price > 50 && (
+              <p className="text-emerald-500 font-bold text-xs mt-0.5">
+                Great value with multi-device access!
               </p>
             )}
           </div>
