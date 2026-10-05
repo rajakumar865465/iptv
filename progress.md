@@ -66,4 +66,10 @@
   - **Payment & Checkout Pages Protection:** Enforced auth gates on `/payment` and `/checkout`. Unauthenticated visitors are presented with a dedicated "Sign In Required" view with auto-opening `AuthModal` rather than the payment or UPI submission forms.
   - **AuthModal Capabilities Upgrade:** Enhanced `AuthModal.tsx` to support Google Sign-In, Email & Password (login and register), and Phone OTP, connecting directly into `AuthContext` with instant global state synchronization.
   - **Scratch Card Offer Protection:** Updated `ScratchCardModal.tsx` to verify authentication prior to redirecting to discounted payment checkout.
-
+- **AuthModal Adaptive Light & Dark Mode (October 2026):**
+  - Integrated `next-themes` (`useTheme()`) into `frontend/src/components/auth/AuthModal.tsx`.
+  - Configured high-contrast adaptive classes for modal background, headers, input fields, action buttons, Google login button, and backdrop overlay, ensuring crisp readability in both light and dark themes.
+- **Pricing Plans Deduplication Bugfix (October 2026):**
+  - **Identified Cause:** In `frontend/src/app/(public)/pricing/page.tsx`, `dedupePlans()` was previously deduplicating plans using `${plan.duration_days}-${plan.price === 0 ? 'free' : 'paid'}`. Because both the "Starter" plan (₹49) and "Pro" plan (₹79) shared a 30-day duration, the "Pro" plan was erroneously dropped.
+  - **Fix:** Switched deduplication to `plan.id` and updated sorting to respect `sort_order` and price. Updated `PlanCard.tsx` to display custom plan descriptions when provided and refined variant resolution so non-popular 30-day plans don't falsely claim the "Most Popular" badge.
+  - Verified on EC2: All 3 active plans (`Starter`, `Pro`, and `Plus`) now render in the 3-column pricing grid.
