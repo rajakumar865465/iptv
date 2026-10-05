@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Smartphone, Mail, ArrowRight, Loader2, Lock, User as UserIcon } from 'lucide-react';
 import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,6 +31,7 @@ function CustomGoogleButton({ onSuccess, onError, disabled }: { onSuccess: (toke
 }
 
 export default function AuthModal({ isOpen, onClose, onSuccess }: { isOpen: boolean, onClose: () => void, onSuccess: (user: any) => void }) {
+  const [mounted, setMounted] = useState(false);
   const [method, setMethod] = useState<'select' | 'phone' | 'otp' | 'email_login' | 'email_signup'>('select');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -40,7 +42,32 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: { isOpen: bool
   const [error, setError] = useState('');
   const { login } = useAuth();
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  if (!isOpen || !mounted) return null;
 
   const handleGoogleSuccess = async (accessToken: string) => {
     setLoading(true);
@@ -163,9 +190,15 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: { isOpen: bool
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+  return createPortal(
+    <div
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+    >
+      <div
+        className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="p-4 flex items-center justify-between border-b border-white/5 bg-slate-900/50">
           <h2 className="text-lg font-semibold text-white">
             {method === 'email_signup' ? 'Create an Account' : 'Sign In to Continue'}
@@ -431,6 +464,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: { isOpen: bool
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
