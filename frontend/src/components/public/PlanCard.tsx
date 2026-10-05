@@ -1,9 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Check } from 'lucide-react';
 import { getPaymentConfig } from '@/lib/publicApi';
 import type { Plan } from '@/lib/publicApi';
+import { useAuth } from '@/contexts/AuthContext';
+import AuthModal from '@/components/auth/AuthModal';
 
 const FEATURES = [
   'Free-to-Air (FTA) channels',
@@ -111,6 +113,9 @@ interface Props {
 }
 
 export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorpay' }: Props) {
+  const router = useRouter();
+  const { user, token } = useAuth();
+  const [authOpen, setAuthOpen] = useState(false);
   const [currentMode, setCurrentMode] = useState<string>(paymentMode);
 
   useEffect(() => {
@@ -120,6 +125,31 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
       })
       .catch(() => {});
   }, []);
+
+  const handleAction = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
+    const isAuthenticated = !!(user || token || storedToken);
+
+    const targetUrl = currentMode === 'manual'
+      ? `/checkout?plan=${plan.id}`
+      : `/payment?plan_id=${plan.id}`;
+
+    if (!isAuthenticated) {
+      setAuthOpen(true);
+      return;
+    }
+
+    router.push(targetUrl);
+  };
+
+  const handleAuthSuccess = (_loggedInUser: any) => {
+    setAuthOpen(false);
+    const targetUrl = currentMode === 'manual'
+      ? `/checkout?plan=${plan.id}`
+      : `/payment?plan_id=${plan.id}`;
+    router.push(targetUrl);
+  };
 
   // Auto-detect variant from backend flags when not explicitly passed
   const resolvedVariant = variant ?? planVariant(plan);
@@ -241,12 +271,13 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
               💰 Save 50% vs paying monthly!
             </p>
           )}
-          <Link
-            href={currentMode === 'manual' ? '/checkout?plan=' + plan.id : '/payment?plan_id=' + plan.id}
-            className={'flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm sm:text-base transition-all min-h-[44px] ' + btnClass}
+          <button
+            type="button"
+            onClick={handleAction}
+            className={'w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm sm:text-base transition-all min-h-[44px] cursor-pointer ' + btnClass}
           >
             {buttonText}
-          </Link>
+          </button>
           {isFree && (
             <p className="text-center text-[10px] text-[var(--color-ink-subtle)] px-2">
               Try it for 24 Hours, 100% Free.<br/>No Credit Card Required.
@@ -254,6 +285,11 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
           )}
         </div>
       </div>
+      <AuthModal
+        isOpen={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onSuccess={handleAuthSuccess}
+      />
     </div>
   );
 }

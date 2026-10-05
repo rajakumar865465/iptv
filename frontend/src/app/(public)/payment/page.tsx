@@ -7,6 +7,7 @@ import { ShieldCheck, Loader2, AlertCircle, Tag } from 'lucide-react';
 import { getPublicPlans, getSevenDayOffer, createOrder, verifyPayment, getPublicErrorMessage, getPaymentConfig } from '@/lib/publicApi';
 import type { Plan } from '@/lib/publicApi';
 import AuthModal from '@/components/auth/AuthModal';
+import { useAuth } from '@/contexts/AuthContext';
 
 declare global {
   interface Window {
@@ -43,6 +44,7 @@ const loadRazorpay = () =>
 function PaymentForm() {
   const params = useSearchParams();
   const router = useRouter();
+  const { user, token, isReady, login } = useAuth();
   const planIdParam = params.get('plan_id') ? parseInt(params.get('plan_id')!) : null;
   const offerPriceParam = params.get('offer_price') ? parseInt(params.get('offer_price')!) : undefined;
   const isOfferFlow = !!offerPriceParam;
@@ -53,8 +55,25 @@ function PaymentForm() {
   const [form, setForm] = useState({ customer_name: '', email: '', mobile: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [user, setUser] = useState<any>(null);
   const [authOpen, setAuthOpen] = useState(false);
+
+  // Sync user profile to form fields whenever user is available
+  useEffect(() => {
+    if (user) {
+      setForm(prev => ({
+        customer_name: user.full_name || prev.customer_name,
+        email: user.email || prev.email,
+        mobile: user.mobile || prev.mobile,
+      }));
+    }
+  }, [user]);
+
+  // Prompt login automatically if user lands on payment unauthenticated
+  useEffect(() => {
+    if (isReady && !user && !token) {
+      setAuthOpen(true);
+    }
+  }, [isReady, user, token]);
 
   useEffect(() => {
     // Check payment mode first
@@ -69,24 +88,6 @@ function PaymentForm() {
         }
       })
       .catch(() => {});
-
-    // Check if logged in to pre-fill form
-    const token = localStorage.getItem('adminToken');
-    if (token) {
-      fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-        .then(res => res.json())
-        .then(data => {
-          if (data.data?.user) {
-            setUser(data.data.user);
-            setForm(prev => ({
-              customer_name: data.data.user.full_name || prev.customer_name,
-              email: data.data.user.email || prev.email,
-              mobile: data.data.user.mobile || prev.mobile,
-            }));
-          }
-        })
-        .catch(() => {});
-    }
 
     if (isOfferFlow) {
       getSevenDayOffer()
@@ -163,13 +164,49 @@ function PaymentForm() {
   }, [form, selectedPlanId, router, offerPriceParam, user]);
 
   const handleAuthSuccess = (u: any) => {
-    setUser(u);
+    setAuthOpen(false);
     setForm(prev => ({
       customer_name: u.full_name || prev.customer_name,
       email: u.email || prev.email,
       mobile: u.mobile || prev.mobile,
     }));
   };
+
+  // If not logged in, don't show payment form — show login requirement screen & modal
+  if (isReady && !user && !token) {
+    return (
+      <>
+        <AuthModal
+          isOpen={authOpen}
+          onClose={() => setAuthOpen(false)}
+          onSuccess={handleAuthSuccess}
+        />
+        <div className="pt-28 pb-20 px-4 min-h-[70vh] flex items-center justify-center">
+          <div className="max-w-md w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl p-8 text-center shadow-2xl">
+            <div className="w-16 h-16 bg-brand-500/10 border border-brand-500/30 text-brand-500 rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <ShieldCheck className="w-8 h-8" />
+            </div>
+            <h1 className="text-2xl font-extrabold text-[var(--color-ink)] mb-2">Sign In Required</h1>
+            <p className="text-[var(--color-ink-muted)] text-sm mb-6 leading-relaxed">
+              Please sign in to your account before proceeding to payment. Your live TV license key and subscription will be linked directly to your account.
+            </p>
+            <button
+              type="button"
+              onClick={() => setAuthOpen(true)}
+              className="w-full py-3.5 px-4 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold text-base transition-all shadow-lg shadow-brand-500/25 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              Sign In / Create Account
+            </button>
+            <div className="mt-4">
+              <Link href="/pricing" className="text-xs text-[var(--color-ink-subtle)] hover:text-[var(--color-ink)] transition-colors">
+                ← Back to Plans & Pricing
+              </Link>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

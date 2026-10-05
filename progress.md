@@ -61,3 +61,9 @@
     - Upgraded `backend/src/controllers/googleAuthController.js` to verify ID tokens against all project audiences (`activeClientId`, `DEFAULT_GOOGLE_CLIENT_ID`, and Android client IDs) with deduplication.
   - **Compiled Production Release APKs:**
     - Recompiled production split APKs with `BACKEND_URL=https://nivatv.luxomall.in` (`app-release.apk` 33.0 MB, `app-release-32bit.apk` 29.8 MB) and copied to `backend/public/downloads/`.
+- **Payment Flow Auth Guard & Login Screen Integration (October 2026):**
+  - **Plan Card "Start Watching" Interception:** Updated `PlanCard.tsx` so clicking "Start Watching Instantly" (or any plan CTA) checks if the user is authenticated first. If unauthenticated, it blocks navigation and opens `AuthModal`. Upon successful authentication, it seamlessly navigates to `/payment?plan_id=...` (or `/checkout?plan=...`).
+  - **Payment & Checkout Pages Protection:** Enforced auth gates on `/payment` and `/checkout`. Unauthenticated visitors are presented with a dedicated "Sign In Required" view with auto-opening `AuthModal` rather than the payment or UPI submission forms.
+  - **AuthModal Capabilities Upgrade:** Enhanced `AuthModal.tsx` to support Google Sign-In, Email & Password (login and register), and Phone OTP, connecting directly into `AuthContext` with instant global state synchronization.
+  - **Scratch Card Offer Protection:** Updated `ScratchCardModal.tsx` to verify authentication prior to redirecting to discounted payment checkout.
+

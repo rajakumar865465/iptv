@@ -3,18 +3,33 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
+interface User {
+  id: number;
+  full_name?: string;
+  email?: string;
+  mobile?: string;
+  role?: string;
+  status?: string;
+}
+
 interface AuthContextType {
   token: string | null;
-  login: (token: string) => void;
+  user: User | null;
+  login: (token: string, userData?: User | null) => void;
   logout: () => void;
+  setUser: (user: User | null) => void;
   isReady: boolean;
+  refreshUser: () => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   token: null,
+  user: null,
   login: () => {},
   logout: () => {},
+  setUser: () => {},
   isReady: false,
+  refreshUser: async () => null,
 });
 
 /** Write the token to a JS-accessible cookie so the Next.js Edge middleware can
@@ -23,7 +38,7 @@ const AuthContext = createContext<AuthContextType>({
  *  SameSite=Strict prevents CSRF from third-party sites.
  */
 function setTokenCookie(token: string) {
-  const maxAge = 60 * 60 * 24; // 1 day — matches ADMIN_JWT_SECRET expiry
+  const maxAge = 60 * 60 * 24 * 30; // 30 days
   document.cookie = `adminToken=${encodeURIComponent(token)}; path=/; max-age=${maxAge}; SameSite=Strict`;
 }
 
@@ -33,35 +48,71 @@ function clearTokenCookie() {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isReady, setIsReady] = useState(false);
   const router = useRouter();
 
+  const fetchProfile = async (authToken: string): Promise<User | null> => {
+    try {
+      const res = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await res.json();
+      if (res.ok && data?.data?.user) {
+        setUser(data.data.user);
+        return data.data.user;
+      } else {
+        localStorage.removeItem('adminToken');
+        clearTokenCookie();
+        setToken(null);
+        setUser(null);
+        return null;
+      }
+    } catch {
+      return null;
+    }
+  };
+
   useEffect(() => {
-    void Promise.resolve().then(() => {
+    void Promise.resolve().then(async () => {
       const stored = localStorage.getItem('adminToken');
       if (stored) {
         setToken(stored);
-        setTokenCookie(stored); // sync cookie with stored token on page load
+        setTokenCookie(stored);
+        await fetchProfile(stored);
       }
       setIsReady(true);
     });
   }, []);
 
-  const login = (t: string) => {
+  const login = (t: string, userData?: User | null) => {
     localStorage.setItem('adminToken', t);
     setTokenCookie(t);
     setToken(t);
+    if (userData) {
+      setUser(userData);
+    } else {
+      void fetchProfile(t);
+    }
   };
 
   const logout = () => {
     localStorage.removeItem('adminToken');
     clearTokenCookie();
     setToken(null);
+    setUser(null);
     router.push('/login');
   };
 
+  const refreshUser = async () => {
+    if (token) {
+      return await fetchProfile(token);
+    }
+    return null;
+  };
+
   return (
-    <AuthContext.Provider value={{ token, login, logout, isReady }}>
+    <AuthContext.Provider value={{ token, user, login, logout, setUser, isReady, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
@@ -70,3 +121,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
+

@@ -1,8 +1,11 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { X, Sparkles, Clock } from 'lucide-react';
 import { markOfferShown } from '@/lib/behaviorTracker';
+import { useAuth } from '@/contexts/AuthContext';
+import AuthModal from '@/components/auth/AuthModal';
 
 interface Props {
   price: number;    // 29 | 39 | 49
@@ -29,6 +32,9 @@ function useCountdown(seconds: number, onExpire: () => void) {
 }
 
 export default function ScratchCardModal({ price, planId, onClose }: Props) {
+  const router = useRouter();
+  const { user, token } = useAuth();
+  const [authOpen, setAuthOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [revealed, setRevealed] = useState(false);
   const [scratching, setScratching] = useState(false);
@@ -37,6 +43,22 @@ export default function ScratchCardModal({ price, planId, onClose }: Props) {
   const CARD_W = 260;
   const CARD_H = 140;
   const REVEAL_THRESHOLD = 0.5;
+
+  const handleClaim = (e: React.MouseEvent) => {
+    e.preventDefault();
+    markOfferShown(price);
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
+    if (!user && !token && !storedToken) {
+      setAuthOpen(true);
+      return;
+    }
+    router.push(`/payment?plan_id=${planId}&offer_price=${price}`);
+  };
+
+  const handleAuthSuccess = () => {
+    setAuthOpen(false);
+    router.push(`/payment?plan_id=${planId}&offer_price=${price}`);
+  };
 
   const handleClose = useCallback(() => {
     markOfferShown(price);
@@ -187,14 +209,14 @@ export default function ScratchCardModal({ price, planId, onClose }: Props) {
                 <p className="text-white font-semibold text-sm mb-0.5">7 Days Full Access</p>
                 <p className="text-slate-400 text-xs">All live TV channels · 1 Device · No auto-renewal</p>
               </div>
-              <Link
-                href={`/payment?plan_id=${planId}&offer_price=${price}`}
-                onClick={() => markOfferShown(price)}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition-colors shadow-lg shadow-amber-500/25"
+              <button
+                type="button"
+                onClick={handleClaim}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition-colors shadow-lg shadow-amber-500/25 cursor-pointer"
               >
                 <Sparkles className="w-4 h-4" />
                 Claim ₹{price} Offer
-              </Link>
+              </button>
             </div>
           )}
 
@@ -212,6 +234,11 @@ export default function ScratchCardModal({ price, planId, onClose }: Props) {
           </button>
         </div>
       </div>
+      <AuthModal
+        isOpen={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onSuccess={handleAuthSuccess}
+      />
     </div>
   );
 }

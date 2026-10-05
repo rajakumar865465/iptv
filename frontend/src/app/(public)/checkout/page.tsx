@@ -6,10 +6,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getPublicPlans, createManualOrder, getSevenDayOffer, getPaymentConfig } from '@/lib/publicApi';
 import { Copy, CheckCircle, Shield, AlertTriangle } from 'lucide-react';
 import type { Plan } from '@/lib/publicApi';
+import { useAuth } from '@/contexts/AuthContext';
+import AuthModal from '@/components/auth/AuthModal';
 
 function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, token, isReady } = useAuth();
+  const [authOpen, setAuthOpen] = useState(false);
   const planId = searchParams.get('plan');
   const offerPrice = searchParams.get('offer_price');
 
@@ -33,6 +37,35 @@ function CheckoutContent() {
   const [merchantName, setMerchantName] = useState('NivaTV');
 
   const [paymentMode, setPaymentMode] = useState<string>('manual');
+
+  // Auto-fill user information when available
+  useEffect(() => {
+    if (user) {
+      setForm(prev => ({
+        ...prev,
+        full_name: user.full_name || prev.full_name,
+        email: user.email || prev.email,
+        mobile: user.mobile || prev.mobile,
+      }));
+    }
+  }, [user]);
+
+  // Auto-prompt login if user lands on checkout page unauthenticated
+  useEffect(() => {
+    if (isReady && !user && !token) {
+      setAuthOpen(true);
+    }
+  }, [isReady, user, token]);
+
+  const handleAuthSuccess = (u: any) => {
+    setAuthOpen(false);
+    setForm(prev => ({
+      ...prev,
+      full_name: u.full_name || prev.full_name,
+      email: u.email || prev.email,
+      mobile: u.mobile || prev.mobile,
+    }));
+  };
 
   useEffect(() => {
     if (!planId) {
@@ -98,6 +131,42 @@ function CheckoutContent() {
     return <div className="flex justify-center h-64 items-center"><div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>;
   }
 
+  // If not logged in, don't show checkout form — show login requirement screen & modal
+  if (isReady && !user && !token) {
+    return (
+      <>
+        <AuthModal
+          isOpen={authOpen}
+          onClose={() => setAuthOpen(false)}
+          onSuccess={handleAuthSuccess}
+        />
+        <div className="pt-28 pb-20 px-4 min-h-[70vh] flex items-center justify-center">
+          <div className="max-w-md w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl p-8 text-center shadow-2xl">
+            <div className="w-16 h-16 bg-brand-500/10 border border-brand-500/30 text-brand-500 rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <Shield className="w-8 h-8" />
+            </div>
+            <h1 className="text-2xl font-extrabold text-[var(--color-ink)] mb-2">Sign In Required</h1>
+            <p className="text-[var(--color-ink-muted)] text-sm mb-6 leading-relaxed">
+              Please sign in to your account before proceeding to payment. Your live TV license key and subscription will be linked directly to your account.
+            </p>
+            <button
+              type="button"
+              onClick={() => setAuthOpen(true)}
+              className="w-full py-3.5 px-4 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold text-base transition-all shadow-lg shadow-brand-500/25 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              Sign In / Create Account
+            </button>
+            <div className="mt-4">
+              <Link href="/pricing" className="text-xs text-[var(--color-ink-subtle)] hover:text-[var(--color-ink)] transition-colors">
+                ← Back to Plans & Pricing
+              </Link>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   if (!plan) return null;
 
   // Generate UPI URI
@@ -107,7 +176,13 @@ function CheckoutContent() {
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUri)}`;
 
   return (
-    <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 py-8">
+    <>
+      <AuthModal
+        isOpen={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onSuccess={handleAuthSuccess}
+      />
+      <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 py-8">
       {/* Left Column - Payment Info & QR */}
       <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl p-6 shadow-xl">
         <h2 className="text-2xl font-bold text-[var(--color-ink)] mb-6">Complete Your Payment</h2>
@@ -210,7 +285,8 @@ function CheckoutContent() {
           )}
         </form>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

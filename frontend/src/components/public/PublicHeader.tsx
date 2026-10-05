@@ -7,6 +7,7 @@ import { Menu, X, Key, Download } from 'lucide-react';
 
 import AuthModal from '@/components/auth/AuthModal';
 import ThemeToggle from '@/components/ThemeToggle';
+import { useAuth } from '@/contexts/AuthContext';
 
 const navLinks = [
   { href: '/', label: 'Home' },
@@ -21,7 +22,7 @@ export default function PublicHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const { user, logout: authLogout, setUser } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const pathname = usePathname();
 
@@ -29,20 +30,6 @@ export default function PublicHeader() {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
-  useEffect(() => {
-    // Check auth on mount
-    const token = localStorage.getItem('adminToken');
-    if (token) {
-      fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-        .then(res => res.json())
-        .then(data => {
-          if (data.data?.user) setUser(data.data.user);
-          else localStorage.removeItem('adminToken');
-        })
-        .catch(() => localStorage.removeItem('adminToken'));
-    }
   }, []);
 
   // Lock body scroll when mobile menu is open
@@ -56,8 +43,7 @@ export default function PublicHeader() {
   }, [menuOpen, authOpen]);
 
   const handleLogout = () => {
-    localStorage.removeItem('adminToken');
-    setUser(null);
+    authLogout();
     setDropdownOpen(false);
   };
 
