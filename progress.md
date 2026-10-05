@@ -72,4 +72,7 @@
 - **Pricing Plans Deduplication Bugfix (October 2026):**
   - **Identified Cause:** In `frontend/src/app/(public)/pricing/page.tsx`, `dedupePlans()` was previously deduplicating plans using `${plan.duration_days}-${plan.price === 0 ? 'free' : 'paid'}`. Because both the "Starter" plan (₹49) and "Pro" plan (₹79) shared a 30-day duration, the "Pro" plan was erroneously dropped.
   - **Fix:** Switched deduplication to `plan.id` and updated sorting to respect `sort_order` and price. Updated `PlanCard.tsx` to display custom plan descriptions when provided and refined variant resolution so non-popular 30-day plans don't falsely claim the "Most Popular" badge.
-  - Verified on EC2: All 3 active plans (`Starter`, `Pro`, and `Plus`) now render in the 3-column pricing grid.
+- **Payment Gateway Proxy Redirect Fix (October 2026):**
+  - **Identified Cause:** When completing payment on `/payment`, the browser was redirected to `https://luxomall.pdf-cropper.site/api/proxy/checkout`, an obsolete domain that was unreachable (`ERR_CONNECTION_CLOSED`).
+  - **Fix:** Updated `frontend/src/app/(public)/payment/page.tsx` to redirect to `/api/proxy/checkout` on the active site origin (`https://nivatv.luxomall.in/api/proxy/checkout`), which is served with valid HTTPS and proxies to the Express backend. Also updated `mobile/lib/screens/proxy_checkout_screen.dart` to use `BackendConfig.baseUrl`.
+  - Rebuilt and restarted `iptv-frontend` on EC2.
