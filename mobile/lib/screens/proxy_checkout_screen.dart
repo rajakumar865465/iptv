@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'dart:convert';
 import '../constants.dart';
+import '../utils/backend_config.dart';
 
 class ProxyCheckoutScreen extends StatefulWidget {
   final String orderId;
@@ -25,8 +26,7 @@ class _ProxyCheckoutScreenState extends State<ProxyCheckoutScreen> {
   void initState() {
     super.initState();
     
-    // We point this directly to the approved domain, but served by our backend
-    final url = 'https://luxomall.pdf-cropper.site/api/proxy/checkout?order_id=${widget.orderId}&token=${widget.token}';
+    final url = '${BackendConfig.baseUrl}/api/proxy/checkout?order_id=${widget.orderId}&token=${widget.token}';
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)

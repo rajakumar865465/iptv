@@ -148,9 +148,9 @@ function PaymentForm() {
         throw new Error('Payment gateway not configured. Please contact support.');
       }
 
-      // Redirect to proxy checkout
+      // Redirect to proxy checkout on current origin
       const returnUrl = encodeURIComponent(`${window.location.origin}/payment/success`);
-      window.location.href = `https://luxomall.pdf-cropper.site/api/proxy/checkout?order_id=${order.order_id}&type=public&key_id=${order.key_id}&return_url=${returnUrl}`;
+      window.location.href = `/api/proxy/checkout?order_id=${order.order_id}&type=public&key_id=${order.key_id}&return_url=${returnUrl}`;
     } catch (err: any) {
       const errorText = err.response?.data?.error || err.response?.data?.message || '';
       if (err.response?.status === 409 && errorText.includes('UPI')) {
