@@ -1,4 +1,4 @@
-const { verifyToken } = require('../utils/jwt');
+const { verifyToken, verifyAdminToken } = require('../utils/jwt');
 const db = require('../config/db');
 
 const authMiddleware = async (req, res, next) => {
@@ -13,7 +13,16 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'No token provided' });
     }
 
-    const decoded = verifyToken(token);
+    let decoded;
+    try {
+      decoded = verifyToken(token);
+    } catch (_) {
+      try {
+        decoded = verifyAdminToken(token);
+      } catch (__) {
+        return res.status(401).json({ success: false, message: 'Invalid or expired token' });
+      }
+    }
 
     // Check if user still exists and is active
     const result = await db.query(
@@ -53,7 +62,16 @@ const optionalAuth = async (req, res, next) => {
     } else {
       return next(); // No token — anonymous request, continue
     }
-    const decoded = verifyToken(token);
+    let decoded;
+    try {
+      decoded = verifyToken(token);
+    } catch (_) {
+      try {
+        decoded = verifyAdminToken(token);
+      } catch (__) {
+        return next();
+      }
+    }
     const result = await db.query(
       'SELECT id, full_name, email, mobile, status, role FROM users WHERE id = $1',
       [decoded.userId]

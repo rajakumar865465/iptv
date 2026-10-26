@@ -76,3 +76,16 @@
   - **Identified Cause:** When completing payment on `/payment`, the browser was redirected to `https://luxomall.pdf-cropper.site/api/proxy/checkout`, an obsolete domain that was unreachable (`ERR_CONNECTION_CLOSED`).
   - **Fix:** Updated `frontend/src/app/(public)/payment/page.tsx` to redirect to `/api/proxy/checkout` on the active site origin (`https://nivatv.luxomall.in/api/proxy/checkout`), which is served with valid HTTPS and proxies to the Express backend. Also updated `mobile/lib/screens/proxy_checkout_screen.dart` to use `BackendConfig.baseUrl`.
   - Rebuilt and restarted `iptv-frontend` on EC2.
+
+- **Admin Dashboard Login Redirect Loop Bugfix (October 2026):**
+  - **Identified Root Causes:**
+    1. In `frontend/src/middleware.ts`, `ADMIN_JWT_SECRET` was absent from `frontend/.env.local`, causing Next.js to fall back to a random dynamic secret in memory. The edge middleware failed token verification and responded with `307 Temporary Redirect` back to `/login?redirect=%2Fdashboard`.
+    2. In `frontend/src/contexts/AuthContext.tsx`, `login(token)` triggered `fetchProfile(token)` hitting `/api/auth/me`. Because backend `authMiddleware` previously only checked user tokens (`JWT_SECRET`), it rejected admin tokens with `401 Unauthorized`, triggering `AuthContext` to wipe the `adminToken` cookie and localStorage.
+    3. In `frontend/src/app/login/page.tsx`, `loginAdmin` did not supply user data to `login()` and used client router navigation which didn't wait for cookie synchronization.
+    4. In `frontend/src/middleware.ts`, role verification did not explicitly allow `superadmin`.
+  - **Fixes Applied:**
+    - Updated `backend/src/middleware/auth.js` so both `authMiddleware` and `optionalAuth` accept `verifyAdminToken` fallback, allowing `/api/auth/me` to authenticate admins seamlessly.
+    - Updated `frontend/src/contexts/AuthContext.tsx` with a strict `401` status guard in `fetchProfile` to prevent unwanted session clearing.
+    - Updated `frontend/src/app/login/page.tsx` to pass the admin payload to `login(token, admin)` and use `window.location.href = '/dashboard'` for atomic cookie-first navigation.
+    - Updated `frontend/src/middleware.ts` to allow both `admin` and `superadmin` roles, and use predictable fallback secret.
+    - Added `ADMIN_JWT_SECRET` to `frontend/.env.local` on the server and rebuilt frontend.

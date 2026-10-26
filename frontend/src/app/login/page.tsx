@@ -21,8 +21,9 @@ export default function LoginPage() {
     try {
       const res = await loginAdmin(email, password);
       if (res.data.success) {
-        login(res.data.data.token);
-        router.push('/dashboard');
+        const { token, admin } = res.data.data;
+        login(token, admin);
+        window.location.href = '/dashboard';
       }
     } catch (err: any) {
       if (!err.response) {

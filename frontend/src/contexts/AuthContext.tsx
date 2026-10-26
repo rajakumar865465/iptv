@@ -61,13 +61,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (res.ok && data?.data?.user) {
         setUser(data.data.user);
         return data.data.user;
-      } else {
+      } else if (res.status === 401) {
         localStorage.removeItem('adminToken');
         clearTokenCookie();
         setToken(null);
         setUser(null);
         return null;
       }
+      return null;
     } catch {
       return null;
     }

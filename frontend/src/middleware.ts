@@ -3,12 +3,7 @@ import { jwtVerify } from 'jose';
 
 function getDevFallbackSecret(): string | undefined {
   if (process.env.NODE_ENV === 'production') return undefined;
-  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-    const array = new Uint8Array(32);
-    crypto.getRandomValues(array);
-    return Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('');
-  }
-  return 'dev-fallback-secret-key-32-chars-long';
+  return 'dev-admin-secret-change-in-production';
 }
 
 // In non-production, generate a random secret for local dev if ADMIN_JWT_SECRET is unset
@@ -103,7 +98,7 @@ export async function middleware(req: NextRequest) {
     const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
 
     // Admin routes must have role: 'admin'
-    if (payload.role !== 'admin') {
+    if (payload.role !== 'admin' && payload.role !== 'superadmin') {
       return NextResponse.redirect(new URL('/', req.url));
     }
 
