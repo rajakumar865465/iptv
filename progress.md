@@ -133,3 +133,26 @@
     - **Channel Browse Page (`/browse`):** Updated active category button pill from `bg-brand-500 text-[var(--color-ink)]` to `bg-brand-500 text-white` for crisp contrast against red background.
     - **Pricing Page (`/pricing`):** Fixed recommendation strip border to use dynamic `border-[var(--color-line)]`.
   - **Deployed & Verified:** Compiled cleanly locally and on EC2 VPS (`44.206.18.189`). Reloaded `iptv-frontend` via PM2. Verified HTTP 200 and visual contrast across `https://nivatv.luxomall.in/my-account`.
+
+- **Free Trial Pro Card Visibility Restriction for Claimed Users (October 2026):**
+  - **Identified Root Causes:**
+    1. In the database, when free trial orders were created with an unauthenticated session or email, `user_id` on the license remained `NULL` and `users.has_claimed_trial` remained `false` (e.g. `superadmin@nivatv.in` had claimed license 38 for plan 64, but `has_claimed_trial` in `users` table was `false`).
+    2. Endpoint `/api/auth/me` and `/admin/login` only returned `users.has_claimed_trial` without cross-checking existing licenses or public orders, leading the frontend to treat returning claimants as eligible for another free trial.
+    3. In `UnifiedProCard.tsx`, the component defaulted to `'trial'` mode and rendered free trial elements (green "1-Month Free Trial" banner, "100% FREE TRIAL" pill, "1 Device • ₹0 Free Trial" toggle, and "Claim 1-Month Free Trial" CTA) before or whenever `hasClaimedTrial` was not strictly enforced.
+  - **Comprehensive Fixes Applied:**
+    - **Backend Self-Healing & Trial Association:**
+      - Updated `authController.me` to automatically inspect `licenses` and `public_orders` by both user ID and email. If a user has any trial license or free order, it atomically updates `users.has_claimed_trial = true`, associates orphaned licenses/orders, and returns `has_claimed_trial: true`.
+      - Updated `adminController.adminLogin` to verify and return `has_claimed_trial: true` for admin users.
+      - Updated `publicController.createOrder` to auto-link `userId` and set `has_claimed_trial = true` whenever an order for ₹0 is submitted.
+      - Executed database healing query on EC2 linking license 38 to user ID 2 (`superadmin@nivatv.in`) and setting `has_claimed_trial = true`.
+    - **Frontend Strict Pro Card Rendering for Claimed Users:**
+      - Updated `UnifiedProCard.tsx`: For any user who has claimed the trial (`hasClaimedTrial === true` or stored in `localStorage`), the card strictly renders as the Paid Pro plan (`₹79/month`, 2 Devices, "Start Watching Instantly" CTA) with zero free trial elements:
+        - The green "1-Month Free Trial" top banner is hidden.
+        - The "100% FREE TRIAL" badge is hidden.
+        - The "1 Device • ₹0 Free Trial" toggle pill is completely removed.
+        - The awkward amber "Trial Already Claimed" badge is replaced with a clean "2 Devices Access" badge.
+        - Price cleanly displays `₹79 /month` without strikethroughs.
+        - CTA strictly directs to paid checkout (`/payment?plan_id=63` or `/checkout?plan=63`).
+      - Updated `AuthContext.tsx` to persist `nivatv_trial_claimed: 'true'` in `localStorage` upon profile fetch and login, and clear on logout.
+      - Updated `payment/page.tsx` so users who already claimed the trial do not see the free trial option in the plan selector dropdown, and any direct navigation to `?plan_id=64` auto-redirects to the paid Pro plan (`id: 63`).
+  - **Deployed & Verified:** Synced backend and frontend to EC2 (`44.206.18.189`). Rebuilt Next.js cleanly (56/56 pages static/dynamic) and reloaded `iptv-backend` and `iptv-frontend` via PM2. Live endpoint `https://nivatv.luxomall.in/pricing` verified HTTP 200.
