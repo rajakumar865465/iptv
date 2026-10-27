@@ -79,17 +79,17 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
     router.push(targetUrl);
   };
 
-  // Card theme styling
+  // Card theme styling: emerald for Free Trial, clean WHITE / surface for Paid Pro
   const wrapperClass = isTrial
     ? 'relative rounded-2xl border flex flex-col transition-all duration-300 hover:-translate-y-1.5 overflow-hidden shadow-card hover:shadow-card-hover bg-gradient-to-b from-emerald-600/20 via-emerald-600/8 to-[var(--color-surface)] border-emerald-500/50 shadow-xl shadow-emerald-500/10'
-    : 'relative rounded-2xl border flex flex-col transition-all duration-300 hover:-translate-y-1.5 overflow-hidden shadow-card hover:shadow-card-hover bg-gradient-to-b from-brand-600/20 via-brand-600/8 to-[var(--color-surface)] border-brand-500/50 shadow-xl shadow-brand-500/10';
+    : 'relative rounded-2xl border flex flex-col transition-all duration-300 hover:-translate-y-1.5 overflow-hidden shadow-card hover:shadow-card-hover bg-[var(--color-surface)] border-[var(--color-line)] hover:border-[var(--color-ink-subtle)]/30';
 
-  const badgeText = isTrial ? '1-Month Free Trial' : 'Pro Plan';
-  const badgeClass = isTrial ? 'bg-emerald-600 text-white' : 'bg-brand-600 text-white';
-  const iconCls = isTrial ? 'text-emerald-500' : 'text-brand-500';
+  const badgeText = isTrial ? '1-Month Free Trial' : '';
+  const badgeClass = isTrial ? 'bg-emerald-600 text-white' : '';
+  const iconCls = isTrial ? 'text-emerald-500' : 'text-green-500';
   const btnClass = isTrial
     ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/25'
-    : 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-500/20';
+    : 'bg-[var(--color-surface-2)] hover:bg-[var(--color-line)] text-[var(--color-ink)] border border-[var(--color-line)]';
 
   const features = isTrial ? TRIAL_FEATURES : PAID_FEATURES;
   const buttonText = isTrial ? 'Claim 1-Month Free Trial' : 'Start Watching Instantly';
@@ -116,7 +116,7 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
               Trial Already Claimed
             </span>
           ) : (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-600 text-white">
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--color-surface-2)] text-[var(--color-ink-muted)] border border-[var(--color-line)]">
               2 Devices Access
             </span>
           )}
@@ -151,7 +151,7 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
               onClick={() => setMode('paid')}
               className={`flex-1 py-1.5 px-2 rounded-lg text-center transition-all cursor-pointer ${
                 mode === 'paid'
-                  ? 'bg-brand-600 text-white shadow-sm'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-black shadow-sm'
                   : 'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]'
               }`}
             >
@@ -177,7 +177,7 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
               </>
             ) : (
               <>
-                <span className="text-4xl font-extrabold text-brand-500">
+                <span className="text-4xl font-extrabold text-[var(--color-ink)]">
                   ₹{Math.round(activePlan.price || 79)}
                 </span>
                 <span className="text-[var(--color-ink-subtle)] text-sm font-semibold mb-1">
