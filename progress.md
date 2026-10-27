@@ -100,3 +100,7 @@
     - Added dedicated `'free-trial'` emerald theme and badge in `PlanCard.tsx`, displaying regular price `₹79` crossed out alongside `₹0` Free.
     - Expanded pricing grid in `pricing/page.tsx` (`lg:grid-cols-4`) to accommodate all 4 plans seamlessly.
     - Updated checkout and payment flow in `payment/page.tsx` for instant 1-click free trial claiming.
+- **Pricing Page Currency & Grid Display Fix (October 2026):**
+  - Resolved `???` placeholder glitch caused by non-UTF8 shell string transfers by deploying clean binary UTF-8 components to EC2 (`PlanCard.tsx`, `pricing/page.tsx`, `payment/page.tsx`, `login/page.tsx`), properly rendering the Rupee symbol (`₹`), em dashes, and emojis.
+  - Resolved plan grid wrapping where the 4th plan was pushed to row 2 by enforcing `lg:grid-cols-4` on desktop screens.
+  - Updated trial guarantee text under the free trial CTA from "24 Hours" to "30 Days, 100% Free. No Credit Card Required."
