@@ -100,7 +100,10 @@
     - Added dedicated `'free-trial'` emerald theme and badge in `PlanCard.tsx`, displaying regular price `₹79` crossed out alongside `₹0` Free.
     - Expanded pricing grid in `pricing/page.tsx` (`lg:grid-cols-4`) to accommodate all 4 plans seamlessly.
     - Updated checkout and payment flow in `payment/page.tsx` for instant 1-click free trial claiming.
-- **Pricing Page Currency & Grid Display Fix (October 2026):**
-  - Resolved `???` placeholder glitch caused by non-UTF8 shell string transfers by deploying clean binary UTF-8 components to EC2 (`PlanCard.tsx`, `pricing/page.tsx`, `payment/page.tsx`, `login/page.tsx`), properly rendering the Rupee symbol (`₹`), em dashes, and emojis.
-  - Resolved plan grid wrapping where the 4th plan was pushed to row 2 by enforcing `lg:grid-cols-4` on desktop screens.
-  - Updated trial guarantee text under the free trial CTA from "24 Hours" to "30 Days, 100% Free. No Credit Card Required."
+- **Unified Auto-Detecting Pro Card & 3-Tier Grid Layout (October 2026):**
+  - Consolidated duplicate "Pro Free Trial" (₹0) and "Pro" (₹79) cards into a single intelligent `<UnifiedProCard />` component on the pricing page.
+  - Automatically detects the user's trial status:
+    - New or anonymous visitors see the 1-Month Free Trial (`₹0` with `₹79` strikethrough, 1 Device, "Claim 1-Month Free Trial" CTA) along with a clean interactive toggle pill to optionally choose 2 Devices for ₹79/month.
+    - Returning logged-in users who already claimed their trial automatically see the paid Pro plan (`₹79/month`, 2 Devices, "Start Watching Instantly" CTA) with trial claiming locked.
+  - Re-balanced the Pricing page into a standard 3-tier SaaS grid (`Starter` ₹49 | `Pro` Unified | `Plus` ₹699) with no wrapping or duplicate tier cards.
+  - Updated backend user profile endpoints (`/api/auth/me`, `/login`, `/signup`) to return `has_claimed_trial` in real-time.
