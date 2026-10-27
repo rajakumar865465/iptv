@@ -1,9 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Key, Download } from 'lucide-react';
+import { Menu, X, Key, Download, Shield, User, LogOut } from 'lucide-react';
 
 import AuthModal from '@/components/auth/AuthModal';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -24,13 +24,29 @@ export default function PublicHeader() {
   const [authOpen, setAuthOpen] = useState(false);
   const { user, logout: authLogout, setUser } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [dropdownOpen]);
 
   // Lock body scroll when mobile menu is open
   useEffect(() => {
@@ -88,6 +104,21 @@ export default function PublicHeader() {
                   )}
                 </Link>
               ))}
+
+              {/* Admin Panel link for privileged users */}
+              {isAdmin && (
+                <Link
+                  href="/dashboard"
+                  className={`relative px-3 py-1.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5 ${
+                    pathname.startsWith('/dashboard') || pathname.startsWith('/channels') || pathname.startsWith('/orders')
+                      ? 'text-brand-500 bg-brand-500/15 border border-brand-500/30'
+                      : 'text-brand-500 hover:text-brand-400 bg-brand-500/10 hover:bg-brand-500/20 border border-brand-500/25 shadow-sm'
+                  }`}
+                >
+                  <Shield className="w-3.5 h-3.5 text-brand-500" />
+                  <span>Admin Panel</span>
+                </Link>
+              )}
             </nav>
 
             {/* Desktop CTA, Theme Toggle & Auth */}
@@ -99,7 +130,7 @@ export default function PublicHeader() {
                 <>
                   <button
                     onClick={() => setAuthOpen(true)}
-                    className="px-4 py-2 text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] text-sm font-medium transition-colors"
+                    className="px-4 py-2 text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] text-sm font-medium transition-colors cursor-pointer"
                   >
                     Log In
                   </button>
@@ -111,26 +142,69 @@ export default function PublicHeader() {
                   </Link>
                 </>
               ) : (
-                <div className="relative">
+                <div className="relative" ref={dropdownRef}>
                   <button
                     onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--color-surface-2)] hover:bg-[var(--color-surface)] border border-[var(--color-line)] transition-colors"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--color-surface-2)] hover:bg-[var(--color-surface)] border border-[var(--color-line)] transition-colors cursor-pointer"
                   >
-                    <div className="w-6 h-6 rounded-full bg-brand-500 flex items-center justify-center text-xs font-bold text-white">
+                    <div className="w-6 h-6 rounded-full bg-brand-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
                       {user.full_name?.charAt(0).toUpperCase() || 'U'}
                     </div>
-                    <span className="text-sm font-medium text-[var(--color-ink)] max-w-[100px] truncate">
+                    <span className="text-sm font-medium text-[var(--color-ink)] max-w-[110px] truncate">
                       {user.full_name || user.mobile || 'User'}
                     </span>
+                    {isAdmin && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-brand-500/15 text-brand-500 border border-brand-500/20">
+                        Admin
+                      </span>
+                    )}
                   </button>
                   
                   {dropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl shadow-card-lg py-1 overflow-hidden">
-                      <Link href="/my-account" onClick={() => setDropdownOpen(false)} className="block px-4 py-2 text-sm text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-surface-2)] transition-colors">
-                        My Dashboard
+                    <div className="absolute right-0 mt-2 w-56 bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl shadow-card-lg py-2 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                      <div className="px-4 py-2 border-b border-[var(--color-line)] bg-[var(--color-surface-2)]/40">
+                        <p className="text-xs font-bold text-[var(--color-ink)] truncate">
+                          {user.full_name || 'Account'}
+                        </p>
+                        <p className="text-[11px] text-[var(--color-ink-subtle)] truncate">
+                          {user.email || user.mobile}
+                        </p>
+                        {isAdmin && (
+                          <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-brand-500/15 text-brand-500 border border-brand-500/30">
+                            <Shield className="w-2.5 h-2.5" />
+                            {user.role === 'superadmin' ? 'Super Admin' : 'Admin'}
+                          </span>
+                        )}
+                      </div>
+
+                      {isAdmin && (
+                        <Link
+                          href="/dashboard"
+                          onClick={() => setDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-brand-500 hover:text-brand-400 hover:bg-brand-500/10 transition-colors"
+                        >
+                          <Shield className="w-4 h-4 text-brand-500 shrink-0" />
+                          <span>Admin Dashboard</span>
+                        </Link>
+                      )}
+
+                      <Link
+                        href="/my-account"
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-surface-2)] transition-colors"
+                      >
+                        <User className="w-4 h-4 shrink-0" />
+                        <span>My Account</span>
                       </Link>
-                      <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-[var(--color-surface-2)] transition-colors">
-                        Sign Out
+
+                      <div className="border-t border-[var(--color-line)] my-1" />
+
+                      <button
+                        onClick={handleLogout}
+                        className="flex items-center gap-2.5 w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                      >
+                        <LogOut className="w-4 h-4 shrink-0" />
+                        <span>Sign Out</span>
                       </button>
                     </div>
                   )}
@@ -142,7 +216,7 @@ export default function PublicHeader() {
           <div className="md:hidden flex items-center gap-1">
             <ThemeToggle />
             <button
-              className="text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] p-2 -mr-2 transition-colors"
+              className="text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] p-2 -mr-2 transition-colors cursor-pointer"
               onClick={() => setMenuOpen(o => !o)}
               aria-label="Toggle menu"
             >
@@ -171,6 +245,18 @@ export default function PublicHeader() {
                   {link.label}
                 </Link>
               ))}
+
+              {/* Admin Panel link in mobile menu */}
+              {isAdmin && (
+                <Link
+                  href="/dashboard"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-3.5 rounded-xl text-base font-bold text-brand-500 bg-brand-500/15 border border-brand-500/30 transition-colors mt-2"
+                >
+                  <Shield className="w-5 h-5 text-brand-500" />
+                  <span>Admin Panel</span>
+                </Link>
+              )}
             </nav>
             <div className="mt-8 space-y-3">
               <Link

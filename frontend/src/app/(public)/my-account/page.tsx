@@ -1,10 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Key, Package, Calendar, Tag, ArrowRight, Loader2, ShieldCheck, Download } from 'lucide-react';
+import { Key, Package, Calendar, Tag, ArrowRight, Loader2, ShieldCheck, Download, Shield } from 'lucide-react';
 import Link from 'next/link';
 import { getPublicErrorMessage } from '@/lib/publicApi';
 import LicenseKeyDisplay from '@/components/public/LicenseKeyDisplay';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface PurchaseData {
   licenses: any[];
@@ -13,9 +14,12 @@ interface PurchaseData {
 
 export default function MyAccount() {
   const router = useRouter();
+  const { user } = useAuth();
   const [data, setData] = useState<PurchaseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
@@ -134,6 +138,21 @@ export default function MyAccount() {
             </h2>
             
             <div className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-6 space-y-4 shadow-card">
+              {isAdmin && (
+                <Link href="/dashboard" className="flex items-center justify-between p-4 bg-brand-500/10 hover:bg-brand-500/15 border border-brand-500/30 rounded-xl transition-all group">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-brand-500/20 flex items-center justify-center">
+                      <Shield className="w-5 h-5 text-brand-500" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-[var(--color-ink)] group-hover:text-brand-500 transition-colors">Admin Dashboard</h3>
+                      <p className="text-xs text-[var(--color-ink-muted)]">Manage channels, orders & users</p>
+                    </div>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-brand-500 group-hover:translate-x-0.5 transition-transform" />
+                </Link>
+              )}
+              
               <Link href="/pricing" className="flex items-center justify-between p-4 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-2)]/80 border border-[var(--color-line)] rounded-xl transition-all group">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-brand-500/15 flex items-center justify-center">
