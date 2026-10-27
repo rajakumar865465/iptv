@@ -14,7 +14,7 @@ const errorHandler = (err, req, res, next) => {
     return res.status(409).json({
       success: false,
       message: 'Duplicate entry found',
-      errors: [err.detail],
+      errors: process.env.NODE_ENV === 'development' ? [err.detail] : ['Duplicate entry already exists'],
     });
   }
 

@@ -30,13 +30,13 @@ const generateRefreshToken = (userId) => {
 };
 
 const verifyToken = (token) => {
-  return jwt.verify(token, JWT_SECRET);
+  return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
 };
 
 // Verify refresh token and return userId embedded in it.
 // Throws if token is invalid, expired, or wrong type.
 const verifyRefreshToken = (refreshToken) => {
-  const payload = jwt.verify(refreshToken, REFRESH_SECRET);
+  const payload = jwt.verify(refreshToken, REFRESH_SECRET, { algorithms: ['HS256'] });
   if (payload.type !== 'refresh') throw new Error('Not a refresh token');
   return payload;
 };
@@ -55,7 +55,7 @@ const db = require('../config/db');
 
 const revokeRefreshToken = async (refreshToken) => {
   try {
-    const payload = jwt.verify(refreshToken, REFRESH_SECRET);
+    const payload = jwt.verify(refreshToken, REFRESH_SECRET, { algorithms: ['HS256'] });
     if (payload.type !== 'refresh') return;
     const jti = payload.jti || payload.iat;
     if (!jti) return;
@@ -71,7 +71,7 @@ const revokeRefreshToken = async (refreshToken) => {
 
 const isRefreshTokenRevoked = async (refreshToken) => {
   try {
-    const payload = jwt.verify(refreshToken, REFRESH_SECRET);
+    const payload = jwt.verify(refreshToken, REFRESH_SECRET, { algorithms: ['HS256'] });
     if (payload.type !== 'refresh') return true;
     const jti = payload.jti || payload.iat;
     if (!jti) return true;
@@ -92,7 +92,7 @@ const generateSmoothToken = (channelId, userId = null, expiresIn = '2h') => {
 };
 
 const verifySmoothToken = (token, channelId) => {
-  const payload = jwt.verify(token, SMOOTH_SECRET);
+  const payload = jwt.verify(token, SMOOTH_SECRET, { algorithms: ['HS256'] });
   if (payload.type !== 'smooth') throw new Error('Not a smooth token');
   if (channelId && payload.channelId !== Number(channelId)) throw new Error('Token channel mismatch');
   return payload;
@@ -104,7 +104,7 @@ const generateProxySessionToken = (userId, streamId, expiresIn = '8h') => {
 
 const verifyProxySessionToken = (token, streamId) => {
   try {
-    const payload = jwt.verify(token, PROXY_SESSION_SECRET);
+    const payload = jwt.verify(token, PROXY_SESSION_SECRET, { algorithms: ['HS256'] });
     if (payload.type !== 'proxy_session') throw new Error('Not a proxy session token');
     if (streamId && payload.streamId !== Number(streamId)) throw new Error(`Token stream mismatch: expected ${streamId}, got ${payload.streamId}`);
     return payload;
@@ -119,7 +119,7 @@ const generateAdminToken = (payload, expiresIn = '1d') => {
 };
 
 const verifyAdminToken = (token) => {
-  return jwt.verify(token, ADMIN_JWT_SECRET);
+  return jwt.verify(token, ADMIN_JWT_SECRET, { algorithms: ['HS256'] });
 };
 
 module.exports = {

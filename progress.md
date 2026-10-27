@@ -108,3 +108,17 @@
     - Updated paid Pro mode styling to clean white / neutral surface theme (neutral tag, crisp dark price, green checkmarks, clean neutral button, removed top red banner) ensuring clear visual differentiation from the pink/red "Most Popular" Starter plan.
   - Re-balanced the Pricing page into a standard 3-tier SaaS grid (`Starter` ₹49 | `Pro` Unified | `Plus` ₹699) with no wrapping or duplicate tier cards.
   - Updated backend user profile endpoints (`/api/auth/me`, `/login`, `/signup`) to return `has_claimed_trial` in real-time.
+
+- **Full-Stack Security Audit, Hardening & Vulnerability Remediation (October 2026):**
+  - **Brute-Force & OTP Guessing Protection (OWASP A07):** Added attempt counters and strict lockout thresholds (max 5 failed attempts -> 429 Too Many Requests and immediate token/OTP invalidation) to password reset (`authController.resetPassword`) and mobile phone OTP verification (`otpAuthController.verifyOtp`). Added migration `063_secure_otp_attempts.sql` with safe DO block.
+  - **JWT Hardening & Algorithm Confusion Prevention:** Enforced `{ algorithms: ['HS256'] }` across all token verifications in `backend/src/utils/jwt.js` and `frontend/src/middleware.ts` (jose `jwtVerify`).
+  - **Server Fingerprint Elimination:** Disabled `X-Powered-By` header in both Express (`backend/src/app.js`) and Next.js (`frontend/next.config.ts`).
+  - **Information Disclosure & Error Masking:** Sanitized error responses across `channelImportController`, `channelStreamController`, `planController`, `scannerController`, `googleAuthController`, and `errorHandler.js` so database schema, file paths, and raw queries are never leaked to clients in production.
+  - **SSRF Prevention:** Enforced `assertSafeUrl` and `safeFetch` in `scannerController.js` and `m3u_import_engine.js` to block internal IP and cloud metadata endpoints (`169.254.169.254`, `127.0.0.1`, RFC 1918) from stream scanners and background playlist importers.
+  - **Admin Access Control & Privilege Hardening:**
+    - Validated admin account status: Suspended/blocked admins are rejected with `403 Forbidden` (`adminController.adminLogin`).
+    - Whitelisted admin roles (`admin`, `superadmin`, `moderator`, `support`) and enforced strict password length (8+ chars) with duplicate email collision prevention in `adminUserController.js`.
+    - Normalized email inputs (`toLowerCase().trim()`) across admin and user authentication.
+  - **Client-Side Security Headers:** Injected `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(self "https://checkout.razorpay.com")` in `frontend/next.config.ts`.
+  - **PostgreSQL Database Ownership Alignment:** Reassigned ownership of all tables and sequences in `iptv_db` to the application user `iptvdb`, resolving migration runner ownership conflicts and ensuring continuous zero-downtime boots.
+  - **Verification:** Both `iptv-backend` and `iptv-frontend` are verified online, healthy, and operational on EC2 (`44.206.18.189`) with database connected and public API responses verified.

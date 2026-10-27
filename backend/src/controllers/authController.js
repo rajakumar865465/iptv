@@ -351,19 +351,39 @@ exports.resetPassword = async (req, res) => {
 
     // Look up the most recent unused OTP for the user's email
     const otpResult = await db.query(
-      `SELECT id, otp FROM password_reset_otps
+      `SELECT id, otp, COALESCE(attempts, 0) AS attempts FROM password_reset_otps
        WHERE email = $1 AND used = false AND expires_at > NOW()
        ORDER BY created_at DESC LIMIT 1`,
       [userResult.rows[0].email]
     );
-    if (otpResult.rows.length === 0 || otpResult.rows[0].otp !== String(otp)) {
+
+    if (otpResult.rows.length === 0) {
       return error(res, 'Invalid or expired OTP', 400);
+    }
+
+    const currentOtpRow = otpResult.rows[0];
+
+    // Enforce 5-attempt limit
+    if (currentOtpRow.attempts >= 5) {
+      await db.query('UPDATE password_reset_otps SET used = true WHERE id = $1', [currentOtpRow.id]);
+      return error(res, 'Too many failed attempts. This OTP has been revoked. Please request a new one.', 429);
+    }
+
+    if (currentOtpRow.otp !== String(otp).trim()) {
+      const newAttempts = currentOtpRow.attempts + 1;
+      if (newAttempts >= 5) {
+        await db.query('UPDATE password_reset_otps SET used = true WHERE id = $1', [currentOtpRow.id]);
+        return error(res, 'Too many failed attempts. This OTP has been revoked. Please request a new one.', 429);
+      } else {
+        await db.query('UPDATE password_reset_otps SET attempts = $1 WHERE id = $2', [newAttempts, currentOtpRow.id]);
+        return error(res, `Invalid OTP. ${5 - newAttempts} attempt(s) remaining.`, 400);
+      }
     }
 
     // Update password and mark OTP used
     const passwordHash = await hashPassword(newPassword);
     await db.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, userResult.rows[0].id]);
-    await db.query('UPDATE password_reset_otps SET used = true, updated_at = NOW() WHERE id = $1', [otpResult.rows[0].id]);
+    await db.query('UPDATE password_reset_otps SET used = true, updated_at = NOW() WHERE id = $1', [currentOtpRow.id]);
 
     return success(res, { message: 'Password reset successful. Please log in.' });
   } catch (err) {

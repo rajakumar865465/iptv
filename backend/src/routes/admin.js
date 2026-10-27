@@ -234,7 +234,7 @@ router.post('/channels/recalculate-popularity', async (req, res) => {
     });
   } catch (err) {
     console.error('[admin] recalculate-popularity error:', err.message);
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to recalculate popularity' });
   }
 });
 
@@ -282,7 +282,7 @@ router.put('/channels/:id/ui', async (req, res) => {
     return res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     console.error('[admin] channel ui update error:', err.message);
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to update channel UI settings' });
   }
 });
 

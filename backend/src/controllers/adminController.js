@@ -45,17 +45,28 @@ const logAdminAction = async (req, adminId, action, targetType, targetId, detail
 exports.adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
+    if (!email || !password) {
+      return error(res, 'Email and password required', 400);
+    }
+
+    const normalizedEmail = String(email).toLowerCase().trim();
 
     // Accept both 'admin' and 'superadmin' roles
     const result = await db.query(
-      "SELECT * FROM users WHERE email = $1 AND role IN ('admin', 'superadmin')",
-      [email]
+      "SELECT * FROM users WHERE LOWER(email) = $1 AND role IN ('admin', 'superadmin')",
+      [normalizedEmail]
     );
     if (result.rows.length === 0) {
       return error(res, 'Invalid admin credentials', 401);
     }
 
     const admin = result.rows[0];
+
+    // Check if account is blocked/suspended
+    if (admin.status === 'blocked') {
+      return error(res, 'Account is suspended. Please contact administrator.', 403);
+    }
+
     const isMatch = await comparePassword(password, admin.password_hash);
     if (!isMatch) {
       return error(res, 'Invalid admin credentials', 401);

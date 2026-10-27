@@ -198,6 +198,6 @@ exports.diagnoseChannelStream = async (req, res) => {
     success(res, report, 'Stream diagnosed successfully');
   } catch (err) {
     console.error('diagnoseChannelStream error:', err);
-    error(res, 'Failed to diagnose stream: ' + err.message, 500);
+    error(res, 'Failed to diagnose stream', 500);
   }
 };

@@ -95,7 +95,7 @@ export async function middleware(req: NextRequest) {
       return redirectToLogin(req);
     }
 
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), { algorithms: ['HS256'] });
 
     // Admin routes must have role: 'admin'
     if (payload.role !== 'admin' && payload.role !== 'superadmin') {

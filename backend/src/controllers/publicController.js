@@ -41,7 +41,7 @@ const apkUpload = multer({
 exports.apkUploadMiddleware = (req, res, next) => {
   apkUpload(req, res, (err) => {
     if (err) {
-      return error(res, err.message || 'APK upload error', 400);
+      return error(res, err.code === 'LIMIT_FILE_SIZE' ? 'File too large' : (err.message === 'Only .apk files are allowed!' ? err.message : 'Invalid file upload'), 400);
     }
     next();
   });

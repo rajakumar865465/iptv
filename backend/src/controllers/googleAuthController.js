@@ -160,6 +160,6 @@ exports.googleLogin = async (req, res) => {
 
   } catch (err) {
     console.error('Google login error:', err.message, err.stack);
-    return error(res, err.message ? `Google authentication failed: ${err.message}` : 'Google authentication failed', 401);
+    return error(res, 'Google authentication failed. Please try again.', 401);
   }
 };

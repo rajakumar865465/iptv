@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { safeFetch } = require('../utils/ssrfGuard');
 const fetch = require('node-fetch');
 const parser = require('iptv-playlist-parser');
 
@@ -39,7 +40,7 @@ const runImportJob = async (jobId) => {
 
     // 2. Fetch Playlist
     console.log(`[ImportEngine] Fetching playlist from ${job.source_url}`);
-    const response = await fetch(job.source_url);
+    const response = await safeFetch(job.source_url, { timeoutMs: 30000 });
     const m3uString = await response.text();
     const playlist = parser.parse(m3uString);
 

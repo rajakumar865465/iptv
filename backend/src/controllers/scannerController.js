@@ -10,6 +10,7 @@ const http = require('http');
 const { URL } = require('url');
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
+const { assertSafeUrl } = require('../utils/ssrfGuard');
 // SSRF protection: reuse the same DNS-resolving safety check used by the
 // proxy. This module makes outbound requests to DB-sourced stream_url values,
 // so it must be validated before httpGet() ever touches the network.
@@ -44,7 +45,8 @@ async function ensureScanJobsTable() {
   }
 }
 
-function httpGet(url, headers = {}, segmentMode = false, timeout = TIMEOUT, redirectDepth = 0) {
+async function httpGet(url, headers = {}, segmentMode = false, timeout = TIMEOUT, redirectDepth = 0) {
+    try { await assertSafeUrl(url); } catch (e) { return { ok: false, reason: 'blocked_url', msg: e.message }; }
   return new Promise(resolve => {
     if (redirectDepth > 5) return resolve({ ok: false, reason: 'too_many_redirects' });
     let parsed;
@@ -350,7 +352,7 @@ exports.triggerScan = async (req, res) => {
     success(res, { jobId: job.id, message: 'Scan started' });
     setImmediate(() => runScanJob(job.id, { scope, category_id, language, channel_id }));
   } catch (err) {
-    error(res, 'Failed to trigger scan: ' + err.message, 500);
+    error(res, 'Failed to trigger scan', 500);
   }
 };
 

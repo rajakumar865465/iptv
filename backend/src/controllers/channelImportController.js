@@ -45,7 +45,7 @@ exports.fetchM3u = async (req, res) => {
     success(res, { content: text, size: Buffer.byteLength(text, 'utf8') });
   } catch (err) {
     console.error('[ChannelImport] fetchM3u error:', err);
-    error(res, `Failed to fetch M3U: ${err.message}`, 400);
+    error(res, 'Failed to fetch M3U playlist. Please check the URL.', 400);
   }
 };
 
@@ -248,7 +248,7 @@ exports.parseAndCreateSession = async (req, res) => {
     );
   } catch (err) {
     console.error('[ChannelImport] parseAndCreateSession error:', err);
-    error(res, `Failed to parse M3U: ${err.message}`, 500);
+    error(res, 'Failed to parse M3U playlist. Please verify playlist format.', 500);
   }
 };
 
@@ -509,7 +509,7 @@ exports.importSelected = async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('[ChannelImport] importSelected error:', err);
-    error(res, `Failed to import channels: ${err.message}`, 500);
+    error(res, 'Failed to import channels. Please check server logs.', 500);
   } finally {
     client.release();
   }

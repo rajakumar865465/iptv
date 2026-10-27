@@ -30,7 +30,7 @@ exports.createPlan = async (req, res) => {
     success(res, result.rows[0], 'Plan created', 201);
   } catch (err) {
     console.error('createPlan error:', err);
-    error(res, 'Failed to create plan: ' + err.message, 500);
+    error(res, 'Failed to create plan', 500);
   }
 };
 

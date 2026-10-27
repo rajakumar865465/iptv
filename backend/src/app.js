@@ -32,6 +32,7 @@ const publicRoutes = require('./routes/public');
 const channelController = require('./controllers/channelController');
 
 const app = express();
+app.disable('x-powered-by');
 
 // Trust proxy for rate limiters (required for reverse proxy like nginx)
 app.set('trust proxy', 1);

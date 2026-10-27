@@ -23,8 +23,8 @@ const adminAuthMiddleware = async (req, res, next) => {
 
     // Verify admin user still exists and has admin role
     const result = await db.query(
-      'SELECT id, full_name, email, status, role FROM users WHERE id = $1 AND role = $2',
-      [decoded.userId, 'admin']
+      "SELECT id, full_name, email, status, role FROM users WHERE id = $1 AND (role = 'admin' OR role = 'superadmin')",
+      [decoded.userId]
     );
 
     if (result.rows.length === 0) {

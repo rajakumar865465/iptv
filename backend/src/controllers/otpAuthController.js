@@ -45,18 +45,39 @@ exports.verifyOtp = async (req, res) => {
 
     const cleanMobile = mobile.replace(/[\s\-+]/g, '');
 
-    // Atomically consume the OTP: DELETE...RETURNING ensures two concurrent
-    // requests with the same code can't both succeed (CWE-362 fix).
-    const result = await db.query(
-      `DELETE FROM otp_codes WHERE mobile = $1 AND code = $2 AND expires_at > NOW() RETURNING *`,
-      [cleanMobile, code]
+    // Look up active OTP for this mobile to check attempts counter
+    const otpRes = await db.query(
+      `SELECT id, code, COALESCE(attempts, 0) AS attempts FROM otp_codes
+       WHERE mobile = $1 AND expires_at > NOW()
+       ORDER BY id DESC LIMIT 1`,
+      [cleanMobile]
     );
 
-    if (result.rows.length === 0) {
+    if (otpRes.rows.length === 0) {
       return error(res, 'Invalid or expired OTP', 400);
     }
 
-    // Clean up any other outstanding OTPs for this number
+    const currentOtp = otpRes.rows[0];
+
+    // Lockout if 5 failed attempts exceeded
+    if (currentOtp.attempts >= 5) {
+      await db.query('DELETE FROM otp_codes WHERE mobile = $1', [cleanMobile]);
+      return error(res, 'Too many failed attempts. This OTP has been revoked. Please request a new one.', 429);
+    }
+
+    // Verify OTP code
+    if (currentOtp.code !== String(code).trim()) {
+      const newAttempts = currentOtp.attempts + 1;
+      if (newAttempts >= 5) {
+        await db.query('DELETE FROM otp_codes WHERE mobile = $1', [cleanMobile]);
+        return error(res, 'Too many failed attempts. This OTP has been revoked. Please request a new one.', 429);
+      } else {
+        await db.query('UPDATE otp_codes SET attempts = $1 WHERE id = $2', [newAttempts, currentOtp.id]);
+        return error(res, `Invalid OTP. ${5 - newAttempts} attempt(s) remaining.`, 400);
+      }
+    }
+
+    // Atomically consume the OTP and clean up
     await db.query(`DELETE FROM otp_codes WHERE mobile = $1`, [cleanMobile]);
 
     // Check if user exists
