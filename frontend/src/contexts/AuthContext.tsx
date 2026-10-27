@@ -61,9 +61,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
       if (res.ok && data?.data?.user) {
         setUser(data.data.user);
+        if (data.data.user.has_claimed_trial) {
+          try {
+            localStorage.setItem('nivatv_trial_claimed', 'true');
+          } catch (_) {}
+        }
         return data.data.user;
       } else if (res.status === 401) {
         localStorage.removeItem('adminToken');
+        localStorage.removeItem('nivatv_trial_claimed');
         clearTokenCookie();
         setToken(null);
         setUser(null);
@@ -93,13 +99,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(t);
     if (userData) {
       setUser(userData);
-    } else {
-      void fetchProfile(t);
+      if (userData.has_claimed_trial) {
+        try {
+          localStorage.setItem('nivatv_trial_claimed', 'true');
+        } catch (_) {}
+      }
     }
+    void fetchProfile(t);
   };
 
   const logout = () => {
     localStorage.removeItem('adminToken');
+    localStorage.removeItem('nivatv_trial_claimed');
     clearTokenCookie();
     setToken(null);
     setUser(null);
@@ -123,4 +134,3 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
-

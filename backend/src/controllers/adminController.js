@@ -75,8 +75,31 @@ exports.adminLogin = async (req, res) => {
     // Log successful login
     await logAdminAction(req, admin.id, 'login', 'admin', admin.id, { email: admin.email });
 
+    // Check trial claimed status for admin
+    const trialLic = await db.query(
+      `SELECT 1 FROM licenses l 
+       LEFT JOIN plans p ON l.plan_id = p.id 
+       WHERE (l.user_id = $1 OR (l.customer_email IS NOT NULL AND LOWER(l.customer_email) = LOWER($2)))
+         AND (l.plan_id = 64 OR p.price = 0 OR p.slug LIKE '%trial%')
+       LIMIT 1`,
+      [admin.id, admin.email || '']
+    );
+    const hasClaimed = !!admin.has_claimed_trial || trialLic.rows.length > 0;
+    if (hasClaimed && !admin.has_claimed_trial) {
+      await db.query('UPDATE users SET has_claimed_trial = true WHERE id = $1', [admin.id]);
+    }
+
     const token = generateAdminToken({ userId: admin.id, email: admin.email, role: admin.role });
-    success(res, { token, admin: { id: admin.id, full_name: admin.full_name, email: admin.email, role: admin.role } });
+    success(res, {
+      token,
+      admin: {
+        id: admin.id,
+        full_name: admin.full_name,
+        email: admin.email,
+        role: admin.role,
+        has_claimed_trial: hasClaimed,
+      }
+    });
   } catch (err) {
     console.error('[adminLogin] Error:', err.message);
     error(res, 'Admin login failed', 500);

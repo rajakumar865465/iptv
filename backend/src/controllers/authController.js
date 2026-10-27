@@ -401,8 +401,46 @@ exports.me = async (req, res) => {
     if (result.rows.length === 0) {
       return error(res, 'User not found', 404);
     }
-    success(res, { user: result.rows[0] });
+    const user = result.rows[0];
+
+    // Self-healing check: If has_claimed_trial is false, verify against licenses and public_orders
+    if (!user.has_claimed_trial) {
+      const trialCheck = await db.query(
+        `SELECT 1 FROM licenses l 
+         LEFT JOIN plans p ON l.plan_id = p.id 
+         WHERE (l.user_id = $1 OR (l.customer_email IS NOT NULL AND LOWER(l.customer_email) = LOWER($2)))
+           AND (l.plan_id = 64 OR p.price = 0 OR p.slug LIKE '%trial%')
+         LIMIT 1`,
+        [user.id, user.email || '']
+      );
+
+      const orderCheck = trialCheck.rows.length === 0 ? await db.query(
+        `SELECT 1 FROM public_orders 
+         WHERE (user_id = $1 OR (email IS NOT NULL AND LOWER(email) = LOWER($2)))
+           AND (amount = 0 OR plan_id = 64)
+         LIMIT 1`,
+        [user.id, user.email || '']
+      ) : null;
+
+      if (trialCheck.rows.length > 0 || (orderCheck && orderCheck.rows.length > 0)) {
+        user.has_claimed_trial = true;
+        await db.query('UPDATE users SET has_claimed_trial = true WHERE id = $1', [user.id]);
+        if (user.email) {
+          await db.query(
+            'UPDATE licenses SET user_id = $1 WHERE user_id IS NULL AND LOWER(customer_email) = LOWER($2)',
+            [user.id, user.email]
+          );
+          await db.query(
+            'UPDATE public_orders SET user_id = $1 WHERE user_id IS NULL AND LOWER(email) = LOWER($2)',
+            [user.id, user.email]
+          );
+        }
+      }
+    }
+
+    success(res, { user });
   } catch (err) {
+    console.error('[authController.me] Error:', err.message);
     error(res, 'Failed to fetch profile', 500);
   }
 };

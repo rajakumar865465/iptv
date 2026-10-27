@@ -367,6 +367,9 @@ exports.createOrder = async (req, res) => {
       if (userId) {
         await db.query('UPDATE users SET has_claimed_trial = true WHERE id = $1', [userId]);
       }
+      if (customerEmail) {
+        await db.query('UPDATE users SET has_claimed_trial = true WHERE LOWER(email) = $1', [customerEmail]);
+      }
       
       return success(res, {
         order_id: orderId,

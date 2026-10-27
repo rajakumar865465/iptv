@@ -44,7 +44,7 @@ const loadRazorpay = () =>
 function PaymentForm() {
   const params = useSearchParams();
   const router = useRouter();
-  const { user, token, isReady, login } = useAuth();
+  const { user, token, isReady, login, refreshUser } = useAuth();
   const planIdParam = params.get('plan_id') ? parseInt(params.get('plan_id')!) : null;
   const offerPriceParam = params.get('offer_price') ? parseInt(params.get('offer_price')!) : undefined;
   const isOfferFlow = !!offerPriceParam;
@@ -121,6 +121,16 @@ function PaymentForm() {
   }, [isOfferFlow, offerPriceParam, planIdParam, router]);
 
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
+  const hasClaimedTrial = !!user?.has_claimed_trial || (typeof window !== 'undefined' && localStorage.getItem('nivatv_trial_claimed') === 'true');
+
+  useEffect(() => {
+    if (hasClaimedTrial && selectedPlan?.price === 0) {
+      const paidPro = plans.find(p => p.id === 63 || (p.price > 0 && p.duration_days === 30)) || plans.find(p => p.price > 0);
+      if (paidPro) {
+        setSelectedPlanId(paidPro.id);
+      }
+    }
+  }, [hasClaimedTrial, selectedPlan, plans]);
   const handlePay = useCallback(async () => {
     setError('');
     
@@ -135,11 +145,19 @@ function PaymentForm() {
     }
     if (!selectedPlanId) return setError('Please select a plan.');
 
+    if (selectedPlan?.price === 0 && hasClaimedTrial) {
+      return setError('You have already claimed your 1-Month Free Trial. Please select a paid plan.');
+    }
+
     setLoading(true);
     try {
       const order = await createOrder({ plan_id: selectedPlanId, ...form, offer_price: offerPriceParam });
 
       if (order.amount === 0) {
+        try {
+          localStorage.setItem('nivatv_trial_claimed', 'true');
+        } catch (_) {}
+        void refreshUser();
         router.push(`/payment/success?order_id=${order.order_id}`);
         return;
       }
@@ -245,12 +263,11 @@ function PaymentForm() {
                 onChange={e => setSelectedPlanId(parseInt(e.target.value))}
                 className="w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl px-4 py-3 text-[var(--color-ink)] text-sm focus:outline-none focus:border-brand-500"
               >
-                {plans.map(p => {
+                {(hasClaimedTrial ? plans.filter(p => p.price > 0) : plans).map(p => {
                   const isTrial = p.price === 0;
-                  const isClaimed = isTrial && !!user?.has_claimed_trial;
                   return (
-                    <option key={p.id} value={p.id} disabled={isClaimed}>
-                      {p.name} — {isTrial ? '₹0 (1-Month Free Trial)' : `₹${Math.round(p.price)}`} / {p.duration_days >= 365 ? `${Math.round(p.duration_days / 365)}yr` : p.duration_days >= 30 ? `${Math.round(p.duration_days / 30)}mo` : `${p.duration_days}d`}{isClaimed ? ' (Already Claimed)' : ''}
+                    <option key={p.id} value={p.id}>
+                      {p.name} — {isTrial ? '₹0 (1-Month Free Trial)' : `₹${Math.round(p.price)}`} / {p.duration_days >= 365 ? `${Math.round(p.duration_days / 365)}yr` : p.duration_days >= 30 ? `${Math.round(p.duration_days / 30)}mo` : `${p.duration_days}d`}
                     </option>
                   );
                 })}

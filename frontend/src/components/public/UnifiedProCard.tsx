@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Sparkles, ShieldCheck } from 'lucide-react';
+import { Check, Sparkles } from 'lucide-react';
 import type { Plan } from '@/lib/publicApi';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthModal from '@/components/auth/AuthModal';
@@ -37,18 +37,30 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
   const { user, token } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
 
-  // Auto-detect: if user has already claimed trial, default to paid mode
-  const hasClaimedTrial = !!user?.has_claimed_trial;
+  // Check if trial has already been claimed by logged-in user or stored in localStorage
+  const [hasClaimedTrial, setHasClaimedTrial] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('nivatv_trial_claimed') === 'true';
+    }
+    return false;
+  });
+
   const [mode, setMode] = useState<'trial' | 'paid'>('trial');
 
-  // React to user auth state change
+  // React immediately whenever user auth state or trial claimed flag changes
   useEffect(() => {
-    if (hasClaimedTrial) {
+    const isClaimed = !!user?.has_claimed_trial || (typeof window !== 'undefined' && localStorage.getItem('nivatv_trial_claimed') === 'true');
+    if (isClaimed) {
+      setHasClaimedTrial(true);
       setMode('paid');
+      try {
+        localStorage.setItem('nivatv_trial_claimed', 'true');
+      } catch (_) {}
     }
-  }, [hasClaimedTrial]);
+  }, [user?.has_claimed_trial]);
 
-  const isTrial = mode === 'trial' && !hasClaimedTrial && !!trialPlan;
+  // If user has claimed trial, NEVER show trial mode or free cart elements
+  const isTrial = !hasClaimedTrial && !user?.has_claimed_trial && mode === 'trial' && !!trialPlan;
   const activePlan = isTrial ? trialPlan! : (paidPlan || trialPlan!);
 
   const handleAction = (e: React.MouseEvent) => {
@@ -70,8 +82,14 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
 
   const handleAuthSuccess = (_loggedInUser: any) => {
     setAuthOpen(false);
-    // After login, if user already claimed trial, route to paid Pro
-    const userClaimed = _loggedInUser?.has_claimed_trial || user?.has_claimed_trial;
+    const userClaimed = !!(_loggedInUser?.has_claimed_trial || user?.has_claimed_trial);
+    if (userClaimed) {
+      setHasClaimedTrial(true);
+      setMode('paid');
+      try {
+        localStorage.setItem('nivatv_trial_claimed', 'true');
+      } catch (_) {}
+    }
     const planToUse = (userClaimed || !isTrial) ? (paidPlan || activePlan) : activePlan;
     const targetUrl = (paymentMode === 'manual' && planToUse.price > 0)
       ? `/checkout?plan=${planToUse.id}`
@@ -103,17 +121,12 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
       )}
 
       <div className="p-4 sm:p-6 flex flex-col flex-1">
-        {/* Top tag / Trial claimed indicator */}
+        {/* Top tag */}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           {isTrial ? (
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
               <Sparkles className="w-3 h-3" />
               100% FREE TRIAL
-            </span>
-          ) : hasClaimedTrial ? (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3" />
-              Trial Already Claimed
             </span>
           ) : (
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--color-surface-2)] text-[var(--color-ink-muted)] border border-[var(--color-line)]">
@@ -132,8 +145,8 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
           Monthly Plan &bull; {isTrial ? '1 Device' : '2 Devices'}
         </p>
 
-        {/* Option toggle for eligible visitors */}
-        {!hasClaimedTrial && paidPlan && trialPlan && (
+        {/* Option toggle ONLY for new/eligible visitors who have NOT claimed the trial */}
+        {!hasClaimedTrial && !user?.has_claimed_trial && paidPlan && trialPlan && (
           <div className="mb-4 bg-[var(--color-surface-2)] p-1 rounded-xl flex items-center border border-[var(--color-line)] text-xs font-semibold">
             <button
               type="button"
