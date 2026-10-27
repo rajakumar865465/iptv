@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
+const { ensureUserTrial } = require('../services/subscriptionService');
 
 exports.activate = async (req, res) => {
   const client = await db.pool.connect();

@@ -295,13 +295,17 @@ function PaymentForm() {
             {loading
               ? 'Processing...'
               : selectedPlan
-                ? `Pay ₹${isOfferFlow ? offerPriceParam : Math.round(selectedPlan.price)} Securely`
+                ? selectedPlan.price === 0
+                  ? 'Claim 1-Month Free Trial Now'
+                  : `Pay ₹${isOfferFlow ? offerPriceParam : Math.round(selectedPlan.price)} Securely`
                 : 'Pay Securely'}
           </button>
 
           <div className="flex items-center justify-center gap-2 text-slate-500 text-xs">
             <ShieldCheck className="w-4 h-4 text-green-500" />
-            Secured by Razorpay · UPI · Cards · Netbanking
+            {selectedPlan?.price === 0
+              ? '100% Free Trial · Instant Activation · No Card Required'
+              : 'Secured by Razorpay · UPI · Cards · Netbanking'}
           </div>
 
           {paymentMode === 'both' && selectedPlan && (

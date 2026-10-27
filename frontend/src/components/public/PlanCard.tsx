@@ -18,14 +18,14 @@ const FEATURES = [
 
 const TRIAL_FEATURES = [
   'Free-to-Air (FTA) channels',
-  'Publicly available streams',
+  'All Exclusive Pro channels',
   'Indian & regional content',
-  'HD quality streams',
-  'Regular channel updates',
-  'No payment required',
+  'Full HD & 4K streams',
+  '30 Days 100% Free access',
+  '1 Device (Mobile / Android TV)',
 ];
 
-export type PlanVariant = 'most-popular' | 'save-more' | 'best-value' | 'starter';
+export type PlanVariant = 'most-popular' | 'save-more' | 'best-value' | 'starter' | 'free-trial';
 
 /**
  * Decide a card's visual variant.
@@ -34,7 +34,7 @@ export type PlanVariant = 'most-popular' | 'save-more' | 'best-value' | 'starter
  * Fall back to a duration-based guess only if flags aren't set.
  */
 export function planVariant(plan: Plan): PlanVariant {
-  if (plan.price === 0) return 'starter';
+  if (plan.price === 0) return 'free-trial';
   if (plan.is_best_value) return 'best-value';
   if (plan.is_popular) return 'most-popular';
   // Sensible fallback only when no flags are set
@@ -44,7 +44,7 @@ export function planVariant(plan: Plan): PlanVariant {
 }
 
 function getCtaText(plan: Plan, variant: PlanVariant): string {
-  if (plan.price === 0) return 'Start Free Trial';
+  if (plan.price === 0) return 'Claim 1-Month Free Trial';
   if (variant === 'best-value') return 'Unlock 500+ Channels Now';
   return 'Start Watching Instantly';
 }
@@ -82,6 +82,8 @@ function monthlyPrice(plan: Plan): number | null {
 
 // Card backgrounds — work in both dark & light mode via CSS tokens
 const cardClasses: Record<PlanVariant, string> = {
+  'free-trial':
+    'bg-gradient-to-b from-emerald-600/20 via-emerald-600/8 to-[var(--color-surface)] border-emerald-500/50 shadow-xl shadow-emerald-500/10',
   'most-popular':
     'bg-gradient-to-b from-brand-600/20 via-brand-600/8 to-[var(--color-surface)] border-brand-500/50 shadow-xl shadow-brand-500/10',
   'save-more':
@@ -92,6 +94,7 @@ const cardClasses: Record<PlanVariant, string> = {
 };
 
 const priceColor: Record<PlanVariant, string> = {
+  'free-trial': 'text-emerald-500',
   'most-popular': 'text-brand-500',
   'save-more': 'text-green-500',
   'best-value': 'text-amber-500',
@@ -99,6 +102,7 @@ const priceColor: Record<PlanVariant, string> = {
 };
 
 const iconColor: Record<PlanVariant, string> = {
+  'free-trial': 'text-emerald-500',
   'most-popular': 'text-brand-500',
   'save-more': 'text-green-500',
   'best-value': 'text-amber-500',
@@ -131,7 +135,7 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
     const storedToken = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
     const isAuthenticated = !!(user || token || storedToken);
 
-    const targetUrl = currentMode === 'manual'
+    const targetUrl = (currentMode === 'manual' && plan.price > 0)
       ? `/checkout?plan=${plan.id}`
       : `/payment?plan_id=${plan.id}`;
 
@@ -145,7 +149,7 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
 
   const handleAuthSuccess = (_loggedInUser: any) => {
     setAuthOpen(false);
-    const targetUrl = currentMode === 'manual'
+    const targetUrl = (currentMode === 'manual' && plan.price > 0)
       ? `/checkout?plan=${plan.id}`
       : `/payment?plan_id=${plan.id}`;
     router.push(targetUrl);
@@ -167,7 +171,10 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
 
   let badgeText = '';
   let badgeClass = '';
-  if (resolvedVariant === 'most-popular') {
+  if (resolvedVariant === 'free-trial') {
+    badgeText = '1-Month Free Trial';
+    badgeClass = 'bg-emerald-600 text-white';
+  } else if (resolvedVariant === 'most-popular') {
     badgeText = 'Most Popular';
     badgeClass = 'bg-brand-600 text-white';
   } else if (resolvedVariant === 'save-more') {
@@ -185,7 +192,9 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
 
   let btnClass =
     'bg-[var(--color-surface-2)] hover:bg-[var(--color-line)] text-[var(--color-ink)] border border-[var(--color-line)]';
-  if (resolvedVariant === 'most-popular')
+  if (resolvedVariant === 'free-trial')
+    btnClass = 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/25';
+  else if (resolvedVariant === 'most-popular')
     btnClass = 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-500/20';
   else if (resolvedVariant === 'save-more')
     btnClass = 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/20';
@@ -217,14 +226,19 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
 
         <div className="mb-1">
           <div className="flex items-end gap-2 flex-wrap">
-            {hasOffer && !isFree && (
+            {hasOffer && (
               <span className="text-2xl text-red-500/80 line-through font-bold decoration-2">
                 {'₹' + Math.round(plan.regular_price!)}
               </span>
             )}
             <span className={'text-4xl font-extrabold ' + priceCls}>
-              {isFree ? 'Free' : '₹' + Math.round(plan.price)}
+              {isFree ? '₹0' : '₹' + Math.round(plan.price)}
             </span>
+            {isFree && (
+              <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full uppercase tracking-wider mb-1">
+                100% Free
+              </span>
+            )}
           </div>
         </div>
 

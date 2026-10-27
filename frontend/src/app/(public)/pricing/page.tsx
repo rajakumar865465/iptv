@@ -25,11 +25,11 @@ export const metadata: Metadata = {
 };
 
 const BILLING_FAQ = [
-  { q: 'Is there a free trial?', a: 'Yes! We offer a 1 Day free trial so you can try the app before committing to a paid plan. No payment required.' },
+  { q: 'Is there a free trial?', a: 'Yes! We offer a 1-Month (30 Days) free trial of our Pro plan so you can try the app and all Pro channels before committing to a paid plan. Zero payment required.' },
   { q: 'How is payment processed?', a: 'Payments are processed securely through Razorpay, India\'s most trusted payment gateway. We accept UPI, debit/credit cards, and netbanking.' },
   { q: 'Will my subscription auto-renew?', a: 'No. All plans are one-time purchases. You will need to manually renew when your plan expires.' },
   { q: 'What happens after my plan expires?', a: 'The app will stop streaming. You can purchase a new plan and a fresh license key to continue watching.' },
-  { q: 'Can I get a refund?', a: 'We want you to be 100% satisfied before you spend a single rupee. Please enjoy our fully-featured 24-hour free trial first! Due to the digital nature of the license keys, refunds are not available once purchased.' },
+  { q: 'Can I get a refund?', a: 'We want you to be 100% satisfied before you spend a single rupee. Please enjoy our fully-featured 1-Month free trial first! Due to the digital nature of the license keys, refunds are not available once purchased.' },
 ];
 
 const TRUST = [
@@ -282,7 +282,7 @@ export default async function PricingPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <OfferTrigger />
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-7xl mx-auto">
 
         {/* Header */}
         <div className="text-center mb-6">

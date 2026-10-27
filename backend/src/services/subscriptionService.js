@@ -167,6 +167,112 @@ async function activateLicense(client, {
   };
 }
 
+/**
+ * Auto-provisions a 30-day Free Trial Pro license for a user if:
+ * 1. User has not already claimed a trial (has_claimed_trial = false).
+ * 2. User has no existing active or historical licenses.
+ *
+ * Atomically creates:
+ * - Active License for 30 days with max_devices: 1, plan_tier: 'pro'
+ * - Public Order marked 'paid' with amount: 0
+ * - Sets users.has_claimed_trial = true
+ *
+ * Returns the active license or null if not eligible.
+ */
+async function ensureUserTrial(userId) {
+  if (!userId) return null;
+  const db = require('../config/db');
+
+  try {
+    // 1. Check user eligibility
+    const userRes = await db.query(
+      'SELECT id, full_name, email, mobile, COALESCE(has_claimed_trial, false) AS has_claimed_trial FROM users WHERE id = $1',
+      [userId]
+    );
+    if (userRes.rows.length === 0) return null;
+    const user = userRes.rows[0];
+
+    if (user.has_claimed_trial) return null;
+
+    // 2. Check if user already has any license
+    const licRes = await db.query(
+      'SELECT id FROM licenses WHERE user_id = $1 LIMIT 1',
+      [userId]
+    );
+    if (licRes.rows.length > 0) {
+      await db.query('UPDATE users SET has_claimed_trial = true WHERE id = $1', [userId]);
+      return null;
+    }
+
+    // 3. Find the active 30-day Free Trial Pro Plan
+    const planRes = await db.query(
+      `SELECT * FROM plans
+       WHERE price = 0
+         AND status = 'active'
+         AND COALESCE(is_visible, true) = true
+       ORDER BY sort_order ASC, id DESC
+       LIMIT 1`
+    );
+    if (planRes.rows.length === 0) return null;
+    const trialPlan = planRes.rows[0];
+
+    const now = new Date();
+    const durationDays = trialPlan.duration_days || 30;
+    const expiresAt = new Date(now.getTime() + durationDays * MS_PER_DAY);
+    const licenseKey = generateLicenseKey();
+    const customerEmail = user.email ? user.email.toLowerCase().trim() : null;
+    const orderId = `FREE_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+
+    // 4. Insert license
+    let licenseId;
+    let newLicenseRow;
+    try {
+      const inserted = await db.query(
+        `INSERT INTO licenses
+           (license_key, plan_id, customer_email, status, duration_days, max_devices, user_id, activated_at, expires_at)
+         VALUES ($1, $2, $3, 'active', $4, $5, $6, $7, $8)
+         RETURNING *`,
+        [licenseKey, trialPlan.id, customerEmail, durationDays, trialPlan.max_devices || 1, user.id, now, expiresAt]
+      );
+      newLicenseRow = inserted.rows[0];
+      licenseId = newLicenseRow.id;
+    } catch (_) {
+      const inserted = await db.query(
+        `INSERT INTO licenses
+           (license_key, plan_id, status, duration_days, max_devices, user_id, activated_at, expires_at)
+         VALUES ($1, $2, 'active', $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [licenseKey, trialPlan.id, durationDays, trialPlan.max_devices || 1, user.id, now, expiresAt]
+      );
+      newLicenseRow = inserted.rows[0];
+      licenseId = newLicenseRow.id;
+    }
+
+    // 5. Insert order record
+    try {
+      await db.query(
+        `INSERT INTO public_orders (order_id, plan_id, customer_name, email, mobile, amount, currency, status, user_id, license_id)
+         VALUES ($1, $2, $3, $4, $5, 0, 'INR', 'paid', $6, $7)`,
+        [orderId, trialPlan.id, user.full_name || 'Valued User', customerEmail || '', user.mobile || '', user.id, licenseId]
+      );
+    } catch (orderErr) {
+      console.error('[ensureUserTrial] Warning: Could not insert public_order for free trial:', orderErr.message);
+    }
+
+    // 6. Mark trial claimed on user
+    await db.query('UPDATE users SET has_claimed_trial = true WHERE id = $1', [user.id]);
+
+    return {
+      ...newLicenseRow,
+      plan_name: trialPlan.name,
+      plan_tier: trialPlan.plan_tier || 'pro',
+    };
+  } catch (err) {
+    console.error('[ensureUserTrial] Error provisioning trial:', err.message);
+    return null;
+  }
+}
+
 module.exports = {
   MS_PER_DAY,
   generateLicenseKey,
@@ -176,4 +282,5 @@ module.exports = {
   remainingDays,
   findActiveSubscription,
   activateLicense,
+  ensureUserTrial,
 };

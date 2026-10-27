@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const { generateToken, generateRefreshToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
+const { ensureUserTrial } = require('../services/subscriptionService');
 const { OAuth2Client } = require('google-auth-library');
 const DEFAULT_GOOGLE_CLIENT_ID = '73771138100-in6cnnidmh4hd3ltcubls6glq4a3k0rj.apps.googleusercontent.com';
 const googleClientId = process.env.GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
@@ -95,6 +96,12 @@ exports.googleLogin = async (req, res) => {
          ORDER BY l.expires_at DESC LIMIT 1`,
         [user.id]
       );
+      if (licenseResult.rows.length === 0 && !user.has_claimed_trial) {
+        const trialLic = await ensureUserTrial(user.id);
+        if (trialLic) {
+          licenseResult = { rows: [trialLic] };
+        }
+      }
       license = licenseResult.rows[0] || null;
       licenseStatus = license && new Date(license.expires_at) > now ? license.status : 'none';
 

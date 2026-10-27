@@ -310,10 +310,24 @@ exports.createOrder = async (req, res) => {
     }
 
     if (finalPrice === 0) {
+      const customerEmail = email.toLowerCase().trim();
+      if (userId) {
+        const uRes = await db.query('SELECT has_claimed_trial FROM users WHERE id = $1', [userId]);
+        if (uRes.rows[0]?.has_claimed_trial) {
+          return error(res, 'You have already used your 1-Month Free Trial.', 400);
+        }
+      } else if (customerEmail) {
+        const emailCheck = await db.query(
+          `SELECT 1 FROM licenses l JOIN plans p ON l.plan_id = p.id WHERE LOWER(l.customer_email) = $1 AND (p.price = 0 OR p.slug LIKE '%trial%') LIMIT 1`,
+          [customerEmail]
+        );
+        if (emailCheck.rows.length > 0) {
+          return error(res, 'This email has already claimed a Free Trial.', 400);
+        }
+      }
+
       const orderId = `FREE_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
       const licenseKey = generateLicenseKey();
-      
-      const customerEmail = email.toLowerCase().trim();
       const now = new Date();
       const expiresAt = new Date(now);
       expiresAt.setDate(expiresAt.getDate() + (plan.duration_days || 1));
@@ -350,6 +364,9 @@ exports.createOrder = async (req, res) => {
         `UPDATE public_orders SET license_id = $1 WHERE order_id = $2`,
         [licenseId, orderId]
       );
+      if (userId) {
+        await db.query('UPDATE users SET has_claimed_trial = true WHERE id = $1', [userId]);
+      }
       
       return success(res, {
         order_id: orderId,

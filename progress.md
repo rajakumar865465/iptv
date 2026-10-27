@@ -89,3 +89,14 @@
     - Updated `frontend/src/app/login/page.tsx` to pass the admin payload to `login(token, admin)` and use `window.location.href = '/dashboard'` for atomic cookie-first navigation.
     - Updated `frontend/src/middleware.ts` to allow both `admin` and `superadmin` roles, and use predictable fallback secret.
     - Added `ADMIN_JWT_SECRET` to `frontend/.env.local` on the server and rebuilt frontend.
+
+- **1-Month Free Trial Pro Plan (₹0) Implementation (October 2026):**
+  - Added Migration `062_create_one_month_free_trial.sql` creating the `Pro Free Trial` plan (`₹0`, 30 Days, 1 Device, `plan_tier = 'pro'`, `regular_price = 79.00`, `offer_label = '100% FREE TRIAL'`).
+  - Added `has_claimed_trial BOOLEAN DEFAULT FALSE` to `users` table to enforce a strict one-trial-per-account limit and prevent abuse.
+  - Created `ensureUserTrial(userId)` in `subscriptionService.js` to auto-provision an active 30-day Pro license and ₹0 order for eligible users upon signup or login.
+  - Integrated trial auto-activation across all auth flows: standard email/password login and signup (`authController.js`), Google OAuth (`googleAuthController.js`), phone OTP login (`otpAuthController.js`), and mobile app status sync (`licenseController.js`).
+  - Enforced abuse-prevention guards in `publicController.createOrder` to block repeated free trial claims for the same user or email.
+  - Enhanced frontend UI:
+    - Added dedicated `'free-trial'` emerald theme and badge in `PlanCard.tsx`, displaying regular price `₹79` crossed out alongside `₹0` Free.
+    - Expanded pricing grid in `pricing/page.tsx` (`lg:grid-cols-4`) to accommodate all 4 plans seamlessly.
+    - Updated checkout and payment flow in `payment/page.tsx` for instant 1-click free trial claiming.

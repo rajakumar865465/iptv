@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const { generateToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
+const { ensureUserTrial } = require('../services/subscriptionService');
 
 // Helper to generate 6-digit OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
@@ -77,6 +78,10 @@ exports.verifyOtp = async (req, res) => {
     }
 
     // Generate token
+    if (!user.has_claimed_trial) {
+      await ensureUserTrial(user.id);
+    }
+
     const token = generateToken({ userId: user.id, email: user.email, role: user.role });
 
     return success(res, {
