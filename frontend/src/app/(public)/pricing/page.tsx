@@ -128,7 +128,7 @@ export default async function PricingPage() {
       offers: [
         {
           '@type': 'Offer',
-          name: '1-Day Free Trial',
+          name: '1-Month Free Trial',
           price: '0',
           priceCurrency: 'INR',
           priceValidUntil: '2027-12-31',
@@ -295,7 +295,7 @@ export default async function PricingPage() {
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-[var(--color-ink)] mb-4">Simple, Honest Pricing</h1>
           <p className="text-[var(--color-ink-muted)] text-base sm:text-lg max-w-xl mx-auto mb-3">
-            Try free for a day, go monthly, or save big with a full year. No auto-renewal, no hidden charges.
+            Start with our 1-Month Free Trial, go monthly, or save big with a full year. No auto-renewal, no hidden charges.
           </p>
           <p className="text-[var(--color-ink-subtle)] text-sm">License activates immediately inside the app after payment.</p>
         </div>
@@ -330,7 +330,7 @@ export default async function PricingPage() {
           <div className={
             visiblePlans.length === 3
               ? 'grid grid-cols-1 md:grid-cols-3 gap-6 mb-16'
-              : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-16'
+              : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-16'
           }>
             {visiblePlans.map(plan => (
               <PlanCard key={plan.id} plan={plan} paymentMode={paymentMode} />

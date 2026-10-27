@@ -299,7 +299,7 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
           </button>
           {isFree && (
             <p className="text-center text-[10px] text-[var(--color-ink-subtle)] px-2">
-              Try it for 24 Hours, 100% Free.<br/>No Credit Card Required.
+              Try it for 30 Days, 100% Free.<br/>No Credit Card Required.
             </p>
           )}
         </div>
