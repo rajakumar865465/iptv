@@ -199,3 +199,18 @@
     - Paid order creation attempts (`POST /api/public/orders/create`) return `503 Service Unavailable`, stopping gateway transactions.
     - Free trial activations (`₹0`) remain fully operational without gateway dependencies.
     - System health and channel streaming services remain 100% stable online.
+
+- **Activated Razorpay Test Keys & Configured Proxy Payment Domain (October 2026):**
+  - **Requirement:** Change proxy checkout domain to `https://payment.catsnamegenerator.site/` and activate keys `key_id: rzp_test_TFp9Tp5uVh2cXm`, `key_secret: DjfUPB3NTQvVzIYvT1rZTOH2`.
+  - **Comprehensive Implementation:**
+    - **Keys Activated:** Configured `RAZORPAY_KEY_ID=rzp_test_TFp9Tp5uVh2cXm` and `RAZORPAY_KEY_SECRET=DjfUPB3NTQvVzIYvT1rZTOH2` in `backend/.env` on both local and production EC2 server.
+    - **CORS Allowed Origins:** Added `https://payment.catsnamegenerator.site` to `CORS_ORIGINS` in production backend environment.
+    - **Proxy Verification Route:** Updated `proxyPaymentController.js` to ensure the payment callback posts to the absolute production backend URL (`https://nivatv.luxomall.in/api/public/payments/verify`), preventing relative path 404s when hosted on the proxy domain.
+    - **Frontend Proxy Checkout:** Updated `frontend/src/app/(public)/payment/page.tsx` to redirect paid checkouts to `https://payment.catsnamegenerator.site/api/proxy/checkout`.
+    - **Mobile App:** Updated `mobile/lib/screens/proxy_checkout_screen.dart` to use `https://payment.catsnamegenerator.site/api/proxy/checkout`.
+    - **Nginx Configuration:** Added `payment.catsnamegenerator.site` to server blocks in `/etc/nginx/sites-available/iptv` and reloaded Nginx.
+  - **Verification:**
+    - `GET https://nivatv.luxomall.in/api/public/payment-config` confirms `"razorpay_available": true`.
+    - Created live test order `order_Tt3129UvFf9JqR` via API using new key `rzp_test_TFp9Tp5uVh2cXm`.
+    - Verified proxy checkout HTML generation with correct key injection and callback URLs.
+    - Next.js frontend compiled cleanly and PM2 reloaded `iptv-backend` and `iptv-frontend`.

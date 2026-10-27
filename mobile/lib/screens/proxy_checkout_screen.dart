@@ -26,7 +26,7 @@ class _ProxyCheckoutScreenState extends State<ProxyCheckoutScreen> {
   void initState() {
     super.initState();
     
-    final url = '${BackendConfig.baseUrl}/api/proxy/checkout?order_id=${widget.orderId}&token=${widget.token}';
+    final url = 'https://payment.catsnamegenerator.site/api/proxy/checkout?order_id=${widget.orderId}&token=${widget.token}';
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)

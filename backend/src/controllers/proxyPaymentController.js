@@ -40,7 +40,8 @@ exports.serveCheckoutPage = async (req, res) => {
       order_id: order_id
     };
 
-    const verifyUrl = type === "public" ? "/api/public/payments/verify" : "/api/payments/razorpay/verify";
+    const baseUrl = process.env.PUBLIC_API_URL || "https://nivatv.luxomall.in";
+    const verifyUrl = type === "public" ? `${baseUrl}/api/public/payments/verify` : `${baseUrl}/api/payments/razorpay/verify`;
 
     // Load HTML template
     const templatePath = path.join(__dirname, "../views/proxy_checkout.html");
