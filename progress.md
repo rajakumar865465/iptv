@@ -164,3 +164,16 @@
     - **Defense-in-Depth Guard in `PlanCard.tsx`:** Added an automatic safety filter in `PlanCard.tsx` so that if `plan.price === 0` and `hasClaimedTrial` is detected (from `AuthContext` or `localStorage`), the card returns `null` and is never rendered to claimed users.
     - **Immediate State Initialization in `UnifiedProCard.tsx`:** Updated `UnifiedProCard.tsx` to initialize `mode` to `'paid'` and `hasClaimedTrial` to `true` synchronously during state declaration whenever the user or `localStorage` indicates trial claim status, preventing any visual hydration flicker.
   - **Deployed & Verified:** Rebuilt frontend locally and on EC2 VPS (`44.206.18.189`). Reloaded `iptv-frontend` via PM2 (PID 295228). Verified HTTP 200 on live URL `https://nivatv.luxomall.in/`.
+
+- **Admin Panel Header Navigation & Quick Actions for Privileged Users (October 2026):**
+  - **Feature Requirement:** When an admin user (role `admin` or `superadmin`) is logged in, display an accessible Admin Panel navigation link in the header and account menus, visible only to users with admin privileges.
+  - **Comprehensive Implementation:**
+    - **Header Navigation Bar (`PublicHeader.tsx`):** Added a sleek, branded `Admin Panel` button with a shield icon directly in the main desktop navigation bar (`/dashboard`), rendered only when `user.role === 'admin' || user.role === 'superadmin'`.
+    - **User Profile Dropdown (`PublicHeader.tsx`):**
+      - Displays admin role pill tag (`Admin` / `Super Admin`) next to the user's name.
+      - Added direct `Admin Dashboard` link with a shield icon leading to `/dashboard`.
+      - Added click-outside listener via React `useRef` to auto-close the dropdown.
+    - **Mobile Navigation Menu (`PublicHeader.tsx`):** Added a prominent `Admin Panel` item with shield icon in the mobile slide-out menu.
+    - **Account Page Quick Actions (`my-account/page.tsx`):** Added an `Admin Dashboard` Quick Action card ("Manage channels, orders & users") directly on `/my-account` for admin users.
+    - **Access Control:** All admin navigation items are strictly guarded (`isAdmin = user?.role === 'admin' || user?.role === 'superadmin'`) and completely hidden from regular users and unauthenticated guests.
+  - **Deployed & Verified:** Built cleanly locally and on EC2 VPS (`44.206.18.189`). Reloaded `iptv-frontend` via PM2. Live endpoint `https://nivatv.luxomall.in/my-account` verified HTTP 200.
