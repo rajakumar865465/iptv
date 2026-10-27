@@ -177,3 +177,25 @@
     - **Account Page Quick Actions (`my-account/page.tsx`):** Added an `Admin Dashboard` Quick Action card ("Manage channels, orders & users") directly on `/my-account` for admin users.
     - **Access Control:** All admin navigation items are strictly guarded (`isAdmin = user?.role === 'admin' || user?.role === 'superadmin'`) and completely hidden from regular users and unauthenticated guests.
   - **Deployed & Verified:** Built cleanly locally and on EC2 VPS (`44.206.18.189`). Reloaded `iptv-frontend` via PM2. Live endpoint `https://nivatv.luxomall.in/my-account` verified HTTP 200.
+
+- **My Account License Card Layout & Plan Title Text Wrapping Bugfix (October 2026):**
+  - **Identified Root Cause:** In `/my-account`, the grid layout was constrained within `max-w-5xl` and split `md:col-span-2` / `md:col-span-1`. Inside the license card, the license key display occupied over 440px width, leaving under 150px for the title column. This forced the plan title "Pro Free Trial" to wrap awkwardly across three vertical lines ("Pro \n Free [ACTIVE] \n Trial") and "Max Devices: 1" across two lines.
+  - **Comprehensive Fixes Applied:**
+    - **License Key Display Component (`LicenseKeyDisplay.tsx`):** Compacted padding (`px-3.5 py-2.5 sm:px-4 sm:py-3`), reduced font scaling, and optimized Reveal/Copy button sizes with `whitespace-nowrap` to prevent the component from crowding the title column.
+    - **Account Page Layout (`my-account/page.tsx`):**
+      - Expanded container width to `max-w-6xl mx-auto px-4 sm:px-6 lg:px-8`.
+      - Refactored layout to `grid-cols-1 lg:grid-cols-12 gap-8 items-start`, giving Active Licenses `lg:col-span-8` (~768px width) and Quick Actions `lg:col-span-4`.
+      - Added `whitespace-nowrap` on the plan heading and device/expiry info with flexbox spacing (`flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6`).
+  - **Deployed & Verified:** Built cleanly locally (Turbopack, Next.js 16.2.9) and on EC2 VPS (`44.206.18.189`). Reloaded `iptv-frontend` via PM2. Verified HTTP 200 on live URL `https://nivatv.luxomall.in/my-account`.
+
+- **Temporary Suspension of Razorpay Payment Gateway (October 2026):**
+  - **Requirement:** Temporarily stop/pause the Razorpay online payment gateway on the production server.
+  - **Actions Taken on EC2 (`44.206.18.189`):**
+    - Created safety backup of backend environment: `/home/ubuntu/iptv/backend/.env.backup_razorpay`.
+    - Blanked out active Razorpay environment keys (`RAZORPAY_KEY_ID=` and `RAZORPAY_KEY_SECRET=`) while preserving original keys in commented documentation inside `/home/ubuntu/iptv/backend/.env`.
+    - Restarted `iptv-backend` with updated environment: `pm2 restart iptv-backend --update-env`.
+  - **Verification:**
+    - `GET https://nivatv.luxomall.in/api/public/payment-config` confirms `"razorpay_available": false`.
+    - Paid order creation attempts (`POST /api/public/orders/create`) return `503 Service Unavailable`, stopping gateway transactions.
+    - Free trial activations (`₹0`) remain fully operational without gateway dependencies.
+    - System health and channel streaming services remain 100% stable online.
