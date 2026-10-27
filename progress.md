@@ -105,5 +105,6 @@
   - Automatically detects the user's trial status:
     - New or anonymous visitors see the 1-Month Free Trial (`₹0` with `₹79` strikethrough, 1 Device, "Claim 1-Month Free Trial" CTA) along with a clean interactive toggle pill to optionally choose 2 Devices for ₹79/month.
     - Returning logged-in users who already claimed their trial automatically see the paid Pro plan (`₹79/month`, 2 Devices, "Start Watching Instantly" CTA) with trial claiming locked.
+    - Updated paid Pro mode styling to clean white / neutral surface theme (neutral tag, crisp dark price, green checkmarks, clean neutral button, removed top red banner) ensuring clear visual differentiation from the pink/red "Most Popular" Starter plan.
   - Re-balanced the Pricing page into a standard 3-tier SaaS grid (`Starter` ₹49 | `Pro` Unified | `Plus` ₹699) with no wrapping or duplicate tier cards.
   - Updated backend user profile endpoints (`/api/auth/me`, `/login`, `/signup`) to return `has_claimed_trial` in real-time.
