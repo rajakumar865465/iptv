@@ -156,3 +156,11 @@
       - Updated `AuthContext.tsx` to persist `nivatv_trial_claimed: 'true'` in `localStorage` upon profile fetch and login, and clear on logout.
       - Updated `payment/page.tsx` so users who already claimed the trial do not see the free trial option in the plan selector dropdown, and any direct navigation to `?plan_id=64` auto-redirects to the paid Pro plan (`id: 63`).
   - **Deployed & Verified:** Synced backend and frontend to EC2 (`44.206.18.189`). Rebuilt Next.js cleanly (56/56 pages static/dynamic) and reloaded `iptv-backend` and `iptv-frontend` via PM2. Live endpoint `https://nivatv.luxomall.in/pricing` verified HTTP 200.
+
+- **Homepage Pricing Cards Alignment & Free Trial Elimination for Claimed Users (October 2026):**
+  - **Identified Root Cause:** The Homepage (`frontend/src/app/page.tsx`) previously did not use `<PricingGrid />`. Instead, it sliced the raw public plans (`plans.slice(0, 3)`) and directly mapped them to `<PlanCard />`. Because Plan 64 (`Pro Free Trial`) was among the top 3 sort order plans, the Homepage always rendered the raw "Pro Free Trial" card alongside the paid "Pro" card, regardless of whether the user was logged in and had already claimed or purchased the trial.
+  - **Comprehensive Fixes Applied:**
+    - **Homepage Integration (`frontend/src/app/page.tsx`):** Replaced the static `top3.map` with `<PricingGrid plans={plans} paymentMode={paymentMode} />`, aligning the Homepage pricing tier section with the exact same intelligent, auto-detecting card system as `/pricing`.
+    - **Defense-in-Depth Guard in `PlanCard.tsx`:** Added an automatic safety filter in `PlanCard.tsx` so that if `plan.price === 0` and `hasClaimedTrial` is detected (from `AuthContext` or `localStorage`), the card returns `null` and is never rendered to claimed users.
+    - **Immediate State Initialization in `UnifiedProCard.tsx`:** Updated `UnifiedProCard.tsx` to initialize `mode` to `'paid'` and `hasClaimedTrial` to `true` synchronously during state declaration whenever the user or `localStorage` indicates trial claim status, preventing any visual hydration flicker.
+  - **Deployed & Verified:** Rebuilt frontend locally and on EC2 VPS (`44.206.18.189`). Reloaded `iptv-frontend` via PM2 (PID 295228). Verified HTTP 200 on live URL `https://nivatv.luxomall.in/`.
