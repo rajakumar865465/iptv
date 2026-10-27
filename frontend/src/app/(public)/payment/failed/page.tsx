@@ -18,7 +18,7 @@ export default function PaymentFailedPage() {
         </p>
 
         <div className="flex flex-col gap-3">
-          <Link href="/pricing" className="flex items-center justify-center gap-2 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-[var(--color-ink)] font-semibold transition-colors">
+          <Link href="/pricing" className="flex items-center justify-center gap-2 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/20 font-semibold transition-colors">
             <RefreshCw className="w-4 h-4" /> Try Again
           </Link>
           <Link href="/support" className="flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--color-surface-2)] hover:bg-[var(--color-surface)] text-[var(--color-ink)] font-semibold transition-colors border border-[var(--color-line)]">

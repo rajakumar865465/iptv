@@ -312,7 +312,7 @@ export default async function PricingPage() {
 
         {/* Recommendation strip */}
         {(plan1mPrice || plan1yPrice) && (
-          <div className="max-w-2xl mx-auto bg-[var(--color-surface-2)]/50 border border-slate-700/50 rounded-xl p-4 mb-10 text-center">
+          <div className="max-w-2xl mx-auto bg-[var(--color-surface-2)]/50 border border-[var(--color-line)] rounded-xl p-4 mb-10 text-center">
             {plan1mPrice && (
               <p className="text-[var(--color-ink-muted)] text-sm">
                 <span className="text-indigo-400 font-semibold">Most Popular:</span> 1 Month plan for regular viewers — only ₹{plan1mPrice}/month

@@ -120,7 +120,7 @@ export default function BrowsePage() {
               disabled={isLoading}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-all disabled:opacity-50 ${
                 activeCategory === cat
-                  ? 'bg-brand-500 text-[var(--color-ink)] shadow-lg shadow-brand-500/20 border border-brand-500'
+                  ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20 border border-brand-500'
                   : 'bg-[var(--color-surface)] text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-surface-2)] border border-[var(--color-line)]'
               }`}
             >

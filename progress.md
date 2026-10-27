@@ -122,3 +122,14 @@
   - **Client-Side Security Headers:** Injected `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(self "https://checkout.razorpay.com")` in `frontend/next.config.ts`.
   - **PostgreSQL Database Ownership Alignment:** Reassigned ownership of all tables and sequences in `iptv_db` to the application user `iptvdb`, resolving migration runner ownership conflicts and ensuring continuous zero-downtime boots.
   - **Verification:** Both `iptv-backend` and `iptv-frontend` are verified online, healthy, and operational on EC2 (`44.206.18.189`) with database connected and public API responses verified.
+
+- **Full-Website Light/Dark Theme Visibility & High-Contrast Bugfix (October 2026):**
+  - **Identified Root Cause:** In light mode (`[data-theme='light']`), pages like `/my-account`, `/payment/pending`, `/browse`, and components had hardcoded `text-white` or dark card wrappers directly on off-white backgrounds (`bg-[var(--color-base)] = #FAFAF8`). As a result, page headings ("My Account", "Active Licenses", "Quick Actions") and action buttons ("Try Again", "Reveal/Copy") were rendered as white text on white backgrounds, making them completely invisible.
+  - **Comprehensive Visibility Overhaul:**
+    - **My Account Page (`/my-account`):** Replaced all hardcoded `text-white` and `bg-slate-900` classes with semantic theme tokens (`text-[var(--color-ink)]`, `text-[var(--color-ink-muted)]`, `bg-[var(--color-surface)]`, `border-[var(--color-line)]`, `shadow-card`). Headings, subtitles, empty state cards, license cards, and Quick Actions cards now render with high-contrast, crisp typography in both light and dark modes.
+    - **License Key Display Component (`LicenseKeyDisplay.tsx`):** Upgraded container to `bg-[var(--color-surface-2)]` and buttons ("Reveal" and "Copy") to `bg-[var(--color-surface)] text-[var(--color-ink)] border-[var(--color-line)]`, eliminating white-on-white text and invisible buttons.
+    - **Pending Order Verification (`/payment/pending/[orderId]`):** Updated "Try Again" button from `bg-[var(--color-surface)] text-white` to `bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-600/20` for a high-contrast primary CTA.
+    - **Payment Failed Page (`/payment/failed`):** Corrected primary CTA inside `bg-red-600` from `text-[var(--color-ink)]` to `text-white shadow-lg shadow-red-600/20` to prevent dark-on-dark text in light mode.
+    - **Channel Browse Page (`/browse`):** Updated active category button pill from `bg-brand-500 text-[var(--color-ink)]` to `bg-brand-500 text-white` for crisp contrast against red background.
+    - **Pricing Page (`/pricing`):** Fixed recommendation strip border to use dynamic `border-[var(--color-line)]`.
+  - **Deployed & Verified:** Compiled cleanly locally and on EC2 VPS (`44.206.18.189`). Reloaded `iptv-frontend` via PM2. Verified HTTP 200 and visual contrast across `https://nivatv.luxomall.in/my-account`.

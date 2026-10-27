@@ -145,7 +145,7 @@ function PendingPaymentContent() {
             )}
             <Link 
               href="/pricing"
-              className="inline-block px-8 py-3 bg-[var(--color-surface)] hover:bg-[var(--color-surface-2)] text-white rounded-xl font-bold transition-all border border-[var(--color-line)]"
+              className="inline-block px-8 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-brand-600/20"
             >
               Try Again
             </Link>
