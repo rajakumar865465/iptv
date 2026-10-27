@@ -27,6 +27,7 @@ publicAxios.interceptors.request.use((config) => {
 export interface Plan {
   id: number;
   name: string;
+  slug?: string;
   price: number;
   regular_price: number | null;
   duration_days: number;
@@ -36,6 +37,7 @@ export interface Plan {
   offer_label: string | null;
   is_popular: boolean;
   is_best_value: boolean;
+  plan_tier?: string;
 }
 
 export interface Channel {

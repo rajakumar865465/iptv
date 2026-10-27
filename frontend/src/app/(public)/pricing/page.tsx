@@ -1,6 +1,7 @@
 import { CheckCircle, Shield, Zap, Headphones } from 'lucide-react';
 import { getPublicPlans, getPaymentConfig } from '@/lib/publicApi';
 import PlanCard from '@/components/public/PlanCard';
+import PricingGrid from '@/components/public/PricingGrid';
 import FAQAccordion from '@/components/public/FAQAccordion';
 import OfferTrigger from '@/components/public/OfferTrigger';
 import CountdownTimer from '@/components/public/CountdownTimer';
@@ -327,15 +328,7 @@ export default async function PricingPage() {
 
         {/* Plan cards — all plans in a single responsive grid */}
         {visiblePlans.length > 0 ? (
-          <div className={
-            visiblePlans.length === 3
-              ? 'grid grid-cols-1 md:grid-cols-3 gap-6 mb-16'
-              : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-16'
-          }>
-            {visiblePlans.map(plan => (
-              <PlanCard key={plan.id} plan={plan} paymentMode={paymentMode} />
-            ))}
-          </div>
+          <PricingGrid plans={visiblePlans} paymentMode={paymentMode} />
         ) : (
           <div className="text-center py-16 text-[var(--color-ink-subtle)] mb-16">
             <p className="text-lg font-medium">Plans loading...</p>

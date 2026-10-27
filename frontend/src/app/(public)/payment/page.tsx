@@ -245,11 +245,15 @@ function PaymentForm() {
                 onChange={e => setSelectedPlanId(parseInt(e.target.value))}
                 className="w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl px-4 py-3 text-[var(--color-ink)] text-sm focus:outline-none focus:border-brand-500"
               >
-                {plans.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — ₹{Math.round(p.price)} / {p.duration_days >= 365 ? `${Math.round(p.duration_days / 365)}yr` : p.duration_days >= 30 ? `${Math.round(p.duration_days / 30)}mo` : `${p.duration_days}d`}
-                  </option>
-                ))}
+                {plans.map(p => {
+                  const isTrial = p.price === 0;
+                  const isClaimed = isTrial && !!user?.has_claimed_trial;
+                  return (
+                    <option key={p.id} value={p.id} disabled={isClaimed}>
+                      {p.name} — {isTrial ? '₹0 (1-Month Free Trial)' : `₹${Math.round(p.price)}`} / {p.duration_days >= 365 ? `${Math.round(p.duration_days / 365)}yr` : p.duration_days >= 30 ? `${Math.round(p.duration_days / 30)}mo` : `${p.duration_days}d`}{isClaimed ? ' (Already Claimed)' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}

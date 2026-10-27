@@ -10,6 +10,7 @@ interface User {
   mobile?: string;
   role?: string;
   status?: string;
+  has_claimed_trial?: boolean;
 }
 
 interface AuthContextType {

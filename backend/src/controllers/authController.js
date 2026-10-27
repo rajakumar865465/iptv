@@ -66,7 +66,7 @@ exports.login = async (req, res) => {
     const identifier = email; // email or mobile
 
     const result = await db.query(
-      'SELECT id, full_name, email, mobile, password_hash, status, role FROM users WHERE email = $1 OR mobile = $1',
+      'SELECT id, full_name, email, mobile, password_hash, status, role, COALESCE(has_claimed_trial, false) AS has_claimed_trial FROM users WHERE email = $1 OR mobile = $1',
       [identifier]
     );
 
@@ -375,7 +375,7 @@ exports.resetPassword = async (req, res) => {
 exports.me = async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT id, full_name, email, mobile, status, role, created_at, last_login_at FROM users WHERE id = $1',
+      'SELECT id, full_name, email, mobile, status, role, created_at, last_login_at, COALESCE(has_claimed_trial, false) AS has_claimed_trial FROM users WHERE id = $1',
       [req.user.id]
     );
     if (result.rows.length === 0) {
