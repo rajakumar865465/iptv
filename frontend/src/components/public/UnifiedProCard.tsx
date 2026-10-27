@@ -40,12 +40,17 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
   // Check if trial has already been claimed by logged-in user or stored in localStorage
   const [hasClaimedTrial, setHasClaimedTrial] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('nivatv_trial_claimed') === 'true';
+      return localStorage.getItem('nivatv_trial_claimed') === 'true' || !!user?.has_claimed_trial;
     }
-    return false;
+    return !!user?.has_claimed_trial;
   });
 
-  const [mode, setMode] = useState<'trial' | 'paid'>('trial');
+  const [mode, setMode] = useState<'trial' | 'paid'>(() => {
+    if (typeof window !== 'undefined' && (localStorage.getItem('nivatv_trial_claimed') === 'true' || !!user?.has_claimed_trial)) {
+      return 'paid';
+    }
+    return 'trial';
+  });
 
   // React immediately whenever user auth state or trial claimed flag changes
   useEffect(() => {

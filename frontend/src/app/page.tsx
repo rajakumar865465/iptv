@@ -5,10 +5,10 @@ import {
   ShieldCheck, Headphones, Play, Sparkles, Star,
 } from 'lucide-react';
 import {
-  getPublicPlans, getCategories, getWebsiteSettings, getPopularChannels
+  getPublicPlans, getCategories, getWebsiteSettings, getPopularChannels, getPaymentConfig
 } from '@/lib/publicApi';
 import ChannelLogoImage from '@/components/ChannelLogoImage';
-import PlanCard from '@/components/public/PlanCard';
+import PricingGrid from '@/components/public/PricingGrid';
 import FAQAccordion from '@/components/public/FAQAccordion';
 import PageTracker from '@/components/public/PageTracker';
 import PublicHeader from '@/components/public/PublicHeader';
@@ -167,18 +167,26 @@ export default async function HomePage() {
   let tickerChannels: Channel[] = [];
   let channelsCount = '500+';
   let categoriesCount = '15+';
+  let paymentMode = 'razorpay';
 
   try {
-    const s = await getWebsiteSettings();
+    const [s, pRes, cRes, popRes, payConfig] = await Promise.all([
+      getWebsiteSettings().catch(() => null),
+      getPublicPlans().catch(() => []),
+      getCategories().catch(() => []),
+      getPopularChannels().catch(() => []),
+      getPaymentConfig().catch(() => null),
+    ]);
     if (s) {
       if (s.stats_channels_count) channelsCount = String(s.stats_channels_count);
       if (s.stats_categories_count) categoriesCount = String(s.stats_categories_count);
     }
-    plans = await getPublicPlans();
-    categories = await getCategories();
-    popularChannels = await getPopularChannels();
+    plans = pRes;
+    categories = cRes;
+    popularChannels = popRes;
+    if (payConfig?.payment_mode) paymentMode = payConfig.payment_mode;
     // A wider pool for the ticker (more logos = fuller marquee).
-    tickerChannels = await getPopularChannels(24);
+    tickerChannels = await getPopularChannels(24).catch(() => []);
   } catch (error) {
     console.error("Error fetching data for homepage:", error);
     // Backend not available during build, use defaults
@@ -189,9 +197,6 @@ export default async function HomePage() {
   const popularIds = new Set(popularChannels.map(c => c.id));
   const tickerOnly = tickerChannels.filter(c => !popularIds.has(c.id));
   const tickerPool = [...popularChannels, ...tickerOnly];
-
-  // Homepage shows the first 3 plans (which are ordered by sort_order)
-  const top3 = plans.slice(0, 3);
 
   const visibleCategories = categories.filter(cat => cat.channel_count > 0);
 
@@ -591,11 +596,9 @@ export default async function HomePage() {
                 subtitle="Flexible plans for every budget. Start with a free trial."
               />
             </MotionReveal>
-            {top3.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto mt-8 sm:mt-10 mb-8 sm:mb-10">
-                {top3.map(plan => (
-                  <PlanCard key={plan.id} plan={plan} />
-                ))}
+            {plans.length > 0 && (
+              <div className="mt-8 sm:mt-10 mb-8 sm:mb-10">
+                <PricingGrid plans={plans} paymentMode={paymentMode} className="mb-0" />
               </div>
             )}
             <div className="text-center">
