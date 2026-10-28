@@ -355,3 +355,9 @@
         - Surprise dopamine highlight chips: `850+ Live Channels`, `Anti-Stutter & 4K HDR`, `100% Ad-Free Live TV`.
         - Added interactive `🎆 Sparks` button letting users launch more sparkler fireworks at any time.
         - High-contrast typography and clear 4-step quick activation guide.
+    - **Eliminated Navbar Login Buffer & State Flicker:**
+      - **Root Cause Identified:** On page load/refresh, `user` state was initialized as `null` while `fetchProfile` awaited the `/api/auth/me` network request (taking 200-500ms). The navbar would flash "Log In / Buy Now" before snapping to "Super Admin / Admin Panel" once the API call completed.
+      - **Implemented Stale-While-Revalidate Client Caching (`nivatv_user_cache`):**
+        - Updated `AuthContext.tsx` to synchronously persist and restore the authenticated user profile from `localStorage` immediately upon client mount.
+        - `PublicHeader.tsx` respects `isReady` and renders the cached user immediately on frame 1 without delay or layout shifting.
+        - Background silent revalidation ensures token expiry or permission changes are updated smoothly without visible jumping.
