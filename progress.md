@@ -337,3 +337,10 @@
     - Executed Migration 064 on EC2 PostgreSQL `iptv_db`, granted privileges to `iptvdb`, and registered migration in `schema_migrations`.
     - Built and reloaded `iptv-backend` and `iptv-frontend` via PM2.
     - Live endpoints tested: `POST https://nivatv.luxomall.in/api/public/coupons/validate` (tested `WELCOME10` -> 10% off, `SAVE50` -> ₹50 off), `/payment` (HTTP 200), and `/coupons` (HTTP 200).
+    - **Text Visibility & High-Contrast Overhaul:**
+      - Resolved low-contrast and unreadable text in Light Mode on `/payment`:
+        - Fixed `100% OFF` / discount badge: Replaced washed-out mint-on-mint text with rich `bg-emerald-700 text-white` (and high-contrast dark mode counterpart).
+        - Fixed coupon code text: Upgraded from faint `emerald-400` to deep `text-emerald-900 dark:text-emerald-200 font-black`.
+        - Fixed coupon description and `%` badge: Given solid background and high-contrast font weight.
+        - High-contrast inputs & plan selector: Replaced faint borders with crisp `border-slate-300 dark:border-white/10` and deep `text-slate-900 dark:text-white` text with subtle ring focus.
+        - Upgraded order summary price breakdown and savings text to high-contrast emerald and bold typography.
