@@ -349,7 +349,7 @@
         - Installed and integrated `fireworks-js` with realistic glowing trails, rocket launches, and colorful explosion bursts across both sides of the screen.
         - Integrated `canvas-confetti` with multi-angle corner fountains, falling particles from the ceiling, and golden star bursts.
         - Rendered in a transparent fixed-position full-screen overlay (`fixed inset-0 pointer-events-none z-50 overflow-hidden`), ensuring buttons, links, and license copying are never blocked.
-        - Preserved existing layout, text, badges, and VIP license key card 100% without modification.
+        - Preserved existing layout, text, badges, and VIP license key card 100% without modification using semantic tokens (`text-[var(--color-ink)]`, `text-[var(--color-ink-muted)]`, `bg-[var(--color-surface)]`, `bg-[var(--color-surface-2)]`, `border-[var(--color-line)]`), ensuring 100% crisp high-contrast visibility in both Light Mode (`#0F0F0F` on white) and Dark Mode (`#F8FAFC` on dark).
         - Once-per-transaction trigger guard: Uses `sessionStorage.getItem('nivatv_celebrated_' + orderId)` so celebrations only fire on successful verification and do NOT repeat on page reload or revisits.
         - Added reduced-motion accessibility preference check (`window.matchMedia('(prefers-reduced-motion: reduce)')`).
         - Automatically ramps down and stops after 3.5 seconds with complete instance and canvas cleanup on unmount.
