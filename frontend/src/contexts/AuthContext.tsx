@@ -44,6 +44,8 @@ const AuthContext = createContext<AuthContextType>({
  *  Not httpOnly so the client can still clear it on logout.
  *  SameSite=Strict prevents CSRF from third-party sites.
  */
+const USER_CACHE_KEY = 'nivatv_user_cache';
+
 function setTokenCookie(token: string) {
   const maxAge = 60 * 60 * 24 * 30; // 30 days
   document.cookie = `adminToken=${encodeURIComponent(token)}; path=/; max-age=${maxAge}; SameSite=Strict`;
@@ -55,9 +57,23 @@ function clearTokenCookie() {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUserState] = useState<User | null>(null);
   const [isReady, setIsReady] = useState(false);
   const router = useRouter();
+
+  // Helper to keep localStorage cache synchronized with React state
+  const setUser = (userData: User | null) => {
+    setUserState(userData);
+    if (typeof window !== 'undefined') {
+      try {
+        if (userData) {
+          localStorage.setItem(USER_CACHE_KEY, JSON.stringify(userData));
+        } else {
+          localStorage.removeItem(USER_CACHE_KEY);
+        }
+      } catch (_) {}
+    }
+  };
 
   const fetchProfile = async (authToken: string): Promise<User | null> => {
     try {
@@ -75,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return data.data.user;
       } else if (res.status === 401) {
         localStorage.removeItem('adminToken');
+        localStorage.removeItem(USER_CACHE_KEY);
         localStorage.removeItem('nivatv_trial_claimed');
         clearTokenCookie();
         setToken(null);
@@ -87,16 +104,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Instant client rehydration from local storage: eliminates login state flicker/buffer on page loads
   useEffect(() => {
-    void Promise.resolve().then(async () => {
-      const stored = localStorage.getItem('adminToken');
-      if (stored) {
-        setToken(stored);
-        setTokenCookie(stored);
-        await fetchProfile(stored);
+    try {
+      const storedToken = localStorage.getItem('adminToken');
+      const cachedUserStr = localStorage.getItem(USER_CACHE_KEY);
+
+      if (storedToken) {
+        setToken(storedToken);
+        setTokenCookie(storedToken);
+
+        if (cachedUserStr) {
+          try {
+            const parsed = JSON.parse(cachedUserStr);
+            setUserState(parsed);
+          } catch (_) {}
+        }
       }
-      setIsReady(true);
-    });
+    } catch (_) {}
+
+    // Mark ready immediately from cache so UI renders with the user already logged in!
+    setIsReady(true);
+
+    // Silently revalidate profile with backend in background (stale-while-revalidate)
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
+    if (stored) {
+      void fetchProfile(stored);
+    }
   }, []);
 
   const login = (t: string, userData?: User | null) => {
@@ -116,6 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem('adminToken');
+    localStorage.removeItem(USER_CACHE_KEY);
     localStorage.removeItem('nivatv_trial_claimed');
     clearTokenCookie();
     setToken(null);

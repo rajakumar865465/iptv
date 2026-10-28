@@ -22,7 +22,7 @@ export default function PublicHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
-  const { user, logout: authLogout, setUser } = useAuth();
+  const { user, logout: authLogout, setUser, isReady } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
@@ -106,7 +106,7 @@ export default function PublicHeader() {
               ))}
 
               {/* Admin Panel link for privileged users */}
-              {isAdmin && (
+              {isReady && isAdmin && (
                 <Link
                   href="/dashboard"
                   className={`relative px-3 py-1.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5 ${
@@ -126,7 +126,9 @@ export default function PublicHeader() {
               {/* Theme toggle */}
               <ThemeToggle />
 
-              {!user ? (
+              {!isReady ? (
+                <div className="w-24 h-9" />
+              ) : !user ? (
                 <>
                   <button
                     onClick={() => setAuthOpen(true)}
@@ -247,7 +249,7 @@ export default function PublicHeader() {
               ))}
 
               {/* Admin Panel link in mobile menu */}
-              {isAdmin && (
+              {isReady && isAdmin && (
                 <Link
                   href="/dashboard"
                   onClick={() => setMenuOpen(false)}
