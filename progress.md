@@ -344,3 +344,14 @@
         - Fixed coupon description and `%` badge: Given solid background and high-contrast font weight.
         - High-contrast inputs & plan selector: Replaced faint borders with crisp `border-slate-300 dark:border-white/10` and deep `text-slate-900 dark:text-white` text with subtle ring focus.
         - Upgraded order summary price breakdown and savings text to high-contrast emerald and bold typography.
+    - **Payment Success Dopamine Fireworks & Phuljhadi Celebration:**
+      - Added multi-stage celebratory fireworks and phuljhadi (sparkler crackler) animation sequence on `/payment/success`:
+        - Stage 1: Instant mega center fireworks burst with golden, neon pink, cyan, and emerald stars (`zIndex: 99999`).
+        - Stage 2: Dual-sided sparkler fountains shooting continuous upward sparkles (`angle: 60` and `angle: 120`) across the screen with ambient upper-sky sparkling star bursts.
+        - Stage 3: Native Web Audio API celebratory 4-tone ascending arpeggio chime (C5-E5-G5-C6) playing automatically with zero external assets.
+      - Upgraded Visual Presentation:
+        - Pulsing radiant halo & glowing badge with bouncing celebratory sparkle tags.
+        - Shimmering holographic/golden gradient border surrounding the VIP License card.
+        - Surprise dopamine highlight chips: `850+ Live Channels`, `Anti-Stutter & 4K HDR`, `100% Ad-Free Live TV`.
+        - Added interactive `🎆 Sparks` button letting users launch more sparkler fireworks at any time.
+        - High-contrast typography and clear 4-step quick activation guide.
