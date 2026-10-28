@@ -2,7 +2,7 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 
 // PLAYABLE health statuses — must match channelController.js
-const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable', 'unknown'];
+const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable', 'unknown', 'offline'];
 const ALLOW_UNKNOWN = process.env.ALLOW_UNKNOWN_STREAMS === 'true';
 
 const formatChannelRow = (req, row) => {

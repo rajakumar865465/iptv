@@ -133,15 +133,15 @@ function normalizeLanguage(raw) {
 }
 
 // PLAYABLE health statuses — strictly enforced for workingOnly=true
-const WORKING_STATUSES = ['online', 'playable', 'stable'];
+const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable', 'unknown', 'offline'];
 // Hidden health statuses — always hidden from normal users
-const DEAD_STATUSES = ['offline', 'dead', 'forbidden_403', 'drm_or_unsupported', 'geo_blocked', 'requires_licensed_source', 'unstable', 'unknown', 'paid_blocked_scan'];
+const DEAD_STATUSES = ['dead', 'drm_or_unsupported'];
 
 // Build the health_status filter fragment for workingOnly mode
 function buildHealthFilter(paramIndex) {
   const statusList = WORKING_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
   const params = [...WORKING_STATUSES];
-  let fragment = `c.health_status IN (${statusList})`;
+  let fragment = `(c.health_status IS NULL OR c.health_status IN (${statusList}) OR c.is_premium = true OR c.is_paid = true)`;
   const nextIndex = paramIndex + params.length;
 
   return { fragment, params, nextIndex };
@@ -517,7 +517,7 @@ exports.getCategories = async (req, res) => {
 
     if (workingOnly === 'true' && hasHealthStatus) {
       const statusList = WORKING_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
-      let healthPart = `ch.health_status IN (${statusList})`;
+      let healthPart = `(ch.health_status IS NULL OR ch.health_status IN (${statusList}))`;
       if (ALLOW_UNKNOWN) {
         healthPart = `(${healthPart} OR ch.health_status IS NULL OR ch.health_status = 'unknown')`;
       }
@@ -566,7 +566,7 @@ exports.getLanguages = async (req, res) => {
 
     if (workingOnly === 'true' && hasHealthStatus) {
       const statusList = WORKING_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
-      let healthPart = `c.health_status IN (${statusList})`;
+      let healthPart = `(c.health_status IS NULL OR c.health_status IN (${statusList}))`;
       if (ALLOW_UNKNOWN) {
         healthPart = `(${healthPart} OR c.health_status IS NULL OR c.health_status = 'unknown')`;
       }
@@ -1182,9 +1182,9 @@ exports.getChannelPlayback = async (req, res) => {
     };
 
     // Priority 1: online/unknown primary stream (not audio-only)
-    let primary = result.rows.find(r => r.is_primary === true && !isAudioOnlyTrack(r) && r.health_status !== 'offline');
+    let primary = result.rows.find(r => r.is_primary === true && !isAudioOnlyTrack(r) && r.health_status !== 'dead');
     // Priority 2: online/unknown top-level stream (not audio-only)
-    if (!primary) primary = result.rows.find(r => r.parent_stream_id == null && !isAudioOnlyTrack(r) && r.health_status !== 'offline');
+    if (!primary) primary = result.rows.find(r => r.parent_stream_id == null && !isAudioOnlyTrack(r) && r.health_status !== 'dead');
     // Priority 3: any primary stream
     if (!primary) primary = result.rows.find(r => r.is_primary === true && !isAudioOnlyTrack(r));
     // Priority 4: any top-level stream
@@ -1348,7 +1348,7 @@ exports.getChannelPlayback = async (req, res) => {
       direct_live_url: channel.stream_url || null,
       can_go_live: !!(channel.stream_url) && !channel.is_hidden && !channel.is_removed &&
         channel.is_visible_app !== false &&
-        !['requires_licensed_source','drm_or_unsupported','geo_blocked','forbidden_403','offline','dead']
+        !['dead', 'drm_or_unsupported']
           .includes(channel.health_status),
     });
   } catch (err) {
