@@ -306,3 +306,13 @@
       - **Business (id 135):** 4 channels
     - Deactivated language-named categories (`Tamil`, `Telugu`, `Bengali`, `Punjabi`, `Urdu`, `Gujarati`, `Assamese`, `Bhojpuri`, `Odia`) and duplicate categories (`Hindi Entertainment`, `Hindi Movies`, `Hindi News`, `Religious`).
     - Flushed cache and verified live public endpoint `https://nivatv.luxomall.in/api/public/categories` and `/api/channels?categoryId=6`.
+
+- **Activated Razorpay Live Production Keys & Tested Gateway Integration (October 2026):**
+  - **Requirement:** Update to live credentials (`key_id: rzp_live_THCyzvTOKIDaxp`, `key_secret: uVAx2AXkvVzzXUB6s3cRGVnk`).
+  - **Actions Taken:**
+    - Updated `backend/.env` on both local machine and production EC2 (`44.206.18.189`).
+    - Fixed parameter binding in `publicController.createOrder` (`activeLicCheck` query) when anonymous checkouts run without user ID.
+    - Restarted `iptv-backend` via PM2 with `--update-env`.
+  - **Verification:**
+    - Live order creation (`POST /api/public/orders/create`) successfully contacted Razorpay Live API and created real live order.
+    - Live proxy checkout portal (`https://payment.catsnamegenerator.site/api/proxy/checkout?order_id=...&type=public`) rendered `HTTP 200 OK` injecting `rzp_live_THCyzvTOKIDaxp`.
