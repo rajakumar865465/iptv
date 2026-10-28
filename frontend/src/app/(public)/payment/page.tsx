@@ -309,37 +309,37 @@ function PaymentForm() {
           
           {/* LEFT COLUMN: Order Summary & Plan Features */}
           <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
-            <div className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-3xl p-6 sm:p-7 shadow-xl shadow-black/5 dark:shadow-none space-y-6">
+            <div className="bg-[var(--color-surface)] border border-slate-200 dark:border-[var(--color-line)] rounded-3xl p-6 sm:p-7 shadow-xl shadow-slate-200/50 dark:shadow-none space-y-6">
               
               {/* Order Card Header */}
-              <div className="flex items-start justify-between gap-4 pb-5 border-b border-[var(--color-line)]">
+              <div className="flex items-start justify-between gap-4 pb-5 border-b border-slate-200 dark:border-[var(--color-line)]">
                 <div>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-brand-500 bg-brand-500/10 px-2.5 py-0.5 rounded-full">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-brand-600 dark:text-brand-400 bg-brand-500/10 border border-brand-500/20 px-2.5 py-0.5 rounded-full">
                     Selected Subscription
                   </span>
-                  <h2 className="text-2xl font-black text-[var(--color-ink)] mt-1.5">
+                  <h2 className="text-2xl font-black text-slate-900 dark:text-[var(--color-ink)] mt-2">
                     {selectedPlan?.name || 'Live TV Plan'}
                   </h2>
-                  <p className="text-xs text-[var(--color-ink-muted)] mt-0.5">
+                  <p className="text-xs text-slate-600 dark:text-[var(--color-ink-muted)] font-medium mt-0.5">
                     {selectedPlan?.duration_days ?? 30} Days Unlimited Access · {selectedPlan?.max_devices ?? 1} Device{selectedPlan?.max_devices && selectedPlan.max_devices > 1 ? 's' : ''}
                   </p>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-extrabold text-[var(--color-ink)]">
+                  <div className="text-2xl font-black text-slate-900 dark:text-[var(--color-ink)]">
                     ₹{Math.round(originalPrice)}
                   </div>
-                  <span className="text-[11px] text-[var(--color-ink-subtle)] font-medium">Billed Once</span>
+                  <span className="text-[11px] text-slate-500 dark:text-[var(--color-ink-subtle)] font-medium">Billed Once</span>
                 </div>
               </div>
 
               {/* Offer Banner if active */}
               {isOfferFlow && (
                 <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3.5">
-                  <Sparkles className="w-5 h-5 text-amber-400 shrink-0" />
+                  <Sparkles className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0" />
                   <div className="text-xs">
-                    <p className="text-amber-400 font-bold">Special Scratch Card Price Applied</p>
-                    <p className="text-[var(--color-ink-muted)] mt-0.5">
-                      Regular: <span className="line-through">₹{selectedPlan?.regular_price}</span> → Special: <span className="text-amber-400 font-semibold">₹{offerPriceParam}</span>
+                    <p className="text-amber-600 dark:text-amber-400 font-bold">Special Scratch Card Price Applied</p>
+                    <p className="text-slate-600 dark:text-[var(--color-ink-muted)] mt-0.5">
+                      Regular: <span className="line-through">₹{selectedPlan?.regular_price}</span> → Special: <span className="text-amber-600 dark:text-amber-400 font-bold">₹{offerPriceParam}</span>
                     </p>
                   </div>
                 </div>
@@ -347,69 +347,69 @@ function PaymentForm() {
 
               {/* Plan Included Features */}
               <div className="space-y-3">
-                <p className="text-xs font-semibold text-[var(--color-ink-muted)] uppercase tracking-wider">What&apos;s Included:</p>
-                <div className="space-y-2.5 text-xs text-[var(--color-ink)]">
+                <p className="text-xs font-bold text-slate-700 dark:text-[var(--color-ink-muted)] uppercase tracking-wider">What&apos;s Included:</p>
+                <div className="space-y-2.5 text-xs text-slate-800 dark:text-[var(--color-ink)]">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-4 h-4 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
                       <Check className="w-2.5 h-2.5 stroke-[3]" />
                     </div>
-                    <span><strong>850+ Live Channels</strong> (Hindi, Tamil, Telugu, Bengali &amp; 8 more)</span>
+                    <span><strong className="text-slate-900 dark:text-white">850+ Live Channels</strong> (Hindi, Tamil, Telugu, Bengali &amp; 8 more)</span>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <div className="w-4 h-4 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
                       <Check className="w-2.5 h-2.5 stroke-[3]" />
                     </div>
-                    <span><strong>{selectedPlan?.max_devices ?? 1} Device Concurrent Access</strong> (Phone, TV, Tablet)</span>
+                    <span><strong className="text-slate-900 dark:text-white">{selectedPlan?.max_devices ?? 1} Device Concurrent Access</strong> (Phone, TV, Tablet)</span>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <div className="w-4 h-4 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
                       <Check className="w-2.5 h-2.5 stroke-[3]" />
                     </div>
-                    <span><strong>Anti-Stutter &amp; Fast Buffer Engine</strong> (Clean smooth playback)</span>
+                    <span><strong className="text-slate-900 dark:text-white">Anti-Stutter &amp; Fast Buffer Engine</strong> (Clean smooth playback)</span>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <div className="w-4 h-4 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
                       <Check className="w-2.5 h-2.5 stroke-[3]" />
                     </div>
-                    <span><strong>Instant Key Delivery</strong> on screen &amp; synced to your account</span>
+                    <span><strong className="text-slate-900 dark:text-white">Instant Key Delivery</strong> on screen &amp; synced to your account</span>
                   </div>
                 </div>
               </div>
 
               {/* Price Breakdown */}
-              <div className="pt-4 border-t border-[var(--color-line)] space-y-2.5 text-sm">
-                <div className="flex justify-between text-[var(--color-ink-muted)] text-xs">
+              <div className="pt-4 border-t border-slate-200 dark:border-[var(--color-line)] space-y-2.5 text-sm">
+                <div className="flex justify-between text-slate-600 dark:text-[var(--color-ink-muted)] text-xs font-medium">
                   <span>Subtotal</span>
-                  <span>₹{Math.round(originalPrice)}</span>
+                  <span className="text-slate-900 dark:text-[var(--color-ink)] font-bold">₹{Math.round(originalPrice)}</span>
                 </div>
 
                 {appliedCoupon && (
-                  <div className="flex justify-between items-center text-xs text-emerald-500 font-semibold bg-emerald-500/10 px-2.5 py-1.5 rounded-xl border border-emerald-500/20">
+                  <div className="flex justify-between items-center text-xs text-emerald-900 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2 rounded-xl border border-emerald-500/30">
                     <div className="flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5" />
+                      <Tag className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
                       <span>Coupon ({appliedCoupon.code})</span>
                     </div>
-                    <span>- ₹{appliedCoupon.discount_amount}</span>
+                    <span className="font-black text-sm text-emerald-700 dark:text-emerald-300">- ₹{appliedCoupon.discount_amount}</span>
                   </div>
                 )}
 
-                <div className="flex justify-between text-[var(--color-ink-muted)] text-xs">
+                <div className="flex justify-between text-slate-600 dark:text-[var(--color-ink-muted)] text-xs font-medium">
                   <span>Platform &amp; Gateway Fees</span>
-                  <span className="text-emerald-500 font-medium">₹0 (Waived)</span>
+                  <span className="text-emerald-700 dark:text-emerald-400 font-bold">₹0 (Waived)</span>
                 </div>
 
-                <div className="flex justify-between text-[var(--color-ink-muted)] text-xs">
+                <div className="flex justify-between text-slate-600 dark:text-[var(--color-ink-muted)] text-xs font-medium">
                   <span>Taxes (GST)</span>
-                  <span>Included</span>
+                  <span className="text-slate-900 dark:text-[var(--color-ink)] font-semibold">Included</span>
                 </div>
 
-                <div className="pt-3 border-t border-[var(--color-line)] flex items-baseline justify-between">
-                  <span className="font-bold text-base text-[var(--color-ink)]">Total Due Today</span>
+                <div className="pt-3 border-t border-slate-200 dark:border-[var(--color-line)] flex items-baseline justify-between">
+                  <span className="font-bold text-base text-slate-900 dark:text-[var(--color-ink)]">Total Due Today</span>
                   <div className="text-right">
-                    <span className="text-2xl font-black text-brand-500">₹{Math.round(finalPrice)}</span>
+                    <span className="text-2xl font-black text-brand-600 dark:text-brand-500">₹{Math.round(finalPrice)}</span>
                     {appliedCoupon && (
-                      <p className="text-[11px] text-emerald-500 font-medium mt-0.5">
-                        You saved ₹{appliedCoupon.discount_amount}!
+                      <p className="text-xs text-emerald-800 dark:text-emerald-400 font-bold mt-0.5">
+                        🎉 You saved ₹{appliedCoupon.discount_amount}!
                       </p>
                     )}
                   </div>
@@ -417,13 +417,13 @@ function PaymentForm() {
               </div>
 
               {/* Trust Badges */}
-              <div className="pt-3 border-t border-[var(--color-line)] grid grid-cols-2 gap-3 text-[11px] text-[var(--color-ink-muted)]">
+              <div className="pt-3 border-t border-slate-200 dark:border-[var(--color-line)] grid grid-cols-2 gap-3 text-xs text-slate-600 dark:text-[var(--color-ink-muted)] font-medium">
                 <div className="flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <Lock className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
                   <span>256-Bit SSL Secured</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <Zap className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
                   <span>Instant Activation</span>
                 </div>
               </div>
@@ -433,22 +433,22 @@ function PaymentForm() {
 
           {/* RIGHT COLUMN: Contact Details, Coupon Input & Razorpay Action */}
           <div className="lg:col-span-7 space-y-6">
-            <div className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-3xl p-6 sm:p-8 shadow-xl shadow-black/5 dark:shadow-none space-y-6">
+            <div className="bg-[var(--color-surface)] border border-slate-200 dark:border-[var(--color-line)] rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-200/50 dark:shadow-none space-y-6">
               
               {/* Account Pill */}
               {user && (
-                <div className="flex items-center justify-between bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl px-4 py-3 text-xs">
+                <div className="flex items-center justify-between bg-slate-50 dark:bg-[var(--color-surface-2)] border border-slate-200 dark:border-[var(--color-line)] rounded-2xl px-4 py-3 text-xs">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full bg-brand-500/20 text-brand-500 font-bold flex items-center justify-center text-sm">
+                    <div className="w-8 h-8 rounded-full bg-brand-500/20 text-brand-600 dark:text-brand-400 font-bold flex items-center justify-center text-sm">
                       {((user.full_name || user.email || 'U')[0] || 'U').toUpperCase()}
                     </div>
                     <div>
-                      <p className="font-bold text-[var(--color-ink)]">{user.full_name || 'Subscriber'}</p>
-                      <p className="text-[var(--color-ink-muted)] text-[11px]">{user.email}</p>
+                      <p className="font-bold text-slate-900 dark:text-[var(--color-ink)]">{user.full_name || 'Subscriber'}</p>
+                      <p className="text-slate-500 dark:text-[var(--color-ink-muted)] text-[11px] font-medium">{user.email}</p>
                     </div>
                   </div>
-                  <span className="inline-flex items-center gap-1 text-[11px] text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md font-medium border border-emerald-500/20">
-                    <Check className="w-3 h-3" /> Signed In
+                  <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md font-bold border border-emerald-300 dark:border-emerald-500/20">
+                    <Check className="w-3 h-3 stroke-[2.5]" /> Signed In
                   </span>
                 </div>
               )}
@@ -456,18 +456,18 @@ function PaymentForm() {
               {/* Plan Switcher Dropdown (normal flow only) */}
               {!isOfferFlow && (
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-[var(--color-ink-muted)] mb-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-[var(--color-ink-muted)] mb-2">
                     Change Subscription Plan
                   </label>
                   <select
                     value={selectedPlanId ?? ''}
                     onChange={e => setSelectedPlanId(parseInt(e.target.value))}
-                    className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl px-4 py-3.5 text-[var(--color-ink)] text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                    className="w-full bg-white dark:bg-[var(--color-surface-2)] border border-slate-300 dark:border-[var(--color-line)] rounded-2xl px-4 py-3.5 text-slate-900 dark:text-[var(--color-ink)] text-sm font-bold focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all shadow-xs"
                   >
                     {(hasClaimedTrial ? plans.filter(p => p.price > 0) : plans).map(p => {
                       const isTrial = p.price === 0;
                       return (
-                        <option key={p.id} value={p.id}>
+                        <option key={p.id} value={p.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
                           {p.name} — {isTrial ? '₹0 (1-Month Free Trial)' : `₹${Math.round(p.price)}`} · {p.duration_days >= 365 ? `${Math.round(p.duration_days / 365)} Year` : `${p.duration_days} Days`} · {p.max_devices} Device{p.max_devices > 1 ? 's' : ''}
                         </option>
                       );
@@ -479,47 +479,47 @@ function PaymentForm() {
               {/* Contact Information Fields */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-ink-muted)]">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-[var(--color-ink-muted)]">
                     Billing Contact Details
                   </h3>
-                  <span className="text-[11px] text-[var(--color-ink-subtle)]">License sent here</span>
+                  <span className="text-[11px] text-slate-500 dark:text-[var(--color-ink-subtle)] font-medium">License sent here</span>
                 </div>
 
                 <div className="space-y-3.5">
                   <div>
-                    <label className="block text-xs font-medium text-[var(--color-ink)] mb-1.5">Full Name *</label>
+                    <label className="block text-xs font-bold text-slate-800 dark:text-[var(--color-ink)] mb-1.5">Full Name *</label>
                     <input
                       type="text"
                       placeholder="e.g. Rahul Sharma"
                       value={form.customer_name}
                       onChange={e => setForm(prev => ({ ...prev, customer_name: e.target.value }))}
                       required
-                      className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl px-4 py-3 text-[var(--color-ink)] placeholder-[var(--color-ink-subtle)] text-sm focus:outline-none focus:border-brand-500 transition-colors"
+                      className="w-full bg-white dark:bg-[var(--color-surface-2)] border border-slate-300 dark:border-[var(--color-line)] rounded-2xl px-4 py-3 text-slate-900 dark:text-[var(--color-ink)] placeholder-slate-400 dark:placeholder-[var(--color-ink-subtle)] text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all shadow-2xs"
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div>
-                      <label className="block text-xs font-medium text-[var(--color-ink)] mb-1.5">Email Address *</label>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-[var(--color-ink)] mb-1.5">Email Address *</label>
                       <input
                         type="email"
                         placeholder="name@example.com"
                         value={form.email}
                         onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
                         required
-                        className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl px-4 py-3 text-[var(--color-ink)] placeholder-[var(--color-ink-subtle)] text-sm focus:outline-none focus:border-brand-500 transition-colors"
+                        className="w-full bg-white dark:bg-[var(--color-surface-2)] border border-slate-300 dark:border-[var(--color-line)] rounded-2xl px-4 py-3 text-slate-900 dark:text-[var(--color-ink)] placeholder-slate-400 dark:placeholder-[var(--color-ink-subtle)] text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all shadow-2xs"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-[var(--color-ink)] mb-1.5">WhatsApp Mobile *</label>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-[var(--color-ink)] mb-1.5">WhatsApp Mobile *</label>
                       <input
                         type="tel"
                         placeholder="9876543210"
                         value={form.mobile}
                         onChange={e => setForm(prev => ({ ...prev, mobile: e.target.value }))}
                         required
-                        className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl px-4 py-3 text-[var(--color-ink)] placeholder-[var(--color-ink-subtle)] text-sm focus:outline-none focus:border-brand-500 transition-colors"
+                        className="w-full bg-white dark:bg-[var(--color-surface-2)] border border-slate-300 dark:border-[var(--color-line)] rounded-2xl px-4 py-3 text-slate-900 dark:text-[var(--color-ink)] placeholder-slate-400 dark:placeholder-[var(--color-ink-subtle)] text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all shadow-2xs"
                       />
                     </div>
                   </div>
@@ -527,37 +527,37 @@ function PaymentForm() {
               </div>
 
               {/* COUPON & PROMO CODE SECTION */}
-              <div className="pt-2 border-t border-[var(--color-line)] space-y-3">
+              <div className="pt-2 border-t border-slate-200 dark:border-[var(--color-line)] space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-ink-muted)] flex items-center gap-1.5">
-                    <Tag className="w-3.5 h-3.5 text-brand-500" />
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-[var(--color-ink-muted)] flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-brand-600 dark:text-brand-500" />
                     Promo / Coupon Code
                   </label>
                   {appliedCoupon && (
-                    <span className="text-[11px] font-bold text-emerald-500">
-                      Code Applied
+                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5 stroke-[3]" /> Code Applied
                     </span>
                   )}
                 </div>
 
                 {appliedCoupon ? (
                   // Applied Coupon State
-                  <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-2xl px-4 py-3 text-sm">
+                  <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500/50 dark:border-emerald-500/40 rounded-2xl px-4 py-3.5 text-sm shadow-xs">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
                         %
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-emerald-400 tracking-wider">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono font-black text-emerald-900 dark:text-emerald-200 tracking-wider text-base">
                             {appliedCoupon.code}
                           </span>
-                          <span className="text-[11px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-semibold">
+                          <span className="text-xs bg-emerald-700 text-white dark:bg-emerald-500 dark:text-emerald-950 px-2.5 py-0.5 rounded-full font-black shadow-xs tracking-wide">
                             {appliedCoupon.formatted_discount}
                           </span>
                         </div>
                         {appliedCoupon.description && (
-                          <p className="text-[11px] text-[var(--color-ink-muted)] mt-0.5">
+                          <p className="text-xs text-emerald-950 dark:text-emerald-200/90 font-bold mt-1">
                             {appliedCoupon.description}
                           </p>
                         )}
@@ -568,9 +568,9 @@ function PaymentForm() {
                       type="button"
                       onClick={handleRemoveCoupon}
                       title="Remove coupon"
-                      className="text-[var(--color-ink-muted)] hover:text-red-400 p-1.5 rounded-lg transition-colors cursor-pointer"
+                      className="text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-5 h-5 stroke-[2.5]" />
                     </button>
                   </div>
                 ) : (
@@ -592,14 +592,14 @@ function PaymentForm() {
                               handleApplyCoupon();
                             }
                           }}
-                          className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl px-4 py-3 text-[var(--color-ink)] placeholder-[var(--color-ink-subtle)] text-sm font-mono uppercase tracking-wider focus:outline-none focus:border-brand-500 transition-colors"
+                          className="w-full bg-white dark:bg-[var(--color-surface-2)] border border-slate-300 dark:border-[var(--color-line)] rounded-2xl px-4 py-3 text-slate-900 dark:text-[var(--color-ink)] placeholder-slate-400 dark:placeholder-[var(--color-ink-subtle)] text-sm font-mono font-bold uppercase tracking-wider focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all shadow-2xs"
                         />
                       </div>
                       <button
                         type="button"
                         onClick={() => handleApplyCoupon()}
                         disabled={couponLoading || !couponCodeInput.trim()}
-                        className="px-5 py-3 bg-[var(--color-surface-2)] hover:bg-[var(--color-line)] disabled:opacity-50 text-[var(--color-ink)] border border-[var(--color-line)] rounded-2xl text-sm font-bold transition-all cursor-pointer shrink-0"
+                        className="px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white/10 dark:text-white dark:hover:bg-white/20 disabled:opacity-50 border border-slate-900 dark:border-white/10 rounded-2xl text-sm font-bold transition-all cursor-pointer shrink-0 shadow-xs"
                       >
                         {couponLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
                       </button>
@@ -607,18 +607,18 @@ function PaymentForm() {
 
                     {/* Quick suggestion pills */}
                     <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
-                      <span className="text-[var(--color-ink-subtle)]">Try:</span>
+                      <span className="text-slate-600 dark:text-[var(--color-ink-subtle)] font-bold">Try:</span>
                       <button
                         type="button"
                         onClick={() => handleApplyCoupon('WELCOME10')}
-                        className="px-2.5 py-1 bg-brand-500/10 hover:bg-brand-500/20 text-brand-500 border border-brand-500/20 rounded-lg font-mono font-semibold transition-colors cursor-pointer"
+                        className="px-2.5 py-1 bg-brand-50 hover:bg-brand-100 text-brand-700 dark:bg-brand-500/10 dark:hover:bg-brand-500/20 dark:text-brand-400 border border-brand-300 dark:border-brand-500/20 rounded-lg font-mono font-bold transition-colors cursor-pointer shadow-2xs"
                       >
                         WELCOME10 (10% OFF)
                       </button>
                       <button
                         type="button"
                         onClick={() => handleApplyCoupon('SAVE50')}
-                        className="px-2.5 py-1 bg-brand-500/10 hover:bg-brand-500/20 text-brand-500 border border-brand-500/20 rounded-lg font-mono font-semibold transition-colors cursor-pointer"
+                        className="px-2.5 py-1 bg-brand-50 hover:bg-brand-100 text-brand-700 dark:bg-brand-500/10 dark:hover:bg-brand-500/20 dark:text-brand-400 border border-brand-300 dark:border-brand-500/20 rounded-lg font-mono font-bold transition-colors cursor-pointer shadow-2xs"
                       >
                         SAVE50 (₹50 OFF)
                       </button>
@@ -667,10 +667,10 @@ function PaymentForm() {
 
               {/* Supported payment methods & guarantee */}
               <div className="pt-2 text-center space-y-2">
-                <p className="text-[11px] text-[var(--color-ink-muted)]">
-                  Guaranteed safe checkout via <strong>Razorpay Live Gateway</strong>
+                <p className="text-xs text-slate-600 dark:text-[var(--color-ink-muted)] font-medium">
+                  Guaranteed safe checkout via <strong className="text-slate-900 dark:text-[var(--color-ink)] font-bold">Razorpay Live Gateway</strong>
                 </p>
-                <div className="flex items-center justify-center gap-3 text-xs text-[var(--color-ink-subtle)] font-medium">
+                <div className="flex items-center justify-center gap-3 text-xs text-slate-600 dark:text-[var(--color-ink-subtle)] font-semibold">
                   <span>UPI (GPay / PhonePe / Paytm)</span>
                   <span>·</span>
                   <span>Credit / Debit Cards</span>
