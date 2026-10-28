@@ -316,3 +316,24 @@
   - **Verification:**
     - Live order creation (`POST /api/public/orders/create`) successfully contacted Razorpay Live API and created real live order.
     - Live proxy checkout portal (`https://payment.catsnamegenerator.site/api/proxy/checkout?order_id=...&type=public`) rendered `HTTP 200 OK` injecting `rzp_live_THCyzvTOKIDaxp`.
+
+- **Professional SaaS Cart Redesign & Full Coupon Discount System (October 2026):**
+  - **Requirement:** Redesign `/payment` cart page to be modern, minimal, and professional; add interactive coupon discount code features; build complete Admin Coupon Management in dashboard; link discounts seamlessly with Razorpay payments.
+  - **Database & Architecture:**
+    - Added Migration `064_create_coupons_system.sql` with `coupons` table (code, discount_type: percentage/fixed, discount_value, min_order_amount, max_discount_amount, plan_id, max_uses, used_count, starts_at, expires_at, is_active) and `coupon_redemptions` audit table.
+    - Pre-seeded launch coupons: `WELCOME10` (10% off), `SAVE50` (Flat ₹50 off, min order ₹79), and `FESTIVE20` (20% off).
+    - Linked `coupon_id`, `coupon_code`, `original_amount`, and `discount_amount` directly to `public_orders`.
+  - **Backend Implementation:**
+    - Created [couponController.js](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/backend/src/controllers/couponController.js) with `POST /api/public/coupons/validate` endpoint supporting date, limit, and minimum cart checks.
+    - Created [adminCouponController.js](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/backend/src/controllers/adminCouponController.js) with complete CRUD: `GET/POST/PUT/DELETE /api/admin/coupons`.
+    - Integrated coupon validation and order calculation into `publicController.createOrder` and payment redemption logging in `publicController.verifyPayment`. Supports instant 0-cost license generation if a 100% coupon is redeemed.
+  - **Admin UI & Frontend Experience:**
+    - Built Admin Coupons Page at `/coupons` with live stats cards, status filters, search, modal form controls to create/edit coupons, and 1-click status toggles. Added "Coupons" link under Product in [Sidebar.tsx](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/frontend/src/components/Sidebar.tsx).
+    - Redesigned `/payment` cart page into a 2-column SaaS layout:
+      - Left Column: Sticky Order Summary, selected plan perks checklist, transparent price breakdown (Subtotal, Applied Discount, Waived Gateway Fee, Total Due), and 256-bit SSL trust badges.
+      - Right Column: Account pill, plan switcher dropdown, billing contact fields, interactive coupon input with uppercase formatting, quick suggestion chips (`WELCOME10`, `SAVE50`), applied emerald discount tag with remove button, and Razorpay live payment CTA button.
+  - **Deployment & Production Verification:**
+    - Committed and pushed to GitHub `origin main`.
+    - Executed Migration 064 on EC2 PostgreSQL `iptv_db`, granted privileges to `iptvdb`, and registered migration in `schema_migrations`.
+    - Built and reloaded `iptv-backend` and `iptv-frontend` via PM2.
+    - Live endpoints tested: `POST https://nivatv.luxomall.in/api/public/coupons/validate` (tested `WELCOME10` -> 10% off, `SAVE50` -> ₹50 off), `/payment` (HTTP 200), and `/coupons` (HTTP 200).
