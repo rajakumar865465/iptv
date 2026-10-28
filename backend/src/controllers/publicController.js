@@ -403,7 +403,7 @@ exports.createOrder = async (req, res) => {
       `SELECT l.id, l.expires_at, p.id as plan_id, p.name as plan_name, p.plan_tier, p.price 
        FROM licenses l 
        JOIN plans p ON l.plan_id = p.id 
-       WHERE (${targetUserId ? 'l.user_id = $1' : '1=0'} OR (l.customer_email IS NOT NULL AND LOWER(l.customer_email) = $2))
+       WHERE ((l.user_id = $1 AND $1 > 0) OR (l.customer_email IS NOT NULL AND LOWER(l.customer_email) = $2))
          AND l.status = 'active' 
          AND l.expires_at > NOW() 
        ORDER BY l.expires_at DESC 
