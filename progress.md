@@ -285,3 +285,24 @@
         - Maithili: 2 channels
         - Odia: 2 channels
       - Verified `/browse` returns `HTTP 200 OK` and channel listings populate instantaneously.
+
+- **Channel Category Normalization & Genre Classification Overhaul (October 2026):**
+  - **Identified Root Causes:**
+    1. Entertainment previously only showed 33 channels because 83 channels were trapped in inactive category `Hindi Entertainment`, 43 in `Tamil`, 23 in `Bengali`, 23 in `Urdu`, 19 in `Telugu`, 11 in `Punjabi`, and 51 in `General`.
+    2. 33 devotional channels were isolated in inactive category `Religious` instead of `Devotional`.
+    3. Languages were erroneously functioning as category labels instead of orthogonal filters.
+  - **Comprehensive Fixes Applied:**
+    - Created [backend/scripts/fix_all_channel_categories.js](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/backend/scripts/fix_all_channel_categories.js) to accurately inspect and reclassify all 864 channels across the 11 active genre categories:
+      - **Entertainment (id 6):** 165 channels (up from 33)
+      - **News (id 1):** 277 channels
+      - **Devotional (id 19):** 147 channels (consolidated with Religious)
+      - **Movies (id 3):** 79 channels
+      - **Music (id 4):** 67 channels
+      - **Regional (id 7):** 42 channels
+      - **General (id 132):** 30 channels
+      - **Kids (id 5):** 27 channels
+      - **Sports (id 2):** 17 channels
+      - **Lifestyle (id 136):** 9 channels
+      - **Business (id 135):** 4 channels
+    - Deactivated language-named categories (`Tamil`, `Telugu`, `Bengali`, `Punjabi`, `Urdu`, `Gujarati`, `Assamese`, `Bhojpuri`, `Odia`) and duplicate categories (`Hindi Entertainment`, `Hindi Movies`, `Hindi News`, `Religious`).
+    - Flushed cache and verified live public endpoint `https://nivatv.luxomall.in/api/public/categories` and `/api/channels?categoryId=6`.
