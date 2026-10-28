@@ -346,15 +346,14 @@
         - Upgraded order summary price breakdown and savings text to high-contrast emerald and bold typography.
     - **Payment Success Dopamine Fireworks & Phuljhadi Celebration:**
       - Added multi-stage celebratory fireworks and phuljhadi (sparkler crackler) animation sequence on `/payment/success`:
-        - Stage 1: Instant mega center fireworks burst with golden, neon pink, cyan, and emerald stars (`zIndex: 99999`).
-        - Stage 2: Dual-sided sparkler fountains shooting continuous upward sparkles (`angle: 60` and `angle: 120`) across the screen with ambient upper-sky sparkling star bursts.
-        - Stage 3: Native Web Audio API celebratory 4-tone ascending arpeggio chime (C5-E5-G5-C6) playing automatically with zero external assets.
-      - Upgraded Visual Presentation:
-        - Pulsing radiant halo & glowing badge with bouncing celebratory sparkle tags.
-        - Shimmering holographic/golden gradient border surrounding the VIP License card.
-        - Surprise dopamine highlight chips: `850+ Live Channels`, `Anti-Stutter & 4K HDR`, `100% Ad-Free Live TV`.
-        - Added interactive `🎆 Sparks` button letting users launch more sparkler fireworks at any time.
-        - High-contrast typography and clear 4-step quick activation guide.
+        - Installed and integrated `fireworks-js` with realistic glowing trails, rocket launches, and colorful explosion bursts across both sides of the screen.
+        - Integrated `canvas-confetti` with multi-angle corner fountains, falling particles from the ceiling, and golden star bursts.
+        - Rendered in a transparent fixed-position full-screen overlay (`fixed inset-0 pointer-events-none z-50 overflow-hidden`), ensuring buttons, links, and license copying are never blocked.
+        - Preserved existing layout, text, badges, and VIP license key card 100% without modification.
+        - Once-per-transaction trigger guard: Uses `sessionStorage.getItem('nivatv_celebrated_' + orderId)` so celebrations only fire on successful verification and do NOT repeat on page reload or revisits.
+        - Added reduced-motion accessibility preference check (`window.matchMedia('(prefers-reduced-motion: reduce)')`).
+        - Automatically ramps down and stops after 3.5 seconds with complete instance and canvas cleanup on unmount.
+        - Native Web Audio API celebratory 4-tone ascending arpeggio chime (C5-E5-G5-C6) playing automatically with zero external assets.
     - **Eliminated Navbar Login Buffer & State Flicker:**
       - **Root Cause Identified:** On page load/refresh, `user` state was initialized as `null` while `fetchProfile` awaited the `/api/auth/me` network request (taking 200-500ms). The navbar would flash "Log In / Buy Now" before snapping to "Super Admin / Admin Panel" once the API call completed.
       - **Implemented Stale-While-Revalidate Client Caching (`nivatv_user_cache`):**
