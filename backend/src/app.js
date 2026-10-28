@@ -107,6 +107,12 @@ morgan.token('url-redacted', (req) => {
 app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url-redacted HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'));
 app.use(standardLimiter);
 
+// Root portal page for payment proxy domain
+app.get('/', (req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.send('<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Secure Payment Gateway</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0A0A12;color:#FFFFFF;text-align:center;padding:20px;}h1{font-size:22px;font-weight:700;margin-bottom:8px;}.shield{width:56px;height:56px;background:rgba(34,197,94,0.1);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#22C55E;}p{color:#94a3b8;font-size:14px;max-width:360px;margin:0 auto;line-height:1.5;}</style></head><body><div><div class="shield"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><h1>Secure Payment Gateway</h1><p>256-Bit SSL Encrypted Transaction Processing Portal</p></div></body></html>');
+});
+
 // Health check — never expose raw DB error messages
 app.get('/health', async (req, res) => {
   let dbStatus = 'unknown';

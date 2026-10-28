@@ -214,3 +214,15 @@
     - Created live test order `order_Tt3129UvFf9JqR` via API using new key `rzp_test_TFp9Tp5uVh2cXm`.
     - Verified proxy checkout HTML generation with correct key injection and callback URLs.
     - Next.js frontend compiled cleanly and PM2 reloaded `iptv-backend` and `iptv-frontend`.
+
+- **Resolved SSL Common Name Error for `payment.catsnamegenerator.site` (October 2026):**
+  - **Identified Root Cause:** When visiting `https://payment.catsnamegenerator.site/api/proxy/checkout`, browsers displayed `NET::ERR_CERT_COMMON_NAME_INVALID` ("Your connection is not private"). Because DNS for `payment.catsnamegenerator.site` resolved directly to EC2 IP `44.206.18.189`, Nginx served the default certificate for `nivatv.luxomall.in`, causing the hostname mismatch.
+  - **Comprehensive Fix Applied:**
+    - Executed Certbot with Nginx plugin to issue a trusted, dedicated Let's Encrypt SSL certificate for `payment.catsnamegenerator.site`:
+      - Certificate: `/etc/letsencrypt/live/payment.catsnamegenerator.site/fullchain.pem`
+      - Key: `/etc/letsencrypt/live/payment.catsnamegenerator.site/privkey.pem`
+    - Configured automatic HTTP-to-HTTPS redirect (`301`) on port 80 and HTTPS with HSTS on port 443.
+    - Added root `/` route in `backend/src/app.js` serving a branded "Secure Payment Gateway" portal page.
+  - **Deployed & Verified:**
+    - `curl https://payment.catsnamegenerator.site/` returns `HTTP 200 OK` with 0 SSL warnings.
+    - Live order checkout URL (`https://payment.catsnamegenerator.site/api/proxy/checkout?order_id=...`) renders cleanly with valid 256-bit SSL encryption.
