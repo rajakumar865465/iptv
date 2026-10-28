@@ -242,3 +242,16 @@
     - **Pricing Page Extension UX (`UnifiedProCard.tsx` & `PlanCard.tsx`):**
       - Detects when the user holds an active subscription and dynamically switches the card CTA to `Extend Subscription (+30 Days)` with clear subtext explaining that payment stacks on top of the existing expiry.
     - **Backend Auto-Linking:** `authController.me` and `authController.myPurchases` now automatically link orphaned licenses and orders by email and return active subscription summary metadata.
+
+- **Strict Subscription Tier Upgrade/Downgrade Guard & "Already Subscribed" State (October 2026):**
+  - **Identified Requirement:** When a user is already subscribed to a tier (e.g., Pro ₹79):
+    1. **Same Plan:** The Pro card must NOT show "Extend Subscription"; it must clearly state **"Already Subscribed"** with a disabled button and "Active Plan • Valid until [Date]" tag so the user knows they have active access without duplicate checkouts.
+    2. **Lower Plans:** Cheaper/lower plans (e.g., Starter ₹49) must NOT be purchasable; rendered as **"Included in your Pro plan"** with a disabled **"Lower Plan (Unavailable)"** button.
+    3. **Higher Plans:** Higher tiers (e.g., Plus ₹699) must be clearly presented as **"Upgrade Available"** with an active **"Upgrade to Plus"** CTA button.
+    4. **Backend Guard:** In `publicController.createOrder`, added tier ranking validation (`getRank`) rejecting any order creation for lower tiers or duplicate current plans (`400 Bad Request`).
+  - **Files Updated:**
+    - `frontend/src/lib/publicApi.ts`: Added `getPlanTierRank(tier, price)`.
+    - `frontend/src/contexts/AuthContext.tsx`: Added `subscription_plan_id` and `subscription_plan_price` to `User`.
+    - `frontend/src/components/public/PlanCard.tsx` & `UnifiedProCard.tsx`: Implemented `isCurrentPlan`, `isLowerPlan`, and `isUpgrade` states with disabled buttons for current/lower plans and upgrade CTAs for higher plans.
+    - `backend/src/controllers/authController.js`: Returns active subscription plan ID, price, and tier in `/api/auth/me`.
+    - `backend/src/controllers/publicController.js`: Added active subscription tier validation in `createOrder`.

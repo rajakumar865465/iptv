@@ -15,6 +15,8 @@ interface User {
   subscription_expires_at?: string | null;
   subscription_plan_name?: string | null;
   subscription_plan_tier?: string | null;
+  subscription_plan_id?: number | null;
+  subscription_plan_price?: number | null;
 }
 
 interface AuthContextType {

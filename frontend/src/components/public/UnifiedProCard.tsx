@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Sparkles } from 'lucide-react';
 import type { Plan } from '@/lib/publicApi';
+import { getPlanTierRank } from '@/lib/publicApi';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthModal from '@/components/auth/AuthModal';
 
@@ -104,6 +105,13 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
     router.push(targetUrl);
   };
 
+  const userRank = hasActiveSub ? getPlanTierRank(user?.subscription_plan_tier, user?.subscription_plan_price) : 0;
+  const cardRank = 2; // Pro Plan is Rank 2
+
+  const isCurrentPlan = hasActiveSub && userRank === cardRank;
+  const isLowerPlan = hasActiveSub && userRank > cardRank;
+  const isUpgrade = hasActiveSub && userRank < cardRank;
+
   // Card theme styling: emerald for Free Trial, clean WHITE / surface for Paid Pro
   const wrapperClass = isTrial
     ? 'relative rounded-2xl border flex flex-col transition-all duration-300 hover:-translate-y-1.5 overflow-hidden shadow-card hover:shadow-card-hover bg-gradient-to-b from-emerald-600/20 via-emerald-600/8 to-[var(--color-surface)] border-emerald-500/50 shadow-xl shadow-emerald-500/10'
@@ -114,16 +122,36 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
   const iconCls = isTrial ? 'text-emerald-500' : 'text-green-500';
   const btnClass = isTrial
     ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/25'
-    : hasActiveSub
-    ? 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-500/25'
     : 'bg-[var(--color-surface-2)] hover:bg-[var(--color-line)] text-[var(--color-ink)] border border-[var(--color-line)]';
 
   const features = isTrial ? TRIAL_FEATURES : PAID_FEATURES;
-  const buttonText = isTrial
-    ? 'Claim 1-Month Free Trial'
-    : hasActiveSub
-    ? 'Extend Subscription (+30 Days)'
-    : 'Start Watching Instantly';
+
+  let buttonLabel = isTrial ? 'Claim 1-Month Free Trial' : 'Start Watching Instantly';
+  let buttonDisabled = false;
+  let customBtnClass = btnClass;
+  let subtitleText: React.ReactNode = null;
+
+  if (isTrial) {
+    buttonLabel = 'Claim 1-Month Free Trial';
+    subtitleText = 'Try it for 30 Days, 100% Free. No Credit Card Required.';
+  } else if (isCurrentPlan) {
+    buttonLabel = 'Already Subscribed';
+    buttonDisabled = true;
+    customBtnClass = 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 cursor-default font-bold';
+    subtitleText = 'Your Pro plan is active. To get 4 devices, upgrade to Plus.';
+  } else if (isLowerPlan) {
+    buttonLabel = 'Lower Plan (Unavailable)';
+    buttonDisabled = true;
+    customBtnClass = 'bg-[var(--color-surface-2)] text-[var(--color-ink-subtle)] border border-[var(--color-line)] opacity-60 cursor-not-allowed';
+    subtitleText = 'All Pro features are included in your active Plus subscription.';
+  } else if (isUpgrade) {
+    buttonLabel = 'Upgrade to Pro';
+    buttonDisabled = false;
+    customBtnClass = 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-500/25 font-bold';
+    subtitleText = 'Upgrade now to unlock 2 devices and all exclusive channels.';
+  } else {
+    subtitleText = 'Instant license key generated immediately after payment.';
+  }
 
   return (
     <div className={wrapperClass}>
@@ -141,10 +169,18 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
               <Sparkles className="w-3 h-3" />
               100% FREE TRIAL
             </span>
-          ) : hasActiveSub ? (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+          ) : isCurrentPlan ? (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               Active Plan &bull; Valid until {user?.subscription_expires_at ? new Date(user.subscription_expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Active'}
+            </span>
+          ) : isLowerPlan ? (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-500/15 text-slate-400 border border-slate-500/20">
+              Included in your Plus plan
+            </span>
+          ) : isUpgrade ? (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-500/20 text-brand-500 border border-brand-500/30 font-bold">
+              Recommended Upgrade
             </span>
           ) : (
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--color-surface-2)] text-[var(--color-ink-muted)] border border-[var(--color-line)]">
@@ -246,18 +282,18 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
         <div className="flex flex-col gap-2 mt-auto">
           <button
             type="button"
-            onClick={handleAction}
-            className={'w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm sm:text-base transition-all min-h-[44px] cursor-pointer ' + btnClass}
+            disabled={buttonDisabled}
+            onClick={buttonDisabled ? undefined : handleAction}
+            className={'w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm sm:text-base transition-all min-h-[44px] ' + (buttonDisabled ? customBtnClass : ('cursor-pointer ' + customBtnClass))}
           >
-            {buttonText}
+            {isCurrentPlan && <Check className="w-4 h-4 shrink-0" />}
+            {buttonLabel}
           </button>
-          <p className="text-center text-[10px] text-[var(--color-ink-subtle)] px-2">
-            {isTrial
-              ? 'Try it for 30 Days, 100% Free. No Credit Card Required.'
-              : hasActiveSub
-              ? 'Your purchase automatically stacks +30 days on top of your existing expiry date.'
-              : 'Instant license key generated immediately after payment.'}
-          </p>
+          {subtitleText && (
+            <p className="text-center text-[10px] text-[var(--color-ink-subtle)] px-2">
+              {subtitleText}
+            </p>
+          )}
         </div>
       </div>
 

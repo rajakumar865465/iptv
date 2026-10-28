@@ -40,6 +40,14 @@ export interface Plan {
   plan_tier?: string;
 }
 
+export function getPlanTierRank(tier?: string | null, price?: number | null): number {
+  const t = (tier || '').toLowerCase().trim();
+  if (t === 'plus' || (price !== null && price !== undefined && price >= 500)) return 3;
+  if (t === 'pro' || (price !== null && price !== undefined && price >= 60)) return 2;
+  if (t === 'starter' || (price !== null && price !== undefined && price > 0)) return 1;
+  return 0;
+}
+
 export interface Channel {
   id: number;
   name: string;

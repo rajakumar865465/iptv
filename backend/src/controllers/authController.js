@@ -443,7 +443,7 @@ exports.me = async (req, res) => {
     // Active subscription check for seamless frontend display
     const now = new Date();
     const activeLic = await db.query(
-      `SELECT l.id, l.expires_at, p.name as plan_name, p.plan_tier 
+      `SELECT l.id, l.expires_at, p.id as plan_id, p.name as plan_name, p.plan_tier, p.price 
        FROM licenses l 
        LEFT JOIN plans p ON l.plan_id = p.id 
        WHERE (l.user_id = $1 OR (l.customer_email IS NOT NULL AND LOWER(l.customer_email) = LOWER($2)))
@@ -457,13 +457,17 @@ exports.me = async (req, res) => {
     if (activeLic.rows.length > 0) {
       user.has_active_subscription = true;
       user.subscription_expires_at = activeLic.rows[0].expires_at;
+      user.subscription_plan_id = activeLic.rows[0].plan_id;
       user.subscription_plan_name = activeLic.rows[0].plan_name;
       user.subscription_plan_tier = activeLic.rows[0].plan_tier;
+      user.subscription_plan_price = Number(activeLic.rows[0].price || 0);
     } else {
       user.has_active_subscription = false;
       user.subscription_expires_at = null;
+      user.subscription_plan_id = null;
       user.subscription_plan_name = null;
       user.subscription_plan_tier = null;
+      user.subscription_plan_price = null;
     }
 
     success(res, { user });

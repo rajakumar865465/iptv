@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check } from 'lucide-react';
-import { getPaymentConfig } from '@/lib/publicApi';
+import { getPaymentConfig, getPlanTierRank } from '@/lib/publicApi';
 import type { Plan } from '@/lib/publicApi';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthModal from '@/components/auth/AuthModal';
@@ -169,7 +169,12 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
 
   const features = isFree ? TRIAL_FEATURES : FEATURES;
   const hasActiveSub = Boolean(user?.has_active_subscription);
-  const buttonText = ctaText || (isFree ? 'Claim 1-Month Free Trial' : (hasActiveSub ? 'Extend Subscription' : getCtaText(plan, resolvedVariant)));
+  const userRank = hasActiveSub ? getPlanTierRank(user?.subscription_plan_tier, user?.subscription_plan_price) : 0;
+  const planRank = getPlanTierRank(plan.plan_tier, plan.price);
+
+  const isCurrentPlan = hasActiveSub && userRank === planRank;
+  const isLowerPlan = hasActiveSub && userRank > planRank;
+  const isUpgrade = hasActiveSub && userRank < planRank;
 
   const wrapperClass =
     'relative rounded-2xl border flex flex-col transition-all duration-300 hover:-translate-y-1.5 overflow-hidden shadow-card hover:shadow-card-hover ' +
@@ -209,6 +214,33 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
   else if (resolvedVariant === 'best-value')
     btnClass = 'bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20';
 
+  let buttonLabel = ctaText || (isFree ? 'Claim 1-Month Free Trial' : getCtaText(plan, resolvedVariant));
+  let buttonDisabled = false;
+  let customBtnClass = btnClass;
+  let subtitleText: React.ReactNode = null;
+
+  if (isFree) {
+    buttonLabel = 'Claim 1-Month Free Trial';
+    subtitleText = 'Try it for 30 Days, 100% Free. No Credit Card Required.';
+  } else if (isCurrentPlan) {
+    buttonLabel = 'Already Subscribed';
+    buttonDisabled = true;
+    customBtnClass = 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 cursor-default';
+    subtitleText = `You are currently enjoying your active ${user?.subscription_plan_name || 'Pro'} plan.`;
+  } else if (isLowerPlan) {
+    buttonLabel = 'Lower Plan (Unavailable)';
+    buttonDisabled = true;
+    customBtnClass = 'bg-[var(--color-surface-2)] text-[var(--color-ink-subtle)] border border-[var(--color-line)] opacity-60 cursor-not-allowed';
+    subtitleText = `All features are already included in your active ${user?.subscription_plan_name || 'Pro'} plan.`;
+  } else if (isUpgrade) {
+    buttonLabel = `Upgrade to ${plan.name}`;
+    buttonDisabled = false;
+    customBtnClass = plan.price >= 500
+      ? 'bg-amber-500 hover:bg-amber-400 text-black font-extrabold shadow-lg shadow-amber-500/25'
+      : 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-500/25';
+    subtitleText = 'Upgrade now to unlock more devices and premium features.';
+  }
+
   return (
     <div className={wrapperClass}>
       {badgeText && (
@@ -219,11 +251,24 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
 
       <div className="p-4 sm:p-6 flex flex-col flex-1">
         <div className="flex items-center gap-2 mb-3 flex-wrap">
-          {plan.offer_label && (
+          {isCurrentPlan ? (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Active Plan &bull; Valid until {user?.subscription_expires_at ? new Date(user.subscription_expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Active'}
+            </span>
+          ) : isLowerPlan ? (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-500/15 text-slate-400 border border-slate-500/20">
+              Included in your {user?.subscription_plan_name || 'Pro'} plan
+            </span>
+          ) : isUpgrade ? (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30 font-bold">
+              Upgrade Available
+            </span>
+          ) : plan.offer_label ? (
             <span className={'text-xs font-semibold px-2.5 py-1 rounded-full ' + offerBadgeClass}>
               {plan.offer_label}
             </span>
-          )}
+          ) : null}
         </div>
 
         <h3 className="text-lg font-bold text-[var(--color-ink)] mb-1">{plan.name}</h3>
@@ -300,20 +345,18 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
           )}
           <button
             type="button"
-            onClick={handleAction}
-            className={'w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm sm:text-base transition-all min-h-[44px] cursor-pointer ' + btnClass}
+            disabled={buttonDisabled}
+            onClick={buttonDisabled ? undefined : handleAction}
+            className={'w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm sm:text-base transition-all min-h-[44px] ' + (buttonDisabled ? customBtnClass : ('cursor-pointer ' + customBtnClass))}
           >
-            {buttonText}
+            {isCurrentPlan && <Check className="w-4 h-4 shrink-0" />}
+            {buttonLabel}
           </button>
-          {isFree ? (
+          {subtitleText && (
             <p className="text-center text-[10px] text-[var(--color-ink-subtle)] px-2">
-              Try it for 30 Days, 100% Free.<br/>No Credit Card Required.
+              {subtitleText}
             </p>
-          ) : hasActiveSub ? (
-            <p className="text-center text-[10px] text-[var(--color-ink-subtle)] px-2">
-              Validity stacks +{plan.duration_days} days on top of your existing plan.
-            </p>
-          ) : null}
+          )}
         </div>
       </div>
       <AuthModal

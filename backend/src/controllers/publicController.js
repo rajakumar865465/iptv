@@ -396,6 +396,42 @@ exports.createOrder = async (req, res) => {
       }, 'Free order created');
     }
 
+    // Check if user already has an active subscription: lower plans are blocked, same plan is blocked, only upgrades allowed
+    const targetUserId = userId;
+    const targetEmail = email ? email.toLowerCase().trim() : null;
+    const activeLicCheck = await db.query(
+      `SELECT l.id, l.expires_at, p.id as plan_id, p.name as plan_name, p.plan_tier, p.price 
+       FROM licenses l 
+       JOIN plans p ON l.plan_id = p.id 
+       WHERE (${targetUserId ? 'l.user_id = $1' : '1=0'} OR (l.customer_email IS NOT NULL AND LOWER(l.customer_email) = $2))
+         AND l.status = 'active' 
+         AND l.expires_at > NOW() 
+       ORDER BY l.expires_at DESC 
+       LIMIT 1`,
+      [targetUserId || 0, targetEmail || '']
+    );
+
+    if (activeLicCheck.rows.length > 0) {
+      const activePlan = activeLicCheck.rows[0];
+      const getRank = (tier, price) => {
+        const t = (tier || '').toLowerCase();
+        if (t === 'plus' || price >= 500) return 3;
+        if (t === 'pro' || price >= 60) return 2;
+        if (t === 'starter' || price > 0) return 1;
+        return 0;
+      };
+
+      const curRank = getRank(activePlan.plan_tier, Number(activePlan.price || 0));
+      const targetRank = getRank(plan.plan_tier, Number(plan.price || 0));
+
+      if (targetRank < curRank) {
+        return error(res, `You are already subscribed to a higher tier plan (${activePlan.plan_name}). Downgrading is not permitted.`, 400);
+      }
+      if (targetRank === curRank || activePlan.plan_id === plan.id) {
+        return error(res, `You already have an active subscription for ${activePlan.plan_name}. You can only upgrade to a higher plan.`, 400);
+      }
+    }
+
     // Paid plans go through the gateway, so this path is only open when the admin
     // has Razorpay selected as the payment mode. The manual UPI flow lives in
     // manualOrderController; nothing about the gateway integration is removed when
