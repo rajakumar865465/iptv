@@ -218,7 +218,7 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
               onClick={() => setMode('paid')}
               className={`flex-1 py-1.5 px-2 rounded-lg text-center transition-all cursor-pointer ${
                 mode === 'paid'
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-black shadow-sm'
+                  ? 'bg-[var(--color-ink)] text-[var(--color-base)] font-bold shadow-sm'
                   : 'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]'
               }`}
             >

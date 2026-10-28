@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *, .dark, .dark *));
+
 @theme inline {
   /* Inter is loaded in the root layout as --font-inter; wire it as the base
      sans (previously pointed at an undefined --font-geist-sans, so body text

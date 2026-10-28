@@ -347,31 +347,31 @@ function PaymentForm() {
 
               {/* Plan Included Features */}
               <div className="space-y-3">
-                <p className="text-xs font-bold text-slate-700 dark:text-[var(--color-ink-muted)] uppercase tracking-wider">What&apos;s Included:</p>
-                <div className="space-y-2.5 text-xs text-slate-800 dark:text-[var(--color-ink)]">
+                <p className="text-xs font-bold text-[var(--color-ink-muted)] uppercase tracking-wider">What&apos;s Included:</p>
+                <div className="space-y-2.5 text-xs text-[var(--color-ink-muted)]">
                   <div className="flex items-center gap-2.5">
                     <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
                       <Check className="w-2.5 h-2.5 stroke-[3]" />
                     </div>
-                    <span><strong className="text-slate-900 dark:text-white">850+ Live Channels</strong> (Hindi, Tamil, Telugu, Bengali &amp; 8 more)</span>
+                    <span><strong className="text-[var(--color-ink)] font-bold">850+ Live Channels</strong> (Hindi, Tamil, Telugu, Bengali &amp; 8 more)</span>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
                       <Check className="w-2.5 h-2.5 stroke-[3]" />
                     </div>
-                    <span><strong className="text-slate-900 dark:text-white">{selectedPlan?.max_devices ?? 1} Device Concurrent Access</strong> (Phone, TV, Tablet)</span>
+                    <span><strong className="text-[var(--color-ink)] font-bold">{selectedPlan?.max_devices ?? 1} Device Concurrent Access</strong> (Phone, TV, Tablet)</span>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
                       <Check className="w-2.5 h-2.5 stroke-[3]" />
                     </div>
-                    <span><strong className="text-slate-900 dark:text-white">Anti-Stutter &amp; Fast Buffer Engine</strong> (Clean smooth playback)</span>
+                    <span><strong className="text-[var(--color-ink)] font-bold">Anti-Stutter &amp; Fast Buffer Engine</strong> (Clean smooth playback)</span>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
                       <Check className="w-2.5 h-2.5 stroke-[3]" />
                     </div>
-                    <span><strong className="text-slate-900 dark:text-white">Instant Key Delivery</strong> on screen &amp; synced to your account</span>
+                    <span><strong className="text-[var(--color-ink)] font-bold">Instant Key Delivery</strong> on screen &amp; synced to your account</span>
                   </div>
                 </div>
               </div>
@@ -599,7 +599,7 @@ function PaymentForm() {
                         type="button"
                         onClick={() => handleApplyCoupon()}
                         disabled={couponLoading || !couponCodeInput.trim()}
-                        className="px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white/10 dark:text-white dark:hover:bg-white/20 disabled:opacity-50 border border-slate-900 dark:border-white/10 rounded-2xl text-sm font-bold transition-all cursor-pointer shrink-0 shadow-xs"
+                        className="px-5 py-3 bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50 rounded-2xl text-sm font-bold transition-all cursor-pointer shrink-0 shadow-md shadow-brand-500/20"
                       >
                         {couponLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
                       </button>

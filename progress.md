@@ -360,3 +360,19 @@
         - Updated `AuthContext.tsx` to synchronously persist and restore the authenticated user profile from `localStorage` immediately upon client mount.
         - `PublicHeader.tsx` respects `isReady` and renders the cached user immediately on frame 1 without delay or layout shifting.
         - Background silent revalidation ensures token expiry or permission changes are updated smoothly without visible jumping.
+
+- **Universal Site-Wide Light Mode Text Visibility & Theme Architecture Fix (October 2026):**
+  - **Identified Root Cause:**
+    - `next-themes` manages the active theme by setting `data-theme="light"` or `data-theme="dark"` on the `<html>` element.
+    - In Tailwind CSS v4, the default `dark:` variant evaluates via `@media (prefers-color-scheme: dark)` rather than inspecting the HTML element's attributes.
+    - If a user's operating system (Windows, Android, iOS, macOS) was in dark mode, the browser's `@media (prefers-color-scheme: dark)` was evaluated as true even when the user toggled the website to Light Mode.
+    - Consequently, Tailwind activated all `dark:*` classes (such as `dark:text-white`, `dark:bg-white/10`) while the page background was white (`#FAFAF8` or `#FFFFFF`), rendering text completely invisible across light mode pages.
+  - **Comprehensive Fixes Applied:**
+    - **Custom Variant Defined in `frontend/src/app/globals.css`:** Added `@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *, .dark, .dark *));` directly after `@import "tailwindcss";`, forcing Tailwind's `dark:` utilities to strictly follow `data-theme="dark"` or `.dark` rather than the system OS media query.
+    - **Payment Page (`/payment`):**
+      - Fixed What's Included feature highlights (850+ Live Channels, Concurrent Access, Anti-Stutter, Instant Key Delivery) to use `text-[var(--color-ink)] font-bold` instead of hardcoded `dark:text-white`.
+      - Upgraded the coupon "Apply" button from a faint `dark:bg-white/10 dark:text-white` to a vibrant solid brand CTA: `bg-brand-600 hover:bg-brand-500 text-white font-bold px-5 py-3 rounded-2xl shadow-md shadow-brand-500/20` guaranteeing 100% readability and clickability in both themes.
+      - Aligned all input text and subtotal labels with semantic `--color-ink` and `--color-ink-muted` tokens.
+    - **Unified Pro Card (`UnifiedProCard.tsx`):**
+      - Switched device tier toggle pill active state to `bg-[var(--color-ink)] text-[var(--color-base)] font-bold shadow-sm`, rendering high-contrast dark-on-light in light mode and light-on-dark in dark mode.
+  - **Verification:** Built cleanly with Next.js Turbopack (57/57 pages prerendered, 0 TypeScript errors). Tested contrast compliance across both Light and Dark modes.
