@@ -166,33 +166,10 @@ async function runImport() {
     return ins.rows[0].id;
   }
 
-  // Resolve category helper
-  async function resolveCategory(item, defaultCatName) {
-    const group = (item.group_title || '').toLowerCase();
-    if (group.includes('news')) {
-      if (catMap['news']) return catMap['news'];
-      if (catMap['hindi news']) return catMap['hindi news'];
-    }
-    if (group.includes('movies') || group.includes('film')) {
-      if (catMap['movies']) return catMap['movies'];
-      if (catMap['hindi movies']) return catMap['hindi movies'];
-    }
-    if (group.includes('music')) {
-      if (catMap['music']) return catMap['music'];
-    }
-    if (group.includes('kids') || group.includes('animation')) {
-      if (catMap['kids']) return catMap['kids'];
-    }
-    if (group.includes('sports')) {
-      if (catMap['sports']) return catMap['sports'];
-    }
-    if (group.includes('relig') || group.includes('devot')) {
-      if (catMap['devotional']) return catMap['devotional'];
-      if (catMap['religious']) return catMap['religious'];
-    }
-
-    // Default category based on language
-    return await getOrCreateCategory(defaultCatName);
+  const { classifyChannel } = require('./fix_all_channel_categories');
+  function resolveCategory(item, defaultCatName) {
+    const target = classifyChannel(item.name, '', item.group_title, '');
+    return target.id;
   }
 
   let totalImported = 0;
