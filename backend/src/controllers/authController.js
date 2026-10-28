@@ -403,6 +403,18 @@ exports.me = async (req, res) => {
     }
     const user = result.rows[0];
 
+    // Auto-link any orphaned licenses or orders created with this user's email
+    if (user.email) {
+      await db.query(
+        'UPDATE licenses SET user_id = $1 WHERE user_id IS NULL AND LOWER(customer_email) = LOWER($2)',
+        [user.id, user.email]
+      );
+      await db.query(
+        'UPDATE public_orders SET user_id = $1 WHERE user_id IS NULL AND LOWER(email) = LOWER($2)',
+        [user.id, user.email]
+      );
+    }
+
     // Self-healing check: If has_claimed_trial is false, verify against licenses and public_orders
     if (!user.has_claimed_trial) {
       const trialCheck = await db.query(
@@ -425,17 +437,33 @@ exports.me = async (req, res) => {
       if (trialCheck.rows.length > 0 || (orderCheck && orderCheck.rows.length > 0)) {
         user.has_claimed_trial = true;
         await db.query('UPDATE users SET has_claimed_trial = true WHERE id = $1', [user.id]);
-        if (user.email) {
-          await db.query(
-            'UPDATE licenses SET user_id = $1 WHERE user_id IS NULL AND LOWER(customer_email) = LOWER($2)',
-            [user.id, user.email]
-          );
-          await db.query(
-            'UPDATE public_orders SET user_id = $1 WHERE user_id IS NULL AND LOWER(email) = LOWER($2)',
-            [user.id, user.email]
-          );
-        }
       }
+    }
+
+    // Active subscription check for seamless frontend display
+    const now = new Date();
+    const activeLic = await db.query(
+      `SELECT l.id, l.expires_at, p.name as plan_name, p.plan_tier 
+       FROM licenses l 
+       LEFT JOIN plans p ON l.plan_id = p.id 
+       WHERE (l.user_id = $1 OR (l.customer_email IS NOT NULL AND LOWER(l.customer_email) = LOWER($2)))
+         AND l.status = 'active' 
+         AND l.expires_at > $3 
+       ORDER BY l.expires_at DESC 
+       LIMIT 1`,
+      [user.id, user.email || '', now]
+    );
+
+    if (activeLic.rows.length > 0) {
+      user.has_active_subscription = true;
+      user.subscription_expires_at = activeLic.rows[0].expires_at;
+      user.subscription_plan_name = activeLic.rows[0].plan_name;
+      user.subscription_plan_tier = activeLic.rows[0].plan_tier;
+    } else {
+      user.has_active_subscription = false;
+      user.subscription_expires_at = null;
+      user.subscription_plan_name = null;
+      user.subscription_plan_tier = null;
     }
 
     success(res, { user });
@@ -447,19 +475,29 @@ exports.me = async (req, res) => {
 
 exports.myPurchases = async (req, res) => {
   try {
+    const userEmail = req.user.email ? req.user.email.toLowerCase().trim() : null;
+
+    // Auto-link any orphaned licenses or orders created with this user's email
+    if (userEmail) {
+      await db.query(
+        'UPDATE licenses SET user_id = $1 WHERE user_id IS NULL AND LOWER(customer_email) = $2',
+        [req.user.id, userEmail]
+      );
+      await db.query(
+        'UPDATE public_orders SET user_id = $1 WHERE user_id IS NULL AND LOWER(email) = $2',
+        [req.user.id, userEmail]
+      );
+    }
+
     const licensesResult = await db.query(
       `SELECT l.*, p.name as plan_name, p.plan_tier
        FROM licenses l
        LEFT JOIN plans p ON l.plan_id = p.id
-       WHERE l.user_id = $1
+       WHERE l.user_id = $1 OR (l.customer_email IS NOT NULL AND LOWER(l.customer_email) = LOWER($2))
        ORDER BY l.created_at DESC`,
-      [req.user.id]
+      [req.user.id, userEmail || '']
     );
 
-    // Scoped strictly to the account id. Matching on email as well would expose a
-    // guest checkout's order (including its UTR) to anyone who later registers with
-    // that address — guests use the order-status page instead, which requires the
-    // email or mobile they typed at checkout.
     const ordersResult = await db.query(
       `SELECT o.order_id, o.amount, o.currency, o.status, o.payment_mode, o.created_at,
               o.submitted_at, o.approved_at, o.rejected_at, o.rejection_reason,
@@ -468,9 +506,9 @@ exports.myPurchases = async (req, res) => {
               COALESCE(o.duration_days_snapshot, p.duration_days) as duration_days
        FROM public_orders o
        LEFT JOIN plans p ON o.plan_id = p.id
-       WHERE o.user_id = $1
+       WHERE o.user_id = $1 OR (o.email IS NOT NULL AND LOWER(o.email) = LOWER($2))
        ORDER BY o.created_at DESC`,
-      [req.user.id]
+      [req.user.id, userEmail || '']
     );
 
     // Current subscription = the licence with the furthest future expiry. Expiry is
@@ -484,12 +522,15 @@ exports.myPurchases = async (req, res) => {
     const subscription = activeLicense
       ? {
           plan_name: activeLicense.plan_name,
+          plan_tier: activeLicense.plan_tier,
+          plan_id: activeLicense.plan_id,
           status: 'active',
           license_key: activeLicense.license_key,
           start_date: activeLicense.activated_at,
           expiry_date: activeLicense.expires_at,
           remaining_days: remainingDays(activeLicense.expires_at, now),
           max_devices: activeLicense.max_devices,
+          total_active_licenses: licensesResult.rows.filter(l => l.status === 'active' && l.expires_at && new Date(l.expires_at) > now).length,
         }
       : null;
 

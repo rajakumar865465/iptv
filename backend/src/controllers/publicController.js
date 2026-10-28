@@ -5,7 +5,8 @@ const multer = require('multer');
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const Razorpay = require('razorpay');
-const { verifyToken } = require('../utils/jwt');
+const { verifyToken, verifyAdminToken } = require('../utils/jwt');
+const { activateLicense } = require('../services/subscriptionService');
 const paymentSettings = require('../services/paymentSettings');
 
 const downloadDir = path.join(__dirname, '..', '..', 'public', 'downloads');
@@ -303,9 +304,21 @@ exports.createOrder = async (req, res) => {
       const token = req.headers.authorization.split(' ')[1];
       try {
         const decoded = verifyToken(token);
-        userId = decoded.userId;
+        userId = decoded.userId || decoded.id;
       } catch (e) {
-        console.error('Invalid token during checkout', e);
+        try {
+          const decodedAdmin = verifyAdminToken(token);
+          userId = decodedAdmin.userId || decodedAdmin.id;
+        } catch (e2) {
+          console.error('Invalid token during checkout', e2.message);
+        }
+      }
+    }
+
+    if (!userId && email) {
+      const userLookup = await db.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email.toLowerCase().trim()]);
+      if (userLookup.rows.length > 0) {
+        userId = userLookup.rows[0].id;
       }
     }
 
@@ -485,9 +498,6 @@ exports.verifyPayment = async (req, res) => {
       }, 'Payment already verified');
     }
 
-    // Generate license key
-    const licenseKey = generateLicenseKey();
-
     // Insert payment record
     const paymentInsert = await client.query(
       `INSERT INTO payments (plan_id, amount, currency, payment_method, transaction_id, status,
@@ -501,45 +511,36 @@ exports.verifyPayment = async (req, res) => {
     );
     const paymentId = paymentInsert.rows[0].id;
 
-    // Insert license with customer email for admin visibility
+    // Resolve customer email and associated account user_id
     const customerEmail = order.email ? order.email.toLowerCase().trim() : null;
-    let licenseId;
-    
-    // Auto-activate logic
-    const durationDays = order.duration_days || 30;
-    const now = new Date();
-    const expiresAt = new Date(now);
-    expiresAt.setDate(expiresAt.getDate() + durationDays);
-
-    try {
-      const licenseInsert = await client.query(
-        `INSERT INTO licenses (license_key, plan_id, payment_id, customer_email, status, duration_days, max_devices, user_id, activated_at, expires_at)
-         VALUES ($1, $2, $3, $4, 'active', $5, $6, $7, $8, $9)
-         RETURNING id`,
-        [licenseKey, order.plan_id, paymentId, customerEmail, order.duration_days, order.max_devices, order.user_id, now, expiresAt]
-      );
-      licenseId = licenseInsert.rows[0].id;
-    } catch (colErr) {
-      // Fallback for older schema
-      if (colErr.message && (colErr.message.includes('payment_id') || colErr.message.includes('customer_email'))) {
-        const licenseInsert = await client.query(
-          `INSERT INTO licenses (license_key, plan_id, status, duration_days, max_devices, user_id, activated_at, expires_at)
-           VALUES ($1, $2, 'active', $3, $4, $5, $6, $7)
-           RETURNING id`,
-          [licenseKey, order.plan_id, order.duration_days, order.max_devices, order.user_id, now, expiresAt]
-        );
-        licenseId = licenseInsert.rows[0].id;
-      } else {
-        throw colErr;
+    let finalUserId = order.user_id;
+    if (!finalUserId && customerEmail) {
+      const uRes = await client.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [customerEmail]);
+      if (uRes.rows.length > 0) {
+        finalUserId = uRes.rows[0].id;
       }
     }
 
-    // Mark order paid
+    // Activate license with stacking enabled so existing active subscriptions are extended seamlessly!
+    const activation = await activateLicense(client, {
+      planId: order.plan_id,
+      durationDays: order.duration_days || 30,
+      maxDevices: order.max_devices || 1,
+      userId: finalUserId,
+      customerEmail: customerEmail,
+      paymentId: paymentId,
+      stackingEnabled: true,
+      now: new Date(),
+    });
+    const licenseId = activation.licenseId;
+    const licenseKey = activation.licenseKey;
+
+    // Mark order paid and associate user_id
     await client.query(
       `UPDATE public_orders
-       SET status = 'paid', gateway_payment_id = $1, gateway_signature = $2, license_id = $3, updated_at = NOW()
-       WHERE order_id = $4`,
-      [razorpay_payment_id, razorpay_signature, licenseId, razorpay_order_id]
+       SET status = 'paid', gateway_payment_id = $1, gateway_signature = $2, license_id = $3, user_id = COALESCE(user_id, $4), updated_at = NOW()
+       WHERE order_id = $5`,
+      [razorpay_payment_id, razorpay_signature, licenseId, finalUserId, razorpay_order_id]
     );
 
     await client.query('COMMIT');
@@ -550,7 +551,9 @@ exports.verifyPayment = async (req, res) => {
       duration_days: order.duration_days,
       max_devices: order.max_devices,
       order_id: razorpay_order_id,
-    }, 'Payment verified and license generated');
+      expires_at: activation.expiresAt,
+      stacked: activation.stacked,
+    }, activation.stacked ? 'Payment verified and subscription extended (+30 days)!' : 'Payment verified and license generated');
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('verifyPayment error:', err.message);

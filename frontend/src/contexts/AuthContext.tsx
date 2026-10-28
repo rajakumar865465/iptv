@@ -11,6 +11,10 @@ interface User {
   role?: string;
   status?: string;
   has_claimed_trial?: boolean;
+  has_active_subscription?: boolean;
+  subscription_expires_at?: string | null;
+  subscription_plan_name?: string | null;
+  subscription_plan_tier?: string | null;
 }
 
 interface AuthContextType {

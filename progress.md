@@ -226,3 +226,19 @@
   - **Deployed & Verified:**
     - `curl https://payment.catsnamegenerator.site/` returns `HTTP 200 OK` with 0 SSL warnings.
     - Live order checkout URL (`https://payment.catsnamegenerator.site/api/proxy/checkout?order_id=...`) renders cleanly with valid 256-bit SSL encryption.
+
+- **Subscription Stacking, Account Dashboard Purchase Visibility & Extension UX (October 2026):**
+  - **Identified Root Causes:**
+    1. In `publicController.js:createOrder`, JWT verification did not fall back to `verifyAdminToken` and did not look up the user by email, causing `public_orders.user_id` to remain `NULL` when signed in as an admin.
+    2. In `publicController.js:verifyPayment`, new licenses were inserted directly from `now + durationDays` instead of using `subscriptionService.activateLicense` with stacking. When an active user bought a plan again, it created a concurrent license starting immediately and expiring at almost the same time as their trial, wasting their payment.
+    3. In `authController.js:myPurchases`, the query filtered strictly on `WHERE l.user_id = $1` and did not auto-link orphaned records or render the user's order payment history on `/my-account`.
+  - **Comprehensive Fixes Applied:**
+    - **Database Healing on EC2:** Executed script linking License 45 (`NVT-03B9-6D36-5919`) and Order 60 (`order_TtB0HBfwkPNbZT`) to User 2 (`superadmin@nivatv.in`) and extended License 45's expiration date by +30 days (to `2026-12-26 08:42:26.772+00`).
+    - **Subscription Stacking in Gateway:** Rewired `verifyPayment` in `publicController.js` to utilize `activateLicense(client, { stackingEnabled: true })`. New purchases by users with an active plan (free trial or paid) automatically stack +30 days on top of their existing expiry date.
+    - **User Account Dashboard (`/my-account`):**
+      - Displays a prominent Active Subscription Window banner with plan name, total validity date, remaining days, device count, and stacked plan counter.
+      - Renders all user licenses with distinct tier badges (`Paid Plan • 2 Devices` vs `Free Trial • 1 Device`).
+      - Added dedicated Order & Payment History section showing order IDs, amounts, payment methods, dates, and status pills.
+    - **Pricing Page Extension UX (`UnifiedProCard.tsx` & `PlanCard.tsx`):**
+      - Detects when the user holds an active subscription and dynamically switches the card CTA to `Extend Subscription (+30 Days)` with clear subtext explaining that payment stacks on top of the existing expiry.
+    - **Backend Auto-Linking:** `authController.me` and `authController.myPurchases` now automatically link orphaned licenses and orders by email and return active subscription summary metadata.

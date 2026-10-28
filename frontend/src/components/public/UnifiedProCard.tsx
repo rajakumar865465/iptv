@@ -37,16 +37,18 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
   const { user, token } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
 
+  const hasActiveSub = Boolean(user?.has_active_subscription);
+
   // Check if trial has already been claimed by logged-in user or stored in localStorage
   const [hasClaimedTrial, setHasClaimedTrial] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('nivatv_trial_claimed') === 'true' || !!user?.has_claimed_trial;
+      return localStorage.getItem('nivatv_trial_claimed') === 'true' || !!user?.has_claimed_trial || hasActiveSub;
     }
-    return !!user?.has_claimed_trial;
+    return !!user?.has_claimed_trial || hasActiveSub;
   });
 
   const [mode, setMode] = useState<'trial' | 'paid'>(() => {
-    if (typeof window !== 'undefined' && (localStorage.getItem('nivatv_trial_claimed') === 'true' || !!user?.has_claimed_trial)) {
+    if (typeof window !== 'undefined' && (localStorage.getItem('nivatv_trial_claimed') === 'true' || !!user?.has_claimed_trial || hasActiveSub)) {
       return 'paid';
     }
     return 'trial';
@@ -54,7 +56,7 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
 
   // React immediately whenever user auth state or trial claimed flag changes
   useEffect(() => {
-    const isClaimed = !!user?.has_claimed_trial || (typeof window !== 'undefined' && localStorage.getItem('nivatv_trial_claimed') === 'true');
+    const isClaimed = !!user?.has_claimed_trial || (typeof window !== 'undefined' && localStorage.getItem('nivatv_trial_claimed') === 'true') || !!user?.has_active_subscription;
     if (isClaimed) {
       setHasClaimedTrial(true);
       setMode('paid');
@@ -62,10 +64,10 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
         localStorage.setItem('nivatv_trial_claimed', 'true');
       } catch (_) {}
     }
-  }, [user?.has_claimed_trial]);
+  }, [user?.has_claimed_trial, user?.has_active_subscription]);
 
-  // If user has claimed trial, NEVER show trial mode or free cart elements
-  const isTrial = !hasClaimedTrial && !user?.has_claimed_trial && mode === 'trial' && !!trialPlan;
+  // If user has claimed trial or has an active subscription, NEVER show trial mode or free cart elements
+  const isTrial = !hasClaimedTrial && !user?.has_claimed_trial && !hasActiveSub && mode === 'trial' && !!trialPlan;
   const activePlan = isTrial ? trialPlan! : (paidPlan || trialPlan!);
 
   const handleAction = (e: React.MouseEvent) => {
@@ -112,10 +114,16 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
   const iconCls = isTrial ? 'text-emerald-500' : 'text-green-500';
   const btnClass = isTrial
     ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/25'
+    : hasActiveSub
+    ? 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-500/25'
     : 'bg-[var(--color-surface-2)] hover:bg-[var(--color-line)] text-[var(--color-ink)] border border-[var(--color-line)]';
 
   const features = isTrial ? TRIAL_FEATURES : PAID_FEATURES;
-  const buttonText = isTrial ? 'Claim 1-Month Free Trial' : 'Start Watching Instantly';
+  const buttonText = isTrial
+    ? 'Claim 1-Month Free Trial'
+    : hasActiveSub
+    ? 'Extend Subscription (+30 Days)'
+    : 'Start Watching Instantly';
 
   return (
     <div className={wrapperClass}>
@@ -132,6 +140,11 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
               <Sparkles className="w-3 h-3" />
               100% FREE TRIAL
+            </span>
+          ) : hasActiveSub ? (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Active Plan &bull; Valid until {user?.subscription_expires_at ? new Date(user.subscription_expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Active'}
             </span>
           ) : (
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--color-surface-2)] text-[var(--color-ink-muted)] border border-[var(--color-line)]">
@@ -241,6 +254,8 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
           <p className="text-center text-[10px] text-[var(--color-ink-subtle)] px-2">
             {isTrial
               ? 'Try it for 30 Days, 100% Free. No Credit Card Required.'
+              : hasActiveSub
+              ? 'Your purchase automatically stacks +30 days on top of your existing expiry date.'
               : 'Instant license key generated immediately after payment.'}
           </p>
         </div>

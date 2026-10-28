@@ -168,7 +168,8 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
   const hasOffer = plan.regular_price && plan.regular_price > plan.price;
 
   const features = isFree ? TRIAL_FEATURES : FEATURES;
-  const buttonText = ctaText || getCtaText(plan, resolvedVariant);
+  const hasActiveSub = Boolean(user?.has_active_subscription);
+  const buttonText = ctaText || (isFree ? 'Claim 1-Month Free Trial' : (hasActiveSub ? 'Extend Subscription' : getCtaText(plan, resolvedVariant)));
 
   const wrapperClass =
     'relative rounded-2xl border flex flex-col transition-all duration-300 hover:-translate-y-1.5 overflow-hidden shadow-card hover:shadow-card-hover ' +
@@ -304,11 +305,15 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
           >
             {buttonText}
           </button>
-          {isFree && (
+          {isFree ? (
             <p className="text-center text-[10px] text-[var(--color-ink-subtle)] px-2">
               Try it for 30 Days, 100% Free.<br/>No Credit Card Required.
             </p>
-          )}
+          ) : hasActiveSub ? (
+            <p className="text-center text-[10px] text-[var(--color-ink-subtle)] px-2">
+              Validity stacks +{plan.duration_days} days on top of your existing plan.
+            </p>
+          ) : null}
         </div>
       </div>
       <AuthModal
