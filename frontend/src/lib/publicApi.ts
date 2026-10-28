@@ -199,8 +199,29 @@ export const createOrder = (data: {
   email: string;
   mobile: string;
   offer_price?: number;
+  coupon_code?: string;
 }): Promise<OrderResponse> =>
   publicAxios.post('/api/public/orders/create', data).then(unwrap) as Promise<OrderResponse>;
+
+export interface CouponValidationResult {
+  valid: boolean;
+  coupon_id: number;
+  code: string;
+  description: string;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  original_amount: number;
+  discount_amount: number;
+  final_amount: number;
+  formatted_discount: string;
+}
+
+export const validateCoupon = (data: {
+  code: string;
+  plan_id: number;
+  offer_price?: number;
+}): Promise<CouponValidationResult> =>
+  publicAxios.post('/api/public/coupons/validate', data).then(unwrap) as Promise<CouponValidationResult>;
 
 export const verifyPayment = (data: {
   razorpay_order_id: string;

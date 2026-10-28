@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, MonitorSmartphone, KeyRound, CreditCard, Globe, Zap,
   AlertTriangle, FileStack, Settings, Bell, BarChart3, ScrollText, Activity, Shield,
-  Package, Globe2, HeartPulse, Radio, MessageSquareWarning, CloudDownload,
+  Package, Globe2, HeartPulse, Radio, MessageSquareWarning, CloudDownload, Tag,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -67,6 +67,7 @@ const navSections: NavSection[] = [
     title: 'Product',
     items: [
       { href: '/plans', label: 'Plans', icon: CreditCard },
+      { href: '/coupons', label: 'Coupons', icon: Tag },
       { href: '/app-settings', label: 'App Settings', icon: Settings },
       { href: '/app-releases', label: 'Releases', icon: Package },
       { href: '/website-settings', label: 'Website Settings', icon: Globe2 },

@@ -266,7 +266,7 @@ exports.getSettings = async (req, res) => {
 // POST /api/public/orders/create
 exports.createOrder = async (req, res) => {
   try {
-    const { plan_id, customer_name, email, mobile, offer_price } = req.body;
+    const { plan_id, customer_name, email, mobile, offer_price, coupon_code } = req.body;
 
     if (!plan_id || !customer_name || !email || !mobile) {
       return error(res, 'plan_id, customer_name, email and mobile are required', 400);
@@ -299,6 +299,40 @@ exports.createOrder = async (req, res) => {
       finalPrice = op;
     }
 
+    let originalPrice = finalPrice;
+    let couponRecord = null;
+    let discountAmount = 0;
+
+    if (coupon_code && typeof coupon_code === 'string' && coupon_code.trim()) {
+      const cleanCode = coupon_code.trim().toUpperCase();
+      const cRes = await db.query(
+        `SELECT * FROM coupons WHERE UPPER(code) = $1 AND is_active = true`,
+        [cleanCode]
+      );
+      if (cRes.rows.length > 0) {
+        const c = cRes.rows[0];
+        const now = new Date();
+        const validDates = (!c.starts_at || new Date(c.starts_at) <= now) && (!c.expires_at || new Date(c.expires_at) >= now);
+        const validUses = (c.max_uses === null || c.used_count < c.max_uses);
+        const validPlan = (!c.plan_id || c.plan_id === Number(plan.id));
+        const validMinOrder = (finalPrice >= Number(c.min_order_amount || 0));
+
+        if (validDates && validUses && validPlan && validMinOrder) {
+          couponRecord = c;
+          if (c.discount_type === 'percentage') {
+            discountAmount = (finalPrice * Number(c.discount_value)) / 100;
+            if (c.max_discount_amount && Number(c.max_discount_amount) > 0) {
+              discountAmount = Math.min(discountAmount, Number(c.max_discount_amount));
+            }
+          } else {
+            discountAmount = Math.min(finalPrice, Number(c.discount_value));
+          }
+          discountAmount = Math.round(discountAmount * 100) / 100;
+          finalPrice = Math.max(0, Math.round((finalPrice - discountAmount) * 100) / 100);
+        }
+      }
+    }
+
     let userId = null;
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
       const token = req.headers.authorization.split(' ')[1];
@@ -324,18 +358,20 @@ exports.createOrder = async (req, res) => {
 
     if (finalPrice === 0) {
       const customerEmail = email.toLowerCase().trim();
-      if (userId) {
-        const uRes = await db.query('SELECT has_claimed_trial FROM users WHERE id = $1', [userId]);
-        if (uRes.rows[0]?.has_claimed_trial) {
-          return error(res, 'You have already used your 1-Month Free Trial.', 400);
-        }
-      } else if (customerEmail) {
-        const emailCheck = await db.query(
-          `SELECT 1 FROM licenses l JOIN plans p ON l.plan_id = p.id WHERE LOWER(l.customer_email) = $1 AND (p.price = 0 OR p.slug LIKE '%trial%') LIMIT 1`,
-          [customerEmail]
-        );
-        if (emailCheck.rows.length > 0) {
-          return error(res, 'This email has already claimed a Free Trial.', 400);
+      if (!couponRecord && plan.price === 0) {
+        if (userId) {
+          const uRes = await db.query('SELECT has_claimed_trial FROM users WHERE id = $1', [userId]);
+          if (uRes.rows[0]?.has_claimed_trial) {
+            return error(res, 'You have already used your 1-Month Free Trial.', 400);
+          }
+        } else if (customerEmail) {
+          const emailCheck = await db.query(
+            `SELECT 1 FROM licenses l JOIN plans p ON l.plan_id = p.id WHERE LOWER(l.customer_email) = $1 AND (p.price = 0 OR p.slug LIKE '%trial%') LIMIT 1`,
+            [customerEmail]
+          );
+          if (emailCheck.rows.length > 0) {
+            return error(res, 'This email has already claimed a Free Trial.', 400);
+          }
         }
       }
 
@@ -347,9 +383,17 @@ exports.createOrder = async (req, res) => {
 
       // 1. Insert order
       await db.query(
-        `INSERT INTO public_orders (order_id, plan_id, customer_name, email, mobile, amount, currency, status, user_id)
-         VALUES ($1, $2, $3, $4, $5, 0, 'INR', 'paid', $6)`,
-        [orderId, plan.id, customer_name.trim(), customerEmail, mobile.trim(), userId]
+        `INSERT INTO public_orders (
+          order_id, plan_id, customer_name, email, mobile, amount, currency, status, user_id,
+          coupon_id, coupon_code, original_amount, discount_amount
+        ) VALUES ($1, $2, $3, $4, $5, 0, 'INR', 'paid', $6, $7, $8, $9, $10)`,
+        [
+          orderId, plan.id, customer_name.trim(), customerEmail, mobile.trim(), userId,
+          couponRecord ? couponRecord.id : null,
+          couponRecord ? couponRecord.code : null,
+          originalPrice,
+          discountAmount,
+        ]
       );
       
       // 2. Insert license
@@ -377,23 +421,36 @@ exports.createOrder = async (req, res) => {
         `UPDATE public_orders SET license_id = $1 WHERE order_id = $2`,
         [licenseId, orderId]
       );
-      if (userId) {
-        await db.query('UPDATE users SET has_claimed_trial = true WHERE id = $1', [userId]);
-      }
-      if (customerEmail) {
-        await db.query('UPDATE users SET has_claimed_trial = true WHERE LOWER(email) = $1', [customerEmail]);
+
+      if (couponRecord) {
+        await db.query('UPDATE coupons SET used_count = used_count + 1 WHERE id = $1', [couponRecord.id]).catch(() => {});
+        await db.query(
+          `INSERT INTO coupon_redemptions (coupon_id, user_id, order_id, discount_amount, final_amount)
+           VALUES ($1, $2, $3, $4, 0)`,
+          [couponRecord.id, userId, orderId, discountAmount]
+        ).catch(() => {});
+      } else {
+        if (userId) {
+          await db.query('UPDATE users SET has_claimed_trial = true WHERE id = $1', [userId]);
+        }
+        if (customerEmail) {
+          await db.query('UPDATE users SET has_claimed_trial = true WHERE LOWER(email) = $1', [customerEmail]);
+        }
       }
       
       return success(res, {
         order_id: orderId,
         amount: 0,
+        original_amount: originalPrice,
+        discount_amount: discountAmount,
+        coupon_code: couponRecord ? couponRecord.code : null,
         currency: 'INR',
         key_id: 'free_plan',
         plan_name: plan.name,
         customer_name,
         email,
         mobile,
-      }, 'Free order created');
+      }, couponRecord ? 'Coupon applied: 100% discount order completed' : 'Free order created');
     }
 
     // Check if user already has an active subscription: lower plans are blocked, same plan is blocked, only upgrades allowed
@@ -452,14 +509,26 @@ exports.createOrder = async (req, res) => {
     });
 
     await db.query(
-      `INSERT INTO public_orders (order_id, plan_id, customer_name, email, mobile, amount, currency, status, user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, 'INR', 'created', $7)`,
-      [rzpOrder.id, plan.id, customer_name.trim(), email.toLowerCase().trim(), mobile.trim(), rzpOrder.amount, userId]
+      `INSERT INTO public_orders (
+        order_id, plan_id, customer_name, email, mobile, amount, currency, status, user_id,
+        coupon_id, coupon_code, original_amount, discount_amount
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'INR', 'created', $7, $8, $9, $10, $11)`,
+      [
+        rzpOrder.id, plan.id, customer_name.trim(), email.toLowerCase().trim(), mobile.trim(),
+        rzpOrder.amount, userId,
+        couponRecord ? couponRecord.id : null,
+        couponRecord ? couponRecord.code : null,
+        originalPrice,
+        discountAmount,
+      ]
     );
 
     return success(res, {
       order_id: rzpOrder.id,
       amount: rzpOrder.amount,
+      original_amount: originalPrice,
+      discount_amount: discountAmount,
+      coupon_code: couponRecord ? couponRecord.code : null,
       currency: rzpOrder.currency,
       key_id: process.env.RAZORPAY_KEY_ID,
       plan_name: plan.name,
@@ -578,6 +647,20 @@ exports.verifyPayment = async (req, res) => {
        WHERE order_id = $5`,
       [razorpay_payment_id, razorpay_signature, licenseId, finalUserId, razorpay_order_id]
     );
+
+    // Record coupon usage if coupon was applied
+    if (order.coupon_id) {
+      await client.query(
+        `UPDATE coupons SET used_count = used_count + 1 WHERE id = $1`,
+        [order.coupon_id]
+      ).catch(e => console.warn('Failed to update coupon used_count:', e.message));
+
+      await client.query(
+        `INSERT INTO coupon_redemptions (coupon_id, user_id, order_id, discount_amount, final_amount)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [order.coupon_id, finalUserId, razorpay_order_id, order.discount_amount || 0, order.amount / 100]
+      ).catch(e => console.warn('Failed to log coupon redemption:', e.message));
+    }
 
     await client.query('COMMIT');
 

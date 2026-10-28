@@ -3,6 +3,7 @@ const router = express.Router();
 const { authLimiter, apiLimiter, manualOrderLimiter, orderLookupLimiter } = require('../middleware/rateLimit');
 const pub = require('../controllers/publicController');
 const manualOrderController = require('../controllers/manualOrderController');
+const couponController = require('../controllers/couponController');
 
 // Read-only public data
 router.get('/plans', apiLimiter, pub.getPlans);
@@ -29,5 +30,6 @@ router.post('/license/check', authLimiter, pub.checkLicense);
 
 // Scratch card offer — returns hidden 7-day plan metadata only
 router.get('/offers/7day', apiLimiter, pub.getSevenDayOffer);
+router.post('/coupons/validate', apiLimiter, couponController.validateCoupon);
 
 module.exports = router;

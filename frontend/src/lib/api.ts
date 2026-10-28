@@ -424,3 +424,35 @@ export const getFeedback = (params?: Record<string, string>) =>
 
 export const updateFeedback = (id: number, data: { status?: string; admin_note?: string }) =>
   api.patch(`/feedback/${id}`, data).then((r) => r.data.data);
+
+// Coupons
+export interface AdminCoupon {
+  id: number;
+  code: string;
+  description: string | null;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  min_order_amount: number;
+  max_discount_amount: number | null;
+  plan_id: number | null;
+  plan_name?: string;
+  max_uses: number | null;
+  used_count: number;
+  actual_redemptions?: number;
+  starts_at: string;
+  expires_at: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export const getAdminCoupons = (params?: { search?: string; status?: string }) =>
+  api.get('/coupons', { params }).then((r) => r.data.data);
+
+export const createAdminCoupon = (data: Partial<AdminCoupon>) =>
+  api.post('/coupons', data).then((r) => r.data.data);
+
+export const updateAdminCoupon = (id: number, data: Partial<AdminCoupon>) =>
+  api.put(`/coupons/${id}`, data).then((r) => r.data.data);
+
+export const deleteAdminCoupon = (id: number) =>
+  api.delete(`/coupons/${id}`).then((r) => r.data.data);

@@ -1,11 +1,18 @@
 'use client';
-import { useEffect, useState, useCallback, Suspense } from 'react';
+
+import { useEffect, useState, useCallback, Suspense, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Script from 'next/script';
 import Link from 'next/link';
-import { ShieldCheck, Loader2, AlertCircle, Tag } from 'lucide-react';
-import { getPublicPlans, getSevenDayOffer, createOrder, verifyPayment, getPublicErrorMessage, getPaymentConfig } from '@/lib/publicApi';
-import type { Plan } from '@/lib/publicApi';
+import {
+  ShieldCheck, Loader2, AlertCircle, Tag, Check, X,
+  ArrowRight, Sparkles, Tv2, Smartphone, Zap, Lock,
+  ChevronRight, RefreshCw, HelpCircle
+} from 'lucide-react';
+import {
+  getPublicPlans, getSevenDayOffer, createOrder, getPublicErrorMessage,
+  getPaymentConfig, validateCoupon, type Plan, type CouponValidationResult
+} from '@/lib/publicApi';
 import AuthModal from '@/components/auth/AuthModal';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -15,36 +22,10 @@ declare global {
   }
 }
 
-const loadRazorpay = () =>
-  new Promise<boolean>((resolve) => {
-    if (typeof window !== 'undefined' && window.Razorpay) return resolve(true);
-
-    // If script exists but Razorpay isn't loaded, it might have failed previously (e.g. adblocker).
-    // Let's remove it and try injecting a fresh one just in case they disabled their adblocker.
-    const existingScript = document.querySelector<HTMLScriptElement>('script[src*="checkout.razorpay.com"]');
-    if (existingScript) {
-      existingScript.remove();
-    }
-
-    const script = document.createElement('script');
-    script.id = 'razorpay-checkout-js';
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-
-    // Safety timeout
-    setTimeout(() => {
-      if (typeof window !== 'undefined' && window.Razorpay) resolve(true);
-      else resolve(false);
-    }, 8000);
-  });
-
 function PaymentForm() {
   const params = useSearchParams();
   const router = useRouter();
-  const { user, token, isReady, login, refreshUser } = useAuth();
+  const { user, token, isReady, refreshUser } = useAuth();
   const planIdParam = params.get('plan_id') ? parseInt(params.get('plan_id')!) : null;
   const offerPriceParam = params.get('offer_price') ? parseInt(params.get('offer_price')!) : undefined;
   const isOfferFlow = !!offerPriceParam;
@@ -57,7 +38,13 @@ function PaymentForm() {
   const [error, setError] = useState('');
   const [authOpen, setAuthOpen] = useState(false);
 
-  // Sync user profile to form fields whenever user is available
+  // Coupon State
+  const [couponCodeInput, setCouponCodeInput] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponValidationResult | null>(null);
+
+  // Sync user profile to form fields
   useEffect(() => {
     if (user) {
       setForm(prev => ({
@@ -76,7 +63,6 @@ function PaymentForm() {
   }, [isReady, user, token]);
 
   useEffect(() => {
-    // Check payment mode first
     getPaymentConfig()
       .then(config => {
         if (config) {
@@ -99,7 +85,7 @@ function PaymentForm() {
             regular_price: plan.price,
             duration_days: plan.duration_days,
             max_devices: plan.max_devices,
-            description: 'Special offer — scratch card deal',
+            description: 'Special Scratch Card Discount Deal',
             sort_order: 0,
             offer_label: 'Special Offer',
             is_popular: false,
@@ -120,7 +106,7 @@ function PaymentForm() {
     }
   }, [isOfferFlow, offerPriceParam, planIdParam, router]);
 
-  const selectedPlan = plans.find(p => p.id === selectedPlanId);
+  const selectedPlan = useMemo(() => plans.find(p => p.id === selectedPlanId), [plans, selectedPlanId]);
   const hasClaimedTrial = !!user?.has_claimed_trial || (typeof window !== 'undefined' && localStorage.getItem('nivatv_trial_claimed') === 'true');
 
   useEffect(() => {
@@ -131,9 +117,72 @@ function PaymentForm() {
       }
     }
   }, [hasClaimedTrial, selectedPlan, plans]);
+
+  // Re-validate coupon when selected plan changes
+  useEffect(() => {
+    if (appliedCoupon && selectedPlanId) {
+      setCouponLoading(true);
+      validateCoupon({
+        code: appliedCoupon.code,
+        plan_id: selectedPlanId,
+        offer_price: offerPriceParam,
+      })
+        .then(res => {
+          setAppliedCoupon(res);
+          setCouponError('');
+        })
+        .catch(err => {
+          setAppliedCoupon(null);
+          setCouponError(getPublicErrorMessage(err, 'Coupon is not applicable to this plan.'));
+        })
+        .finally(() => setCouponLoading(false));
+    }
+  }, [selectedPlanId, offerPriceParam]);
+
+  // Handle Apply Coupon
+  const handleApplyCoupon = async (codeToApply?: string) => {
+    const code = (codeToApply || couponCodeInput).trim().toUpperCase();
+    if (!code) {
+      setCouponError('Please enter a coupon code.');
+      return;
+    }
+    if (!selectedPlanId) {
+      setCouponError('Please select a plan first.');
+      return;
+    }
+
+    setCouponLoading(true);
+    setCouponError('');
+    try {
+      const result = await validateCoupon({
+        code,
+        plan_id: selectedPlanId,
+        offer_price: offerPriceParam,
+      });
+      setAppliedCoupon(result);
+      setCouponCodeInput('');
+    } catch (err: any) {
+      setAppliedCoupon(null);
+      setCouponError(getPublicErrorMessage(err, 'Invalid or expired coupon code.'));
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError('');
+  };
+
+  // Pricing calculations
+  const originalPrice = isOfferFlow && offerPriceParam !== undefined ? offerPriceParam : (selectedPlan ? Number(selectedPlan.price) : 0);
+  const discountAmount = appliedCoupon ? appliedCoupon.discount_amount : 0;
+  const finalPrice = Math.max(0, originalPrice - discountAmount);
+
+  // Handle Payment Submit
   const handlePay = useCallback(async () => {
     setError('');
-    
+
     // Auth Guard
     if (!user) {
       setAuthOpen(true);
@@ -141,7 +190,7 @@ function PaymentForm() {
     }
 
     if (!form.customer_name.trim() || !form.email.trim() || !form.mobile.trim()) {
-      return setError('Please fill all fields.');
+      return setError('Please fill all required billing fields.');
     }
     if (!selectedPlanId) return setError('Please select a plan.');
 
@@ -151,11 +200,19 @@ function PaymentForm() {
 
     setLoading(true);
     try {
-      const order = await createOrder({ plan_id: selectedPlanId, ...form, offer_price: offerPriceParam });
+      const order = await createOrder({
+        plan_id: selectedPlanId,
+        ...form,
+        offer_price: offerPriceParam,
+        coupon_code: appliedCoupon ? appliedCoupon.code : undefined,
+      });
 
+      // Free plan or 100% off coupon
       if (order.amount === 0) {
         try {
-          localStorage.setItem('nivatv_trial_claimed', 'true');
+          if (selectedPlan?.price === 0) {
+            localStorage.setItem('nivatv_trial_claimed', 'true');
+          }
         } catch (_) {}
         void refreshUser();
         router.push(`/payment/success?order_id=${order.order_id}`);
@@ -166,7 +223,7 @@ function PaymentForm() {
         throw new Error('Payment gateway not configured. Please contact support.');
       }
 
-      // Redirect to proxy checkout on current origin
+      // Redirect to proxy checkout with live Razorpay keys
       const returnUrl = encodeURIComponent(`${window.location.origin}/payment/success`);
       window.location.href = `https://payment.catsnamegenerator.site/api/proxy/checkout?order_id=${order.order_id}&type=public&key_id=${order.key_id}&return_url=${returnUrl}`;
     } catch (err: any) {
@@ -179,7 +236,7 @@ function PaymentForm() {
       setError(msg);
       setLoading(false);
     }
-  }, [form, selectedPlanId, router, offerPriceParam, user]);
+  }, [form, selectedPlanId, selectedPlan, router, offerPriceParam, appliedCoupon, user, hasClaimedTrial]);
 
   const handleAuthSuccess = (u: any) => {
     setAuthOpen(false);
@@ -190,32 +247,28 @@ function PaymentForm() {
     }));
   };
 
-  // If not logged in, don't show payment form — show login requirement screen & modal
+  // If not logged in, show clean modern Sign In Required view
   if (isReady && !user && !token) {
     return (
       <>
-        <AuthModal
-          isOpen={authOpen}
-          onClose={() => setAuthOpen(false)}
-          onSuccess={handleAuthSuccess}
-        />
-        <div className="pt-28 pb-20 px-4 min-h-[70vh] flex items-center justify-center">
-          <div className="max-w-md w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl p-8 text-center shadow-2xl">
-            <div className="w-16 h-16 bg-brand-500/10 border border-brand-500/30 text-brand-500 rounded-2xl flex items-center justify-center mx-auto mb-5">
+        <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} onSuccess={handleAuthSuccess} />
+        <div className="pt-28 pb-20 px-4 min-h-[75vh] flex items-center justify-center">
+          <div className="max-w-md w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-3xl p-8 text-center shadow-2xl">
+            <div className="w-16 h-16 bg-brand-500/10 border border-brand-500/30 text-brand-500 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-inner">
               <ShieldCheck className="w-8 h-8" />
             </div>
             <h1 className="text-2xl font-extrabold text-[var(--color-ink)] mb-2">Sign In Required</h1>
             <p className="text-[var(--color-ink-muted)] text-sm mb-6 leading-relaxed">
-              Please sign in to your account before proceeding to payment. Your live TV license key and subscription will be linked directly to your account.
+              Please sign in before completing your order. Your live TV license key and instant stream access will be permanently linked to your account.
             </p>
             <button
               type="button"
               onClick={() => setAuthOpen(true)}
-              className="w-full py-3.5 px-4 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold text-base transition-all shadow-lg shadow-brand-500/25 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3.5 px-4 bg-brand-600 hover:bg-brand-500 text-white rounded-2xl font-bold text-base transition-all shadow-lg shadow-brand-500/25 flex items-center justify-center gap-2 cursor-pointer"
             >
-              Sign In / Create Account
+              Sign In / Create Free Account
             </button>
-            <div className="mt-4">
+            <div className="mt-5">
               <Link href="/pricing" className="text-xs text-[var(--color-ink-subtle)] hover:text-[var(--color-ink)] transition-colors">
                 ← Back to Plans & Pricing
               </Link>
@@ -230,126 +283,427 @@ function PaymentForm() {
     <>
       <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} onSuccess={handleAuthSuccess} />
       <Script id="razorpay-sdk" src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
-      <div className="pt-24 pb-20 px-4">
-      <div className="max-w-md mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-[var(--color-ink)] mb-2">Complete Purchase</h1>
-          <p className="text-[var(--color-ink-muted)] text-sm">Your license key will be shown immediately after payment.</p>
+
+      <div className="pt-20 pb-24 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+        {/* Header Breadcrumb */}
+        <div className="mb-8">
+          <Link
+            href="/pricing"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] transition-colors mb-3"
+          >
+            ← Back to Pricing
+          </Link>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h1 className="text-3xl font-extrabold text-[var(--color-ink)] tracking-tight">Complete Your Order</h1>
+              <p className="text-[var(--color-ink-muted)] text-sm mt-1">Instant activation · Official Razorpay Checkout · 100% Secure</p>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-emerald-500 font-medium bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full w-fit">
+              <ShieldCheck className="w-4 h-4" /> 256-Bit SSL Encrypted
+            </div>
+          </div>
         </div>
 
-        <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl p-6 space-y-5">
-
-          {/* Offer banner */}
-          {isOfferFlow && selectedPlan && (
-            <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3">
-              <Tag className="w-5 h-5 text-amber-400 shrink-0" />
-              <div>
-                <p className="text-amber-300 font-bold text-sm">Special Scratch Card Offer</p>
-                <p className="text-[var(--color-ink-muted)] text-xs">
-                  {selectedPlan.duration_days} Days Access ·{' '}
-                  <span className="line-through text-slate-500 mr-1">₹{Math.round(selectedPlan.regular_price ?? 49)}</span>
-                  <span className="text-amber-400 font-semibold">₹{offerPriceParam}</span>
-                </p>
+        {/* 2-Column Split Cart Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+          
+          {/* LEFT COLUMN: Order Summary & Plan Features */}
+          <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
+            <div className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-3xl p-6 sm:p-7 shadow-xl shadow-black/5 dark:shadow-none space-y-6">
+              
+              {/* Order Card Header */}
+              <div className="flex items-start justify-between gap-4 pb-5 border-b border-[var(--color-line)]">
+                <div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-brand-500 bg-brand-500/10 px-2.5 py-0.5 rounded-full">
+                    Selected Subscription
+                  </span>
+                  <h2 className="text-2xl font-black text-[var(--color-ink)] mt-1.5">
+                    {selectedPlan?.name || 'Live TV Plan'}
+                  </h2>
+                  <p className="text-xs text-[var(--color-ink-muted)] mt-0.5">
+                    {selectedPlan?.duration_days ?? 30} Days Unlimited Access · {selectedPlan?.max_devices ?? 1} Device{selectedPlan?.max_devices && selectedPlan.max_devices > 1 ? 's' : ''}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-extrabold text-[var(--color-ink)]">
+                    ₹{Math.round(originalPrice)}
+                  </div>
+                  <span className="text-[11px] text-[var(--color-ink-subtle)] font-medium">Billed Once</span>
+                </div>
               </div>
+
+              {/* Offer Banner if active */}
+              {isOfferFlow && (
+                <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3.5">
+                  <Sparkles className="w-5 h-5 text-amber-400 shrink-0" />
+                  <div className="text-xs">
+                    <p className="text-amber-400 font-bold">Special Scratch Card Price Applied</p>
+                    <p className="text-[var(--color-ink-muted)] mt-0.5">
+                      Regular: <span className="line-through">₹{selectedPlan?.regular_price}</span> → Special: <span className="text-amber-400 font-semibold">₹{offerPriceParam}</span>
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Plan Included Features */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-[var(--color-ink-muted)] uppercase tracking-wider">What&apos;s Included:</p>
+                <div className="space-y-2.5 text-xs text-[var(--color-ink)]">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                    </div>
+                    <span><strong>850+ Live Channels</strong> (Hindi, Tamil, Telugu, Bengali &amp; 8 more)</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                    </div>
+                    <span><strong>{selectedPlan?.max_devices ?? 1} Device Concurrent Access</strong> (Phone, TV, Tablet)</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                    </div>
+                    <span><strong>Anti-Stutter &amp; Fast Buffer Engine</strong> (Clean smooth playback)</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                    </div>
+                    <span><strong>Instant Key Delivery</strong> on screen &amp; synced to your account</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Price Breakdown */}
+              <div className="pt-4 border-t border-[var(--color-line)] space-y-2.5 text-sm">
+                <div className="flex justify-between text-[var(--color-ink-muted)] text-xs">
+                  <span>Subtotal</span>
+                  <span>₹{Math.round(originalPrice)}</span>
+                </div>
+
+                {appliedCoupon && (
+                  <div className="flex justify-between items-center text-xs text-emerald-500 font-semibold bg-emerald-500/10 px-2.5 py-1.5 rounded-xl border border-emerald-500/20">
+                    <div className="flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5" />
+                      <span>Coupon ({appliedCoupon.code})</span>
+                    </div>
+                    <span>- ₹{appliedCoupon.discount_amount}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between text-[var(--color-ink-muted)] text-xs">
+                  <span>Platform &amp; Gateway Fees</span>
+                  <span className="text-emerald-500 font-medium">₹0 (Waived)</span>
+                </div>
+
+                <div className="flex justify-between text-[var(--color-ink-muted)] text-xs">
+                  <span>Taxes (GST)</span>
+                  <span>Included</span>
+                </div>
+
+                <div className="pt-3 border-t border-[var(--color-line)] flex items-baseline justify-between">
+                  <span className="font-bold text-base text-[var(--color-ink)]">Total Due Today</span>
+                  <div className="text-right">
+                    <span className="text-2xl font-black text-brand-500">₹{Math.round(finalPrice)}</span>
+                    {appliedCoupon && (
+                      <p className="text-[11px] text-emerald-500 font-medium mt-0.5">
+                        You saved ₹{appliedCoupon.discount_amount}!
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Trust Badges */}
+              <div className="pt-3 border-t border-[var(--color-line)] grid grid-cols-2 gap-3 text-[11px] text-[var(--color-ink-muted)]">
+                <div className="flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span>256-Bit SSL Secured</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Instant Activation</span>
+                </div>
+              </div>
+
             </div>
-          )}
-
-          {/* Plan selector — only shown in normal flow */}
-          {!isOfferFlow && (
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-ink-muted)] mb-2">Select Plan</label>
-              <select
-                value={selectedPlanId ?? ''}
-                onChange={e => setSelectedPlanId(parseInt(e.target.value))}
-                className="w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl px-4 py-3 text-[var(--color-ink)] text-sm focus:outline-none focus:border-brand-500"
-              >
-                {(hasClaimedTrial ? plans.filter(p => p.price > 0) : plans).map(p => {
-                  const isTrial = p.price === 0;
-                  return (
-                    <option key={p.id} value={p.id}>
-                      {p.name} — {isTrial ? '₹0 (1-Month Free Trial)' : `₹${Math.round(p.price)}`} / {p.duration_days >= 365 ? `${Math.round(p.duration_days / 365)}yr` : p.duration_days >= 30 ? `${Math.round(p.duration_days / 30)}mo` : `${p.duration_days}d`}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-          )}
-
-          {/* Selected plan summary */}
-          {selectedPlan && !isOfferFlow && (
-            <div className="bg-brand-500/10 border border-brand-500/20 rounded-xl px-4 py-3 text-sm">
-              <span className="text-brand-500 font-semibold">{selectedPlan.name}</span>
-              <span className="text-[var(--color-ink-muted)] ml-2">· ₹{Math.round(selectedPlan.price)} · {selectedPlan.max_devices} device{selectedPlan.max_devices > 1 ? 's' : ''}</span>
-            </div>
-          )}
-
-          {/* Form fields */}
-          {[
-            { name: 'customer_name', label: 'Full Name', type: 'text', placeholder: 'Rahul Kumar' },
-            { name: 'email', label: 'Email Address', type: 'email', placeholder: 'rahul@example.com' },
-            { name: 'mobile', label: 'Mobile Number', type: 'tel', placeholder: '9999999999' },
-          ].map(f => (
-            <div key={f.name}>
-              <label className="block text-sm font-medium text-[var(--color-ink-muted)] mb-2">{f.label}</label>
-              <input
-                type={f.type}
-                placeholder={f.placeholder}
-                value={form[f.name as keyof typeof form]}
-                onChange={e => setForm(prev => ({ ...prev, [f.name]: e.target.value }))}
-                className="w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl px-4 py-3 text-[var(--color-ink)] placeholder:text-[var(--color-ink-subtle)] text-sm focus:outline-none focus:border-brand-500"
-              />
-            </div>
-          ))}
-
-          {error && (
-            <div className="flex items-center gap-2 bg-brand-500/10 border border-brand-500/30 text-brand-500 text-sm px-4 py-3 rounded-xl">
-              <AlertCircle className="w-4 h-4 shrink-0" /> {error}
-            </div>
-          )}
-
-          <button
-            onClick={handlePay}
-            disabled={loading || !selectedPlan}
-            className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-brand-500 hover:bg-brand-600 dark:hover:bg-brand-400 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-base transition-colors"
-          >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-            {loading
-              ? 'Processing...'
-              : selectedPlan
-                ? selectedPlan.price === 0
-                  ? 'Claim 1-Month Free Trial Now'
-                  : `Pay ₹${isOfferFlow ? offerPriceParam : Math.round(selectedPlan.price)} Securely`
-                : 'Pay Securely'}
-          </button>
-
-          <div className="flex items-center justify-center gap-2 text-slate-500 text-xs">
-            <ShieldCheck className="w-4 h-4 text-green-500" />
-            {selectedPlan?.price === 0
-              ? '100% Free Trial · Instant Activation · No Card Required'
-              : 'Secured by Razorpay · UPI · Cards · Netbanking'}
           </div>
 
-          {paymentMode === 'both' && selectedPlan && (
-            <div className="mt-4 pt-4 border-t border-[var(--color-line)] text-center">
-              <p className="text-xs text-[var(--color-ink-muted)] mb-2">Prefer direct QR scan & UPI transfer?</p>
-              <Link 
-                href={`/checkout?plan=${selectedPlan.id}${offerPriceParam ? `&offer_price=${offerPriceParam}` : ''}`}
-                className="inline-block text-xs font-semibold text-brand-500 hover:text-brand-600 dark:hover:text-brand-400 underline"
+          {/* RIGHT COLUMN: Contact Details, Coupon Input & Razorpay Action */}
+          <div className="lg:col-span-7 space-y-6">
+            <div className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-3xl p-6 sm:p-8 shadow-xl shadow-black/5 dark:shadow-none space-y-6">
+              
+              {/* Account Pill */}
+              {user && (
+                <div className="flex items-center justify-between bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl px-4 py-3 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-brand-500/20 text-brand-500 font-bold flex items-center justify-center text-sm">
+                      {((user.full_name || user.email || 'U')[0] || 'U').toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-bold text-[var(--color-ink)]">{user.full_name || 'Subscriber'}</p>
+                      <p className="text-[var(--color-ink-muted)] text-[11px]">{user.email}</p>
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center gap-1 text-[11px] text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md font-medium border border-emerald-500/20">
+                    <Check className="w-3 h-3" /> Signed In
+                  </span>
+                </div>
+              )}
+
+              {/* Plan Switcher Dropdown (normal flow only) */}
+              {!isOfferFlow && (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[var(--color-ink-muted)] mb-2">
+                    Change Subscription Plan
+                  </label>
+                  <select
+                    value={selectedPlanId ?? ''}
+                    onChange={e => setSelectedPlanId(parseInt(e.target.value))}
+                    className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl px-4 py-3.5 text-[var(--color-ink)] text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                  >
+                    {(hasClaimedTrial ? plans.filter(p => p.price > 0) : plans).map(p => {
+                      const isTrial = p.price === 0;
+                      return (
+                        <option key={p.id} value={p.id}>
+                          {p.name} — {isTrial ? '₹0 (1-Month Free Trial)' : `₹${Math.round(p.price)}`} · {p.duration_days >= 365 ? `${Math.round(p.duration_days / 365)} Year` : `${p.duration_days} Days`} · {p.max_devices} Device{p.max_devices > 1 ? 's' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+
+              {/* Contact Information Fields */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-ink-muted)]">
+                    Billing Contact Details
+                  </h3>
+                  <span className="text-[11px] text-[var(--color-ink-subtle)]">License sent here</span>
+                </div>
+
+                <div className="space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--color-ink)] mb-1.5">Full Name *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Rahul Sharma"
+                      value={form.customer_name}
+                      onChange={e => setForm(prev => ({ ...prev, customer_name: e.target.value }))}
+                      required
+                      className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl px-4 py-3 text-[var(--color-ink)] placeholder-[var(--color-ink-subtle)] text-sm focus:outline-none focus:border-brand-500 transition-colors"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--color-ink)] mb-1.5">Email Address *</label>
+                      <input
+                        type="email"
+                        placeholder="name@example.com"
+                        value={form.email}
+                        onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
+                        required
+                        className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl px-4 py-3 text-[var(--color-ink)] placeholder-[var(--color-ink-subtle)] text-sm focus:outline-none focus:border-brand-500 transition-colors"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--color-ink)] mb-1.5">WhatsApp Mobile *</label>
+                      <input
+                        type="tel"
+                        placeholder="9876543210"
+                        value={form.mobile}
+                        onChange={e => setForm(prev => ({ ...prev, mobile: e.target.value }))}
+                        required
+                        className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl px-4 py-3 text-[var(--color-ink)] placeholder-[var(--color-ink-subtle)] text-sm focus:outline-none focus:border-brand-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* COUPON & PROMO CODE SECTION */}
+              <div className="pt-2 border-t border-[var(--color-line)] space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-ink-muted)] flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-brand-500" />
+                    Promo / Coupon Code
+                  </label>
+                  {appliedCoupon && (
+                    <span className="text-[11px] font-bold text-emerald-500">
+                      Code Applied
+                    </span>
+                  )}
+                </div>
+
+                {appliedCoupon ? (
+                  // Applied Coupon State
+                  <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-2xl px-4 py-3 text-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs">
+                        %
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-emerald-400 tracking-wider">
+                            {appliedCoupon.code}
+                          </span>
+                          <span className="text-[11px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-semibold">
+                            {appliedCoupon.formatted_discount}
+                          </span>
+                        </div>
+                        {appliedCoupon.description && (
+                          <p className="text-[11px] text-[var(--color-ink-muted)] mt-0.5">
+                            {appliedCoupon.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoupon}
+                      title="Remove coupon"
+                      className="text-[var(--color-ink-muted)] hover:text-red-400 p-1.5 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  // Input State
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          placeholder="Enter coupon code (e.g. WELCOME10)"
+                          value={couponCodeInput}
+                          onChange={e => {
+                            setCouponCodeInput(e.target.value.toUpperCase());
+                            setCouponError('');
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleApplyCoupon();
+                            }
+                          }}
+                          className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl px-4 py-3 text-[var(--color-ink)] placeholder-[var(--color-ink-subtle)] text-sm font-mono uppercase tracking-wider focus:outline-none focus:border-brand-500 transition-colors"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyCoupon()}
+                        disabled={couponLoading || !couponCodeInput.trim()}
+                        className="px-5 py-3 bg-[var(--color-surface-2)] hover:bg-[var(--color-line)] disabled:opacity-50 text-[var(--color-ink)] border border-[var(--color-line)] rounded-2xl text-sm font-bold transition-all cursor-pointer shrink-0"
+                      >
+                        {couponLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
+                      </button>
+                    </div>
+
+                    {/* Quick suggestion pills */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
+                      <span className="text-[var(--color-ink-subtle)]">Try:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyCoupon('WELCOME10')}
+                        className="px-2.5 py-1 bg-brand-500/10 hover:bg-brand-500/20 text-brand-500 border border-brand-500/20 rounded-lg font-mono font-semibold transition-colors cursor-pointer"
+                      >
+                        WELCOME10 (10% OFF)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyCoupon('SAVE50')}
+                        className="px-2.5 py-1 bg-brand-500/10 hover:bg-brand-500/20 text-brand-500 border border-brand-500/20 rounded-lg font-mono font-semibold transition-colors cursor-pointer"
+                      >
+                        SAVE50 (₹50 OFF)
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {couponError && (
+                  <p className="text-xs text-red-400 flex items-center gap-1.5 pt-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {couponError}
+                  </p>
+                )}
+              </div>
+
+              {/* Error Banner */}
+              {error && (
+                <div className="p-4 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-2xl flex items-center gap-2.5">
+                  <AlertCircle className="w-5 h-5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* PRIMARY ACTION CTA */}
+              <button
+                type="button"
+                onClick={handlePay}
+                disabled={loading || !selectedPlan}
+                className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl bg-brand-600 hover:bg-brand-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-extrabold text-base transition-all shadow-xl shadow-brand-600/25 cursor-pointer"
               >
-                Pay via Manual UPI App / QR Code &rarr;
-              </Link>
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <span>
+                      {selectedPlan
+                        ? finalPrice === 0
+                          ? 'Claim 100% Free Access Now'
+                          : `Pay ₹${Math.round(finalPrice)} Securely`
+                        : 'Proceed to Payment'}
+                    </span>
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
+              </button>
+
+              {/* Supported payment methods & guarantee */}
+              <div className="pt-2 text-center space-y-2">
+                <p className="text-[11px] text-[var(--color-ink-muted)]">
+                  Guaranteed safe checkout via <strong>Razorpay Live Gateway</strong>
+                </p>
+                <div className="flex items-center justify-center gap-3 text-xs text-[var(--color-ink-subtle)] font-medium">
+                  <span>UPI (GPay / PhonePe / Paytm)</span>
+                  <span>·</span>
+                  <span>Credit / Debit Cards</span>
+                  <span>·</span>
+                  <span>Netbanking</span>
+                </div>
+              </div>
+
+              {/* Manual UPI fallback if mode is both */}
+              {paymentMode === 'both' && selectedPlan && (
+                <div className="pt-4 border-t border-[var(--color-line)] text-center">
+                  <p className="text-xs text-[var(--color-ink-muted)] mb-1.5">Need to pay via QR code transfer?</p>
+                  <Link
+                    href={`/checkout?plan=${selectedPlan.id}${offerPriceParam ? `&offer_price=${offerPriceParam}` : ''}`}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-500 hover:text-brand-400"
+                  >
+                    Pay with Direct QR / UTR Reference &rarr;
+                  </Link>
+                </div>
+              )}
+
             </div>
-          )}
+          </div>
+
         </div>
       </div>
-    </div>
     </>
   );
 }
 
 export default function PaymentPage() {
   return (
-    <Suspense fallback={<div className="pt-32 text-center text-[var(--color-ink-muted)]">Loading...</div>}>
+    <Suspense fallback={<div className="pt-32 text-center text-[var(--color-ink-muted)]">Loading checkout...</div>}>
       <PaymentForm />
     </Suspense>
   );

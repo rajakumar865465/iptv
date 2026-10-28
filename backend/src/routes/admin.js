@@ -4,6 +4,7 @@ const adminController = require('../controllers/adminController');
 const maintenanceController = require('../controllers/maintenanceController');
 const deviceController = require('../controllers/deviceController');
 const planController = require('../controllers/planController');
+const adminCouponController = require('../controllers/adminCouponController');
 const analyticsController = require('../controllers/analyticsController');
 const systemController = require('../controllers/systemController');
 const logController = require('../controllers/logController');
@@ -77,6 +78,12 @@ router.get('/plans', planController.getPlans);
 router.post('/plans', planController.createPlan);
 router.put('/plans/:id', planController.updatePlan);
 router.delete('/plans/:id', planController.deletePlan);
+
+// ─── Coupons ──────────────────────────────────────
+router.get('/coupons', adminCouponController.getCoupons);
+router.post('/coupons', adminCouponController.createCoupon);
+router.put('/coupons/:id', adminCouponController.updateCoupon);
+router.delete('/coupons/:id', adminCouponController.deleteCoupon);
 
 // ─── Payments & Orders ────────────────────────────
 router.get('/payments', adminController.getPayments);
