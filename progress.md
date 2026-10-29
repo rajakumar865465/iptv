@@ -400,4 +400,10 @@
       - Added `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` to `next.config.ts` headers for all HTML pages.
       - Configured port 80 301 permanent redirect and HSTS on port 443 in EC2 Nginx configuration.
     - **L-03 (Low — Route Collision on `/api/channels/list`):**
-      - Updated `routes/channels.js` to use `router.get('/:id(\\d+)')`, preventing non-numeric paths from crashing PostgreSQL integer casts with 500 errors. Added dedicated alias for `/api/channels/list`.
+      - Fixed `/api/channels/list` returning 500 by defining the explicit `router.get('/list', ...)` route before parameterized `/:id`.
+      - In `channelController.getChannel`, added robust numeric checking (`isNaN(idNum) || idNum <= 0`) returning HTTP 404 instead of unhandled SQL casting crashes.
+      - Fixed `backend/src/routes/channels.js` to use standard Express path `/:id` (avoiding Express `path-to-regexp` v6 syntax errors).
+    - **Database Test Artifact Purge:**
+      - Ran `backend/scripts/purge_assessment_test_data.js` on EC2, safely removing 28 test orders, 14 test licenses, and 5 test users generated during the vulnerability assessment.
+    - **RFC 9116 Responsible Disclosure (`security.txt`):**
+      - Created `/.well-known/security.txt` in both frontend and backend specifying security contacts, encryption policy, and canonical disclosure endpoints.
