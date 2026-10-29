@@ -333,8 +333,8 @@ exports.createOrder = async (req, res) => {
       }
     }
 
-    let userId = null;
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    let userId = req.user?.userId || req.user?.id || null;
+    if (!userId && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
       const token = req.headers.authorization.split(' ')[1];
       try {
         const decoded = verifyToken(token);
@@ -349,16 +349,10 @@ exports.createOrder = async (req, res) => {
       }
     }
 
-    if (!userId && email) {
-      const userLookup = await db.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email.toLowerCase().trim()]);
-      if (userLookup.rows.length > 0) {
-        userId = userLookup.rows[0].id;
-      }
-    }
-
     if (finalPrice === 0) {
       const customerEmail = email.toLowerCase().trim();
-      if (!couponRecord && plan.price === 0) {
+      const isTrialPlan = Number(plan.price) === 0 || (plan.slug && plan.slug.includes('trial'));
+      if (isTrialPlan || !couponRecord) {
         if (!userId) {
           return res.status(401).json({
             success: false,

@@ -126,6 +126,13 @@ app.get(['/health', '/api/health'], async (req, res) => {
   res.json({ status: 'ok', db: dbStatus, timestamp: now.toISOString(), epoch: Math.floor(now.getTime() / 1000), timezone: 'UTC' });
 });
 
+// RFC 9116 security.txt
+app.get(['/.well-known/security.txt', '/security.txt'], (req, res) => {
+  res.type('text/plain; charset=utf-8').send(
+    ['Contact: mailto:security@luxomall.in', 'Contact: https://nivatv.luxomall.in/support', 'Expires: 2027-12-31T23:59:59.000Z', 'Preferred-Languages: en, hi', 'Canonical: https://nivatv.luxomall.in/.well-known/security.txt', 'Policy: https://nivatv.luxomall.in/privacy', '\n'].join('\n')
+  );
+});
+
 // Initialize database tables on startup
 async function initDatabase() {
   try {

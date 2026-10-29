@@ -8,6 +8,8 @@ async function purgeAssessmentTestData() {
       `SELECT order_id, email, customer_name, license_id 
        FROM public_orders 
        WHERE LOWER(email) LIKE '%@test.com' 
+          OR LOWER(email) LIKE '%@example.com'
+          OR LOWER(email) LIKE '%pentester%'
           OR customer_name ILIKE '%security%' 
           OR customer_name ILIKE '%probe%'
           OR customer_name ILIKE '%test%'`
@@ -19,7 +21,10 @@ async function purgeAssessmentTestData() {
     // 2. Delete test redemptions
     await db.query(
       `DELETE FROM coupon_redemptions WHERE order_id IN (
-         SELECT order_id FROM public_orders WHERE LOWER(email) LIKE '%@test.com'
+         SELECT order_id FROM public_orders 
+         WHERE LOWER(email) LIKE '%@test.com' 
+            OR LOWER(email) LIKE '%@example.com'
+            OR LOWER(email) LIKE '%pentester%'
        )`
     );
 
@@ -27,6 +32,8 @@ async function purgeAssessmentTestData() {
     const delOrders = await db.query(
       `DELETE FROM public_orders 
        WHERE LOWER(email) LIKE '%@test.com' 
+          OR LOWER(email) LIKE '%@example.com'
+          OR LOWER(email) LIKE '%pentester%'
           OR customer_name ILIKE '%security%' 
           OR customer_name ILIKE '%probe%'
           OR customer_name ILIKE '%test%'
