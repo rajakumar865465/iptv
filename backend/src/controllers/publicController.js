@@ -359,23 +359,31 @@ exports.createOrder = async (req, res) => {
     if (finalPrice === 0) {
       const customerEmail = email.toLowerCase().trim();
       if (!couponRecord && plan.price === 0) {
-        if (userId) {
-          const uRes = await db.query('SELECT has_claimed_trial FROM users WHERE id = $1', [userId]);
-          if (uRes.rows[0]?.has_claimed_trial) {
-            return error(res, 'You have already used your 1-Month Free Trial.', 400);
-          }
-        } else if (customerEmail) {
-          const emailCheck = await db.query(
-            `SELECT 1 FROM licenses l JOIN plans p ON l.plan_id = p.id WHERE LOWER(l.customer_email) = $1 AND (p.price = 0 OR p.slug LIKE '%trial%') LIMIT 1`,
-            [customerEmail]
-          );
-          if (emailCheck.rows.length > 0) {
-            return error(res, 'This email has already claimed a Free Trial.', 400);
-          }
+        if (!userId) {
+          return res.status(401).json({
+            success: false,
+            message: 'Sign in is required to claim your 1-Month Free Trial.',
+            error_code: 'AUTH_REQUIRED',
+          });
+        }
+        const uRes = await db.query('SELECT has_claimed_trial FROM users WHERE id = $1', [userId]);
+        if (uRes.rows[0]?.has_claimed_trial) {
+          return error(res, 'You have already used your 1-Month Free Trial.', 400);
+        }
+        const emailCheck = await db.query(
+          `SELECT 1 FROM licenses l JOIN plans p ON l.plan_id = p.id 
+           WHERE (l.user_id = $1 OR LOWER(l.customer_email) = $2) 
+             AND (p.price = 0 OR p.slug LIKE '%trial%') 
+           LIMIT 1`,
+          [userId, customerEmail]
+        );
+        if (emailCheck.rows.length > 0) {
+          return error(res, 'This account or email has already claimed a Free Trial.', 400);
         }
       }
 
-      const orderId = `FREE_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+      // 128-bit unguessable cryptographically secure order ID (H-01 remediation)
+      const orderId = `FREE_${crypto.randomBytes(16).toString('hex').toUpperCase()}`;
       const licenseKey = generateLicenseKey();
       const now = new Date();
       const expiresAt = new Date(now);
@@ -683,41 +691,49 @@ exports.verifyPayment = async (req, res) => {
 };
 
 // GET /api/public/payments/status/:orderId?email=...  (or ?mobile=...)
-// Ownership check: since this endpoint is unauthenticated/public, the caller
-// must also prove they know the contact info supplied at checkout time
-// (public_orders.email / public_orders.mobile), preventing IDOR via a
-// guessable/sequential orderId alone.
+// Strict ownership check (M-01 IDOR Remediation):
+// Order status lookups MUST prove ownership either via:
+// 1. Authenticated session matching order.user_id (or admin role), OR
+// 2. Exact match of the email or mobile supplied at checkout.
+// Anonymous lookups without matching contact info are rejected with 404 to avoid enumeration.
 exports.getOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
     const email = (req.query.email || '').toString().trim().toLowerCase();
     const mobile = (req.query.mobile || '').toString().replace(/[\s\-+]/g, '');
 
-    const conditions = ['po.order_id = $1'];
-    const params = [orderId];
-    if (email) {
-      params.push(email);
-      conditions.push(`LOWER(po.email) = $${params.length}`);
-    }
-    if (mobile) {
-      params.push(mobile);
-      conditions.push(`REPLACE(REPLACE(REPLACE(po.mobile, ' ', ''), '-', ''), '+', '') = $${params.length}`);
-    }
-
+    // 1. Fetch order details first
     const result = await db.query(
-      `SELECT po.order_id, po.status, po.plan_id, po.amount, po.currency, po.created_at,
+      `SELECT po.order_id, po.status, po.plan_id, po.amount, po.currency, po.created_at, po.email, po.mobile, po.user_id,
               l.license_key, l.status AS license_status, l.duration_days, l.max_devices,
               p.name AS plan_name
        FROM public_orders po
        LEFT JOIN licenses l ON po.license_id = l.id
        LEFT JOIN plans p ON po.plan_id = p.id
-       WHERE ${conditions.join(' AND ')}`,
-      params
+       WHERE po.order_id = $1`,
+      [orderId]
     );
+
     if (result.rows.length === 0) {
       return error(res, 'Order not found', 404);
     }
+
     const row = result.rows[0];
+
+    // 2. Verify ownership
+    const isOwnerUser = req.user && row.user_id && req.user.id === row.user_id;
+    const isAdmin = req.user && (req.user.role === 'admin' || req.user.role === 'superadmin');
+    const orderEmail = (row.email || '').toLowerCase().trim();
+    const orderMobile = (row.mobile || '').replace(/[\s\-+]/g, '');
+
+    const isMatchingEmail = email && orderEmail && email === orderEmail;
+    const isMatchingMobile = mobile && orderMobile && mobile === orderMobile;
+
+    if (!isOwnerUser && !isAdmin && !isMatchingEmail && !isMatchingMobile) {
+      // Return 404 to avoid disclosing whether the order ID exists
+      return error(res, 'Order not found or verification details missing. Please provide the checkout email or mobile.', 404);
+    }
+
     return success(res, {
       order_id: row.order_id,
       status: row.status,

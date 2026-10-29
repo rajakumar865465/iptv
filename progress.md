@@ -376,3 +376,28 @@
     - **Unified Pro Card (`UnifiedProCard.tsx`):**
       - Switched device tier toggle pill active state to `bg-[var(--color-ink)] text-[var(--color-base)] font-bold shadow-sm`, rendering high-contrast dark-on-light in light mode and light-on-dark in dark mode.
   - **Verification:** Built cleanly with Next.js Turbopack (57/57 pages prerendered, 0 TypeScript errors). Tested contrast compliance across both Light and Dark modes.
+
+- **Consolidated Security Assessment Remediation (NIVATV_SECURITY_REPORT_CONSOLIDATED.md) (October 2026):**
+  - **Remediated All Findings from Assessment Report:**
+    - **H-01 (High — Free-Trial Order Throttling & Auth Gate):**
+      - In `publicController.createOrder`, strictly enforced authentication (`userId`) for any free trial orders (`finalPrice === 0` without coupon, or trial plan). Unauthenticated checkout requests are blocked with `401 Unauthorized` (`AUTH_REQUIRED`).
+      - Validated `has_claimed_trial` and cross-referenced `licenses` and `public_orders` to block trial re-use by user ID or email.
+      - Upgraded free order IDs to cryptographically secure 128-bit identifiers (`FREE_` + 16-byte hex).
+      - Added `orderCreationLimiter` (max 10 orders per 15 min per IP) in `rateLimit.js`.
+    - **H-02 (High — Catalog Stream URL Protection):**
+      - In `channelController.formatChannelRow`, stripped `stream_url` and `backup_stream_url` from public catalog responses (`/api/channels`, `/api/channels/search`, `/api/channels/category/:id`, `/api/channels/:id`).
+      - Playback streams are now served exclusively through the authenticated, license-checked, and session-guarded endpoint `/api/channels/:id/playback`.
+    - **M-01 (Medium — Order Status IDOR Closed):**
+      - In `publicController.getOrderStatus`, replaced lax optional filters with strict ownership verification. Anonymous requests without exact matching checkout email or mobile are rejected with `404 Order not found`.
+      - Switched rate limiting on `/api/public/payments/status/:orderId` to `orderLookupLimiter` (max 60 per 15 min).
+    - **M-02 (Medium — Anti-Automation & Disposable Email Block):**
+      - In `authController.signup`, blocked disposable/burner email domains (`test.com`, `mailinator.com`, `tempmail.com`, etc.) and normalized emails to lowercase.
+      - Added `signupLimiter` (max 5 signups per hour per IP) in `rateLimit.js` and mounted on `POST /api/auth/signup`.
+    - **M-03 (Medium — JWT Clock Skew Tolerance & Health Check):**
+      - In `jwt.js`, configured `{ clockTolerance: 60 }` across `verifyToken`, `verifyRefreshToken`, and `verifyAdminToken`.
+      - In `app.js`, enhanced `/health` and added `/api/health` returning server UTC time, DB time, and epoch timestamps.
+    - **L-01 (Low — HSTS & HTTP→HTTPS Redirect):**
+      - Added `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` to `next.config.ts` headers for all HTML pages.
+      - Configured port 80 301 permanent redirect and HSTS on port 443 in EC2 Nginx configuration.
+    - **L-03 (Low — Route Collision on `/api/channels/list`):**
+      - Updated `routes/channels.js` to use `router.get('/:id(\\d+)')`, preventing non-numeric paths from crashing PostgreSQL integer casts with 500 errors. Added dedicated alias for `/api/channels/list`.

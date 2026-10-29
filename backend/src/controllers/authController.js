@@ -19,9 +19,22 @@ exports.signup = async (req, res) => {
     if (!full_name || typeof full_name !== 'string' || full_name.trim().length < 2 || full_name.trim().length > 100) {
       return error(res, 'Full name must be 2–100 characters', 400);
     }
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       return error(res, 'Invalid email address', 400);
     }
+
+    // Anti-automation: block disposable and fake test domains
+    const DISPOSABLE_DOMAINS = [
+      'test.com', 'example.com', 'mailinator.com', 'tempmail.com', 'throwawaymail.com',
+      'guerrillamail.com', '10minutemail.com', 'yopmail.com', 'sharklasers.com',
+      'getairmail.com', 'dispostable.com', 'fakeinbox.com', 'trashmail.com'
+    ];
+    const emailDomain = cleanEmail.split('@')[1];
+    if (DISPOSABLE_DOMAINS.includes(emailDomain)) {
+      return error(res, 'Please provide a valid personal or business email address.', 400);
+    }
+
     const cleanMobile = (mobile || '').replace(/[\s\-+]/g, '');
     if (cleanMobile && !/^\d{9,15}$/.test(cleanMobile)) {
       return error(res, 'Invalid mobile number', 400);
@@ -30,10 +43,10 @@ exports.signup = async (req, res) => {
       return error(res, 'Password must be 6–128 characters', 400);
     }
 
-    // Check if user exists using cleanMobile for consistent lookup
+    // Check if user exists using cleanEmail and cleanMobile for consistent lookup
     const existing = await db.query(
-      'SELECT id FROM users WHERE email = $1 OR (mobile = $2 AND $2 != \'\')',
-      [email, cleanMobile]
+      'SELECT id FROM users WHERE LOWER(email) = LOWER($1) OR (mobile = $2 AND $2 != \'\')',
+      [cleanEmail, cleanMobile]
     );
     if (existing.rows.length > 0) {
       return error(res, 'Email or mobile number already registered', 409);
@@ -44,7 +57,7 @@ exports.signup = async (req, res) => {
     const result = await db.query(
       `INSERT INTO users (full_name, email, mobile, password_hash)
        VALUES ($1, $2, $3, $4) RETURNING id, full_name, email, mobile, status, role, created_at`,
-      [full_name, email, cleanMobile, passwordHash]
+      [full_name.trim(), cleanEmail, cleanMobile, passwordHash]
     );
 
     const user = result.rows[0];

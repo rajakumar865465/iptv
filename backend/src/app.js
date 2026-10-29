@@ -114,7 +114,7 @@ app.get('/', (req, res) => {
 });
 
 // Health check — never expose raw DB error messages
-app.get('/health', async (req, res) => {
+app.get(['/health', '/api/health'], async (req, res) => {
   let dbStatus = 'unknown';
   try {
     const result = await db.query('SELECT NOW()');
@@ -122,7 +122,8 @@ app.get('/health', async (req, res) => {
   } catch (err) {
     dbStatus = 'error'; // never expose err.message — it may contain connection string details
   }
-  res.json({ status: 'ok', db: dbStatus, timestamp: new Date().toISOString() });
+  const now = new Date();
+  res.json({ status: 'ok', db: dbStatus, timestamp: now.toISOString(), epoch: Math.floor(now.getTime() / 1000), timezone: 'UTC' });
 });
 
 // Initialize database tables on startup

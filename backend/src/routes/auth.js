@@ -3,10 +3,10 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 const googleAuthController = require('../controllers/googleAuthController');
 const otpAuthController = require('../controllers/otpAuthController');
-const { standardLimiter, authLimiter, refreshLimiter } = require('../middleware/rateLimit');
+const { standardLimiter, authLimiter, refreshLimiter, signupLimiter } = require('../middleware/rateLimit');
 const authMiddleware = require('../middleware/auth');
 
-router.post('/signup', authLimiter, authController.signup);
+router.post('/signup', signupLimiter, authController.signup);
 router.post('/login', authLimiter, authController.login);
 router.post('/google-login', authLimiter, googleAuthController.googleLogin);
 router.post('/send-otp', authLimiter, otpAuthController.sendOtp);

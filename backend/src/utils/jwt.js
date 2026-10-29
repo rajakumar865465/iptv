@@ -30,13 +30,13 @@ const generateRefreshToken = (userId) => {
 };
 
 const verifyToken = (token) => {
-  return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+  return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'], clockTolerance: 60 });
 };
 
 // Verify refresh token and return userId embedded in it.
 // Throws if token is invalid, expired, or wrong type.
 const verifyRefreshToken = (refreshToken) => {
-  const payload = jwt.verify(refreshToken, REFRESH_SECRET, { algorithms: ['HS256'] });
+  const payload = jwt.verify(refreshToken, REFRESH_SECRET, { algorithms: ['HS256'], clockTolerance: 60 });
   if (payload.type !== 'refresh') throw new Error('Not a refresh token');
   return payload;
 };
@@ -55,7 +55,7 @@ const db = require('../config/db');
 
 const revokeRefreshToken = async (refreshToken) => {
   try {
-    const payload = jwt.verify(refreshToken, REFRESH_SECRET, { algorithms: ['HS256'] });
+    const payload = jwt.verify(refreshToken, REFRESH_SECRET, { algorithms: ['HS256'], clockTolerance: 60 });
     if (payload.type !== 'refresh') return;
     const jti = payload.jti || payload.iat;
     if (!jti) return;
@@ -71,7 +71,7 @@ const revokeRefreshToken = async (refreshToken) => {
 
 const isRefreshTokenRevoked = async (refreshToken) => {
   try {
-    const payload = jwt.verify(refreshToken, REFRESH_SECRET, { algorithms: ['HS256'] });
+    const payload = jwt.verify(refreshToken, REFRESH_SECRET, { algorithms: ['HS256'], clockTolerance: 60 });
     if (payload.type !== 'refresh') return true;
     const jti = payload.jti || payload.iat;
     if (!jti) return true;
@@ -119,7 +119,7 @@ const generateAdminToken = (payload, expiresIn = '1d') => {
 };
 
 const verifyAdminToken = (token) => {
-  return jwt.verify(token, ADMIN_JWT_SECRET, { algorithms: ['HS256'] });
+  return jwt.verify(token, ADMIN_JWT_SECRET, { algorithms: ['HS256'], clockTolerance: 60 });
 };
 
 module.exports = {

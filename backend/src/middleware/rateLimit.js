@@ -98,7 +98,7 @@ const manualOrderLimiter = rateLimit({
 // random, but this still caps brute-force enumeration attempts.
 const orderLookupLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 120,
+  max: 60, // 60 lookups per 15 min per IP
   keyGenerator: ipKeyGenerator,
   validate: { xForwardedForHeader: false, default: false },
   handler: (req, res, next, options) => {
@@ -106,5 +106,37 @@ const orderLookupLimiter = rateLimit({
   },
 });
 
+// Order creation throttle (H-01 remediation)
+const orderCreationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Max 10 orders created per 15 min per IP
+  keyGenerator: ipKeyGenerator,
+  validate: { xForwardedForHeader: false, default: false },
+  handler: (req, res, next, options) => {
+    res.status(429).json({ success: false, message: 'Too many order attempts. Please wait a few minutes before trying again.' });
+  },
+});
 
-module.exports = { standardLimiter, apiLimiter, searchLimiter, authLimiter, refreshLimiter, channelReportLimiter, manualOrderLimiter, orderLookupLimiter };
+// Signup throttle to prevent automated bot registrations (M-02 remediation)
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Max 5 signups per IP per hour
+  keyGenerator: ipKeyGenerator,
+  validate: { xForwardedForHeader: false, default: false },
+  handler: (req, res, next, options) => {
+    res.status(429).json({ success: false, message: 'Too many accounts created from this IP. Please try again later.' });
+  },
+});
+
+module.exports = {
+  standardLimiter,
+  apiLimiter,
+  searchLimiter,
+  authLimiter,
+  refreshLimiter,
+  channelReportLimiter,
+  manualOrderLimiter,
+  orderLookupLimiter,
+  orderCreationLimiter,
+  signupLimiter,
+};

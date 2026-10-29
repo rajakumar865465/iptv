@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { authLimiter, apiLimiter, manualOrderLimiter, orderLookupLimiter } = require('../middleware/rateLimit');
+const { authLimiter, apiLimiter, manualOrderLimiter, orderLookupLimiter, orderCreationLimiter } = require('../middleware/rateLimit');
+const { optionalAuth } = require('../middleware/auth');
 const pub = require('../controllers/publicController');
 const manualOrderController = require('../controllers/manualOrderController');
 const couponController = require('../controllers/couponController');
@@ -15,9 +16,9 @@ router.get('/settings', apiLimiter, pub.getSettings);
 
 // Razorpay gateway flow — strict rate limiting.
 // Kept intact; only reachable while the admin has Razorpay as the payment mode.
-router.post('/orders/create', authLimiter, pub.createOrder);
+router.post('/orders/create', orderCreationLimiter, optionalAuth, pub.createOrder);
 router.post('/payments/verify', authLimiter, pub.verifyPayment);
-router.get('/payments/status/:orderId', apiLimiter, pub.getOrderStatus);
+router.get('/payments/status/:orderId', orderLookupLimiter, optionalAuth, pub.getOrderStatus);
 
 // Manual UPI flow — which checkout is live, server-built QR, UTR submission, status
 router.get('/payment-config', apiLimiter, manualOrderController.getPaymentConfig);

@@ -74,12 +74,22 @@ const formatChannelRow = (req, row) => {
   const protocol = req.headers['x-forwarded-proto'] || req.protocol;
   const baseUrl = `${protocol}://${req.get('host')}`;
   const localUrl = row.local_logo_url ? `${baseUrl}${row.local_logo_url}` : null;
-  return {
+  const formatted = {
     ...row,
     logo_url: localUrl || row.logo_url,
     local_logo_url: localUrl,
     logo_status: row.logo_status || 'unknown'
   };
+
+  // H-02 Remediation: Stream URLs must never be exposed publicly in catalog listings.
+  // Playback stream URLs are exclusively authorized and served via /api/channels/:id/playback.
+  const isAdmin = req && req.user && (req.user.role === 'admin' || req.user.role === 'superadmin');
+  if (!isAdmin) {
+    delete formatted.stream_url;
+    delete formatted.backup_stream_url;
+  }
+
+  return formatted;
 };
 
 // Normalize a raw language string to a canonical display name.
@@ -428,6 +438,10 @@ exports.updateChannelsByStream = async () => {
 exports.getChannel = async (req, res) => {
   try {
     const { id } = req.params;
+    const idNum = parseInt(id, 10);
+    if (isNaN(idNum) || idNum <= 0) {
+      return error(res, 'Channel not found', 404);
+    }
     const result = await db.query(
       `SELECT c.*, cat.name as category_name FROM channels c
        LEFT JOIN categories cat ON c.category_id = cat.id
@@ -435,7 +449,7 @@ exports.getChannel = async (req, res) => {
          AND c.status = 'active'
          AND c.is_hidden IS NOT TRUE 
          AND c.is_removed IS NOT TRUE`,
-      [id]
+      [idNum]
     );
     if (result.rows.length === 0) {
       return error(res, 'Channel not found', 404);

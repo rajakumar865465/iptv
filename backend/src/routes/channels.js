@@ -5,12 +5,13 @@ const { apiLimiter, searchLimiter, channelReportLimiter } = require('../middlewa
 
 const { optionalAuth } = require('../middleware/auth');
 
-router.get('/', apiLimiter, channelController.getChannels);
-router.get('/search', searchLimiter, channelController.searchChannels);
+router.get('/', apiLimiter, optionalAuth, channelController.getChannels);
+router.get('/list', apiLimiter, optionalAuth, channelController.getChannels);
+router.get('/search', searchLimiter, optionalAuth, channelController.searchChannels);
 router.get('/categories', apiLimiter, channelController.getCategories);
 router.get('/languages', apiLimiter, channelController.getLanguages);
-router.get('/category/:categoryId', apiLimiter, channelController.getChannelsByCategory);
-router.get('/:id', apiLimiter, channelController.getChannel);
+router.get('/category/:categoryId', apiLimiter, optionalAuth, channelController.getChannelsByCategory);
+router.get('/:id(\\d+)', apiLimiter, optionalAuth, channelController.getChannel);
 router.get('/:id/epg/now', apiLimiter, channelController.getChannelEPGNow);
 router.get('/:id/epg/upcoming', apiLimiter, channelController.getChannelEPGUpcoming);
 router.get('/:id/playback', apiLimiter, optionalAuth, channelController.getChannelPlayback);
