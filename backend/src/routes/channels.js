@@ -11,7 +11,7 @@ router.get('/search', searchLimiter, optionalAuth, channelController.searchChann
 router.get('/categories', apiLimiter, channelController.getCategories);
 router.get('/languages', apiLimiter, channelController.getLanguages);
 router.get('/category/:categoryId', apiLimiter, optionalAuth, channelController.getChannelsByCategory);
-router.get('/:id(\\d+)', apiLimiter, optionalAuth, channelController.getChannel);
+router.get('/:id', apiLimiter, optionalAuth, channelController.getChannel);
 router.get('/:id/epg/now', apiLimiter, channelController.getChannelEPGNow);
 router.get('/:id/epg/upcoming', apiLimiter, channelController.getChannelEPGUpcoming);
 router.get('/:id/playback', apiLimiter, optionalAuth, channelController.getChannelPlayback);
