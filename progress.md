@@ -380,7 +380,9 @@
 - **Consolidated Security Assessment Remediation (NIVATV_SECURITY_REPORT_CONSOLIDATED.md) (October 2026):**
   - **Remediated All Findings from Assessment Report:**
     - **H-01 (High — Free-Trial Order Throttling & Auth Gate):**
-      - In `publicController.createOrder`, strictly enforced authentication (`userId`) for any free trial orders (`finalPrice === 0` without coupon, or trial plan). Unauthenticated checkout requests are blocked with `401 Unauthorized` (`AUTH_REQUIRED`).
+      - In `publicController.createOrder`, strictly enforced authentication (`userId`) for any free trial orders (`Number(plan.price) === 0` or trial plan slug). Unauthenticated checkout requests are blocked with `401 Unauthorized` (`AUTH_REQUIRED`).
+      - Fixed numeric type coercion (`Number(plan.price) === 0`) to prevent string `'0.00'` comparison bypasses.
+      - Removed raw unauthenticated email user lookup to ensure caller identity cannot be spoofed.
       - Validated `has_claimed_trial` and cross-referenced `licenses` and `public_orders` to block trial re-use by user ID or email.
       - Upgraded free order IDs to cryptographically secure 128-bit identifiers (`FREE_` + 16-byte hex).
       - Added `orderCreationLimiter` (max 10 orders per 15 min per IP) in `rateLimit.js`.
