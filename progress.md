@@ -1,5 +1,19 @@
 # NivaTV - Recent Progress
 
+## Light Mode High Contrast & Text Visibility Overhaul (November 2026)
+- **Eliminated White-on-White Text in Light Mode:**
+  - Upgraded [`HomeHeader`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/home/home_header.dart) to render `NIVATV` and `👋 Good Afternoon, ...` using `AppColors.text1(context)` and `AppColors.text2(context)`, eliminating invisible white typography on light backgrounds.
+  - Upgraded [`LiveTvAppBar`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/live_tv/live_tv_app_bar.dart) to render `Live TV` and channel count subtitle with dynamic high-contrast text.
+  - Upgraded [`HomeSectionHeader`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/home/home_section_header.dart) and [`SectionHeader`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/premium_widgets.dart) so "Trending Now", "Continue Watching", "Most Watched", "Recently Added", and "All Channels" titles display with bold, crisp dark text in light mode.
+  - Upgraded [`FavoritesHeader`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/favorites/favorites_header.dart) ("My List") and [`SearchScreen`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/search_screen.dart) ("Search", "Search for Channels") with adaptive tokens.
+- **Surface & Control Token Modernization:**
+  - Search Bars: In both [`HomeSearchBar`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/home/home_search_bar.dart) and [`LiveTvSearchBar`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/live_tv/live_tv_search_bar.dart), replaced hardcoded `#1A1D2E` surfaces with `AppColors.surf(context)` (`#FFFFFF`/`#F1F5F9`) and adaptive input borders/text.
+  - Action & Filter Buttons: Notification bell, Sort `A-Z` button, and Search filter buttons now use `AppColors.surfElevated(context)` with subtle elevation shadows rather than dark boxes.
+  - Category & Genre Chips: Replaced black rectangular backgrounds with clean elevated white pills with subtle borders and dark text in light mode across [`home_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/home_screen.dart) and [`channel_list_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/channel_list_screen.dart).
+  - Shimmer & Skeletons: Added light shimmer tokens in [`constants.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/constants.dart) and wired [`LoadingSkeleton`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/premium_widgets.dart).
+  - Fixed channel status truncation in [`WorkingOnlyToggle`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/live_tv/working_only_toggle.dart) (`$channelCount online`).
+- **Committed & Pushed:** Zero errors verified via `flutter analyze`. Pushed to `origin main` (`86ffdbc`).
+
 ## Mobile App Chrome Runner & Hot Reload Batch Launcher (November 2026)
 - **Interactive Batch Launcher:** Created [`run_mobile_chrome.bat`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/run_mobile_chrome.bat) (and synchronized companion [`mobile/run_chrome.bat`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/run_chrome.bat)) providing a multi-option menu for running and reloading the mobile app on Chrome:
   - **Option 1 (Run in Chrome):** Launches the Flutter mobile app in Google Chrome in a dedicated runner window with `--web-browser-flag="--disable-web-security"` (preventing CORS blocks on IPTV streams) and `--dart-define=BACKEND_URL=https://nivatv.luxomall.in`.
