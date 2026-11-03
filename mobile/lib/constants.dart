@@ -49,6 +49,8 @@ class AppColors {
   // Shimmer (layered contrast against card surfaces)
   static const int shimmerBase = 0xFF1A1D30;
   static const int shimmerHighlight = 0xFF2B3050;
+  static const int shimmerBaseLight = 0xFFE2E8F0;
+  static const int shimmerHighlightLight = 0xFFF8FAFC;
 
   // Bottom nav
   static const int navBackground = 0xFF0D0F1B;
@@ -64,6 +66,14 @@ class AppColors {
   static Color text2(BuildContext context) => AppThemeColors.of(context).textSecondary;
   static Color textM(BuildContext context) => AppThemeColors.of(context).textMuted;
   static Color navBg(BuildContext context) => AppThemeColors.of(context).navBackground;
+  static Color shimmerBaseColor(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark
+          ? const Color(shimmerBase)
+          : const Color(shimmerBaseLight);
+  static Color shimmerHighlightColor(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark
+          ? const Color(shimmerHighlight)
+          : const Color(shimmerHighlightLight);
 }
 
 /// Resolved color tokens for Dark and Light modes.
@@ -106,11 +116,11 @@ class AppThemeColors {
     background: Color(0xFFF8FAFC),
     surface: Color(0xFFFFFFFF),
     surfaceLight: Color(0xFFF1F5F9),
-    surfaceElevated: Color(0xFFE2E8F0),
+    surfaceElevated: Color(0xFFFFFFFF),
     divider: Color(0xFFE2E8F0),
     textPrimary: Color(0xFF0F172A),
-    textSecondary: Color(0xFF475569),
-    textMuted: Color(0xFF94A3B8),
+    textSecondary: Color(0xFF334155),
+    textMuted: Color(0xFF64748B),
     navBackground: Color(0xFFFFFFFF),
   );
 

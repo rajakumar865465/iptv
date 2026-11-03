@@ -55,8 +55,8 @@ class HomeSectionHeader extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(
-                color: Color(AppColors.textPrimary),
+              style: TextStyle(
+                color: AppColors.text1(context),
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.2,
@@ -78,7 +78,7 @@ class HomeSectionHeader extends StatelessWidget {
                     Text(
                       'See all',
                       style: TextStyle(
-                        color: const Color(AppColors.textSecondary).withOpacity(0.8),
+                        color: AppColors.text2(context),
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                       ),
@@ -87,7 +87,7 @@ class HomeSectionHeader extends StatelessWidget {
                     Icon(
                       Icons.arrow_forward_rounded,
                       size: 14,
-                      color: const Color(AppColors.textSecondary).withOpacity(0.8),
+                      color: AppColors.text2(context),
                     ),
                   ],
                 ),

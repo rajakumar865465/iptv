@@ -49,7 +49,7 @@ class WorkingOnlyToggle extends StatelessWidget {
           if (channelCount != null)
             Flexible(
               child: Text(
-                '$channelCount ${value ? 'working' : 'total'} channels',
+                '$channelCount ${value ? 'online' : 'channels'}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(

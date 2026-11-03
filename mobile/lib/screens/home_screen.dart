@@ -628,30 +628,39 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: const Color(AppColors.surfaceElevated),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(AppColors.divider).withOpacity(0.5),
-                        width: 0.8,
-                      ),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfElevated(context),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.div(context),
+                      width: 0.8,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(cat.$2, size: 16, color: cat.$3),
-                        const SizedBox(width: 6),
-                        Text(
-                          cat.$1,
-                          style: const TextStyle(
-                            color: Color(AppColors.textPrimary),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(
+                          Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.04,
                         ),
-                      ],
-                    ),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(cat.$2, size: 16, color: cat.$3),
+                      const SizedBox(width: 6),
+                      Text(
+                        cat.$1,
+                        style: TextStyle(
+                          color: AppColors.text1(context),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           );

@@ -168,8 +168,8 @@ class SectionHeader extends StatelessWidget {
                 Flexible(
                   child: Text(
                     title,
-                    style: const TextStyle(
-                      color: Color(AppColors.textPrimary),
+                    style: TextStyle(
+                      color: AppColors.text1(context),
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.3,
@@ -252,12 +252,12 @@ class CategoryChip extends StatelessWidget {
           decoration: BoxDecoration(
             color: selected
                 ? const Color(AppColors.primary)
-                : const Color(AppColors.surfaceLight),
+                : AppColors.surfElevated(context),
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
               color: selected
                   ? const Color(AppColors.primary)
-                  : const Color(AppColors.divider),
+                  : AppColors.div(context),
               width: 1,
             ),
             boxShadow: selected
@@ -277,7 +277,7 @@ class CategoryChip extends StatelessWidget {
                 size: 13,
                 color: selected
                     ? Colors.white
-                    : const Color(AppColors.textSecondary),
+                    : AppColors.text2(context),
               ),
               const SizedBox(width: 5),
             ],
@@ -288,7 +288,7 @@ class CategoryChip extends StatelessWidget {
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 color: selected
                     ? Colors.white
-                    : const Color(AppColors.textSecondary),
+                    : AppColors.text1(context),
               ),
             ),
           ]),
@@ -321,22 +321,22 @@ class PremiumSearchBar extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         decoration: BoxDecoration(
-          color: const Color(AppColors.surfaceLight),
+          color: AppColors.surf(context),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(AppColors.divider), width: 1),
+          border: Border.all(color: AppColors.div(context), width: 1),
         ),
         child: Row(children: [
-          const Icon(
+          Icon(
             Icons.search_rounded,
-            color: Color(AppColors.textMuted),
+            color: AppColors.textM(context),
             size: 20,
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               hint,
-              style: const TextStyle(
-                color: Color(AppColors.textMuted),
+              style: TextStyle(
+                color: AppColors.textM(context),
                 fontSize: 14,
               ),
             ),
@@ -344,12 +344,13 @@ class PremiumSearchBar extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(AppColors.divider),
+              color: AppColors.surfElevated(context),
               borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: AppColors.div(context), width: 0.8),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.tune_rounded,
-              color: Color(AppColors.textMuted),
+              color: AppColors.text2(context),
               size: 15,
             ),
           ),
@@ -410,8 +411,8 @@ class EmptyStateWidget extends StatelessWidget {
             const SizedBox(height: 20),
             Text(
               title,
-              style: const TextStyle(
-                color: Color(AppColors.textPrimary),
+              style: TextStyle(
+                color: AppColors.text1(context),
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.2,
@@ -421,8 +422,8 @@ class EmptyStateWidget extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               subtitle,
-              style: const TextStyle(
-                color: Color(AppColors.textMuted),
+              style: TextStyle(
+                color: AppColors.textM(context),
                 fontSize: 13,
                 height: 1.5,
               ),
@@ -476,13 +477,13 @@ class LoadingSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: const Color(AppColors.shimmerBase),
-      highlightColor: const Color(AppColors.shimmerHighlight),
+      baseColor: AppColors.shimmerBaseColor(context),
+      highlightColor: AppColors.shimmerHighlightColor(context),
       child: Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: const Color(AppColors.surface),
+          color: AppColors.surf(context),
           borderRadius: BorderRadius.circular(borderRadius),
         ),
       ),
@@ -497,15 +498,15 @@ class SkeletonChannelCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(AppColors.surface),
+        color: AppColors.surf(context),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(AppColors.divider), width: 0.8),
+        border: Border.all(color: AppColors.div(context), width: 0.8),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
         child: Shimmer.fromColors(
-          baseColor: const Color(AppColors.shimmerBase),
-          highlightColor: const Color(AppColors.shimmerHighlight),
+          baseColor: AppColors.shimmerBaseColor(context),
+          highlightColor: AppColors.shimmerHighlightColor(context),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [

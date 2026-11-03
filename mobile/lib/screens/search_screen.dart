@@ -105,10 +105,10 @@ class _SearchScreenState extends State<SearchScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Search',
             style: TextStyle(
-              color: Color(AppColors.textPrimary),
+              color: AppColors.text1(context),
               fontSize: 26,
               fontWeight: FontWeight.w900,
               letterSpacing: -0.5,
@@ -118,21 +118,21 @@ class _SearchScreenState extends State<SearchScreen>
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
-              color: const Color(AppColors.surfaceLight),
+              color: AppColors.surf(context),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: _hasFocus
                     ? const Color(AppColors.primary)
-                    : const Color(AppColors.divider),
+                    : AppColors.div(context),
                 width: _hasFocus ? 1.5 : 1.0,
               ),
             ),
             child: Row(children: [
-              const Padding(
-                padding: EdgeInsets.only(left: 14),
+              Padding(
+                padding: const EdgeInsets.only(left: 14),
                 child: Icon(
                   Icons.search_rounded,
-                  color: Color(AppColors.textMuted),
+                  color: AppColors.textM(context),
                   size: 20,
                 ),
               ),
@@ -141,21 +141,21 @@ class _SearchScreenState extends State<SearchScreen>
                   controller: _searchController,
                   focusNode: _focusNode,
                   autofocus: false,
-                  style: const TextStyle(
-                    color: Color(AppColors.textPrimary),
+                  style: TextStyle(
+                    color: AppColors.text1(context),
                     fontSize: 14.5,
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Search channels, shows, movies…',
                     hintStyle: TextStyle(
-                      color: Color(AppColors.textMuted),
+                      color: AppColors.textM(context),
                       fontSize: 14,
                     ),
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
                     filled: false,
-                    contentPadding: EdgeInsets.symmetric(
+                    contentPadding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 14,
                     ),
@@ -171,14 +171,14 @@ class _SearchScreenState extends State<SearchScreen>
                     padding: const EdgeInsets.all(12),
                     child: Container(
                       padding: const EdgeInsets.all(3),
-                      decoration: const BoxDecoration(
-                        color: Color(AppColors.divider),
+                      decoration: BoxDecoration(
+                        color: AppColors.div(context),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.close_rounded,
                         size: 12,
-                        color: Color(AppColors.textSecondary),
+                        color: AppColors.text2(context),
                       ),
                     ),
                   ),
@@ -219,19 +219,19 @@ class _SearchScreenState extends State<SearchScreen>
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Search for Channels',
               style: TextStyle(
-                color: Color(AppColors.textPrimary),
+                color: AppColors.text1(context),
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Type to find live channels, news, sports,\nmovies and more.',
               style: TextStyle(
-                color: Color(AppColors.textMuted),
+                color: AppColors.textM(context),
                 fontSize: 13,
                 height: 1.5,
               ),
@@ -366,24 +366,24 @@ class _QuickSearchChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(AppColors.surfaceLight),
+          color: AppColors.surfElevated(context),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: const Color(AppColors.divider),
+            color: AppColors.div(context),
             width: 1,
           ),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(
+          Icon(
             Icons.trending_up_rounded,
             size: 13,
-            color: Color(AppColors.textMuted),
+            color: AppColors.textM(context),
           ),
           const SizedBox(width: 5),
           Text(
             label,
-            style: const TextStyle(
-              color: Color(AppColors.textSecondary),
+            style: TextStyle(
+              color: AppColors.text1(context),
               fontSize: 12.5,
               fontWeight: FontWeight.w500,
             ),

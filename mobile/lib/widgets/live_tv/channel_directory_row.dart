@@ -275,7 +275,7 @@ class _FavoriteToggle extends StatelessWidget {
               size: 20,
               color: isFav
                   ? const Color(AppColors.brandRed)
-                  : const Color(AppColors.textMuted),
+                  : AppColors.textM(context),
             ),
           ),
         );

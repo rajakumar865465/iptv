@@ -26,6 +26,7 @@ class _HomeSearchBarState extends State<HomeSearchBar> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
       child: Row(
@@ -41,19 +42,19 @@ class _HomeSearchBarState extends State<HomeSearchBar> {
                 curve: Curves.easeOut,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
-                  color: const Color(AppColors.surfaceLight),
+                  color: AppColors.surf(context),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: _pressed
                         ? const Color(AppColors.primary).withOpacity(0.6)
-                        : const Color(AppColors.divider).withOpacity(0.65),
+                        : AppColors.div(context).withOpacity(0.85),
                     width: _pressed ? 1.2 : 0.8,
                   ),
                   boxShadow: [
                     BoxShadow(
                       color: _pressed
                           ? const Color(AppColors.primary).withOpacity(0.15)
-                          : Colors.black.withOpacity(0.12),
+                          : Colors.black.withOpacity(isDark ? 0.15 : 0.04),
                       blurRadius: _pressed ? 12 : 8,
                       offset: const Offset(0, 3),
                     ),
@@ -67,7 +68,7 @@ class _HomeSearchBarState extends State<HomeSearchBar> {
                         Icons.search_rounded,
                         color: _pressed
                             ? const Color(AppColors.primary)
-                            : const Color(AppColors.textMuted),
+                            : AppColors.textM(context),
                         size: 20,
                       ),
                     ),
@@ -75,8 +76,8 @@ class _HomeSearchBarState extends State<HomeSearchBar> {
                     Expanded(
                       child: Text(
                         widget.hint,
-                        style: const TextStyle(
-                          color: Color(AppColors.textMuted),
+                        style: TextStyle(
+                          color: AppColors.textM(context),
                           fontSize: 14.5,
                           fontWeight: FontWeight.w500,
                         ),
@@ -95,16 +96,23 @@ class _HomeSearchBarState extends State<HomeSearchBar> {
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(AppColors.surfaceElevated),
+                color: AppColors.surfElevated(context),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: const Color(AppColors.divider).withOpacity(0.5),
+                  color: AppColors.div(context),
                   width: 0.8,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.15 : 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.tune_rounded,
-                color: Color(AppColors.textSecondary),
+                color: AppColors.text1(context),
                 size: 20,
               ),
             ),

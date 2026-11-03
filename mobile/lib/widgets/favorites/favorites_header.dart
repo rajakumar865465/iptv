@@ -22,10 +22,10 @@ class FavoritesHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   'My List',
                   style: TextStyle(
-                    color: Color(AppColors.textPrimary),
+                    color: AppColors.text1(context),
                     fontSize: 26,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.5,
@@ -37,8 +37,8 @@ class FavoritesHeader extends StatelessWidget {
                   count > 0
                       ? '$count saved channel${count == 1 ? '' : 's'}'
                       : 'Your saved live channels',
-                  style: const TextStyle(
-                    color: Color(AppColors.textMuted),
+                  style: TextStyle(
+                    color: AppColors.textM(context),
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                     height: 1.2,

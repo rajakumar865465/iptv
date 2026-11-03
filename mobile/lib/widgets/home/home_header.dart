@@ -39,10 +39,10 @@ class HomeHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   'NIVATV',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppColors.text1(context),
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.2,
@@ -52,8 +52,8 @@ class HomeHeader extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '👋 $_displayGreeting',
-                  style: const TextStyle(
-                    color: Color(AppColors.textSecondary),
+                  style: TextStyle(
+                    color: AppColors.text2(context),
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                     height: 1.2,
@@ -215,21 +215,22 @@ class _NotificationButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: const Color(AppColors.surfaceLight),
+          color: AppColors.surfElevated(context),
           shape: BoxShape.circle,
           border: Border.all(
-            color: const Color(AppColors.divider),
-            width: 0.5,
+            color: AppColors.div(context),
+            width: 0.8,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withOpacity(isDark ? 0.25 : 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -238,9 +239,9 @@ class _NotificationButton extends StatelessWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.notifications_outlined,
-              color: Color(AppColors.textSecondary),
+              color: AppColors.text1(context),
               size: 21,
             ),
             if (hasUnread)

@@ -52,8 +52,8 @@ class _LiveTvSearchBarState extends State<LiveTvSearchBar> {
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
       child: TextField(
         controller: widget.controller,
-        style: const TextStyle(
-          color: Color(AppColors.textPrimary),
+        style: TextStyle(
+          color: AppColors.text1(context),
           fontSize: 14.5,
           fontWeight: FontWeight.w500,
         ),
@@ -61,19 +61,19 @@ class _LiveTvSearchBarState extends State<LiveTvSearchBar> {
         cursorColor: const Color(AppColors.primary),
         decoration: InputDecoration(
           filled: true,
-          fillColor: const Color(AppColors.surfaceLight),
+          fillColor: AppColors.surf(context),
           hintText: widget.hint,
-          hintStyle: const TextStyle(
-            color: Color(AppColors.textMuted),
+          hintStyle: TextStyle(
+            color: AppColors.textM(context),
             fontSize: 14.5,
             fontWeight: FontWeight.w500,
           ),
           contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
-          prefixIcon: const Padding(
-            padding: EdgeInsets.only(left: 16, right: 10),
+          prefixIcon: Padding(
+            padding: const EdgeInsets.only(left: 16, right: 10),
             child: Icon(
               Icons.search_rounded,
-              color: Color(AppColors.textMuted),
+              color: AppColors.textM(context),
               size: 22,
             ),
           ),
@@ -83,13 +83,13 @@ class _LiveTvSearchBarState extends State<LiveTvSearchBar> {
                   onTap: _clear,
                   child: Container(
                     margin: const EdgeInsets.all(10),
-                    decoration: const BoxDecoration(
-                      color: Color(AppColors.surfaceElevated),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfElevated(context),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.close_rounded,
-                      color: Color(AppColors.textSecondary),
+                      color: AppColors.text2(context),
                       size: 16,
                     ),
                   ),
@@ -98,14 +98,14 @@ class _LiveTvSearchBarState extends State<LiveTvSearchBar> {
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
             borderSide: BorderSide(
-              color: const Color(AppColors.divider).withOpacity(0.65),
+              color: AppColors.div(context),
               width: 0.8,
             ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
             borderSide: BorderSide(
-              color: const Color(AppColors.divider).withOpacity(0.65),
+              color: AppColors.div(context),
               width: 0.8,
             ),
           ),

@@ -23,8 +23,7 @@ import 'player_screen.dart';
 /// flattened directory is a `List<Object>` of headers + channels.
 class _HeaderEntry {
   final String label;
-  final IconData? icon;
-  const _HeaderEntry(this.label, [this.icon]);
+  const _HeaderEntry(this.label);
 }
 
 class ChannelListScreen extends StatefulWidget {
@@ -497,14 +496,10 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
       child: Row(
         children: [
-          if (h.icon != null) ...[
-            Icon(h.icon, size: 15, color: const Color(AppColors.primary)),
-            const SizedBox(width: 8),
-          ],
           Text(
             h.label.toUpperCase(),
-            style: const TextStyle(
-              color: Color(AppColors.textSecondary),
+            style: TextStyle(
+              color: AppColors.text2(context),
               fontSize: 12.5,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.8,
@@ -514,7 +509,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
           Expanded(
             child: Container(
               height: 1,
-              color: const Color(AppColors.divider).withOpacity(0.6),
+              color: AppColors.div(context),
             ),
           ),
         ],
@@ -651,12 +646,12 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
                         end: Alignment.bottomRight,
                       )
                     : null,
-                color: selected ? null : const Color(AppColors.surface),
+                color: selected ? null : AppColors.surfElevated(context),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: selected
-                      ? Colors.white.withOpacity(0.18)
-                      : const Color(AppColors.divider),
+                      ? Colors.transparent
+                      : AppColors.div(context),
                   width: 0.9,
                 ),
                 boxShadow: selected
@@ -667,7 +662,15 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
                           offset: const Offset(0, 3),
                         ),
                       ]
-                    : null,
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(
+                            Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.04,
+                          ),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -677,7 +680,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
                     size: 13.5,
                     color: selected
                         ? Colors.white
-                        : const Color(AppColors.textMuted),
+                        : AppColors.text2(context),
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -685,7 +688,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
                     style: TextStyle(
                       color: selected
                           ? Colors.white
-                          : const Color(AppColors.textSecondary),
+                          : AppColors.text1(context),
                       fontSize: 12,
                       fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                     ),

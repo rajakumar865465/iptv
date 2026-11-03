@@ -28,6 +28,7 @@ class LiveTvAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 18, 16, 6),
       child: Row(
@@ -38,10 +39,10 @@ class LiveTvAppBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   'Live TV',
                   style: TextStyle(
-                    color: Color(AppColors.textPrimary),
+                    color: AppColors.text1(context),
                     fontSize: 26,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.5,
@@ -51,8 +52,8 @@ class LiveTvAppBar extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   '$channelCount channels available',
-                  style: const TextStyle(
-                    color: Color(AppColors.textMuted),
+                  style: TextStyle(
+                    color: AppColors.textM(context),
                     fontSize: 12.5,
                     fontWeight: FontWeight.w500,
                     height: 1.2,
@@ -77,16 +78,23 @@ class LiveTvAppBar extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(AppColors.surfaceLight),
+                  color: AppColors.surfElevated(context),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: const Color(AppColors.divider),
+                    color: AppColors.div(context),
                     width: 0.8,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.tune_rounded,
-                  color: Color(AppColors.textSecondary),
+                  color: AppColors.text1(context),
                   size: 18,
                 ),
               ),
@@ -112,40 +120,48 @@ class _SortButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: () => _showSheet(context),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
-          color: const Color(AppColors.surfaceLight),
+          color: AppColors.surfElevated(context),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: const Color(AppColors.divider),
+            color: AppColors.div(context),
             width: 0.8,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.sort_rounded,
               size: 15,
-              color: Color(AppColors.textSecondary),
+              color: AppColors.text2(context),
             ),
             const SizedBox(width: 5),
             Text(
               currentLabel,
-              style: const TextStyle(
-                color: Color(AppColors.textSecondary),
+              style: TextStyle(
+                color: AppColors.text1(context),
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(width: 3),
-            const Icon(
+            Icon(
               Icons.expand_more_rounded,
               size: 14,
-              color: Color(AppColors.textMuted),
+              color: AppColors.textM(context),
             ),
           ],
         ),
@@ -184,9 +200,9 @@ class _SortSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(AppColors.surfaceElevated),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: AppColors.surfElevated(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -197,20 +213,20 @@ class _SortSheet extends StatelessWidget {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(AppColors.divider),
+                color: AppColors.div(context),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
           const SizedBox(height: 18),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 'Sort Channels',
                 style: TextStyle(
-                  color: Color(AppColors.textPrimary),
+                  color: AppColors.text1(context),
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.2,
@@ -233,15 +249,21 @@ class _SortSheet extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? const Color(AppColors.primary).withOpacity(0.15)
-                            : const Color(AppColors.surfaceLight),
+                            : AppColors.surf(context),
                         borderRadius: BorderRadius.circular(11),
+                        border: Border.all(
+                          color: isSelected
+                              ? const Color(AppColors.primary).withOpacity(0.3)
+                              : AppColors.div(context),
+                          width: 0.8,
+                        ),
                       ),
                       child: Icon(
                         o.$3,
                         size: 18,
                         color: isSelected
                             ? const Color(AppColors.primary)
-                            : const Color(AppColors.textSecondary),
+                            : AppColors.text2(context),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -251,7 +273,7 @@ class _SortSheet extends StatelessWidget {
                         style: TextStyle(
                           color: isSelected
                               ? const Color(AppColors.primary)
-                              : const Color(AppColors.textPrimary),
+                              : AppColors.text1(context),
                           fontSize: 14.5,
                           fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
                         ),
