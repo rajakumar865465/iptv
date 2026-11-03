@@ -1,5 +1,14 @@
 # NivaTV - Recent Progress
 
+## Mobile App Chrome Runner & Hot Reload Batch Launcher (November 2026)
+- **Interactive Batch Launcher:** Created [`run_mobile_chrome.bat`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/run_mobile_chrome.bat) (and synchronized companion [`mobile/run_chrome.bat`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/run_chrome.bat)) providing a multi-option menu for running and reloading the mobile app on Chrome:
+  - **Option 1 (Run in Chrome):** Launches the Flutter mobile app in Google Chrome in a dedicated runner window with `--web-browser-flag="--disable-web-security"` (preventing CORS blocks on IPTV streams) and `--dart-define=BACKEND_URL=https://nivatv.luxomall.in`.
+  - **Option 2 (Hot Reload):** Automatically finds the running Flutter Chrome runner process and sends the `r` signal to trigger an instant Hot Reload of UI and code changes.
+  - **Option 3 (Hot Restart):** Sends the `R` (`Shift+R`) signal to trigger a complete state reset and restart.
+  - **Option 4 (Stop App):** Sends the `q` signal to gracefully close Flutter and Chrome.
+  - **Option 5 (Current Window):** Allows launching Flutter interactively in the current console window.
+- **Path Auto-Resolution:** Automatically detects whether it is launched from the project root or the `mobile/` subfolder.
+
 ## Dark & Light Theme System with In-App Switcher (November 2026)
 - **Theme Architecture & State Management:** Created [`ThemeCubit`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/cubits/theme_cubit.dart) managing app-wide `ThemeMode` (`dark`, `light`, `system`) and persisting user preference via [`StorageService`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/services/storage_service.dart) (`SharedPreferences`).
 - **Material 3 Light & Dark Themes:** Upgraded [`AppTheme`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/theme.dart) with full `lightTheme` (`#F8FAFC` scaffold background, crisp `#0F172A` text, `#E2E8F0` borders, `#FFFFFF` elevated cards) paired with `darkTheme` (`#07090E` scaffold, `#0F121C` surface).
