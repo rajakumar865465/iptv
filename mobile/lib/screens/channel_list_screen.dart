@@ -23,7 +23,8 @@ import 'player_screen.dart';
 /// flattened directory is a `List<Object>` of headers + channels.
 class _HeaderEntry {
   final String label;
-  const _HeaderEntry(this.label);
+  final IconData? icon;
+  const _HeaderEntry(this.label, [this.icon]);
 }
 
 class ChannelListScreen extends StatefulWidget {
@@ -238,7 +239,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(AppColors.background),
+      backgroundColor: AppColors.bg(context),
       body: SafeArea(
         child: BlocBuilder<ChannelCubit, ChannelState>(
           builder: (context, state) {

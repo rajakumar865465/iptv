@@ -187,19 +187,20 @@ bool _isUnstable(ChannelModel channel) {
   return h == 'unstable' || h == 'weak' || h == 'buffering';
 }
 
-BoxDecoration _cardDecoration({bool offline = false}) {
+BoxDecoration _cardDecoration(BuildContext context, {bool offline = false}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
   return BoxDecoration(
-    color: const Color(AppColors.surface),
+    color: AppColors.surf(context),
     borderRadius: BorderRadius.circular(20),
     border: Border.all(
       color: offline
           ? const Color(AppColors.error).withOpacity(0.35)
-          : const Color(AppColors.divider).withOpacity(0.65),
+          : AppColors.div(context).withOpacity(0.65),
       width: 0.8,
     ),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(0.25),
+        color: Colors.black.withOpacity(isDark ? 0.25 : 0.05),
         blurRadius: 12,
         offset: const Offset(0, 5),
       ),
@@ -207,25 +208,27 @@ BoxDecoration _cardDecoration({bool offline = false}) {
   );
 }
 
-Widget _logoContainer({
+Widget _logoContainer(
+  BuildContext context, {
   required ChannelModel channel,
   required double containerSize,
   required double logoSize,
 }) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
   return Container(
     width: containerSize,
     height: containerSize,
     padding: EdgeInsets.all(containerSize * 0.08),
     decoration: BoxDecoration(
-      color: const Color(AppColors.surfaceElevated),
+      color: AppColors.surfElevated(context),
       borderRadius: BorderRadius.circular(containerSize * 0.2),
       border: Border.all(
-        color: const Color(AppColors.divider),
+        color: AppColors.div(context),
         width: 0.8,
       ),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.15),
+          color: Colors.black.withOpacity(isDark ? 0.15 : 0.04),
           blurRadius: 8,
           offset: const Offset(0, 3),
         ),
@@ -299,7 +302,7 @@ class _CompactCard extends StatelessWidget {
       width: 112,
       height: 150,
       margin: margin ?? const EdgeInsets.only(right: 12),
-      decoration: _cardDecoration(offline: offline),
+      decoration: _cardDecoration(context, offline: offline),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: Stack(
@@ -312,6 +315,7 @@ class _CompactCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     _logoContainer(
+                      context,
                       channel: channel,
                       containerSize: 60,
                       logoSize: 46,
@@ -320,8 +324,8 @@ class _CompactCard extends StatelessWidget {
                     Text(
                       _cleanChannelName(channel.name),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Color(AppColors.textPrimary),
+                      style: TextStyle(
+                        color: AppColors.text1(context),
                         fontSize: 11.5,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.2,
@@ -349,8 +353,8 @@ class _CompactCard extends StatelessWidget {
                             child: Text(
                               detail.isNotEmpty ? detail : 'Live',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Color(AppColors.textMuted),
+                              style: TextStyle(
+                                color: AppColors.textM(context),
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w600,
                                 height: 1.1,
@@ -424,7 +428,7 @@ class _FeaturedCard extends StatelessWidget {
       width: 232,
       height: 188,
       margin: margin ?? const EdgeInsets.only(right: 14),
-      decoration: _cardDecoration(),
+      decoration: _cardDecoration(context),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: Stack(
@@ -465,6 +469,7 @@ class _FeaturedCard extends StatelessWidget {
               right: 0,
               child: Center(
                 child: _logoContainer(
+                  context,
                   channel: channel,
                   containerSize: 96,
                   logoSize: 80,
@@ -553,21 +558,22 @@ class _GridCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final detail = _detailLine(channel);
     final offline = _isOffline(channel);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: margin ?? EdgeInsets.zero,
       decoration: BoxDecoration(
-        color: const Color(AppColors.surfaceElevated),
+        color: AppColors.surfElevated(context),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: offline
               ? const Color(AppColors.error).withOpacity(0.35)
-              : const Color(AppColors.divider).withOpacity(0.6),
+              : AppColors.div(context).withOpacity(0.6),
           width: 0.8,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.32),
+            color: Colors.black.withOpacity(isDark ? 0.32 : 0.06),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -602,6 +608,7 @@ class _GridCard extends StatelessWidget {
               bottom: 72,
               child: Center(
                 child: _logoContainer(
+                  context,
                   channel: channel,
                   containerSize: 86,
                   logoSize: 70,
@@ -615,13 +622,16 @@ class _GridCard extends StatelessWidget {
               left: 0,
               right: 0,
               height: 92,
-              child: const DecoratedBox(
+              child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Color(0xEE000008)],
-                    stops: [0.0, 1.0],
+                    colors: [
+                      Colors.transparent,
+                      isDark ? const Color(0xEE000008) : Colors.white.withOpacity(0.95),
+                    ],
+                    stops: const [0.0, 1.0],
                   ),
                 ),
               ),
@@ -638,8 +648,8 @@ class _GridCard extends StatelessWidget {
                 children: [
                   Text(
                     _cleanChannelName(channel.name),
-                    style: const TextStyle(
-                      color: Color(AppColors.textPrimary),
+                    style: TextStyle(
+                      color: AppColors.text1(context),
                       fontSize: 12.5,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.2,
@@ -666,7 +676,7 @@ class _GridCard extends StatelessWidget {
                           child: Text(
                             detail.isNotEmpty ? detail : 'Live TV',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.6),
+                              color: isDark ? Colors.white.withOpacity(0.6) : AppColors.textM(context),
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               height: 1.2,
@@ -745,7 +755,7 @@ class _RelatedCard extends StatelessWidget {
       width: 108,
       height: 138,
       margin: margin ?? const EdgeInsets.only(right: 10),
-      decoration: _cardDecoration(),
+      decoration: _cardDecoration(context),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: Stack(
@@ -757,6 +767,7 @@ class _RelatedCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   _logoContainer(
+                    context,
                     channel: channel,
                     containerSize: 56,
                     logoSize: 44,
@@ -765,8 +776,8 @@ class _RelatedCard extends StatelessWidget {
                   Text(
                     _cleanChannelName(channel.name),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(AppColors.textPrimary),
+                    style: TextStyle(
+                      color: AppColors.text1(context),
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.1,
@@ -780,8 +791,8 @@ class _RelatedCard extends StatelessWidget {
                     Text(
                       detail,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Color(AppColors.textMuted),
+                      style: TextStyle(
+                        color: AppColors.textM(context),
                         fontSize: 9,
                         fontWeight: FontWeight.w500,
                         height: 1.2,
@@ -835,18 +846,19 @@ class _ListCard extends StatelessWidget {
       margin: margin ?? const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(AppColors.surface),
+        color: AppColors.surf(context),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: offline
               ? const Color(AppColors.error).withOpacity(0.35)
-              : const Color(AppColors.divider),
+              : AppColors.div(context),
           width: 0.8,
         ),
       ),
       child: Row(
         children: [
           _logoContainer(
+            context,
             channel: channel,
             containerSize: 52,
             logoSize: 44,
@@ -859,8 +871,8 @@ class _ListCard extends StatelessWidget {
               children: [
                 Text(
                   _cleanChannelName(channel.name),
-                  style: const TextStyle(
-                    color: Color(AppColors.textPrimary),
+                  style: TextStyle(
+                    color: AppColors.text1(context),
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.1,
@@ -873,8 +885,8 @@ class _ListCard extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     detail,
-                    style: const TextStyle(
-                      color: Color(AppColors.textMuted),
+                    style: TextStyle(
+                      color: AppColors.textM(context),
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                       height: 1.2,
@@ -975,6 +987,7 @@ class _FavoriteIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       transitionBuilder: (child, animation) {
@@ -987,12 +1000,12 @@ class _FavoriteIcon extends StatelessWidget {
         key: ValueKey<bool>(isFav),
         padding: const EdgeInsets.all(5),
         decoration: BoxDecoration(
-          color: const Color(AppColors.background).withOpacity(0.75),
+          color: AppColors.surf(context).withOpacity(0.9),
           shape: BoxShape.circle,
           border: Border.all(
             color: isFav
                 ? const Color(AppColors.brandRed).withOpacity(0.45)
-                : Colors.white.withOpacity(0.12),
+                : AppColors.div(context).withOpacity(0.6),
             width: 0.8,
           ),
         ),
@@ -1001,7 +1014,7 @@ class _FavoriteIcon extends StatelessWidget {
           size: 14,
           color: isFav
               ? const Color(AppColors.brandRed)
-              : Colors.white.withOpacity(0.8),
+              : (isDark ? Colors.white.withOpacity(0.8) : const Color(0xFF64748B)),
         ),
       ),
     );

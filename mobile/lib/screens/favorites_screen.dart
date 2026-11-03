@@ -36,7 +36,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(AppColors.background),
+      backgroundColor: AppColors.bg(context),
       body: SafeArea(
         child: BlocBuilder<FavoriteCubit, FavoriteState>(
           builder: (context, state) {

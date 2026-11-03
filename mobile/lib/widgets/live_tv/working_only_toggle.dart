@@ -52,8 +52,8 @@ class WorkingOnlyToggle extends StatelessWidget {
                 '$channelCount ${value ? 'working' : 'total'} channels',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(AppColors.textSecondary),
+                style: TextStyle(
+                  color: AppColors.text2(context),
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -106,12 +106,12 @@ class WorkingOnlyToggle extends StatelessWidget {
               decoration: BoxDecoration(
                 color: value
                     ? const Color(AppColors.success).withOpacity(0.12)
-                    : const Color(AppColors.surface),
+                    : AppColors.surf(context),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: value
                       ? const Color(AppColors.success).withOpacity(0.35)
-                      : const Color(AppColors.divider),
+                      : AppColors.div(context),
                   width: 0.9,
                 ),
               ),
@@ -125,7 +125,7 @@ class WorkingOnlyToggle extends StatelessWidget {
                     size: 13,
                     color: value
                         ? const Color(AppColors.success)
-                        : const Color(AppColors.textMuted),
+                        : AppColors.textM(context),
                   ),
                   const SizedBox(width: 5),
                   Text(
@@ -133,7 +133,7 @@ class WorkingOnlyToggle extends StatelessWidget {
                     style: TextStyle(
                       color: value
                           ? const Color(AppColors.success)
-                          : const Color(AppColors.textSecondary),
+                          : AppColors.text2(context),
                       fontSize: 11.5,
                       fontWeight: FontWeight.w700,
                     ),

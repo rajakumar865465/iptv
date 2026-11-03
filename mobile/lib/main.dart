@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:media_kit/media_kit.dart';
 import 'cubits/auth_cubit.dart';
+import 'cubits/theme_cubit.dart';
 import 'cubits/license_cubit.dart';
 import 'cubits/channel_cubit.dart';
 import 'cubits/home_cubit.dart';
@@ -141,6 +142,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
+        BlocProvider(create: (context) => ThemeCubit()),
         BlocProvider(create: (context) => AuthCubit()),
         BlocProvider(create: (context) => LicenseCubit()),
         BlocProvider(create: (context) => ChannelCubit()),
@@ -149,19 +151,25 @@ class MyApp extends StatelessWidget {
         BlocProvider(create: (context) => FavoriteCubit()),
         BlocProvider(create: (context) => MiniPlayerCubit()),
       ],
-      child: MaterialApp(
-        title: 'NivaTV',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.darkTheme,
-        builder: (context, child) {
-          return Stack(
-            children: [
-              if (child != null) child,
-              const MiniPlayerOverlay(),
-            ],
+      child: BlocBuilder<ThemeCubit, ThemeMode>(
+        builder: (context, themeMode) {
+          return MaterialApp(
+            title: 'NivaTV',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeMode,
+            builder: (context, child) {
+              return Stack(
+                children: [
+                  if (child != null) child,
+                  const MiniPlayerOverlay(),
+                ],
+              );
+            },
+            home: const SplashScreen(),
           );
         },
-        home: const SplashScreen(),
       ),
     );
   }

@@ -272,4 +272,15 @@ class StorageService {
     final jsonStr = jsonEncode(history.map((c) => c.toJson()).toList());
     await prefs.setString(StorageKeys.watchHistory, jsonStr);
   }
+
+  // --- Theme Mode ---
+  Future<void> saveThemeMode(String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(StorageKeys.themeMode, mode);
+  }
+
+  Future<String> getThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(StorageKeys.themeMode) ?? 'dark';
+  }
 }

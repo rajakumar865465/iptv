@@ -27,26 +27,28 @@ class AppBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SafeArea(
       top: false,
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(AppColors.surface),
+          color: AppColors.surf(context),
           borderRadius: BorderRadius.circular(28),
           border: Border.all(
-            color: const Color(AppColors.divider).withOpacity(0.7),
+            color: AppColors.div(context).withOpacity(0.8),
             width: 0.8,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.45),
+              color: Colors.black.withOpacity(isDark ? 0.45 : 0.08),
               blurRadius: 24,
               offset: const Offset(0, -4),
             ),
             BoxShadow(
-              color: const Color(AppColors.primary).withOpacity(0.08),
+              color: const Color(AppColors.primary).withOpacity(isDark ? 0.08 : 0.04),
               blurRadius: 20,
               spreadRadius: 2,
               offset: const Offset(0, -2),
@@ -149,14 +151,14 @@ class _NavItem extends StatelessWidget {
                     children: [
                       Icon(
                         item.icon,
-                        color: const Color(AppColors.textMuted).withOpacity(0.5),
+                        color: AppColors.textM(context),
                         size: 22,
                       ),
                       const SizedBox(height: 3),
                       Text(
                         item.label,
                         style: TextStyle(
-                          color: const Color(AppColors.textMuted).withOpacity(0.5),
+                          color: AppColors.textM(context),
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                         ),

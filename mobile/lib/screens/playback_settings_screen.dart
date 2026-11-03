@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import '../constants.dart';
+import '../cubits/theme_cubit.dart';
 import '../services/storage_service.dart';
 
 class PlaybackSettingsScreen extends StatefulWidget {
@@ -67,21 +69,36 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final themeCubit = context.watch<ThemeCubit>();
+    final currentThemeMode = themeCubit.state;
+
     return Scaffold(
-      backgroundColor: const Color(AppColors.background),
+      backgroundColor: AppColors.bg(context),
       appBar: AppBar(
-        backgroundColor: const Color(AppColors.background),
-        title: const Text('Playback Settings', style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: AppColors.bg(context),
+        title: Text(
+          'Settings',
+          style: TextStyle(
+            color: AppColors.text1(context),
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        iconTheme: IconThemeData(color: AppColors.text1(context)),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, AppConstants.bottomNavClearance),
         children: [
-          const Text(
-            'VIDEO QUALITY',
-            style: TextStyle(color: Color(AppColors.primary), fontSize: 14, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
+          // ── APPEARANCE SECTION ──────────────────────────────────────────
+          _buildSectionHeader('APPEARANCE'),
+          const SizedBox(height: 12),
+          _buildThemeSelector(currentThemeMode, isDark),
+          Divider(color: AppColors.div(context), height: 32),
+
+          // ── VIDEO QUALITY SECTION ────────────────────────────────────────
+          _buildSectionHeader('VIDEO QUALITY'),
+          const SizedBox(height: 14),
           _buildDropdownItem(
             title: 'Default Video Quality',
             subtitle: 'Preferred starting quality for streams',
@@ -102,12 +119,11 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
               }
             },
           ),
-          const Divider(color: Color(AppColors.surfaceLight), height: 32),
-          const Text(
-            'DISPLAY & FRAMERATE',
-            style: TextStyle(color: Color(AppColors.primary), fontSize: 14, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
+          Divider(color: AppColors.div(context), height: 32),
+
+          // ── DISPLAY & FRAMERATE SECTION ──────────────────────────────────
+          _buildSectionHeader('DISPLAY & FRAMERATE'),
+          const SizedBox(height: 14),
           _buildDropdownItem(
             title: 'Display Refresh Rate',
             subtitle: 'Use the best refresh rate supported by your device. Higher rates make scrolling smoother but may use more battery.',
@@ -133,9 +149,12 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
             },
           ),
           if (!_supports120Hz && !_supports90Hz && !kIsWeb && Platform.isAndroid)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 16.0),
-              child: Text('High refresh rate (90Hz/120Hz) is not supported on this device, or is limited by Battery Saver.', style: TextStyle(color: Colors.white54, fontSize: 12)),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: Text(
+                'High refresh rate (90Hz/120Hz) is not supported on this device, or is limited by Battery Saver.',
+                style: TextStyle(color: AppColors.textM(context), fontSize: 12),
+              ),
             ),
           _buildSwitchItem(
             title: 'Match video frame rate',
@@ -146,12 +165,11 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
               _storage.setMatchVideoFrameRate(val);
             },
           ),
-          const Divider(color: Color(AppColors.surfaceLight), height: 32),
-          const Text(
-            'DATA USAGE',
-            style: TextStyle(color: Color(AppColors.primary), fontSize: 14, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
+          Divider(color: AppColors.div(context), height: 32),
+
+          // ── DATA USAGE SECTION ───────────────────────────────────────────
+          _buildSectionHeader('DATA USAGE'),
+          const SizedBox(height: 14),
           _buildSwitchItem(
             title: 'Data Saver Mode',
             subtitle: 'Forces streams to lowest available quality to save mobile data',
@@ -184,6 +202,107 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
     );
   }
 
+  Widget _buildSectionHeader(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        color: Color(AppColors.primary),
+        fontSize: 13,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.8,
+      ),
+    );
+  }
+
+  Widget _buildThemeSelector(ThemeMode currentMode, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surfLight(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.div(context),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        children: [
+          _buildThemeSegment(
+            label: 'Dark',
+            icon: Icons.dark_mode_rounded,
+            isSelected: currentMode == ThemeMode.dark,
+            onTap: () => context.read<ThemeCubit>().setTheme(ThemeMode.dark),
+          ),
+          _buildThemeSegment(
+            label: 'Light',
+            icon: Icons.light_mode_rounded,
+            isSelected: currentMode == ThemeMode.light,
+            onTap: () => context.read<ThemeCubit>().setTheme(ThemeMode.light),
+          ),
+          _buildThemeSegment(
+            label: 'System',
+            icon: Icons.brightness_auto_rounded,
+            isSelected: currentMode == ThemeMode.system,
+            onTap: () => context.read<ThemeCubit>().setTheme(ThemeMode.system),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThemeSegment({
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? const Color(AppColors.primary)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: const Color(AppColors.primary).withOpacity(0.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? Colors.white : AppColors.text2(context),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : AppColors.text2(context),
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildDropdownItem({
     required String title,
     required String subtitle,
@@ -196,25 +315,49 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(
+            title,
+            style: TextStyle(
+              color: AppColors.text1(context),
+              fontSize: 15.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-          const SizedBox(height: 12),
+          Text(
+            subtitle,
+            style: TextStyle(
+              color: AppColors.textM(context),
+              fontSize: 12.5,
+            ),
+          ),
+          const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              color: const Color(AppColors.surface),
-              borderRadius: BorderRadius.circular(12),
+              color: AppColors.surf(context),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.div(context),
+                width: 0.8,
+              ),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 isExpanded: true,
-                dropdownColor: const Color(AppColors.surface),
+                dropdownColor: AppColors.surf(context),
                 value: value,
                 items: items,
                 onChanged: onChanged,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-                icon: const Icon(Icons.arrow_drop_down, color: Colors.white54),
+                style: TextStyle(
+                  color: AppColors.text1(context),
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w600,
+                ),
+                icon: Icon(
+                  Icons.arrow_drop_down,
+                  color: AppColors.text2(context),
+                ),
               ),
             ),
           ),
@@ -231,10 +374,23 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
   }) {
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
-      title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: AppColors.text1(context),
+          fontSize: 15.5,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 4.0),
-        child: Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        child: Text(
+          subtitle,
+          style: TextStyle(
+            color: AppColors.textM(context),
+            fontSize: 12.5,
+          ),
+        ),
       ),
       value: value,
       activeColor: const Color(AppColors.primary),

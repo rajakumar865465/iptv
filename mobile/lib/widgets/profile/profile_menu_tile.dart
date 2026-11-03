@@ -36,8 +36,8 @@ class _ProfileMenuTileState extends State<ProfileMenuTile> {
         ? const Color(AppColors.brandRed)
         : (widget.iconColor ?? const Color(AppColors.primary));
     final textColor = widget.isDanger
-        ? const Color(AppColors.textPrimary)
-        : const Color(AppColors.textPrimary);
+        ? const Color(AppColors.brandRed)
+        : AppColors.text1(context);
 
     return GestureDetector(
       onTap: widget.onTap,
@@ -91,8 +91,8 @@ class _ProfileMenuTileState extends State<ProfileMenuTile> {
                       const SizedBox(height: 2),
                       Text(
                         widget.subtitle!,
-                        style: const TextStyle(
-                          color: Color(AppColors.textMuted),
+                        style: TextStyle(
+                          color: AppColors.textM(context),
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                           height: 1.2,
@@ -109,7 +109,7 @@ class _ProfileMenuTileState extends State<ProfileMenuTile> {
                     Icons.chevron_right_rounded,
                     color: widget.isDanger
                         ? const Color(AppColors.brandRed).withOpacity(0.5)
-                        : const Color(AppColors.textMuted),
+                        : AppColors.textM(context),
                     size: 20,
                   ),
             ],

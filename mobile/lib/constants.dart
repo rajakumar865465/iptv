@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class AppConstants {
   static const String appName = 'NivaTV';
   // Fix #6 & #30: Removed duplicate baseUrl — use BackendConfig.baseUrl everywhere.
@@ -51,6 +53,70 @@ class AppColors {
   // Bottom nav
   static const int navBackground = 0xFF0D0F1B;
   static const int navIndicator = 0xFF4F46E5;   // Indigo indicator pill
+
+  // Dynamic Theme-Aware Color Resolvers
+  static Color bg(BuildContext context) => AppThemeColors.of(context).background;
+  static Color surf(BuildContext context) => AppThemeColors.of(context).surface;
+  static Color surfLight(BuildContext context) => AppThemeColors.of(context).surfaceLight;
+  static Color surfElevated(BuildContext context) => AppThemeColors.of(context).surfaceElevated;
+  static Color div(BuildContext context) => AppThemeColors.of(context).divider;
+  static Color text1(BuildContext context) => AppThemeColors.of(context).textPrimary;
+  static Color text2(BuildContext context) => AppThemeColors.of(context).textSecondary;
+  static Color textM(BuildContext context) => AppThemeColors.of(context).textMuted;
+  static Color navBg(BuildContext context) => AppThemeColors.of(context).navBackground;
+}
+
+/// Resolved color tokens for Dark and Light modes.
+class AppThemeColors {
+  final Color background;
+  final Color surface;
+  final Color surfaceLight;
+  final Color surfaceElevated;
+  final Color divider;
+  final Color textPrimary;
+  final Color textSecondary;
+  final Color textMuted;
+  final Color navBackground;
+
+  const AppThemeColors({
+    required this.background,
+    required this.surface,
+    required this.surfaceLight,
+    required this.surfaceElevated,
+    required this.divider,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.textMuted,
+    required this.navBackground,
+  });
+
+  static const dark = AppThemeColors(
+    background: Color(AppColors.background),
+    surface: Color(AppColors.surface),
+    surfaceLight: Color(AppColors.surfaceLight),
+    surfaceElevated: Color(AppColors.surfaceElevated),
+    divider: Color(AppColors.divider),
+    textPrimary: Color(AppColors.textPrimary),
+    textSecondary: Color(AppColors.textSecondary),
+    textMuted: Color(AppColors.textMuted),
+    navBackground: Color(AppColors.navBackground),
+  );
+
+  static const light = AppThemeColors(
+    background: Color(0xFFF8FAFC),
+    surface: Color(0xFFFFFFFF),
+    surfaceLight: Color(0xFFF1F5F9),
+    surfaceElevated: Color(0xFFE2E8F0),
+    divider: Color(0xFFE2E8F0),
+    textPrimary: Color(0xFF0F172A),
+    textSecondary: Color(0xFF475569),
+    textMuted: Color(0xFF94A3B8),
+    navBackground: Color(0xFFFFFFFF),
+  );
+
+  static AppThemeColors of(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark ? dark : light;
+  }
 }
 
 class ApiEndpoints {
@@ -87,15 +153,15 @@ class ApiEndpoints {
   static const String categoryList = '$channels/categories';
   static const String languageList = '$channels/languages';
   static const String channelSearch = '$channels/search';
-  static const String channelDetails = '$channels'; // GET /:id
-  static const String channelPlayback = '$channels'; // GET /:id/playback
-  static const String channelSmoothPlayback = '$channels'; // GET /:id/smooth-playback
-  static const String channelReportFailure = '$channels'; // POST /:id/report-failure
-  static const String channelPlaybackResult = '$channels'; // POST /:id/playback-result
-  static const String channelDisplayReport = '$channels'; // POST /:id/display-report
-  static const String channelEPGNow = '$channels'; // GET /:id/epg/now
-  static const String channelEPGUpcoming = '$channels'; // GET /:id/epg/upcoming
-  static const String channelRelated = '$channels'; // GET /:id/related
+  static const String channelDetails = channels; // GET /:id
+  static const String channelPlayback = channels; // GET /:id/playback
+  static const String channelSmoothPlayback = channels; // GET /:id/smooth-playback
+  static const String channelReportFailure = channels; // POST /:id/report-failure
+  static const String channelPlaybackResult = channels; // POST /:id/playback-result
+  static const String channelDisplayReport = channels; // POST /:id/display-report
+  static const String channelEPGNow = channels; // GET /:id/epg/now
+  static const String channelEPGUpcoming = channels; // GET /:id/epg/upcoming
+  static const String channelRelated = channels; // GET /:id/related
 
   static String channelPlaybackPath(int id) => '$channelPlayback/$id/playback';
   static String channelSmoothPlaybackPath(int id) => '$channelSmoothPlayback/$id/smooth-playback';
@@ -140,4 +206,5 @@ class StorageKeys {
   static const String cachedCategories = 'cached_categories';
   static const String notificationsClearedAt = 'notifications_cleared_at';
   static const String watchHistory = 'watch_history';
+  static const String themeMode = 'app_theme_mode';
 }

@@ -5,6 +5,7 @@ import '../constants.dart';
 import '../cubits/app_config_cubit.dart';
 import '../cubits/auth_cubit.dart';
 import '../cubits/license_cubit.dart';
+import '../cubits/theme_cubit.dart';
 import '../models/license_model.dart';
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
@@ -12,6 +13,7 @@ import '../widgets/profile/edit_profile_sheet.dart';
 import '../widgets/profile/license_status_card.dart';
 import '../widgets/profile/profile_header_card.dart';
 import '../widgets/profile/profile_menu_tile.dart';
+import '../widgets/settings/theme_selector_sheet.dart';
 import 'login_screen.dart';
 import 'license_status_screen.dart';
 import 'license_activation_screen.dart';
@@ -491,7 +493,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(AppColors.background),
+      backgroundColor: AppColors.bg(context),
       body: SafeArea(
         child: BlocBuilder<LicenseCubit, LicenseState>(
           builder: (context, licenseState) {
@@ -510,10 +512,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        Text(
                           'Profile',
                           style: TextStyle(
-                            color: Color(AppColors.textPrimary),
+                            color: AppColors.text1(context),
                             fontSize: 26,
                             fontWeight: FontWeight.w900,
                             letterSpacing: -0.5,
@@ -531,17 +533,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: const Color(AppColors.surfaceLight),
+                              color: AppColors.surfLight(context),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: const Color(AppColors.divider),
+                                color: AppColors.div(context),
                                 width: 0.8,
                               ),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.settings_outlined,
                               size: 19,
-                              color: Color(AppColors.textSecondary),
+                              color: AppColors.text2(context),
                             ),
                           ),
                         ),
@@ -656,6 +658,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   const SizedBox(height: 24),
 
+                  // Appearance section
+                  _buildSectionTitle('Appearance'),
+                  _buildCard([
+                    BlocBuilder<ThemeCubit, ThemeMode>(
+                      builder: (context, mode) {
+                        String modeLabel = 'Dark Mode';
+                        IconData modeIcon = Icons.dark_mode_rounded;
+                        Color modeColor = const Color(AppColors.primary);
+                        if (mode == ThemeMode.light) {
+                          modeLabel = 'Light Mode';
+                          modeIcon = Icons.light_mode_rounded;
+                          modeColor = const Color(0xFFF59E0B);
+                        } else if (mode == ThemeMode.system) {
+                          modeLabel = 'System Default';
+                          modeIcon = Icons.brightness_auto_rounded;
+                          modeColor = const Color(0xFF0EA5E9);
+                        }
+                        return ProfileMenuTile(
+                          icon: modeIcon,
+                          label: 'App Theme',
+                          subtitle: modeLabel,
+                          iconColor: modeColor,
+                          trailing: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: modeColor.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              modeLabel,
+                              style: TextStyle(
+                                color: modeColor,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          onTap: () => ThemeSelectorSheet.show(context),
+                        );
+                      },
+                    ),
+                  ]),
+
+                  const SizedBox(height: 24),
+
                   // App section
                   _buildSectionTitle('App'),
                   _buildCard([
@@ -735,8 +782,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
-          color: Color(AppColors.textMuted),
+        style: TextStyle(
+          color: AppColors.textM(context),
           fontSize: 11.5,
           fontWeight: FontWeight.w800,
           letterSpacing: 1.0,
@@ -749,10 +796,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: const Color(AppColors.surface),
+        color: AppColors.surf(context),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: const Color(AppColors.divider),
+          color: AppColors.div(context),
           width: 0.8,
         ),
       ),
@@ -767,7 +814,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Divider(
       height: 0.5,
       thickness: 0.5,
-      color: const Color(AppColors.divider),
+      color: AppColors.div(context),
       indent: 66,
       endIndent: 16,
     );

@@ -53,12 +53,12 @@ class ChannelDirectoryRow extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
           decoration: BoxDecoration(
-            color: const Color(AppColors.surface),
+            color: AppColors.surf(context),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: _offline
                   ? const Color(AppColors.error).withOpacity(0.3)
-                  : const Color(AppColors.divider).withOpacity(0.6),
+                  : AppColors.div(context).withOpacity(0.6),
               width: 0.8,
             ),
           ),
@@ -74,10 +74,10 @@ class ChannelDirectoryRow extends StatelessWidget {
                 height: 46,
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: const Color(AppColors.surfaceElevated),
+                  color: AppColors.surfElevated(context),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: const Color(AppColors.divider),
+                    color: AppColors.div(context),
                     width: 0.8,
                   ),
                 ),
@@ -100,8 +100,8 @@ class ChannelDirectoryRow extends StatelessWidget {
                   children: [
                     Text(
                       channel.name,
-                      style: const TextStyle(
-                        color: Color(AppColors.textPrimary),
+                      style: TextStyle(
+                        color: AppColors.text1(context),
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.1,
@@ -114,8 +114,8 @@ class ChannelDirectoryRow extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         detail,
-                        style: const TextStyle(
-                          color: Color(AppColors.textMuted),
+                        style: TextStyle(
+                          color: AppColors.textM(context),
                           fontSize: 11.5,
                           fontWeight: FontWeight.w500,
                           height: 1.2,
@@ -177,10 +177,10 @@ class _NumberBadge extends StatelessWidget {
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 2),
       decoration: BoxDecoration(
-        color: const Color(AppColors.surfaceLight),
+        color: AppColors.surfLight(context),
         borderRadius: BorderRadius.circular(9),
         border: Border.all(
-          color: const Color(AppColors.divider),
+          color: AppColors.div(context),
           width: 0.8,
         ),
       ),
@@ -189,8 +189,8 @@ class _NumberBadge extends StatelessWidget {
         maxLines: 1,
         style: TextStyle(
           color: label == null
-              ? const Color(AppColors.textMuted)
-              : const Color(AppColors.textSecondary),
+              ? AppColors.textM(context)
+              : AppColors.text2(context),
           fontSize: (label != null && label!.length > 3) ? 11.5 : 13.5,
           fontWeight: FontWeight.w800,
           letterSpacing: 0.2,
