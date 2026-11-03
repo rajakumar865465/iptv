@@ -256,12 +256,6 @@ Widget _logoContainer(
     ),
   );
 }
-      size: logoSize,
-      borderRadius: logoSize * 0.18,
-      fit: BoxFit.contain,
-    ),
-  );
-}
 
 Widget _topLeftBadge(ChannelModel channel) {
   if (channel.isPremium) return const _SmallPremiumBadge();
