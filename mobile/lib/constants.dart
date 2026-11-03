@@ -16,6 +16,7 @@ class AppColors {
   // ── NivaTV Premium Dark Theme ──────────────────────────────────────────────
   // Core: Deep obsidian base with Electric Indigo -> Vibrant Crimson brand accents
   static const int primary = 0xFF4F46E5;         // Electric Indigo (primary brand)
+  static const int primaryLight = 0xFF818CF8;    // Soft Indigo (for badges/pills in dark mode)
   static const int brandRed = 0xFFE11D48;        // Vibrant Crimson (secondary brand)
   static const int premiumGold = 0xFFFFB300;     // Premium / PRO badge color
 
