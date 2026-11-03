@@ -492,17 +492,41 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   }
 
   Widget _buildSectionHeaderTile(_HeaderEntry h) {
+    final isSymbol = h.label == '#';
+    final displayText = isSymbol ? '0–9 & Symbols' : h.label.toUpperCase();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
       child: Row(
         children: [
-          Text(
-            h.label.toUpperCase(),
-            style: TextStyle(
-              color: AppColors.text2(context),
-              fontSize: 12.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isSymbol ? 10 : 9,
+              vertical: 4,
+            ),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(AppColors.primary).withOpacity(0.18)
+                  : const Color(0xFFEEF2FF),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDark
+                    ? const Color(AppColors.primary).withOpacity(0.35)
+                    : const Color(0xFFC7D2FE),
+                width: 0.8,
+              ),
+            ),
+            child: Text(
+              displayText,
+              style: TextStyle(
+                color: isDark
+                    ? const Color(AppColors.primaryLight)
+                    : const Color(0xFF4338CA),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -592,7 +616,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
       children: [
         SectionHeader(title: title, icon: icon, iconColor: iconColor),
         SizedBox(
-          height: 158,
+          height: 162,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),

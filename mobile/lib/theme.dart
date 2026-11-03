@@ -255,7 +255,7 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       fontFamily: 'Roboto',
-      scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+      scaffoldBackgroundColor: const Color(0xFFF1F5F9),
       colorScheme: const ColorScheme.light(
         primary: Color(AppColors.primary),
         secondary: Color(AppColors.brandRed),

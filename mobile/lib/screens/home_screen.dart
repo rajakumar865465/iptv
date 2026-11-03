@@ -437,7 +437,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     bool Function(ChannelModel) isLocked,
   ) {
     return SizedBox(
-      height: 154,
+      height: 162,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),

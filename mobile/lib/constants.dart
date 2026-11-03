@@ -113,9 +113,9 @@ class AppThemeColors {
   );
 
   static const light = AppThemeColors(
-    background: Color(0xFFF8FAFC),
+    background: Color(0xFFF1F5F9),
     surface: Color(0xFFFFFFFF),
-    surfaceLight: Color(0xFFF1F5F9),
+    surfaceLight: Color(0xFFF8FAFC),
     surfaceElevated: Color(0xFFFFFFFF),
     divider: Color(0xFFE2E8F0),
     textPrimary: Color(0xFF0F172A),

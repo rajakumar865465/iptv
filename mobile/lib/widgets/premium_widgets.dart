@@ -39,44 +39,56 @@ class _LiveBadgeState extends State<LiveBadge>
 
   @override
   Widget build(BuildContext context) {
-    final h = widget.small ? 6.0 : 8.0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final h = widget.small ? 6.0 : 7.5;
     final padH = widget.small ? 5.0 : 7.0;
     final padV = widget.small ? 2.0 : 3.0;
-    final fs = widget.small ? 7.5 : 9.0;
+    final fs = widget.small ? 7.5 : 8.5;
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.4),
-        borderRadius: BorderRadius.circular(4),
+        color: isDark
+            ? Colors.black.withOpacity(0.55)
+            : const Color(0xFFFEE2E2),
+        borderRadius: BorderRadius.circular(5),
         border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 0.5,
+          color: isDark
+              ? Colors.white.withOpacity(0.12)
+              : const Color(0xFFFECACA),
+          width: 0.6,
         ),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        FadeTransition(
-          opacity: _fade,
-          child: Container(
-            width: h,
-            height: h,
-            decoration: const BoxDecoration(
-              color: Color(AppColors.brandRed),
-              shape: BoxShape.circle,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          FadeTransition(
+            opacity: _fade,
+            child: Container(
+              width: h,
+              height: h,
+              decoration: const BoxDecoration(
+                color: Color(0xFFDC2626),
+                shape: BoxShape.circle,
+              ),
             ),
           ),
-        ),
-        SizedBox(width: widget.small ? 3 : 4),
-        Text(
-          'LIVE',
-          style: TextStyle(
-            fontSize: fs,
-            fontWeight: FontWeight.w800,
-            color: Colors.white.withOpacity(0.9),
-            letterSpacing: 0.6,
+          SizedBox(width: widget.small ? 3.5 : 4.5),
+          Text(
+            'LIVE',
+            style: TextStyle(
+              fontSize: fs,
+              fontWeight: FontWeight.w800,
+              color: isDark
+                  ? Colors.white.withOpacity(0.95)
+                  : const Color(0xFFDC2626),
+              letterSpacing: 0.5,
+              height: 1.0,
+            ),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 }
@@ -92,25 +104,38 @@ class QualityBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (label == 'SD' || label.isEmpty) return const SizedBox.shrink();
-    final Color color = switch (label) {
-      '4K' => const Color(0xFF7C3AED),
-      'FHD' => const Color(0xFF0EA5E9),
-      'HD' => const Color(0xFF1D4ED8),
-      _ => const Color(0xFF374151),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final (Color bg, Color border, Color text) = switch (label) {
+      '4K' => isDark
+          ? (const Color(0xFF7C3AED), Colors.transparent, Colors.white)
+          : (const Color(0xFFFAF5FF), const Color(0xFFE9D5FF), const Color(0xFF7E22CE)),
+      'FHD' => isDark
+          ? (const Color(0xFF0EA5E9), Colors.transparent, Colors.white)
+          : (const Color(0xFFF0FDF4), const Color(0xFFBBF7D0), const Color(0xFF15803D)),
+      'HD' => isDark
+          ? (const Color(0xFF1D4ED8), Colors.transparent, Colors.white)
+          : (const Color(0xFFEFF6FF), const Color(0xFFBFDBFE), const Color(0xFF1D4ED8)),
+      _ => isDark
+          ? (const Color(0xFF374151), Colors.transparent, Colors.white)
+          : (const Color(0xFFF1F5F9), const Color(0xFFCBD5E1), const Color(0xFF334155)),
     };
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
-        color: color,
+        color: bg,
         borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: border, width: 0.6),
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 8,
           fontWeight: FontWeight.w800,
-          color: Colors.white,
+          color: text,
           letterSpacing: 0.4,
+          height: 1.0,
         ),
       ),
     );

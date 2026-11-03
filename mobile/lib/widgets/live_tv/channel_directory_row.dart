@@ -49,18 +49,35 @@ class ChannelDirectoryRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
           decoration: BoxDecoration(
             color: AppColors.surf(context),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: _offline
-                  ? const Color(AppColors.error).withOpacity(0.3)
-                  : AppColors.div(context).withOpacity(0.6),
+                  ? const Color(AppColors.error).withOpacity(0.35)
+                  : (Theme.of(context).brightness == Brightness.dark
+                      ? AppColors.div(context).withOpacity(0.6)
+                      : const Color(0xFFE2E8F0)),
               width: 0.8,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(
+                  Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.035,
+                ),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+              if (Theme.of(context).brightness != Brightness.dark)
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.015),
+                  blurRadius: 2,
+                  offset: const Offset(0, 1),
+                ),
+            ],
           ),
           child: Row(
             children: [
@@ -74,10 +91,14 @@ class ChannelDirectoryRow extends StatelessWidget {
                 height: 46,
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: AppColors.surfElevated(context),
-                  borderRadius: BorderRadius.circular(10),
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? AppColors.surfElevated(context)
+                      : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(11),
                   border: Border.all(
-                    color: AppColors.div(context),
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? AppColors.div(context)
+                        : const Color(0xFFE2E8F0),
                     width: 0.8,
                   ),
                 ),
@@ -86,7 +107,7 @@ class ChannelDirectoryRow extends StatelessWidget {
                   localLogoUrl: channel.localLogoUrl,
                   channelName: channel.name,
                   size: 38,
-                  borderRadius: 7,
+                  borderRadius: 8,
                   fit: BoxFit.contain,
                 ),
               ),
@@ -171,16 +192,21 @@ class _NumberBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: 44,
-      height: 46,
+      height: 42,
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 2),
       decoration: BoxDecoration(
-        color: AppColors.surfLight(context),
-        borderRadius: BorderRadius.circular(9),
+        color: isDark
+            ? AppColors.surfLight(context)
+            : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: AppColors.div(context),
+          color: isDark
+              ? AppColors.div(context)
+              : const Color(0xFFE2E8F0),
           width: 0.8,
         ),
       ),
@@ -190,8 +216,8 @@ class _NumberBadge extends StatelessWidget {
         style: TextStyle(
           color: label == null
               ? AppColors.textM(context)
-              : AppColors.text2(context),
-          fontSize: (label != null && label!.length > 3) ? 11.5 : 13.5,
+              : (isDark ? AppColors.text1(context) : const Color(0xFF1E293B)),
+          fontSize: (label != null && label!.length > 3) ? 11.5 : 13.0,
           fontWeight: FontWeight.w800,
           letterSpacing: 0.2,
           fontFeatures: const [FontFeature.tabularFigures()],
@@ -206,11 +232,20 @@ class _OfflineChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(AppColors.error).withOpacity(0.15),
+        color: isDark
+            ? const Color(AppColors.error).withOpacity(0.15)
+            : const Color(0xFFFEE2E2),
         borderRadius: BorderRadius.circular(5),
+        border: Border.all(
+          color: isDark
+              ? const Color(AppColors.error).withOpacity(0.3)
+              : const Color(0xFFFECACA),
+          width: 0.6,
+        ),
       ),
       child: const Text(
         'OFFLINE',

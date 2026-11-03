@@ -194,16 +194,24 @@ BoxDecoration _cardDecoration(BuildContext context, {bool offline = false}) {
     borderRadius: BorderRadius.circular(20),
     border: Border.all(
       color: offline
-          ? const Color(AppColors.error).withOpacity(0.35)
-          : AppColors.div(context).withOpacity(0.65),
+          ? const Color(AppColors.error).withOpacity(0.4)
+          : (isDark
+              ? AppColors.div(context).withOpacity(0.65)
+              : const Color(0xFFE2E8F0)),
       width: 0.8,
     ),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(isDark ? 0.25 : 0.05),
-        blurRadius: 12,
-        offset: const Offset(0, 5),
+        color: Colors.black.withOpacity(isDark ? 0.25 : 0.04),
+        blurRadius: 10,
+        offset: const Offset(0, 3),
       ),
+      if (!isDark)
+        BoxShadow(
+          color: Colors.black.withOpacity(0.015),
+          blurRadius: 2,
+          offset: const Offset(0, 1),
+        ),
     ],
   );
 }
@@ -220,17 +228,21 @@ Widget _logoContainer(
     height: containerSize,
     padding: EdgeInsets.all(containerSize * 0.08),
     decoration: BoxDecoration(
-      color: AppColors.surfElevated(context),
-      borderRadius: BorderRadius.circular(containerSize * 0.2),
+      color: isDark
+          ? AppColors.surfElevated(context)
+          : const Color(0xFFF8FAFC),
+      borderRadius: BorderRadius.circular(containerSize * 0.22),
       border: Border.all(
-        color: AppColors.div(context),
+        color: isDark
+            ? AppColors.div(context)
+            : const Color(0xFFE2E8F0),
         width: 0.8,
       ),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(isDark ? 0.15 : 0.04),
-          blurRadius: 8,
-          offset: const Offset(0, 3),
+          color: Colors.black.withOpacity(isDark ? 0.15 : 0.03),
+          blurRadius: 6,
+          offset: const Offset(0, 2),
         ),
       ],
     ),
@@ -238,6 +250,12 @@ Widget _logoContainer(
       logoUrl: channel.logoUrl,
       localLogoUrl: channel.localLogoUrl,
       channelName: channel.name,
+      size: logoSize,
+      borderRadius: logoSize * 0.18,
+      fit: BoxFit.contain,
+    ),
+  );
+}
       size: logoSize,
       borderRadius: logoSize * 0.18,
       fit: BoxFit.contain,
@@ -299,8 +317,8 @@ class _CompactCard extends StatelessWidget {
     final offline = _isOffline(channel);
 
     return Container(
-      width: 112,
-      height: 150,
+      width: 122,
+      height: 156,
       margin: margin ?? const EdgeInsets.only(right: 12),
       decoration: _cardDecoration(context, offline: offline),
       child: ClipRRect(
@@ -336,34 +354,17 @@ class _CompactCard extends StatelessWidget {
                     ),
                     if (!offline) ...[
                       const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 5,
-                            height: 5,
-                            decoration: const BoxDecoration(
-                              color: Color(AppColors.brandRed),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              detail.isNotEmpty ? detail : 'Live',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: AppColors.textM(context),
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w600,
-                                height: 1.1,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        detail.isNotEmpty ? detail : 'Live',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.textM(context),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          height: 1.1,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ],

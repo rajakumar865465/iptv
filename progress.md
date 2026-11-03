@@ -1,5 +1,23 @@
 # NivaTV - Recent Progress
 
+## Light Mode UI/UX Professional Streaming Overhaul (November 2026)
+- **Eliminated Flat White Sheet & Established Visual Hierarchy:**
+  - Upgraded Light Mode canvas background from `#F8FAFC` (97% white) to `Color(0xFFF1F5F9)` (Slate-100 soft contrast backdrop in [`constants.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/constants.dart) and [`theme.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/theme.dart)). Pure white `#FFFFFF` cards and directory rows now pop with tactile depth.
+  - Added dual-layer soft elevation shadows (`BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 3))` and `BoxShadow(color: Color(0x04000000), blurRadius: 2, offset: Offset(0, 1))`) across all cards and directory list items.
+- **Redesigned Badges for Light Theme:**
+  - **LiveBadge:** Replaced dark muddy brownish-black blob (`Colors.black.withOpacity(0.4)`) with a clean, soft-crimson tinted pill (`#FEE2E2` background, `#FECACA` border, `#DC2626` crimson text, and glowing pulsating beacon) in [`premium_widgets.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/premium_widgets.dart).
+  - **QualityBadge (HD / 4K / FHD):** In light mode, badges adapt to clean soft-tinted pills with saturated typography (`#EFF6FF` / `#1D4ED8` for HD, `#FAF5FF` / `#7E22CE` for 4K, `#F0FDF4` / `#15803D` for FHD) in [`premium_widgets.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/premium_widgets.dart).
+- **Directory Rows & Pedestals:**
+  - **Logo Pedestal:** Upgraded logo container in [`channel_directory_row.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/live_tv/channel_directory_row.dart) and [`premium_channel_card.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/premium_channel_card.dart) to use distinct Slate-50 background (`#F8FAFC`) with subtle `#E2E8F0` border, framing channel logos crisp and clear.
+  - **Channel Number Badge:** Refined `_NumberBadge` with `width: 44, height: 42`, `#F1F5F9` background, `#E2E8F0` border, and bold `#1E293B` tabular numbers.
+  - **Offline Indicator:** Upgraded `_OfflineChip` with soft crimson tint (`#FEE2E2`) and crimson text.
+- **Card Sizing & Deceptive Dot Elimination:**
+  - Expanded `_CompactCard` dimensions from 112px to 122px (height: 156px) in [`premium_channel_card.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/premium_channel_card.dart) and row height to 162px, preventing badge truncation (e.g. `LIV` -> `LIVE`).
+  - Removed misleading red circle in front of category names on cards (e.g., `• Movies`, `• General`), eliminating false user alarms that channels are offline or failing.
+- **Directory Section Dividers:**
+  - Replaced raw `#` symbol divider with a sleek `[ 0–9 & Symbols ] ──────────────` pill tag in [`channel_list_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/channel_list_screen.dart).
+- **Verification:** 0 compilation errors verified via `flutter analyze`. Pushed to GitHub `origin main`.
+
 ## Light Mode High Contrast & Text Visibility Overhaul (November 2026)
 - **Eliminated White-on-White Text in Light Mode:**
   - Upgraded [`HomeHeader`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/home/home_header.dart) to render `NIVATV` and `👋 Good Afternoon, ...` using `AppColors.text1(context)` and `AppColors.text2(context)`, eliminating invisible white typography on light backgrounds.
