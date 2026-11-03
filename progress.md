@@ -16,7 +16,8 @@
   - Removed misleading red circle in front of category names on cards (e.g., `• Movies`, `• General`), eliminating false user alarms that channels are offline or failing.
 - **Directory Section Dividers:**
   - Replaced raw `#` symbol divider with a sleek `[ 0–9 & Symbols ] ──────────────` pill tag in [`channel_list_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/channel_list_screen.dart).
-- **Verification:** 0 compilation errors verified via `flutter analyze`. Pushed to GitHub `origin main`.
+  - Added `primaryLight` token (`0xFF818CF8`) to `AppColors` in [`constants.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/constants.dart) for dark mode tag rendering.
+- **Verification:** 0 compilation errors verified via `flutter analyze`. Pushed to GitHub `origin main` (`1d070b6`).
 
 ## Light Mode High Contrast & Text Visibility Overhaul (November 2026)
 - **Eliminated White-on-White Text in Light Mode:**
