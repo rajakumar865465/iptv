@@ -237,6 +237,30 @@ class _SearchScreenState extends State<SearchScreen>
               ),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 24),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final term in const [
+                  'Sports',
+                  'News',
+                  'Movies',
+                  'Entertainment',
+                  'Hindi',
+                  'Music',
+                  'Kids',
+                ])
+                  _QuickSearchChip(
+                    label: term,
+                    onTap: () {
+                      _searchController.text = term;
+                      _onSearchChanged(term);
+                    },
+                  ),
+              ],
+            ),
           ],
         ),
       ),
@@ -247,7 +271,12 @@ class _SearchScreenState extends State<SearchScreen>
 
   Widget _buildSearchLoading() {
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(
+        14,
+        8,
+        14,
+        AppConstants.bottomNavClearance,
+      ),
       itemCount: 8,
       itemBuilder: (_, __) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
@@ -288,7 +317,12 @@ class _SearchScreenState extends State<SearchScreen>
         ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            padding: const EdgeInsets.fromLTRB(
+              14,
+              4,
+              14,
+              AppConstants.bottomNavClearance,
+            ),
             physics: const BouncingScrollPhysics(),
             itemCount: channels.length,
             itemBuilder: (context, index) {

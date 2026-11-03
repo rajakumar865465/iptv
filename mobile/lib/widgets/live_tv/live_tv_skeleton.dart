@@ -39,23 +39,12 @@ class LiveTvSkeleton extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
             child: LoadingSkeleton(
               width: double.infinity,
-              height: 56,
-              borderRadius: 18,
+              height: 48,
+              borderRadius: 14,
             ),
           ),
         ),
-        // Toggle shimmer
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 2, 14, 8),
-            child: LoadingSkeleton(
-              width: double.infinity,
-              height: 58,
-              borderRadius: 16,
-            ),
-          ),
-        ),
-        // Chip row shimmer
+        // Genre chip row shimmer
         SliverToBoxAdapter(
           child: SizedBox(
             height: 40,
@@ -66,38 +55,44 @@ class LiveTvSkeleton extends StatelessWidget {
               itemCount: 6,
               itemBuilder: (_, __) => const Padding(
                 padding: EdgeInsets.only(right: 8),
-                child: LoadingSkeleton(width: 80, height: 36, borderRadius: 22),
+                child: LoadingSkeleton(width: 84, height: 34, borderRadius: 20),
               ),
             ),
           ),
         ),
-        const SliverToBoxAdapter(child: SizedBox(height: 8)),
-        // Count bar shimmer
+        // Compact status + Working-only pill bar shimmer
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 6),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Row(
               children: [
                 const LoadingSkeleton(width: 8, height: 8, borderRadius: 4),
-                const SizedBox(width: 6),
+                const SizedBox(width: 7),
                 const LoadingSkeleton(width: 120, height: 12, borderRadius: 6),
+                const Spacer(),
+                const LoadingSkeleton(width: 100, height: 28, borderRadius: 16),
               ],
             ),
           ),
         ),
         // Grid shimmer
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
+          padding: const EdgeInsets.fromLTRB(
+            14,
+            4,
+            14,
+            AppConstants.bottomNavClearance,
+          ),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 0.78,
+              crossAxisCount: 3,
+              childAspectRatio: 0.72,
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
             ),
             delegate: SliverChildBuilderDelegate(
               (_, __) => const SkeletonChannelCard(),
-              childCount: 10,
+              childCount: 9,
             ),
           ),
         ),

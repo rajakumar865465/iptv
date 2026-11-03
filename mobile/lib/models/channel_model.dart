@@ -91,9 +91,9 @@ class ChannelModel {
     return quality!.toUpperCase();
   }
 
-  /// Permanent channel number as a zero-padded 3-digit label (e.g. "007").
+  /// Channel number label formatted as standard integers (e.g. "1", "2", "3").
   /// Returns null when the channel has no assigned number.
-  String? get numberLabel => channelNumber?.toString().padLeft(3, '0');
+  String? get numberLabel => channelNumber != null ? '$channelNumber' : null;
 
   factory ChannelModel.fromJson(Map<String, dynamic> json) {
     String? parseString(dynamic value) {

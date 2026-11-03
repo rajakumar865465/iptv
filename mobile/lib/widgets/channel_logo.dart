@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:http/http.dart' as http;
 import '../constants.dart';
 import '../utils/backend_config.dart';
@@ -65,18 +64,25 @@ class ChannelLogo extends StatelessWidget {
   }
 
   String get _initials {
-    final trimmed = channelName.trim();
-    if (trimmed.isEmpty) return '?';
-    final words = trimmed
+    final cleaned = channelName
+        .replaceAll(RegExp(r'\s*[\(\[][^)\]]*[\)\]]\s*'), ' ')
+        .replaceAll(
+          RegExp(r'\b(HD|FHD|SD|4K|UHQ|APAC|INDIA|IN)\b', caseSensitive: false),
+          '',
+        )
+        .trim();
+    final source = cleaned.isEmpty ? channelName.trim() : cleaned;
+    if (source.isEmpty) return 'TV';
+    final words = source
         .split(RegExp(r'\s+'))
         .where((w) => w.isNotEmpty)
         .toList();
     if (words.length >= 2) {
       return (words[0][0] + words[1][0]).toUpperCase();
     }
-    return trimmed.length >= 2
-        ? trimmed.substring(0, 2).toUpperCase()
-        : trimmed[0].toUpperCase();
+    return source.length >= 2
+        ? source.substring(0, 2).toUpperCase()
+        : source[0].toUpperCase();
   }
 
   bool get _isSvg {
@@ -95,23 +101,24 @@ class ChannelLogo extends StatelessWidget {
     return 'logo_${url.hashCode}';
   }
 
-  /// Premium gradient pairs used for the initials fallback. These are
-  /// dark, subtle, and consistent with the app theme so the fallback
-  /// never looks like a broken image.
+  /// Rich OTT-grade gradient pairs for the monogram fallback so cards
+  /// always look intentional and recognizable even when M3U logos fail.
   static const List<List<Color>> _fallbackGradients = [
-    [Color(0xFF1E1E2E), Color(0xFF2A2A3E)], // slate
-    [Color(0xFF0F1A40), Color(0xFF1A1040)], // navy
-    [Color(0xFF1A0F3A), Color(0xFF0D1026)], // deep purple
-    [Color(0xFF0A2E1F), Color(0xFF0A1F18)], // deep teal
-    [Color(0xFF2A1508), Color(0xFF3A240A)], // deep amber
-    [Color(0xFF2A0A15), Color(0xFF3A0F0F)], // deep red
+    [Color(0xFF312E81), Color(0xFF4F46E5)], // Electric Indigo
+    [Color(0xFF881337), Color(0xFFE11D48)], // Crimson Rose
+    [Color(0xFF0C4A6E), Color(0xFF0284C7)], // Ocean Cyan
+    [Color(0xFF064E3B), Color(0xFF059669)], // Emerald Teal
+    [Color(0xFF78350F), Color(0xFFD97706)], // Broadcast Amber
+    [Color(0xFF581C87), Color(0xFFC026D3)], // Royal Magenta
   ];
 
   List<Color> get _fallbackColors {
-    final idx = channelName.isEmpty
-        ? 0
-        : channelName.codeUnitAt(0) % _fallbackGradients.length;
-    return _fallbackGradients[idx];
+    if (channelName.isEmpty) return _fallbackGradients[0];
+    int hash = 0;
+    for (int i = 0; i < channelName.length; i++) {
+      hash = (hash * 31 + channelName.codeUnitAt(i)) & 0x7FFFFFFF;
+    }
+    return _fallbackGradients[hash % _fallbackGradients.length];
   }
 
   @override
@@ -126,7 +133,7 @@ class ChannelLogo extends StatelessWidget {
           size: size,
           borderRadius: borderRadius,
           fallback: _buildFallback(),
-          shimmer: _buildShimmer(),
+          shimmer: _buildFallback(),
         );
       } else {
         child = ClipRRect(
@@ -137,13 +144,13 @@ class ChannelLogo extends StatelessWidget {
             width: size,
             height: size,
             fit: fit,
-            fadeInDuration: const Duration(milliseconds: 150),
+            fadeInDuration: const Duration(milliseconds: 180),
             httpHeaders: const {
               'Referer': 'https://www.google.com',
               'User-Agent':
                   'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36',
             },
-            placeholder: (context, url) => _buildShimmer(),
+            placeholder: (context, url) => _buildFallback(),
             errorWidget: (context, url, error) => _buildFallback(),
           ),
         );
@@ -160,38 +167,21 @@ class ChannelLogo extends StatelessWidget {
     );
   }
 
-  Widget _buildShimmer() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: Shimmer.fromColors(
-          baseColor: const Color(AppColors.shimmerBase),
-          highlightColor: const Color(AppColors.shimmerHighlight),
-          child: Container(
-            width: size,
-            height: size,
-            color: const Color(AppColors.surface),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildFallback() {
-    final bg = backgroundColor ?? const Color(AppColors.surfaceElevated);
     final border = borderColor ?? const Color(AppColors.divider);
     final colors = _fallbackColors;
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: colors,
-        ),
+        color: backgroundColor,
+        gradient: backgroundColor == null
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: colors,
+              )
+            : null,
         borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(color: border, width: 0.8),
       ),

@@ -32,21 +32,20 @@ class ProfileHeaderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF11183A),
-            Color(0xFF1A0F3A),
-            Color(0xFF0D1026),
+            Color(0xFF13193E),
+            Color(0xFF1D1142),
+            Color(0xFF0E122B),
           ],
           stops: [0.0, 0.55, 1.0],
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: const Color(AppColors.primary).withOpacity(0.18),
+          color: const Color(AppColors.primary).withOpacity(0.24),
           width: 1,
         ),
         boxShadow: [
@@ -57,31 +56,36 @@ class ProfileHeaderCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Stack(
-        children: [
-          // Decorative glow
-          Positioned(
-            top: -20,
-            right: -20,
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(AppColors.primary).withOpacity(0.12),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(AppColors.primary).withOpacity(0.18),
-                    blurRadius: 50,
-                    spreadRadius: 10,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            // Decorative ambient glow (unclipped by inner padding)
+            Positioned(
+              top: -28,
+              right: -28,
+              child: IgnorePointer(
+                child: Container(
+                  width: 130,
+                  height: 130,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        const Color(AppColors.primary).withOpacity(0.28),
+                        const Color(AppColors.brandRed).withOpacity(0.08),
+                        Colors.transparent,
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
             ),
-          ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
               // Avatar
               Container(
                 width: 64,
@@ -228,8 +232,10 @@ class ProfileHeaderCard extends StatelessWidget {
                 ),
             ],
           ),
-        ],
-      ),
-    );
+        ),
+      ],
+    ),
+  ),
+);
   }
 }

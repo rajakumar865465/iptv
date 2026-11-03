@@ -172,9 +172,10 @@ class _NumberBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 42,
+      width: 44,
       height: 46,
       alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       decoration: BoxDecoration(
         color: const Color(AppColors.surfaceLight),
         borderRadius: BorderRadius.circular(9),
@@ -185,13 +186,14 @@ class _NumberBadge extends StatelessWidget {
       ),
       child: Text(
         label ?? '—',
+        maxLines: 1,
         style: TextStyle(
           color: label == null
               ? const Color(AppColors.textMuted)
               : const Color(AppColors.textSecondary),
-          fontSize: 14,
+          fontSize: (label != null && label!.length > 3) ? 11.5 : 13.5,
           fontWeight: FontWeight.w800,
-          letterSpacing: 0.5,
+          letterSpacing: 0.2,
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
       ),

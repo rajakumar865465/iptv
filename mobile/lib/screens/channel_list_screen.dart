@@ -23,8 +23,7 @@ import 'player_screen.dart';
 /// flattened directory is a `List<Object>` of headers + channels.
 class _HeaderEntry {
   final String label;
-  final IconData? icon;
-  const _HeaderEntry(this.label, {this.icon});
+  const _HeaderEntry(this.label);
 }
 
 class ChannelListScreen extends StatefulWidget {
@@ -219,6 +218,13 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
       _quality != null ||
       _premium != 'all';
 
+  bool get _hasNonGenreActiveFilters =>
+      _selectedCategoryId != null ||
+      _language != null ||
+      _country != null ||
+      _quality != null ||
+      _premium != 'all';
+
   List<String> _countriesFrom(ChannelLoaded state) {
     final set = <String>{};
     for (final c in state.channels) {
@@ -322,19 +328,25 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
             ),
           ),
 
+          // Quick horizontal Genre filter chip bar
+          SliverToBoxAdapter(
+            child: _buildGenreQuickBar(),
+          ),
+
+          // Unified status & Working Only pill bar
           SliverToBoxAdapter(
             child: WorkingOnlyToggle(
               value: _workingOnly,
               onChanged: _toggleWorkingOnly,
+              channelCount: state.totalCount,
+              showClearFilters: _hasActiveFilters || _hasSearch,
+              onClearFilters: _clearAllFilters,
             ),
           ),
 
-          // Active filter chips (only when narrowing).
-          if (_hasActiveFilters)
+          // Active filter chips (only when non-genre facets are narrowing).
+          if (_hasNonGenreActiveFilters)
             SliverToBoxAdapter(child: _buildActiveFilterBar()),
-
-          // Count bar
-          SliverToBoxAdapter(child: _buildCountBar(state)),
 
           // Cached-data error banner
           if (state.error != null)
@@ -366,7 +378,10 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
 
             // Main directory (sectioned by letter or genre, or flat for ranked sorts).
             SliverPadding(
-              padding: const EdgeInsets.only(top: 4, bottom: 28),
+              padding: const EdgeInsets.only(
+                top: 4,
+                bottom: AppConstants.bottomNavClearance,
+              ),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
@@ -413,26 +428,14 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
     final entries = <Object>[];
 
     if (sort == 'number') {
-      final byGenre = <String, List<ChannelModel>>{};
-      for (final c in channels) {
-        byGenre.putIfAbsent(_normGenre(c.genre), () => []).add(c);
-      }
-      final orderedGenres = <String>[
-        ..._genreOrder.where(byGenre.containsKey),
-        ...byGenre.keys.where((g) => !_genreOrder.contains(g)),
-      ];
-      for (final g in orderedGenres) {
-        final list = byGenre[g]!
-          ..sort((a, b) {
-            final an = a.channelNumber, bn = b.channelNumber;
-            if (an != null && bn != null && an != bn) return an.compareTo(bn);
-            if (an != null && bn == null) return -1;
-            if (an == null && bn != null) return 1;
-            return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-          });
-        entries.add(_HeaderEntry(g, icon: _genreIcon(g)));
-        entries.addAll(list);
-      }
+      final sorted = List<ChannelModel>.from(channels)
+        ..sort((a, b) {
+          final an = a.channelNumber ?? 999999;
+          final bn = b.channelNumber ?? 999999;
+          if (an != bn) return an.compareTo(bn);
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
+      entries.addAll(sorted);
       return entries;
     }
 
@@ -461,15 +464,6 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
     if (t.isEmpty) return '#';
     final ch = t[0].toUpperCase();
     return RegExp(r'[A-Z]').hasMatch(ch) ? ch : '#';
-  }
-
-  String _normGenre(String? g) {
-    if (g == null || g.trim().isEmpty) return 'Other';
-    final t = g.trim().toLowerCase();
-    return _genreOrder.firstWhere(
-      (x) => x.toLowerCase() == t,
-      orElse: () => 'Other',
-    );
   }
 
   IconData _genreIcon(String g) {
@@ -602,7 +596,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
       children: [
         SectionHeader(title: title, icon: icon, iconColor: iconColor),
         SizedBox(
-          height: 176,
+          height: 158,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),
@@ -619,7 +613,90 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
     );
   }
 
-  // ── Active filter bar + count bar ─────────────────────────────────────────
+  // ── Quick Genre filter bar & Active filter bar ────────────────────────────
+
+  Widget _buildGenreQuickBar() {
+    final genres = ['All', ..._genreOrder.where((g) => g != 'Other')];
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(14, 2, 14, 2),
+        itemCount: genres.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final g = genres[i];
+          final isAll = g == 'All';
+          final selected = isAll ? _genre == null : _genre == g;
+          return GestureDetector(
+            onTap: () {
+              final next = isAll ? null : (selected ? null : g);
+              if (_genre == next) return;
+              setState(() => _genre = next);
+              _reload();
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: selected
+                    ? const LinearGradient(
+                        colors: [
+                          Color(AppColors.primary),
+                          Color(AppColors.brandRed),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+                color: selected ? null : const Color(AppColors.surface),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: selected
+                      ? Colors.white.withOpacity(0.18)
+                      : const Color(AppColors.divider),
+                  width: 0.9,
+                ),
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: const Color(AppColors.primary).withOpacity(0.32),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isAll ? Icons.grid_view_rounded : _genreIcon(g),
+                    size: 13.5,
+                    color: selected
+                        ? Colors.white
+                        : const Color(AppColors.textMuted),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    g,
+                    style: TextStyle(
+                      color: selected
+                          ? Colors.white
+                          : const Color(AppColors.textSecondary),
+                      fontSize: 12,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   Widget _buildActiveFilterBar() {
     final chips = <Widget>[];
@@ -630,12 +707,6 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
           _selectedCategoryId = null;
           _selectedCategoryName = null;
         });
-        _reload();
-      }));
-    }
-    if (_genre != null) {
-      chips.add(_activeChip(_genre!, () {
-        setState(() => _genre = null);
         _reload();
       }));
     }
@@ -665,10 +736,10 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
     }
 
     return SizedBox(
-      height: 38,
+      height: 36,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(18, 2, 18, 2),
+        padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
         children: [
           for (final c in chips) ...[c, const SizedBox(width: 8)],
         ],
@@ -708,71 +779,6 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildCountBar(ChannelLoaded state) {
-    final showClear = _hasActiveFilters || _hasSearch;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 6),
-      child: Row(
-        children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(
-              color: _workingOnly
-                  ? const Color(AppColors.success)
-                  : const Color(AppColors.warning),
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 7),
-          Text(
-            '${state.totalCount} ${_workingOnly ? 'working' : 'total'} channels',
-            style: const TextStyle(
-              color: Color(AppColors.textMuted),
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(width: 8),
-          if (showClear)
-            GestureDetector(
-              onTap: _clearAllFilters,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(AppColors.brandRed).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: const Color(AppColors.brandRed).withOpacity(0.2),
-                    width: 0.5,
-                  ),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.close_rounded,
-                      size: 11,
-                      color: Color(AppColors.brandRed),
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      'Clear All',
-                      style: TextStyle(
-                        color: Color(AppColors.brandRed),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
       ),
     );
   }

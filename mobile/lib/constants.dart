@@ -7,49 +7,50 @@ class AppConstants {
   static const String appVersion = '2.8.1'; // Synchronized with pubspec.yaml
   static const int connectTimeout = 30000;
   static const int receiveTimeout = 30000;
+  static const double bottomNavClearance = 108.0;
 }
 
 class AppColors {
   // ── NivaTV Premium Dark Theme ──────────────────────────────────────────────
-  // Core: Deep navy-black base inspired by JioTV/Airtel Xstream premium OTT look
-  static const int primary = 0xFF1A56DB;         // NivaTV Blue (primary brand)
-  static const int brandRed = 0xFFE5091A;        // NivaTV Red accent (secondary brand)
+  // Core: Deep obsidian base with Electric Indigo -> Vibrant Crimson brand accents
+  static const int primary = 0xFF4F46E5;         // Electric Indigo (primary brand)
+  static const int brandRed = 0xFFE11D48;        // Vibrant Crimson (secondary brand)
   static const int premiumGold = 0xFFFFB300;     // Premium / PRO badge color
 
-  // Backgrounds — deep black with slight warm navy tint
-  static const int background = 0xFF0A0A12;      // Deep navy-black
-  static const int backgroundAlt = 0xFF0F0F1A;   // Slightly lighter navy-black
-  static const int surface = 0xFF16161F;         // Card surface
-  static const int surfaceElevated = 0xFF1E1E2E; // Elevated cards/sheets
-  static const int surfaceLight = 0xFF252535;    // Input backgrounds, chips
-  static const int divider = 0xFF252535;         // Subtle dividers
+  // Backgrounds — deep OLED obsidian with rich indigo-slate elevation
+  static const int background = 0xFF07080E;      // Deep OLED obsidian
+  static const int backgroundAlt = 0xFF0C0E18;   // Slightly lighter obsidian
+  static const int surface = 0xFF111320;         // Card surface
+  static const int surfaceElevated = 0xFF1A1D30; // Elevated cards/sheets
+  static const int surfaceLight = 0xFF181B2C;    // Input backgrounds, chips
+  static const int divider = 0xFF252A44;         // Crisp hairline borders
 
   // Text hierarchy
   static const int textPrimary = 0xFFFFFFFF;     // Headings
-  static const int textSecondary = 0xFFB8BCC8;   // Subheadings / labels
-  static const int textMuted = 0xFF6B7080;       // Disabled / hint text
+  static const int textSecondary = 0xFFB8C0D4;   // Subheadings / labels
+  static const int textMuted = 0xFF727994;       // Disabled / hint text
   static const int textOnBrand = 0xFFFFFFFF;     // Text on colored buttons
 
   // Legacy alias (accent = primary for backwards compat)
-  static const int accent = 0xFF1A56DB;
+  static const int accent = 0xFF4F46E5;
 
   // Semantic colors
-  static const int liveRed = 0xFFE5091A;
-  static const int success = 0xFF22C55E;
+  static const int liveRed = 0xFFE11D48;
+  static const int success = 0xFF10B981;
   static const int warning = 0xFFF59E0B;
   static const int error = 0xFFEF4444;
 
   // Cards / gradients
-  static const int cardGradientStart = 0xFF1E1E2E;
-  static const int cardGradientEnd = 0xFF16161F;
+  static const int cardGradientStart = 0xFF1A1D30;
+  static const int cardGradientEnd = 0xFF111320;
 
-  // Shimmer (slightly brighter than background for subtlety)
-  static const int shimmerBase = 0xFF1E1E2E;
-  static const int shimmerHighlight = 0xFF2A2A3E;
+  // Shimmer (layered contrast against card surfaces)
+  static const int shimmerBase = 0xFF1A1D30;
+  static const int shimmerHighlight = 0xFF2B3050;
 
   // Bottom nav
-  static const int navBackground = 0xFF0A0A12;
-  static const int navIndicator = 0xFF1A56DB;   // Blue indicator pill
+  static const int navBackground = 0xFF0D0F1B;
+  static const int navIndicator = 0xFF4F46E5;   // Indigo indicator pill
 }
 
 class ApiEndpoints {

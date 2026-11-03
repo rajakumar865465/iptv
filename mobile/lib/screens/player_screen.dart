@@ -3442,7 +3442,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
     
     // Ensure the home screen snaps back to max 90/120Hz when leaving the player
-    if (Platform.isAndroid) {
+    if (!kIsWeb && Platform.isAndroid) {
       try {
         FlutterDisplayMode.setHighRefreshRate();
       } catch (_) {}

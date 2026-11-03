@@ -23,7 +23,7 @@ class FavoritesHeader extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  'Favorites',
+                  'My List',
                   style: TextStyle(
                     color: Color(AppColors.textPrimary),
                     fontSize: 26,

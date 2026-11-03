@@ -1,5 +1,12 @@
 # NivaTV - Recent Progress
 
+## Mobile App Web Browser Execution & Build (November 2026)
+- **Web Compatibility Bugfix:** Fixed an unhandled `Platform.isAndroid` evaluation in `mobile/lib/screens/player_screen.dart` (`dispose` method) by wrapping it with `if (!kIsWeb && Platform.isAndroid)`, preventing web runtime crashes when navigating away from video playback.
+- **Compiled Web Release:** Successfully built the production web application (`flutter build web --dart-define=BACKEND_URL=https://nivatv.luxomall.in`) with native HLS JS interception in `index.html`.
+- **Static Web Server:** Created [serve_mobile_web.js](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/serve_mobile_web.js) running on port `8085` with full CORS support and SPA fallback routing.
+- **Browser Automation & CORS Support:** Configured Google Chrome launcher with `--disable-web-security` and temp user profile, allowing broadcast CDN video streams to play seamlessly in the desktop browser without CORS blocking.
+- **1-Click Script:** Added [run_mobile_web.ps1](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/run_mobile_web.ps1) for instant startup.
+
 ## Mobile App Playback Bugfixes (August 2026)
 - **Hardware Acceleration:** Fixed 0 FPS and buffering issue on physical Android devices by updating `player_screen.dart` to use `hwdec=auto` instead of `auto-safe`, and adding a multi-stage hardware decoder fallback cascade (`auto` -> `mediacodec` -> `no`).
 - **Buffering / Token Expiry Fixes:** Fixed an infinite buffering issue occurring exactly at 2-3 minutes into playback (token expiry).
@@ -409,3 +416,30 @@
       - Ran `backend/scripts/purge_assessment_test_data.js` on EC2, safely removing 28 test orders, 14 test licenses, and 5 test users generated during the vulnerability assessment.
     - **RFC 9116 Responsible Disclosure (`security.txt`):**
       - Created `/.well-known/security.txt` in both frontend and backend specifying security contacts, encryption policy, and canonical disclosure endpoints.
+
+- **Full Mobile UI/UX Overhaul & 5-Screen Redesign (November 2026):**
+  - **Identified Issues from Screenshots:**
+    1. **Design System Inconsistency:** Electric Indigo (`0xFF4F46E5`) clashed with pure primary blue buttons; dark surfaces lacked OLED depth; shimmer skeletons rendered as unformatted dark monolithic blocks.
+    2. **Channel Cards & Logo Fallbacks:** Double heart/favorite icons overlapped titles; channel titles contained ugly raw M3U resolution tags (`(576p)`, `APAC`, `[Geo-blocked]`); contradictory `LIVE` + `OFFLINE` badges rendered simultaneously on playable channels; missing logos rendered as empty dark gray boxes.
+    3. **Auth Screen Deficiencies:** `LoginScreen` duplicated brand text with low-contrast dark "NivaTV" asset text; `SignupScreen` was truncated with missing Mobile, Confirm Password, and Terms checkbox.
+    4. **Home & Live TV Screens:** Static hero card lacked real channel previews; duplicate flame emoji in `'🔥 Trending Now'`; Live TV screen header had oversized `Working channels only` banner and count bar eating vertical space; genre filtering was buried in modal sheet.
+    5. **Favorites & Profile Screens:** Shimmer placeholder in `FavoritesScreen` wiped out the "My List" header; 2-column grid was excessively wide; `ProfileHeaderCard` clipped ambient glow orb creating a dark rectangular box behind the user name; settings gear icon was unwired; bottom navigation bar (`AppBottomNav`) covered the lowest items.
+  - **Comprehensive Fixes Applied:**
+    - **Phase 1: Design System & Core Shimmers:**
+      - Updated [constants.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/constants.dart): Unified palette with Electric Indigo (`0xFF4F46E5`), Brand Crimson (`0xFFE11D48`), OLED Obsidian (`0xFF07080E`), deep navy surfaces (`0xFF111320`), and `AppConstants.bottomNavClearance = 108.0`.
+      - Updated [premium_widgets.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/premium_widgets.dart): Rebuilt `SkeletonChannelCard` so shimmer wraps only the inner elements (badge, logo well, text bars) while retaining card geometry and borders.
+    - **Phase 2: Channel Cards & Logo Monogram Engine:**
+      - Updated [channel_logo.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/channel_logo.dart): Created multi-gradient monogram engine with regex stripping resolution/regional tags; used monogram placeholder in `CachedNetworkImage` so slow/dead logos immediately display polished OTT branding.
+      - Updated [premium_channel_card.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/premium_channel_card.dart): Cleaned title regexes (`_cleanChannelName`), restricted offline badges to `dead` / `disabled` statuses only, removed duplicate favorite buttons, and unified floating heart at top-right with live crimson pulse dot.
+    - **Phase 3: Auth Experience:**
+      - Redesigned [login_screen.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/login_screen.dart): Cropped duplicate dark text inside glassmorphic emblem with Indigo/Crimson top glow; added field labels, prefix icons, gradient CTA, and Google Sign-In button.
+      - Restored [signup_screen.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/signup_screen.dart): Implemented Full Name, Email, Mobile, Password, Confirm Password, and Terms checkbox wired directly to `AuthCubit.signup`.
+    - **Phase 4: Home & Live TV:**
+      - Upgraded [home_hero.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/home/home_hero.dart): Created auto-advancing `PageView` carousel of top featured live channels with logo, live badge, category pill, indicator dots, and 1-tap "Watch Live" gradient CTA.
+      - Redesigned [home_screen.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/home_screen.dart): Cleaned section headers (`Trending Now`) and set bottom scroll clearance.
+      - Revamped [working_only_toggle.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/live_tv/working_only_toggle.dart) & [channel_list_screen.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/channel_list_screen.dart): Merged oversized switch and count bar into a single 38px control row (live count indicator, reset filter chip, and working-only pill); added sticky horizontal 1-tap Genre Quick-Filter chip bar (`All`, `News`, `Entertainment`, `Movies`, `Sports`, `Music`, `Kids`, `Regional`, `Devotional`).
+    - **Phase 5: Favorites & Profile Screens:**
+      - Fixed [favorites_header.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/favorites/favorites_header.dart), [favorites_skeleton.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/favorites/favorites_skeleton.dart), and [favorites_screen.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/favorites_screen.dart): Retained persistent "My List" header during loading, switched to a high-density 3-column grid (`crossAxisCount: 3, childAspectRatio: 0.72`), added auto-load guard on `FavoriteInitial`, and applied bottom clearance.
+      - Fixed [profile_header_card.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/profile/profile_header_card.dart) & [profile_screen.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/profile_screen.dart): Resolved rectangular clipping bug behind user name by moving outer container padding inside `ClipRRect(borderRadius: 24)`; wired Settings gear icon to `PlaybackSettingsScreen`; applied `bottomNavClearance` so settings menu items are fully visible above the floating bottom navigation bar.
+      - Verified [search_screen.dart](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/search_screen.dart): Added quick search recommendation pills (`Sports`, `News`, `Movies`, `Entertainment`, `Hindi`, `Music`, `Kids`) and bottom clearance.
+  - **Verification:** Ran `flutter analyze` in `mobile/` confirming 0 compilation errors across the entire Flutter project.

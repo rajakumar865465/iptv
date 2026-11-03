@@ -519,21 +519,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             letterSpacing: -0.5,
                           ),
                         ),
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: const Color(AppColors.surfaceLight),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(AppColors.divider),
-                              width: 0.8,
+                        GestureDetector(
+                          onTap: () => Navigator.of(context)
+                              .push(
+                                MaterialPageRoute(
+                                  builder: (_) => const PlaybackSettingsScreen(),
+                                ),
+                              )
+                              .then((_) => _loadPlaybackSettings()),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: const Color(AppColors.surfaceLight),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(AppColors.divider),
+                                width: 0.8,
+                              ),
                             ),
-                          ),
-                          child: const Icon(
-                            Icons.settings_outlined,
-                            size: 19,
-                            color: Color(AppColors.textSecondary),
+                            child: const Icon(
+                              Icons.settings_outlined,
+                              size: 19,
+                              color: Color(AppColors.textSecondary),
+                            ),
                           ),
                         ),
                       ],
@@ -676,7 +685,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ]),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: AppConstants.bottomNavClearance),
                 ],
               ),
               ),

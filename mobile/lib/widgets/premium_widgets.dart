@@ -495,45 +495,69 @@ class SkeletonChannelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Shimmer.fromColors(
-      baseColor: const Color(AppColors.shimmerBase),
-      highlightColor: const Color(AppColors.shimmerHighlight),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(AppColors.surface),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(AppColors.divider), width: 0.5),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 22, 10, 10),
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(AppColors.surface),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(AppColors.divider), width: 0.8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+        child: Shimmer.fromColors(
+          baseColor: const Color(AppColors.shimmerBase),
+          highlightColor: const Color(AppColors.shimmerHighlight),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    height: 14,
+                    width: 24,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  Container(
+                    height: 20,
+                    width: 20,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ),
               Container(
-                width: 60,
-                height: 60,
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
-                  color: const Color(AppColors.surfaceElevated),
-                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              const SizedBox(height: 10),
-              Container(
-                height: 10,
-                width: 72,
-                decoration: BoxDecoration(
-                  color: const Color(AppColors.surfaceElevated),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                height: 8,
-                width: 48,
-                decoration: BoxDecoration(
-                  color: const Color(AppColors.surfaceElevated),
-                  borderRadius: BorderRadius.circular(6),
-                ),
+              Column(
+                children: [
+                  Container(
+                    height: 10,
+                    width: 68,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Container(
+                    height: 8,
+                    width: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

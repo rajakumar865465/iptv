@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../constants.dart';
 import '../cubits/favorite_cubit.dart';
 import '../cubits/mini_player_cubit.dart';
@@ -41,6 +40,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       body: SafeArea(
         child: BlocBuilder<FavoriteCubit, FavoriteState>(
           builder: (context, state) {
+            if (state is FavoriteInitial) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) context.read<FavoriteCubit>().loadFavorites();
+              });
+              return const FavoritesSkeleton();
+            }
             if (state is FavoriteLoading) return const FavoritesSkeleton();
             if (state is FavoriteError) return _buildError(state.message);
             if (state is FavoriteLoaded) return _buildContent(state.favorites);
@@ -57,7 +62,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         children: [
           const FavoritesHeader(count: 0),
           Expanded(
-            child: FavoritesEmptyState(onExploreChannels: _exploreChannels),
+            child: Padding(
+              padding: const EdgeInsets.only(
+                bottom: AppConstants.bottomNavClearance,
+              ),
+              child: FavoritesEmptyState(onExploreChannels: _exploreChannels),
+            ),
           ),
         ],
       );
@@ -78,11 +88,16 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             child: FavoritesHeader(count: favorites.length),
           ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(14, 4, 14, 24),
+            padding: const EdgeInsets.fromLTRB(
+              14,
+              8,
+              14,
+              AppConstants.bottomNavClearance,
+            ),
             sliver: SliverGrid(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.78,
+                crossAxisCount: 3,
+                childAspectRatio: 0.72,
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
               ),

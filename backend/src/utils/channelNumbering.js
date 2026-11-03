@@ -98,74 +98,47 @@ function resolveGenre(categoryName, channelName, language, country) {
 
 /**
  * assignChannelNumbers(db)
- * Idempotently assigns channel_number + genre to every channel that doesn't
- * have a number yet. Existing numbers are left untouched (permanence).
+ * Idempotently assigns sequential channel_number (1, 2, 3, 4...) + genre to
+ * every channel that doesn't have one yet. Existing numbers are preserved.
  *
  * @param {{query: Function}} db  pg pool wrapper (backend/src/config/db.js)
  * @returns {Promise<{assigned:number, perGenre:Object, spilled:number}>}
  */
 async function assignChannelNumbers(db) {
-  // 1) Seed nextInBlock from the highest number already used in each block so
-  //    new channels continue the sequence rather than colliding.
-  const nextInBlock = {};   // genre → next free absolute number in its block
-  const spillNext = { value: SPILL_BASE };
-
-  const usedRes = await db.query(
-    'SELECT channel_number FROM channels WHERE channel_number IS NOT NULL'
+  // 1) Find the highest channel_number currently used
+  const maxRes = await db.query(
+    'SELECT COALESCE(MAX(channel_number), 0) AS max_num FROM channels'
   );
-  const maxByBlock = {};   // baseKey → max number seen in that block
-  let maxSpill = SPILL_BASE - 1;
-  for (const row of usedRes.rows) {
-    const num = row.channel_number;
-    if (num >= SPILL_BASE) { if (num > maxSpill) maxSpill = num; continue; }
-    const base = Math.floor(num / BLOCK_SIZE) * BLOCK_SIZE;
-    if (maxByBlock[base] === undefined || num > maxByBlock[base]) maxByBlock[base] = num;
-  }
-  for (const { genre, base } of GENRE_BLOCKS) {
-    nextInBlock[genre] = maxByBlock[base] !== undefined ? maxByBlock[base] + 1 : base + 1;
-  }
-  spillNext.value = maxSpill + 1;
+  let nextNum = parseInt(maxRes.rows[0].max_num, 10) + 1;
 
-  // 2) Fetch un-numbered channels, most important first so the top channel in
-  //    each genre gets the lowest free number.
+  // 2) Fetch channels missing channel_number or genre
   const pending = await db.query(`
-    SELECT c.id, c.name, c.language, c.country, cat.name AS category_name
+    SELECT c.id, c.name, c.language, c.country, cat.name AS category_name, c.channel_number
     FROM channels c
     LEFT JOIN categories cat ON cat.id = c.category_id
-    WHERE c.channel_number IS NULL
-    ORDER BY COALESCE(c.popularity_score, 0) DESC, c.name ASC
+    WHERE c.channel_number IS NULL OR c.genre IS NULL
+    ORDER BY c.name ASC
   `);
 
   const perGenre = {};
   let assigned = 0;
-  let spilled = 0;
 
   for (const ch of pending.rows) {
     const genre = resolveGenre(ch.category_name, ch.name, ch.language, ch.country);
-    const base = BASE_OF[genre];
-    let number = nextInBlock[genre];
-
-    // Overflow: block is full (base+99 exceeded) → spill to the 9000+ pool.
-    if (number > base + BLOCK_SIZE - 1) {
-      number = spillNext.value++;
-      spilled++;
-    } else {
-      nextInBlock[genre] = number + 1;
+    let number = ch.channel_number;
+    if (number === null || number === undefined) {
+      number = nextNum++;
+      assigned++;
     }
 
     await db.query(
       'UPDATE channels SET channel_number = $1, genre = $2 WHERE id = $3',
       [number, genre, ch.id]
     );
-    assigned++;
     perGenre[genre] = (perGenre[genre] || 0) + 1;
   }
 
-  if (spilled > 0) {
-    console.warn(`[channelNumbering] ${spilled} channel(s) overflowed their 99-slot block and were assigned spill numbers (${SPILL_BASE}+). Consider widening BLOCK_SIZE.`);
-  }
-
-  return { assigned, perGenre, spilled };
+  return { assigned, perGenre, spilled: 0 };
 }
 
 module.exports = {

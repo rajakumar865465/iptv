@@ -1,75 +1,149 @@
 import 'package:flutter/material.dart';
 import '../../constants.dart';
 
-/// Compact modern switch row for the Working Only filter.
+/// Unified compact status & "Working Only" filter bar for Live TV.
+/// Combines the channel count indicator, active-filter clear button, and
+/// working-only pill toggle into a single sleek 38px row.
 class WorkingOnlyToggle extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
+  final int? channelCount;
+  final bool showClearFilters;
+  final VoidCallback? onClearFilters;
 
   const WorkingOnlyToggle({
     super.key,
     required this.value,
     required this.onChanged,
+    this.channelCount,
+    this.showClearFilters = false,
+    this.onClearFilters,
   });
 
   @override
   Widget build(BuildContext context) {
+    final statusColor = value
+        ? const Color(AppColors.success)
+        : const Color(AppColors.warning);
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 2, 14, 6),
-      child: GestureDetector(
-        onTap: () => onChanged(!value),
-        behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: value
-                ? const Color(AppColors.success).withOpacity(0.08)
-                : const Color(AppColors.surface),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: value
-                  ? const Color(AppColors.success).withOpacity(0.3)
-                  : const Color(AppColors.divider),
-              width: 0.8,
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+      child: Row(
+        children: [
+          // Left: Live count indicator
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: statusColor,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: statusColor.withOpacity(0.5),
+                  blurRadius: 6,
+                ),
+              ],
             ),
           ),
-          child: Row(
-            children: [
-              Icon(
-                value ? Icons.signal_cellular_alt_rounded : Icons.signal_cellular_off_rounded,
-                size: 15,
-                color: value
-                    ? const Color(AppColors.success)
-                    : const Color(AppColors.textMuted),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Working channels only',
-                  style: TextStyle(
-                    color: value
-                        ? const Color(AppColors.success)
-                        : const Color(AppColors.textSecondary),
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    height: 1.2,
-                  ),
+          const SizedBox(width: 7),
+          if (channelCount != null)
+            Flexible(
+              child: Text(
+                '$channelCount ${value ? 'working' : 'total'} channels',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(AppColors.textSecondary),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              Switch(
-                value: value,
-                onChanged: onChanged,
-                activeColor: Colors.white,
-                activeTrackColor: const Color(AppColors.success),
-                inactiveThumbColor: Colors.white,
-                inactiveTrackColor: const Color(AppColors.surfaceLight),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+            ),
+          if (showClearFilters && onClearFilters != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onClearFilters,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                decoration: BoxDecoration(
+                  color: const Color(AppColors.brandRed).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(AppColors.brandRed).withOpacity(0.28),
+                    width: 0.8,
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.close_rounded,
+                      size: 11,
+                      color: Color(AppColors.brandRed),
+                    ),
+                    SizedBox(width: 3),
+                    Text(
+                      'Reset',
+                      style: TextStyle(
+                        color: Color(AppColors.brandRed),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
+          ],
+          const Spacer(),
+          // Right: Compact interactive pill switch
+          GestureDetector(
+            onTap: () => onChanged(!value),
+            behavior: HitTestBehavior.opaque,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
+              decoration: BoxDecoration(
+                color: value
+                    ? const Color(AppColors.success).withOpacity(0.12)
+                    : const Color(AppColors.surface),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: value
+                      ? const Color(AppColors.success).withOpacity(0.35)
+                      : const Color(AppColors.divider),
+                  width: 0.9,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    value
+                        ? Icons.check_circle_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    size: 13,
+                    color: value
+                        ? const Color(AppColors.success)
+                        : const Color(AppColors.textMuted),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Working only',
+                    style: TextStyle(
+                      color: value
+                          ? const Color(AppColors.success)
+                          : const Color(AppColors.textSecondary),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

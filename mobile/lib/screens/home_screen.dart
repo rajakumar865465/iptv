@@ -290,7 +290,23 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
             ),
           ),
           SliverToBoxAdapter(
-            child: HomeHero(onStartWatching: () => _seeAll()),
+            child: HomeHero(
+              onStartWatching: () => _seeAll(),
+              featuredChannels: state.featuredChannels.isNotEmpty
+                  ? state.featuredChannels
+                  : state.popularChannels,
+              onPlayChannel: (channel) {
+                final pool = state.featuredChannels.isNotEmpty
+                    ? state.featuredChannels
+                    : state.popularChannels;
+                _openPlayer(
+                  channel: channel,
+                  contextChannels: pool,
+                  sourceType: PlayerSourceType.homeFeatured,
+                  filters: const ChannelSourceFilters(),
+                );
+              },
+            ),
           ),
 
           if (state.error != null)
@@ -308,7 +324,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
           if (state.popularChannels.isNotEmpty) ...[
             SliverToBoxAdapter(
               child: HomeSectionHeader(
-                title: '🔥 Trending Now',
+                title: 'Trending Now',
                 icon: Icons.local_fire_department_rounded,
                 accentColor: const Color(0xFFFF5722),
                 onSeeAll: () => _seeAll(),
@@ -371,7 +387,9 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
             ),
           ],
 
-          const SliverToBoxAdapter(child: SizedBox(height: 36)),
+          const SliverToBoxAdapter(
+            child: SizedBox(height: AppConstants.bottomNavClearance),
+          ),
         ],
       ),
     );
@@ -419,7 +437,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     bool Function(ChannelModel) isLocked,
   ) {
     return SizedBox(
-      height: 146,
+      height: 154,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),

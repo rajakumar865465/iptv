@@ -15,15 +15,47 @@ const db = require('../src/config/db');
 const { assignChannelNumbers } = require('../src/utils/channelNumbering');
 
 async function main() {
+  const isReset = process.argv.includes('--reset') || process.argv.includes('--renumber-all');
+  if (isReset) {
+    console.log('[assign-numbers] --reset specified: Sequentially renumbering all channels starting from 1...');
+    await db.query(`
+      BEGIN;
+      UPDATE channels SET channel_number = NULL;
+
+      WITH ranked_visible AS (
+        SELECT id, ROW_NUMBER() OVER (ORDER BY name ASC) AS seq
+        FROM channels
+        WHERE is_visible_app = true AND status = 'active'
+      )
+      UPDATE channels c
+      SET channel_number = ranked_visible.seq
+      FROM ranked_visible
+      WHERE c.id = ranked_visible.id;
+
+      WITH max_seq AS (
+        SELECT COALESCE(MAX(channel_number), 0) AS max_num FROM channels
+      ),
+      ranked_remaining AS (
+        SELECT id, ROW_NUMBER() OVER (ORDER BY name ASC) + (SELECT max_num FROM max_seq) AS seq
+        FROM channels
+        WHERE channel_number IS NULL
+      )
+      UPDATE channels c
+      SET channel_number = ranked_remaining.seq
+      FROM ranked_remaining
+      WHERE c.id = ranked_remaining.id;
+
+      COMMIT;
+    `);
+    console.log('[assign-numbers] Successfully renumbered all channels sequentially (1, 2, 3...).');
+  }
+
   console.log('[assign-numbers] Assigning permanent channel numbers...');
-  const { assigned, perGenre, spilled } = await assignChannelNumbers(db);
+  const { assigned, perGenre } = await assignChannelNumbers(db);
 
   console.log(`[assign-numbers] Assigned ${assigned} new number(s).`);
   if (assigned > 0) {
     console.table(perGenre);
-  }
-  if (spilled > 0) {
-    console.warn(`[assign-numbers] ${spilled} channel(s) used the 9000+ spill pool (a genre block exceeded 99).`);
   }
 
   // Verification snapshot: lowest numbers per catalog.

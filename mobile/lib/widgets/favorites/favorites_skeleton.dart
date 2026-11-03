@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../constants.dart';
 import '../premium_widgets.dart';
+import 'favorites_header.dart';
 
-/// Shimmer placeholder for the Favorites screen.
+/// Shimmer placeholder for the My List / Favorites screen.
+/// Keeps the persistent "My List" header visible while cards load.
 class FavoritesSkeleton extends StatelessWidget {
   const FavoritesSkeleton({super.key});
 
@@ -11,39 +13,28 @@ class FavoritesSkeleton extends StatelessWidget {
     return CustomScrollView(
       physics: const NeverScrollableScrollPhysics(),
       slivers: [
-        // Header shimmer
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-            child: Row(
-              children: [
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    LoadingSkeleton(width: 110, height: 22, borderRadius: 6),
-                    SizedBox(height: 6),
-                    LoadingSkeleton(width: 140, height: 13, borderRadius: 6),
-                  ],
-                ),
-                const Spacer(),
-                const LoadingSkeleton(width: 60, height: 34, borderRadius: 20),
-              ],
-            ),
-          ),
+        // Persistent screen header
+        const SliverToBoxAdapter(
+          child: FavoritesHeader(count: 0),
         ),
-        // Grid shimmer
+        // 3-column grid shimmer with layered inner placeholders
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(14, 4, 14, 24),
+          padding: const EdgeInsets.fromLTRB(
+            14,
+            8,
+            14,
+            AppConstants.bottomNavClearance,
+          ),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 0.78,
+              crossAxisCount: 3,
+              childAspectRatio: 0.72,
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
             ),
             delegate: SliverChildBuilderDelegate(
               (_, __) => const SkeletonChannelCard(),
-              childCount: 6,
+              childCount: 9,
             ),
           ),
         ),

@@ -120,12 +120,10 @@ class PremiumChannelCard extends StatelessWidget {
 class _TappableScale extends StatefulWidget {
   final Widget child;
   final VoidCallback onTap;
-  final double scale;
 
   const _TappableScale({
     required this.child,
     required this.onTap,
-    this.scale = 0.93,
   });
 
   @override
@@ -146,7 +144,7 @@ class _TappableScaleState extends State<_TappableScale> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOutCubic,
-        transform: Matrix4.identity()..scale(_pressed ? widget.scale : 1.0),
+        transform: Matrix4.identity()..scale(_pressed ? 0.93 : 1.0),
         transformAlignment: Alignment.center,
         child: widget.child,
       ),
@@ -165,12 +163,23 @@ String _detailLine(ChannelModel channel) {
 }
 
 String _cleanChannelName(String name) {
-  return name.replaceAll(RegExp(r'\s*\(\s*(1080p|720p|4k|4K|SD|HD|FHD)\s*\)\s*', caseSensitive: false), '').trim();
+  return name
+      .replaceAll(
+        RegExp(
+          r'\s*[\(\[]\s*(1080p|720p|576p|480p|360p|240p|4k|SD|HD|FHD|Geo-blocked|Not 24/7)[^\)\]]*[\)\]]\s*',
+          caseSensitive: false,
+        ),
+        ' ',
+      )
+      .replaceAll(RegExp(r'\s+APAC\b', caseSensitive: false), '')
+      .replaceAll(RegExp(r'\s{2,}'), ' ')
+      .trim();
 }
 
 bool _isOffline(ChannelModel channel) {
   final h = channel.healthStatus?.toLowerCase() ?? '';
-  return h == 'offline' || h == 'dead';
+  final s = channel.status.toLowerCase();
+  return h == 'dead' || s == 'disabled';
 }
 
 bool _isUnstable(ChannelModel channel) {
@@ -287,61 +296,75 @@ class _CompactCard extends StatelessWidget {
     final offline = _isOffline(channel);
 
     return Container(
-      width: 104,
-      height: 146,
+      width: 112,
+      height: 150,
       margin: margin ?? const EdgeInsets.only(right: 12),
       decoration: _cardDecoration(offline: offline),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         child: Stack(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 20, 8, 8),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  _logoContainer(
-                    channel: channel,
-                    containerSize: 64,
-                    logoSize: 48,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    _cleanChannelName(channel.name),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(AppColors.textPrimary),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.2,
-                      height: 1.15,
+            Positioned.fill(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(8, 22, 8, offline ? 22 : 8),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    _logoContainer(
+                      channel: channel,
+                      containerSize: 60,
+                      logoSize: 46,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (detail.isNotEmpty) ...[
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 8),
                     Text(
-                      detail,
+                      _cleanChannelName(channel.name),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        color: Color(AppColors.textMuted),
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w500,
-                        height: 1.2,
+                        color: Color(AppColors.textPrimary),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
+                        height: 1.15,
                       ),
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (!offline) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 5,
+                            height: 5,
+                            decoration: const BoxDecoration(
+                              color: Color(AppColors.brandRed),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              detail.isNotEmpty ? detail : 'Live',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(AppColors.textMuted),
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w600,
+                                height: 1.1,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            const Positioned(
-              top: 10,
-              right: 10,
-              child: LiveBadge(small: true),
             ),
             Positioned(
               top: 8,
@@ -350,27 +373,19 @@ class _CompactCard extends StatelessWidget {
             ),
             if (showFavorite)
               Positioned(
-                bottom: 6,
+                top: 6,
                 right: 6,
-                child: GestureDetector(
-                  onTap: onFavoriteToggle,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.4),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isFavorite == true
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      size: 14,
-                      color: isFavorite == true
-                          ? const Color(AppColors.brandRed)
-                          : Colors.white70,
-                    ),
-                  ),
+                child: _FavoriteButton(
+                  channel: channel,
+                  isFavorite: isFavorite,
+                  onFavoriteToggle: onFavoriteToggle,
                 ),
+              )
+            else if (!offline)
+              const Positioned(
+                top: 8,
+                right: 8,
+                child: LiveBadge(small: true),
               ),
             if (offline)
               Positioned(
@@ -378,16 +393,6 @@ class _CompactCard extends StatelessWidget {
                 left: 0,
                 right: 0,
                 child: _offlineBanner(),
-              ),
-            if (showFavorite)
-              Positioned(
-                bottom: 6,
-                right: 6,
-                child: _FavoriteButton(
-                  channel: channel,
-                  isFavorite: isFavorite,
-                  onFavoriteToggle: onFavoriteToggle,
-                ),
               ),
           ],
         ),
@@ -625,8 +630,8 @@ class _GridCard extends StatelessWidget {
             // Channel name + detail
             Positioned(
               left: 11,
-              right: showFavorite ? 38 : 11,
-              bottom: 11,
+              right: 11,
+              bottom: offline ? 24 : 11,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -643,29 +648,38 @@ class _GridCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (detail.isNotEmpty && !offline) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      detail,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.5),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                        height: 1.2,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  if (!offline) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 5,
+                          height: 5,
+                          decoration: const BoxDecoration(
+                            color: Color(AppColors.brandRed),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            detail.isNotEmpty ? detail : 'Live TV',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.6),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              height: 1.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ],
               ),
-            ),
-
-            // LIVE badge — top right
-            const Positioned(
-              top: 10,
-              right: 10,
-              child: LiveBadge(small: true),
             ),
 
             // Quality / premium / unstable badge — top left
@@ -675,6 +689,24 @@ class _GridCard extends StatelessWidget {
               child: _topLeftBadge(channel),
             ),
 
+            // Top right: Favorite button (if enabled) or LIVE badge
+            if (showFavorite)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: _FavoriteButton(
+                  channel: channel,
+                  isFavorite: isFavorite,
+                  onFavoriteToggle: onFavoriteToggle,
+                ),
+              )
+            else if (!offline)
+              const Positioned(
+                top: 10,
+                right: 10,
+                child: LiveBadge(small: true),
+              ),
+
             // Offline banner
             if (offline)
               Positioned(
@@ -682,18 +714,6 @@ class _GridCard extends StatelessWidget {
                 left: 0,
                 right: 0,
                 child: _offlineBanner(),
-              ),
-
-            // Favorite button
-            if (showFavorite)
-              Positioned(
-                bottom: 8,
-                right: 8,
-                child: _FavoriteButton(
-                  channel: channel,
-                  isFavorite: isFavorite,
-                  onFavoriteToggle: onFavoriteToggle,
-                ),
               ),
           ],
         ),
@@ -838,7 +858,7 @@ class _ListCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  channel.name,
+                  _cleanChannelName(channel.name),
                   style: const TextStyle(
                     color: Color(AppColors.textPrimary),
                     fontSize: 14,
@@ -871,7 +891,7 @@ class _ListCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const LiveBadge(small: true),
+              if (!offline) const LiveBadge(small: true),
               if (channel.qualityLabel.isNotEmpty && channel.qualityLabel != 'SD') ...[
                 const SizedBox(height: 4),
                 QualityBadge(channel.qualityLabel),
@@ -965,21 +985,23 @@ class _FavoriteIcon extends StatelessWidget {
       },
       child: Container(
         key: ValueKey<bool>(isFav),
-        padding: const EdgeInsets.all(6),
+        padding: const EdgeInsets.all(5),
         decoration: BoxDecoration(
-          color: const Color(AppColors.surfaceElevated).withOpacity(0.95),
+          color: const Color(AppColors.background).withOpacity(0.75),
           shape: BoxShape.circle,
           border: Border.all(
-            color: const Color(AppColors.divider),
+            color: isFav
+                ? const Color(AppColors.brandRed).withOpacity(0.45)
+                : Colors.white.withOpacity(0.12),
             width: 0.8,
           ),
         ),
         child: Icon(
           isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-          size: 16,
+          size: 14,
           color: isFav
               ? const Color(AppColors.brandRed)
-              : const Color(AppColors.textMuted),
+              : Colors.white.withOpacity(0.8),
         ),
       ),
     );
