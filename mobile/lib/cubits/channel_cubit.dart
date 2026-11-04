@@ -261,6 +261,10 @@ class ChannelCubit extends Cubit<ChannelState> {
             .map((c) => ChannelModel.fromJson(c))
             .toList();
 
+        if (_workingOnly) {
+          newChannels.removeWhere((c) => !c.isPlayable);
+        }
+
         _allChannels.addAll(newChannels);
         _allChannels = _deduplicateChannels(_allChannels);
 

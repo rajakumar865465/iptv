@@ -2,7 +2,7 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 
 // PLAYABLE health statuses — must match channelController.js
-const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable', 'unknown', 'offline'];
+const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable'];
 const ALLOW_UNKNOWN = process.env.ALLOW_UNKNOWN_STREAMS === 'true';
 
 const formatChannelRow = (req, row) => {
@@ -54,7 +54,7 @@ async function checkHealthStatusColumn() {
  */
 function buildHealthFilter(paramIndex) {
   const statusList = WORKING_STATUSES.map((_, i) => `$${paramIndex + i}`).join(', ');
-  let fragment = `(c.health_status IS NULL OR c.health_status IN (${statusList}) OR c.is_premium = true OR c.is_paid = true)`;
+  let fragment = `c.health_status IN (${statusList})`;
   return { fragment, params: [...WORKING_STATUSES], nextIndex: paramIndex + WORKING_STATUSES.length };
 }
 

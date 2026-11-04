@@ -1,5 +1,25 @@
 # NivaTV - Recent Progress
 
+## Strict Offline Channel Filtering & v2.8.4 Release (November 2026)
+- **Eliminated All Non-Working / Offline Channels:**
+  - **Identified Root Cause:** In `backend/src/controllers/channelController.js` and `homeController.js`, `WORKING_STATUSES` previously included `'offline'`, and `DEAD_STATUSES` omitted `'offline'`, resulting in 250 dead/offline database channels being returned to the app even when `workingOnly=true`. In addition, `buildHealthFilter()` included an override that allowed offline premium channels to bypass health status filtering.
+  - **Backend Filtering Overhaul:**
+    - Purged `'offline'` and `'unknown'` from `WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable']`.
+    - Expanded `DEAD_STATUSES` to explicitly include `['dead', 'offline', 'likely_broken', 'drm_or_unsupported', 'forbidden_403', 'requires_licensed_source']`.
+    - Made `buildHealthFilter()` strictly filter by `c.health_status IN (${statusList})`.
+    - Filtered category and language channel aggregations to only count valid channels.
+  - **Mobile Client-Side Safeguards:**
+    - In `mobile/lib/cubits/channel_cubit.dart`, added `newChannels.removeWhere((c) => !c.isPlayable)` when `_workingOnly` is enabled.
+    - In `mobile/lib/cubits/home_cubit.dart`, filtered channel rows using `.where((c) => c.isPlayable)`.
+    - In `mobile/lib/screens/channel_list_screen.dart`, added double-layered filtering: `channels = _workingOnly ? state.channels.where((c) => c.isPlayable).toList() : state.channels`.
+- **Compiled Split Release APKs v2.8.4 (versionCode 33):**
+  - Incremented `versionCode: 33` and version `2.8.4` in `pubspec.yaml` and `constants.dart`.
+  - Compiled release binaries with code obfuscation, split debug symbols, and split ABIs:
+    - `app-arm64-v8a-release.apk` (33.2 MB) -> copied to `backend/public/downloads/app-release.apk` and `frontend/public/downloads/NivaTV_arm64_v2.8.4.apk`.
+    - `app-armeabi-v7a-release.apk` (30.0 MB) -> copied to `backend/public/downloads/app-release-32bit.apk` and `frontend/public/downloads/NivaTV_arm32_v2.8.4.apk`.
+    - `app-x86_64-release.apk` (38.0 MB) -> copied to `frontend/public/downloads/NivaTV_x86_64_v2.8.4.apk`.
+  - Updated `backend/scripts/update_release_notification.sql` to configure `minimum_app_version: '2.8.4'`, `latest_app_version: '2.8.4'`, and `force_update: 'true'`.
+
 ## Restored Ultra-Fast Zero-Buffering Playback Engine & v2.8.3 Release (November 2026)
 - **Resolved Channel Loading Delays & Continuous Buffering Regressions:**
   - **Hardware Decoding Restored (`hwdec: auto-safe`):** Reverted regression `hwdec: mediacodec-copy` which forced CPU to copy every decoded 1080p frame from GPU across RAM, saturating bus bandwidth (~200MB/s) and causing CPU starvation and high frame-decoding latency. Direct hardware surface rendering (`auto-safe`) consumes 0% CPU and renders instantly.

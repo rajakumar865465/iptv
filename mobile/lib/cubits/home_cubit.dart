@@ -134,6 +134,9 @@ class HomeCubit extends Cubit<HomeState> {
   List<ChannelModel> _parseChannels(dynamic raw) {
     if (raw == null) return const [];
     if (raw is! List) return const [];
-    return raw.map((c) => ChannelModel.fromJson(c as Map<String, dynamic>)).toList();
+    return raw
+        .map((c) => ChannelModel.fromJson(c as Map<String, dynamic>))
+        .where((c) => c.isPlayable)
+        .toList();
   }
 }

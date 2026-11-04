@@ -286,7 +286,9 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   }
 
   Widget _buildContent(ChannelLoaded state) {
-    final channels = state.channels;
+    final channels = _workingOnly
+        ? state.channels.where((c) => c.isPlayable).toList()
+        : state.channels;
     final showQuick = !_hasSearch && !_hasActiveFilters;
     final entries = _buildEntries(channels, _selectedSort);
 
