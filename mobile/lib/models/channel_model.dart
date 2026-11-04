@@ -67,13 +67,19 @@ class ChannelModel {
     this.channelTier = 'free',
   });
 
-  /// True if this channel is likely playable (shown when workingOnly=true)
+  /// True if this channel is likely playable (shown when workingOnly=true).
+  /// Note: [streamUrl] is deliberately omitted from public catalog listings for security,
+  /// so playability is determined by channel status and stream health.
   bool get isPlayable {
-    if (streamUrl.isEmpty) return false;
+    if (status.toLowerCase() == 'inactive') return false;
     final h = healthStatus?.toLowerCase();
-    if (h == 'offline' || h == 'dead' || h == 'forbidden_403' ||
-        h == 'drm_or_unsupported' || h == 'geo_blocked' ||
-        h == 'requires_licensed_source') {
+    if (h == 'offline' ||
+        h == 'dead' ||
+        h == 'forbidden_403' ||
+        h == 'drm_or_unsupported' ||
+        h == 'geo_blocked' ||
+        h == 'requires_licensed_source' ||
+        h == 'likely_broken') {
       return false;
     }
     return true;

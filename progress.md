@@ -1,5 +1,19 @@
 # NivaTV - Recent Progress
 
+## Restored All Active Working Channels & v2.8.5 Release (November 2026)
+- **Resolved "0 channels available" Empty State on Live TV Tab:**
+  - **Identified Root Cause:** In `mobile/lib/models/channel_model.dart`, `isPlayable` contained the check `if (streamUrl.isEmpty) return false;`. However, on the backend (`channelController.js`), `stream_url` and `backup_stream_url` are deliberately deleted from public catalog listings for security (`H-02 Remediation`), and are fetched on-demand during playback authorization. Because `streamUrl` was empty in the catalog response, `isPlayable` evaluated to `false` for every channel, causing `channel_cubit.dart` and `channel_list_screen.dart` to filter out all 620 active channels, showing an empty "No channels found" screen with "0 channels available" and "0 online".
+  - **Client-Side Model Fix:**
+    - Updated `ChannelModel.isPlayable`: removed the `streamUrl.isEmpty` guard. Playability is now correctly determined by channel `status` (`status != 'inactive'`) and stream `healthStatus` (excluding `offline`, `dead`, `forbidden_403`, `drm_or_unsupported`, `geo_blocked`, `requires_licensed_source`, `likely_broken`).
+    - In `channel_list_screen.dart`, updated `LiveTvAppBar` and `WorkingOnlyToggle` counts to use `_workingOnly ? channels.length : state.totalCount`, ensuring the online counter accurately matches visible channels (620 online).
+  - **Compiled Split Release APKs v2.8.5 (versionCode 34):**
+    - Incremented `versionCode: 34` and version `2.8.5` in `pubspec.yaml` and `constants.dart`.
+    - Compiled release binaries with code obfuscation and split debug symbols:
+      - `app-arm64-v8a-release.apk` (33.2 MB) -> copied to `backend/public/downloads/app-release.apk` and `frontend/public/downloads/NivaTV_arm64_v2.8.5.apk`.
+      - `app-armeabi-v7a-release.apk` (30.0 MB) -> copied to `backend/public/downloads/app-release-32bit.apk` and `frontend/public/downloads/NivaTV_arm32_v2.8.5.apk`.
+      - `app-x86_64-release.apk` (38.0 MB) -> copied to `frontend/public/downloads/NivaTV_x86_64_v2.8.5.apk`.
+    - Updated `backend/scripts/update_release_notification.sql` to configure `minimum_app_version: '2.8.5'`, `latest_app_version: '2.8.5'`, and `force_update: 'true'`.
+
 ## Strict Offline Channel Filtering & v2.8.4 Release (November 2026)
 - **Eliminated All Non-Working / Offline Channels:**
   - **Identified Root Cause:** In `backend/src/controllers/channelController.js` and `homeController.js`, `WORKING_STATUSES` previously included `'offline'`, and `DEAD_STATUSES` omitted `'offline'`, resulting in 250 dead/offline database channels being returned to the app even when `workingOnly=true`. In addition, `buildHealthFilter()` included an override that allowed offline premium channels to bypass health status filtering.

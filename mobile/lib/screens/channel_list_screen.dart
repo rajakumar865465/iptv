@@ -315,7 +315,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
         slivers: [
           SliverToBoxAdapter(
             child: LiveTvAppBar(
-              channelCount: state.totalCount,
+              channelCount: _workingOnly ? channels.length : state.totalCount,
               selectedSort: _selectedSort,
               sortOptions: _sortOptions,
               onSortChanged: _onSortChanged,
@@ -340,7 +340,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
             child: WorkingOnlyToggle(
               value: _workingOnly,
               onChanged: _toggleWorkingOnly,
-              channelCount: state.totalCount,
+              channelCount: _workingOnly ? channels.length : state.totalCount,
               showClearFilters: _hasActiveFilters || _hasSearch,
               onClearFilters: _clearAllFilters,
             ),
