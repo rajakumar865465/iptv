@@ -961,6 +961,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   /// Report detected display info to backend for admin visibility
   Future<void> _reportDisplayInfo() async {
     if (_lastReportedDisplayChannelId == _currentChannel.id) return;
+    _lastReportedDisplayChannelId = _currentChannel.id;
     try {
       await _api.post(ApiEndpoints.channelDisplayReportPath(_currentChannel.id), {
         'aspect_ratio_type': _detectedAspectRatioType,
@@ -968,7 +969,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         'video_height': _detectedVideoHeight,
         'detected_fit_mode': _autoDetectedFitMode,
       });
-      _lastReportedDisplayChannelId = _currentChannel.id;
     } catch (_) {}
   }
 

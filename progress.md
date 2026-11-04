@@ -1,5 +1,16 @@
 # NivaTV - Recent Progress
 
+## Backend HLS Proxy Mount & Telemetry Rate Limiter Fix (November 2026)
+- **Resolved 404 Not Found on HLS Video Proxy Routes:**
+  - **Identified Root Cause:** When streams fail direct playback (e.g. timeout or CDN blocking), the app falls back to proxy playback (`/api/proxy/:streamId/master.m3u8?token=...`). However, `backend/src/routes/proxy.js` only defined `/checkout`, leaving all proxy streaming routes unmounted and returning 404 Not Found.
+  - **Mounted Full Proxy Pipeline:**
+    - In `backend/src/routes/proxy.js`, mounted `proxyController.proxyManifest` (`/:streamId/master.m3u8`, `/:streamId/index.m3u8`, `/:streamId`), `proxyController.proxySegment` (`/segment/:streamId/:segToken`), and the flexible `/:streamId/:segToken` handler with `optionalAuth`.
+- **Eliminated 429 Too Many Requests on Playback Telemetry:**
+  - **Identified Root Cause:** `backend/src/routes/channels.js` attached `channelReportLimiter` (3 requests per IP per channel per hour) to `playback-result` and `display-report`. Normal channel playback triggered rapid display-report and playback-result telemetry calls, instantly exhausting the quota and throwing 429 errors.
+  - **Telemetry Limiter Fix:** Retained `channelReportLimiter` strictly for `report-failure` (abuse protection), while allowing `playback-result` and `display-report` to operate under standard `apiLimiter`.
+- **Prevented Mobile App Duplicate Display Telemetry:**
+  - In `mobile/lib/screens/player_screen.dart`, updated `_reportDisplayInfo()` to set `_lastReportedDisplayChannelId = _currentChannel.id` synchronously before the async API call, eliminating concurrent duplicate report submissions during resolution negotiation.
+
 ## Restored All Active Working Channels & v2.8.5 Release (November 2026)
 - **Resolved "0 channels available" Empty State on Live TV Tab:**
   - **Identified Root Cause:** In `mobile/lib/models/channel_model.dart`, `isPlayable` contained the check `if (streamUrl.isEmpty) return false;`. However, on the backend (`channelController.js`), `stream_url` and `backup_stream_url` are deliberately deleted from public catalog listings for security (`H-02 Remediation`), and are fetched on-demand during playback authorization. Because `streamUrl` was empty in the catalog response, `isPlayable` evaluated to `false` for every channel, causing `channel_cubit.dart` and `channel_list_screen.dart` to filter out all 620 active channels, showing an empty "No channels found" screen with "0 channels available" and "0 online".
