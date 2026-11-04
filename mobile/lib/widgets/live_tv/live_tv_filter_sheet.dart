@@ -65,13 +65,17 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final surfColor = AppColors.surfElevated(context);
+    final text1 = AppColors.text1(context);
+    final divColor = AppColors.div(context);
+
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.82,
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
       ),
-      decoration: const BoxDecoration(
-        color: Color(AppColors.surfaceElevated),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: surfColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -82,7 +86,7 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(AppColors.divider),
+                color: divColor,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -92,13 +96,13 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               children: [
-                const Text(
+                Text(
                   'Filter Channels',
                   style: TextStyle(
-                    color: Color(AppColors.textPrimary),
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
+                    color: text1,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.3,
                   ),
                 ),
                 const Spacer(),
@@ -112,12 +116,19 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
                       _premium = 'all';
                     });
                   },
-                  child: const Text(
-                    'Reset',
-                    style: TextStyle(
-                      color: Color(AppColors.brandRed),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(AppColors.brandRed).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      'Reset All',
+                      style: TextStyle(
+                        color: Color(AppColors.brandRed),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -134,34 +145,35 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
                   _section(
                     'Genre',
                     [
-                      _chip('All', _genre == null, () => setState(() => _genre = null)),
+                      _chip(context, 'All', _genre == null, () => setState(() => _genre = null)),
                       ...LiveTvFilterSheet.genres.map((g) =>
-                          _chip(g, _genre == g, () => setState(() => _genre = g))),
+                          _chip(context, g, _genre == g, () => setState(() => _genre = g))),
                     ],
                   ),
                   _section(
-                    'Access',
+                    'Access Tier',
                     [
-                      _chip('All', _premium == 'all', () => setState(() => _premium = 'all')),
-                      _chip('Free', _premium == 'false', () => setState(() => _premium = 'false')),
-                      _chip('Premium', _premium == 'true', () => setState(() => _premium = 'true')),
+                      _chip(context, 'All', _premium == 'all', () => setState(() => _premium = 'all')),
+                      _chip(context, 'Free Channels', _premium == 'false', () => setState(() => _premium = 'false')),
+                      _chip(context, 'Premium Only', _premium == 'true', () => setState(() => _premium = 'true')),
                     ],
                   ),
                   _section(
-                    'Quality',
+                    'Video Quality',
                     [
-                      _chip('All', _quality == null, () => setState(() => _quality = null)),
-                      _chip('HD', _quality == 'hd', () => setState(() => _quality = 'hd')),
-                      _chip('SD', _quality == 'sd', () => setState(() => _quality = 'sd')),
-                      _chip('4K', _quality == '4k', () => setState(() => _quality = '4k')),
+                      _chip(context, 'All Qualities', _quality == null, () => setState(() => _quality = null)),
+                      _chip(context, '4K Ultra HD', _quality == '4k', () => setState(() => _quality = '4k')),
+                      _chip(context, 'Full HD (1080p)', _quality == 'hd', () => setState(() => _quality = 'hd')),
+                      _chip(context, 'Standard (SD)', _quality == 'sd', () => setState(() => _quality = 'sd')),
                     ],
                   ),
                   if (widget.languages.isNotEmpty)
                     _section(
-                      'Language',
+                      'Broadcast Language',
                       [
-                        _chip('All', _language == null, () => setState(() => _language = null)),
+                        _chip(context, 'All Languages', _language == null, () => setState(() => _language = null)),
                         ...widget.languages.map((l) => _chip(
+                              context,
                               l.name,
                               _language?.toLowerCase() == l.name.toLowerCase(),
                               () => setState(() => _language = l.name),
@@ -170,10 +182,11 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
                     ),
                   if (widget.countries.isNotEmpty)
                     _section(
-                      'Country',
+                      'Region / Country',
                       [
-                        _chip('All', _country == null, () => setState(() => _country = null)),
+                        _chip(context, 'All Countries', _country == null, () => setState(() => _country = null)),
                         ...widget.countries.map((c) => _chip(
+                              context,
                               c.toUpperCase(),
                               _country?.toLowerCase() == c.toLowerCase(),
                               () => setState(() => _country = c),
@@ -191,6 +204,7 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
             ),
             child: SizedBox(
               width: double.infinity,
+              height: 52,
               child: ElevatedButton(
                 onPressed: () {
                   widget.onApply(LiveTvFilters(
@@ -205,16 +219,25 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(AppColors.primary),
                   foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(48),
+                  elevation: 4,
+                  shadowColor: const Color(AppColors.primary).withOpacity(0.4),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   textStyle: const TextStyle(
-                    fontSize: 14.5,
+                    fontSize: 15,
                     fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
                   ),
                 ),
-                child: const Text('Apply Filters'),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.filter_alt_rounded, size: 18),
+                    SizedBox(width: 8),
+                    Text('Apply Filter Preferences'),
+                  ],
+                ),
               ),
             ),
           ),
@@ -228,14 +251,14 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(top: 8, bottom: 10),
+          padding: const EdgeInsets.only(top: 10, bottom: 10),
           child: Text(
             title,
-            style: const TextStyle(
-              color: Color(AppColors.textSecondary),
-              fontSize: 13,
+            style: TextStyle(
+              color: AppColors.text2(context),
+              fontSize: 12.5,
               fontWeight: FontWeight.w800,
-              letterSpacing: 0.2,
+              letterSpacing: 0.5,
             ),
           ),
         ),
@@ -244,36 +267,56 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
           runSpacing: 8,
           children: chips,
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
       ],
     );
   }
 
-  Widget _chip(String label, bool selected, VoidCallback onTap) {
+  Widget _chip(BuildContext context, String label, bool selected, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: selected
               ? const Color(AppColors.primary)
-              : const Color(AppColors.surfaceLight),
-          borderRadius: BorderRadius.circular(20),
+              : AppColors.surfLight(context),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: selected
                 ? const Color(AppColors.primary)
-                : const Color(AppColors.divider),
-            width: 1,
+                : AppColors.div(context),
+            width: selected ? 1.2 : 0.8,
           ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: const Color(AppColors.primary).withOpacity(0.35),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            color: selected ? Colors.white : const Color(AppColors.textSecondary),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected) ...[
+              const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+              const SizedBox(width: 5),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                color: selected
+                    ? Colors.white
+                    : AppColors.text1(context),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -534,6 +534,29 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 14),
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.vpn_key_outlined,
+                            size: 14,
+                            color: Color(AppColors.primaryLight),
+                          ),
+                          label: const Text(
+                            'Have a License Key? Activate Here',
+                            style: TextStyle(
+                              color: Color(AppColors.primaryLight),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 16),
                     ],
                   ),

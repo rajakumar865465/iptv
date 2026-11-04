@@ -53,7 +53,6 @@ class _NotificationsSheetState extends State<NotificationsSheet>
   List<NotificationModel> _items = [];
   bool _loading = true;
   String? _error;
-  DateTime? _clearedAt;
 
   @override
   void initState() {
@@ -85,7 +84,6 @@ class _NotificationsSheetState extends State<NotificationsSheet>
           : all.where((n) => n.createdAt.isAfter(clearedAt)).toList();
       if (mounted) {
         setState(() {
-          _clearedAt = clearedAt;
           _items = visible;
           _loading = false;
         });
@@ -106,7 +104,6 @@ class _NotificationsSheetState extends State<NotificationsSheet>
     await StorageService().setNotificationsClearedAt(now);
     _ctrl.reset();
     setState(() {
-      _clearedAt = now;
       _items = [];
     });
   }

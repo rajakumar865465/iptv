@@ -56,11 +56,9 @@ class ChannelDirectoryRow extends StatelessWidget {
             color: AppColors.surf(context),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: _offline
-                  ? const Color(AppColors.error).withOpacity(0.35)
-                  : (Theme.of(context).brightness == Brightness.dark
-                      ? AppColors.div(context).withOpacity(0.6)
-                      : const Color(0xFFE2E8F0)),
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? AppColors.div(context).withOpacity(0.6)
+                  : const Color(0xFFE2E8F0),
               width: 0.8,
             ),
             boxShadow: [
@@ -79,9 +77,11 @@ class ChannelDirectoryRow extends StatelessWidget {
                 ),
             ],
           ),
-          child: Row(
-            children: [
-              // Permanent channel number badge (monospace, tabular)
+          child: Opacity(
+            opacity: _offline ? 0.72 : 1.0,
+            child: Row(
+              children: [
+                // Permanent channel number badge (monospace, tabular)
               _NumberBadge(label: channel.numberLabel),
               const SizedBox(width: 10),
 
@@ -92,12 +92,12 @@ class ChannelDirectoryRow extends StatelessWidget {
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   color: Theme.of(context).brightness == Brightness.dark
-                      ? AppColors.surfElevated(context)
+                      ? const Color(0xFF161928)
                       : const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(11),
                   border: Border.all(
                     color: Theme.of(context).brightness == Brightness.dark
-                        ? AppColors.div(context)
+                        ? const Color(0xFF282D46)
                         : const Color(0xFFE2E8F0),
                     width: 0.8,
                   ),
@@ -182,7 +182,8 @@ class ChannelDirectoryRow extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }
 

@@ -1,5 +1,80 @@
 # NivaTV - Recent Progress
 
+## Production Release APK v2.8.1 Build & Deployment Preparation (November 2026)
+- **Resolved Build Environment & SDK Blocks:**
+  - Resolved Gradle JVM heap exhaustion by lowering `gradle.properties` JVM heap from 8GB to 2048MB, matching the 8GB host RAM constraint.
+  - Accepted all remaining Android SDK platform and build tool licenses (`All SDK package licenses accepted`).
+- **Compiled Production Release Binaries:**
+  - Compiled release APKs targeting `BACKEND_URL=https://nivatv.luxomall.in` with code obfuscation, split debug symbols, and split ABIs:
+    - `app-arm64-v8a-release.apk` (33.2 MB) -> copied to [`backend/public/downloads/app-release.apk`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/backend/public/downloads/app-release.apk) and [`frontend/public/downloads/NivaTV_arm64_v2.8.1.apk`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/frontend/public/downloads/NivaTV_arm64_v2.8.1.apk).
+    - `app-armeabi-v7a-release.apk` (30.0 MB) -> copied to [`backend/public/downloads/app-release-32bit.apk`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/backend/public/downloads/app-release-32bit.apk) and [`frontend/public/downloads/NivaTV_arm32_v2.8.1.apk`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/frontend/public/downloads/NivaTV_arm32_v2.8.1.apk).
+    - `app-x86_64-release.apk` (37.9 MB) -> copied to [`frontend/public/downloads/NivaTV_x86_64_v2.8.1.apk`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/frontend/public/downloads/NivaTV_x86_64_v2.8.1.apk).
+- **Embedded Fixes Included in this Build:**
+  - In-app pricing & plans viewer: Clicking "Need a License? View Plans" opens the official website pricing and subscription portal directly in-app (`https://nivatv.luxomall.in/pricing`).
+  - Master UI/UX Transformation: All 10 phases including light/dark theme polish, high-contrast typography, welcome gateway, separated license activation, refreshed player overlays, and clean channel directory rows.
+
+
+## Chrome Debug DWDS WebSocket Connection Fix (November 2026)
+- **Resolved DWDS `AppConnectionException`:**
+  - On Windows, DWDS defaults to `localhost` which resolves to IPv6 `::1`, while Chrome's remote debugging port listens strictly on IPv4 `127.0.0.1`, causing WebSocket connection drops and `AppConnectionException`.
+  - Updated [`run_mobile_chrome.bat`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/run_mobile_chrome.bat) to explicitly configure `--web-hostname=127.0.0.1 --web-port=8080`.
+  - Verified Flutter Web production build (`flutter build web`): **Built `build\web` cleanly with 0 errors**.
+
+## Comprehensive Issue Audit & Zero Warning/Error Cleanup (November 2026)
+- **Resolved All Compilation & Syntax Issues:**
+  - Fixed undefined method `_cleanTitle` in [`player_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/player_screen.dart) by implementing clean regex title sanitization.
+  - Removed stray trailing syntax tokens and misaligned brackets in `_buildErrorOverlay()` in [`player_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/player_screen.dart).
+  - Resolved undefined identifier `_warmStartedAt` during session reset.
+- **Eliminated All Compiler Warnings & Dead Code:**
+  - Removed dead/obsolete methods (`_fetchSmoothPlayback`, `_startSmoothWarmPoll`, `_startGapWarningRefreshIfNeeded`) that were superseded by fast direct playback.
+  - Connected `_scheduleHdPromotionIfStable()` and `_startAutoUpgradeTimerIfNeeded()` to stable playback events for seamless HD track auto-upgrade.
+  - Removed unused fields (`_lastApiHeaders`, `_sleepTimerEndTime`, `_lastProgressAt`, `_smoothWarmTimeoutSec`, `_overlayHiddenTime`, `_isStoppingPrevious`, `_clearedAt`) across [`player_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/player_screen.dart) and [`notifications_sheet.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/home/notifications_sheet.dart).
+  - Cleaned up unused imports in [`proxy_checkout_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/proxy_checkout_screen.dart), [`local_hls_proxy.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/services/local_hls_proxy.dart), and [`home_skeleton.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/home/home_skeleton.dart).
+  - Corrected unnecessary type casts (`(e as DioException)`) and unnecessary null assertions (`_currentUrl != null`).
+- **Backend & Mobile Verification:**
+  - Backend syntax verified (`node -c backend/src/app.js`): 100% valid.
+  - Mobile codebase verified (`flutter analyze mobile/lib`): **0 errors and 0 warnings**.
+
+## Website Pricing & Plans In-App Integration (November 2026)
+- **Direct Website Plans & Pricing Embedding:**
+  - Upgraded [`payment_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/payment_screen.dart) from a broken API call returning "No plans available" to direct integration with the live official website pricing portal (`https://nivatv.luxomall.in/pricing`).
+  - Native mobile (Android/iOS): embeds `https://nivatv.luxomall.in/pricing` inside an interactive `WebViewWidget` with linear progress bar, back navigation, refresh button, and "Open in Browser" action.
+  - Web runner (`kIsWeb`): opens `https://nivatv.luxomall.in/pricing` in an external browser tab and displays an "Official NIVA TV Plans" portal card.
+- **Offline Channel Card Polish:**
+  - In [`channel_directory_row.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/live_tv/channel_directory_row.dart) and [`premium_channel_card.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/premium_channel_card.dart), removed the harsh bright-pink/red container border around offline channels.
+  - Replaced it with a calm, neutral border and subtle 72% opacity on the row, allowing the clean `[OFFLINE]` pill to clearly communicate status without distorting the visual aesthetic.
+- **Verification:** Clean `flutter analyze` with 0 compilation errors across all modified files.
+
+## Comprehensive Master UI/UX Transformation: All Phases Completed (November 2026)
+- **Phase 1: Design System Foundation:**
+  - Tokenized color hierarchy across dark OLED obsidian (`#07080E`) and slate-100 light canvas (`#F1F5F9`).
+  - Standardized corner radii (badges: 6–8px, inputs/buttons: 14–16px, cards: 18–20px, bottom sheets: 24px).
+  - 8-point spacing rule with safe-area bottom clearances (`AppConstants.bottomNavClearance = 108.0`).
+- **Phase 2: Onboarding & Account Gateway Experience:**
+  - Redesigned [`onboarding_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/onboarding_screen.dart) into a 3-slide value sequence with custom layered artwork, dynamic radial aura, expanding animated indicator pills, and full-width gradient CTA.
+  - Created [`welcome_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/welcome_screen.dart) separating license activation from onboarding.
+  - Upgraded [`license_activation_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/license_activation_screen.dart) with clipboard paste, key sanitization, show/hide toggle, and entitlements summary.
+  - Added direct license shortcut to [`login_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/login_screen.dart).
+- **Phase 3: Home Screen UI/UX Polish:**
+  - Upgraded [`home_header.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/home/home_header.dart) with brand mark (`NIVA` + `TV` crimson with `LIVE` tag), sanitized friendly greeting ("Good afternoon, Demo 👋"), and subtitle ("What would you like to watch today?").
+  - Enhanced category chip bar in [`home_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/home_screen.dart) with active Electric Indigo "All" chip + News, Sports, Entertainment, Movies, Music, Kids, Regional, Devotional.
+- **Phase 4 & 5: Live TV Screen Catalog Prominence & Channel Components:**
+  - Balanced hierarchy in [`channel_list_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/channel_list_screen.dart): Compacted discovery rows to keep `All Channels` immediately accessible without excessive vertical scrolling.
+  - Standardized logo pedestals in [`channel_directory_row.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/live_tv/channel_directory_row.dart) with elevated borders (`#161928` / `#282D46`) so dark channel logos pop with contrast.
+- **Phase 6: Adaptive Filters & Sorting Bottom Sheets:**
+  - Completely modernized [`live_tv_filter_sheet.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/widgets/live_tv/live_tv_filter_sheet.dart) with adaptive surface tokens, active checkmark badges, and a full-width "Apply Filter Preferences" action button.
+- **Phase 7: Profile & Subscriptions:**
+  - Grouped settings into clean cards with active subscription status, playback preferences, data saver, app version, cache clearing, and support links.
+- **Phase 8: Video Player & Streaming Refinement:**
+  - Removed on-screen developer diagnostics HUD from normal viewing in [`player_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/player_screen.dart) (`_showDebugDiagnostics = false`).
+  - Redesigned loading overlay into a cinematic loading stage displaying Channel Logo, Channel Name, `[🔴 LIVE]` badge, category, and connection status.
+  - Redesigned error overlay into a user-friendly state with clean explanations, "Try Again" & "Next Channel" actions, moving technical raw logs behind an expandable toggle.
+- **Phase 9: Responsiveness & Safe Areas:**
+  - Guaranteed `AppConstants.bottomNavClearance` (108px) across scroll views so floating bottom navigation never obstructs content.
+- **Phase 10: Verification & Quality Audit:**
+  - Verified across all modified screens with `flutter analyze`: **0 compilation errors and 0 warnings**.
+
+
 ## Light Mode UI/UX Professional Streaming Overhaul (November 2026)
 - **Eliminated Flat White Sheet & Established Visual Hierarchy:**
   - Upgraded Light Mode canvas background from `#F8FAFC` (97% white) to `Color(0xFFF1F5F9)` (Slate-100 soft contrast backdrop in [`constants.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/constants.dart) and [`theme.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/theme.dart)). Pure white `#FFFFFF` cards and directory rows now pop with tactile depth.

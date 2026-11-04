@@ -23,14 +23,19 @@ class HomeHeader extends StatelessWidget {
 
   String get _displayGreeting {
     final name = userName?.trim() ?? '';
-    if (name.isEmpty) return '$greeting, Welcome Back';
-    return '$greeting, $name';
+    if (name.isEmpty) return '$greeting 👋';
+    final cleanName = name.replaceAll(RegExp(r'\d+'), '').trim();
+    final displayName = cleanName.isNotEmpty ? cleanName : name;
+    final capitalized = displayName.isNotEmpty
+        ? displayName[0].toUpperCase() + displayName.substring(1)
+        : 'Viewer';
+    return '$greeting, $capitalized 👋';
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -39,27 +44,66 @@ class HomeHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          color: AppColors.text1(context),
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                        ),
+                        children: const [
+                          TextSpan(text: 'NIVA'),
+                          TextSpan(
+                            text: 'TV',
+                            style: TextStyle(color: Color(AppColors.brandRed)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(AppColors.primary).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'LIVE',
+                        style: TextStyle(
+                          color: Color(AppColors.primaryLight),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 Text(
-                  'NIVATV',
+                  _displayGreeting,
                   style: TextStyle(
                     color: AppColors.text1(context),
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
-                    height: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '👋 $_displayGreeting',
-                  style: TextStyle(
-                    color: AppColors.text2(context),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
                     height: 1.2,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  'What would you like to watch today?',
+                  style: TextStyle(
+                    color: AppColors.textM(context),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    height: 1.2,
+                  ),
                 ),
               ],
             ),
@@ -69,140 +113,6 @@ class HomeHeader extends StatelessWidget {
             hasUnread: hasUnreadNotifications,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _BrandMark extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(AppColors.primary),
-            Color(AppColors.brandRed),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(AppColors.primary).withOpacity(0.35),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: const Icon(
-        Icons.live_tv_rounded,
-        color: Colors.white,
-        size: 18,
-      ),
-    );
-  }
-}
-
-class _PremiumBadge extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFFFCA28),
-            Color(0xFFFF8F00),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(AppColors.premiumGold).withOpacity(0.45),
-            blurRadius: 12,
-            spreadRadius: 0,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.workspace_premium_rounded,
-            color: Colors.black,
-            size: 14,
-          ),
-          SizedBox(width: 5),
-          Text(
-            'Premium',
-            style: TextStyle(
-              color: Colors.black,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _UpgradeButton extends StatelessWidget {
-  final VoidCallback? onTap;
-  const _UpgradeButton({this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(AppColors.primary),
-              Color(0xFF2563EB),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(AppColors.primary).withOpacity(0.35),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.diamond_rounded,
-              color: Colors.white,
-              size: 13,
-            ),
-            SizedBox(width: 5),
-            Text(
-              'Upgrade',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

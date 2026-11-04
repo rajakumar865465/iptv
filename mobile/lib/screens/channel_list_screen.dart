@@ -558,7 +558,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
               'Favourites',
               Icons.star_rounded,
               const Color(AppColors.premiumGold),
-              favState.favorites.take(15).toList(),
+              favState.favorites.take(12).toList(),
               isLocked,
             );
           },
@@ -566,34 +566,17 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
       ),
     );
 
-    // 🔥 Most Watched — derived client-side; hidden when nobody's watched yet.
+    // 🔥 Compact Featured Strip (Most Watched) — capped at 8 channels to keep All Channels prominent
     final watched = List<ChannelModel>.from(channels)
       ..sort((a, b) => b.watchCount.compareTo(a.watchCount));
     if (watched.isNotEmpty && watched.first.watchCount > 0) {
       widgets.add(
         SliverToBoxAdapter(
           child: _buildQuickStrip(
-            'Most Watched',
+            'Trending Now',
             Icons.local_fire_department_rounded,
             const Color(AppColors.warning),
-            watched.take(15).toList(),
-            isLocked,
-          ),
-        ),
-      );
-    }
-
-    // 🆕 Recently Added — by created_at (hidden when no timestamps available).
-    final recent = channels.where((c) => c.createdAt != null).toList()
-      ..sort((a, b) => b.createdAt!.compareTo(a.createdAt!));
-    if (recent.isNotEmpty) {
-      widgets.add(
-        SliverToBoxAdapter(
-          child: _buildQuickStrip(
-            'Recently Added',
-            Icons.fiber_new_rounded,
-            const Color(AppColors.success),
-            recent.take(15).toList(),
+            watched.take(8).toList(),
             isLocked,
           ),
         ),

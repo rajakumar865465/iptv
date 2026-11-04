@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'dart:convert';
 import '../constants.dart';
-import '../utils/backend_config.dart';
 
 class ProxyCheckoutScreen extends StatefulWidget {
   final String orderId;

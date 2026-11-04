@@ -76,7 +76,7 @@ if %ERRORLEVEL% EQU 0 (
 )
 
 echo Starting Flutter in a new dedicated window...
-start "%WINDOW_TITLE%" cmd /k "cd /d "%MOBILE_DIR%" && title %WINDOW_TITLE% && echo ====================================================================== && echo   NIVATV FLUTTER CHROME RUNNER && echo   - Press 'r' to Hot Reload && echo   - Press 'R' to Hot Restart && echo   - Press 'q' to Quit && echo ====================================================================== && flutter run -d chrome --web-browser-flag=\"--disable-web-security\" --dart-define=BACKEND_URL=%BACKEND_URL%"
+start "%WINDOW_TITLE%" cmd /k "cd /d "%MOBILE_DIR%" && title %WINDOW_TITLE% && echo ====================================================================== && echo   NIVATV FLUTTER CHROME RUNNER && echo   - Press 'r' to Hot Reload && echo   - Press 'R' to Hot Restart && echo   - Press 'q' to Quit && echo ====================================================================== && flutter run -d chrome --web-hostname=127.0.0.1 --web-port=8080 --web-browser-flag=\"--disable-web-security\" --dart-define=BACKEND_URL=%BACKEND_URL%"
 
 echo.
 echo [+] Flutter Chrome Runner window launched!
@@ -118,7 +118,7 @@ echo  (Press 'r' for Hot Reload, 'R' for Hot Restart, 'q' to Quit)
 echo ======================================================================
 echo.
 cd /d "%MOBILE_DIR%"
-flutter run -d chrome --web-browser-flag="--disable-web-security" --dart-define=BACKEND_URL=%BACKEND_URL%
+flutter run -d chrome --web-hostname=127.0.0.1 --web-port=8080 --web-browser-flag="--disable-web-security" --dart-define=BACKEND_URL=%BACKEND_URL%
 echo.
 echo Flutter session ended.
 pause

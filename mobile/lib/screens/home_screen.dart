@@ -599,15 +599,15 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
 
   Widget _buildQuickCategoryChips() {
     final categories = [
+      ('All', Icons.apps_rounded, const Color(AppColors.primary)),
       ('News', Icons.newspaper_rounded, const Color(0xFF0EA5E9)),
       ('Sports', Icons.sports_cricket_rounded, const Color(0xFFFF5722)),
       ('Entertainment', Icons.theaters_rounded, const Color(0xFFF59E0B)),
       ('Movies', Icons.movie_rounded, const Color(0xFF8B5CF6)),
-      ('Kids', Icons.child_care_rounded, const Color(0xFF06B6D4)),
       ('Music', Icons.music_note_rounded, const Color(0xFFEC4899)),
-      ('Doordarshan', Icons.cell_tower_rounded, const Color(0xFFE11D48)),
-      ('Devotional', Icons.auto_awesome_rounded, const Color(0xFFFF8F00)),
+      ('Kids', Icons.child_care_rounded, const Color(0xFF06B6D4)),
       ('Regional', Icons.language_rounded, const Color(0xFF10B981)),
+      ('Devotional', Icons.auto_awesome_rounded, const Color(0xFFFF8F00)),
     ];
 
     return SizedBox(
@@ -619,27 +619,34 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
         itemCount: categories.length,
         itemBuilder: (context, index) {
           final cat = categories[index];
+          final isAll = index == 0;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: () => _seeAll(categoryName: cat.$1),
+                onTap: () => isAll ? _seeAll() : _seeAll(categoryName: cat.$1),
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.surfElevated(context),
+                    color: isAll
+                        ? const Color(AppColors.primary)
+                        : AppColors.surfElevated(context),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppColors.div(context),
+                      color: isAll
+                          ? const Color(AppColors.primary)
+                          : AppColors.div(context),
                       width: 0.8,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(
-                          Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.04,
-                        ),
+                        color: isAll
+                            ? const Color(AppColors.primary).withOpacity(0.3)
+                            : Colors.black.withOpacity(
+                                Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.04,
+                              ),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -648,14 +655,18 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(cat.$2, size: 16, color: cat.$3),
+                      Icon(
+                        cat.$2,
+                        size: 15,
+                        color: isAll ? Colors.white : cat.$3,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         cat.$1,
                         style: TextStyle(
-                          color: AppColors.text1(context),
+                          color: isAll ? Colors.white : AppColors.text1(context),
                           fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: isAll ? FontWeight.w800 : FontWeight.w600,
                         ),
                       ),
                     ],

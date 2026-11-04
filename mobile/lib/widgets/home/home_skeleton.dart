@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../constants.dart';
 import '../premium_widgets.dart';
 
 /// Full shimmer loading placeholder for the premium home screen.

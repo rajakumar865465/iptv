@@ -280,9 +280,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   List<dynamic> _backupStreams = [];
   Map<String, dynamic>? _currentStreamMeta;
-  // Cache of headers from last successful playback API response. Used in the
-  // catch-block fallback so we never rebuild headers from the stale channels table.
-  Map<String, dynamic>? _lastApiHeaders;
   bool _isRetryingStream = false;
   String _streamOverlayMessage = '';
   /// Last libmpv/player error description, surfaced in the error overlay so the
@@ -316,7 +313,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _isSpeedBoosted = false;
   int _sleepTimerMinutes = 0;
   Timer? _sleepTimer;
-  DateTime? _sleepTimerEndTime;
   
   Timer? _bufferTimer;
   Timer? _startupTimer;
@@ -357,7 +353,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   Timer? _stablePlaybackTimer;
   Timer? _positionCheckTimer;
   Duration? _lastPosition;
-  DateTime? _lastProgressAt;
   int _frozenSeconds = 0;
   int _directStartupAttempts = 0;
   int _proxyStartupAttempts = 0;
@@ -375,7 +370,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   StreamSubscription? _audioParamsSubscription;
   StreamSubscription? _playerPlayingSubscription;
   StreamSubscription? _trackSubscription;
-  bool _showDebugDiagnostics = kDebugMode;
+  bool _showDebugDiagnostics = false;
   int _framesDropped = 0;
   int _framesDelayed = 0;
   String _activeVideoDecoder = 'unknown';
@@ -437,8 +432,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // Delayed-stream URL that is ready but not yet applied. Applied on next stall or channel open.
   String? _pendingSmoothUrl;
   Timer? _smoothWarmTimer;
-  DateTime? _warmStartedAt;
-  static const int _smoothWarmTimeoutSec = 180;
 
   // Buffer quality / gap warning state (skip-missing-chunks phase)
   bool _gapWarning = false;
@@ -530,7 +523,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   DateTime? _playbackApiEndTime;
   DateTime? _mediaOpenTime;
   DateTime? _firstVideoSignalTime;
-  DateTime? _overlayHiddenTime;
 
   bool _reportedSuccessForGeneration = false;
   int _activeFetchId = 0;
@@ -546,7 +538,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // Every async callback (API responses, player events, timers) checks this before
   // updating any state. Stale callbacks from the previous channel are silently dropped.
   int _channelSessionId = 0;
-  bool _isStoppingPrevious = false;
   
   // Fix A: Silent retries
   int _silentRetryCount = 0;
@@ -1006,109 +997,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     }
   }
 
-  Future<void> _fetchSmoothPlayback() async {
-    final bool wasReady = _bufferReady;
-    try {
-      final res = await _api.get(ApiEndpoints.channelSmoothPlaybackPath(_currentChannel.id));
-      if (res['success'] == true) {
-        final d = res['data'];
-        final mode = d['playback_mode'] as String? ?? 'direct';
-        if (mode == 'delayed') {
-          _smoothPlaybackEnabled = true;
-          _delaySeconds = (d['delay_seconds'] as num?)?.toInt() ?? 300;
-          _requiredDelaySeconds = (d['required_delay_seconds'] as num?)?.toInt() ?? _delaySeconds;
-          _bufferDepthSeconds = (d['buffer_depth_seconds'] as num?)?.toInt() ?? 0;
-          _bufferReady = d['buffer_ready'] == true;
-          _bufferStatus = d['buffer_status'] as String? ?? 'warming_up';
-          _directLiveUrl = d['direct_live_url'] as String?;
-          _canGoLive = d['can_go_live'] == true;
-          final statusMessage = d['message'] as String?;
-
-          // Parse buffer quality / gap warning fields
-          _gapWarning = d['gap_warning'] == true;
-          _gapWarningMessage = d['gap_warning_message'] as String? ?? '';
-          _bufferQualityStatus = d['buffer_quality_status'] as String? ?? 'clean_buffer';
-          _cleanBufferPercentage = (d['clean_buffer_percentage'] as num?)?.toInt() ?? 100;
-
-          if (_bufferReady) {
-            // Override stream URL with delayed buffer URL
-            final delayedUrl = d['delayed_stream_url'] as String?;
-            if (delayedUrl != null && delayedUrl.isNotEmpty) {
-              _currentStreamMeta = {'url': delayedUrl, 'headers': {}};
-              if (mounted) setState(() { _showPreparingOverlay = false; });
-            }
-            // Stop the warming poll loop — buffer is ready.
-            _smoothWarmTimer?.cancel();
-            _smoothWarmTimer = null;
-            // Buffer just became ready: store the delayed URL but do NOT swap now.
-            // Swapping mid-playback causes libmpv to restart the pipeline, producing a
-            // visible stutter. Instead, we apply it at the next natural stall/pause or
-            // the next time this channel is opened.
-            if (!wasReady && !_switchedToSmooth && delayedUrl != null && delayedUrl.isNotEmpty) {
-              _pendingSmoothUrl = delayedUrl;
-            }
-            // When buffer is ready but quality is degraded, start a refresh timer
-            // so the banner clears automatically once the channel recovers.
-            _startGapWarningRefreshIfNeeded();
-          } else {
-            // Buffer warming up. The player keeps playing the direct/live URL underneath and we
-            // show a small warming banner (not a full-screen spinner) via _buildWarmingBanner.
-            _warmStartedAt ??= DateTime.now();
-            if (mounted) {
-              setState(() {
-                _showPreparingOverlay = true;
-                _streamOverlayMessage = statusMessage ?? 'Preparing smooth playback...';
-              });
-            }
-
-            // Show specific status messages based on buffer status
-            if (_bufferStatus == 'source_timeout' || _bufferStatus == 'trying_backup') {
-              _streamOverlayMessage = statusMessage ?? 'Channel source is unstable. Trying another source...';
-            } else if (_bufferStatus == 'no_working_source') {
-              _streamOverlayMessage = statusMessage ?? 'Stream unavailable. No stable source is available right now.';
-            } else if (_bufferStatus == 'backup_active') {
-              _streamOverlayMessage = statusMessage ?? 'Using backup source. Building buffer...';
-            }
-
-            // Start the poll loop so we notice when the buffer becomes ready and so the
-            // progress banner ticks. Terminal failure states stop the loop.
-            if (_bufferStatus != 'no_working_source' &&
-                _bufferStatus != 'requires_licensed_source') {
-              _startSmoothWarmPoll();
-            } else {
-              _smoothWarmTimer?.cancel();
-              _smoothWarmTimer = null;
-            }
-          }
-        } else if (mode == 'requires_licensed_source') {
-          _smoothPlaybackEnabled = true;
-          _bufferReady = false;
-          _bufferStatus = 'requires_licensed_source';
-          _showPreparingOverlay = false;
-          _streamOverlayMessage = d['message'] as String? ?? 'No stable source is available right now.';
-          _smoothWarmTimer?.cancel();
-          _smoothWarmTimer = null;
-        } else {
-          _smoothPlaybackEnabled = false;
-          _showPreparingOverlay = false;
-          _gapWarning = false;
-          _gapWarningMessage = '';
-          _smoothWarmTimer?.cancel();
-          _smoothWarmTimer = null;
-        }
-      }
-    } catch (_) {
-      // Smooth playback info unavailable — continue with direct stream
-      _smoothPlaybackEnabled = false;
-    }
-  }
-
-  /// Smooth playback warm poll is DISABLED — buffer recording is off.
-  void _startSmoothWarmPoll() {
-    // No-op: smooth playback is disabled, nothing to poll.
-    return;
-  }
-
   /// Compact, human-readable warming progress string for the banner / fallback spinner.
   /// Uses the configured delay (5-min/2-min label) and live buffer depth, never a
   /// hardcoded minute value.
@@ -1193,13 +1081,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       }
     } catch (_) {}
     await _initializePlayer(url, rawHeaders);
-  }
-
-  /// Gap warning refresh is DISABLED — smooth playback is off, no polling needed.
-  void _startGapWarningRefreshIfNeeded() {
-    // No-op: smooth playback is disabled.
-    _gapWarningRefreshTimer?.cancel();
-    _gapWarningRefreshTimer = null;
   }
 
   Future<void> _fetchPlaybackAndInitialize() async {
@@ -1401,9 +1282,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         } else {
           throw Exception('No stream URL in playback response');
         }
-        // Cache API-returned headers so the catch fallback uses the same source of truth.
-        _lastApiHeaders = headersToUse;
-
         // Concurrent Stream Limit Check
         final prefsDeviceId = await SharedPreferences.getInstance();
         final deviceId = prefsDeviceId.getString(StorageKeys.deviceId) ?? 'unknown';
@@ -1436,8 +1314,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         String msg = 'Playback service unavailable.\nPlease try again later.';
         
         // Handle 403 upgrade_required specifically
-        if (e is DioException && (e as DioException).response?.statusCode == 403) {
-          final data = (e as DioException).response?.data;
+        if (e is DioException && e.response?.statusCode == 403) {
+          final data = e.response?.data;
           if (data != null && data['error_code'] == 'upgrade_required') {
             msg = data['message'] ?? 'Upgrade your plan to watch this channel.';
             // We can also trigger the upgrade dialog directly
@@ -1539,7 +1417,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     });
     
     _playStartTime ??= DateTime.now();
-    _overlayHiddenTime = DateTime.now();
     _showControlsWithTimer();
     
     if (!_reportedSuccessForGeneration) {
@@ -1603,7 +1480,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _reportedSuccessForGeneration = false;
     _mediaOpenTime = null;
     _firstVideoSignalTime = null;
-    _overlayHiddenTime = null;
     
     try {
       // Prevent rapid-switch crashes on Web: wait for the previous stream to completely stop 
@@ -1650,7 +1526,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _sourceStartupGrace = true;
     _recoveryInProgress = false;
     _userPaused = false;
-    _lastProgressAt = DateTime.now();
 
     _playerDebugLog('source_open_requested', {
       'channel_id': _currentChannel.id,
@@ -1904,7 +1779,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           } else {
             // Position advanced!
             _frozenSeconds = 0;
-            _lastProgressAt = DateTime.now();
           }
           _lastPosition = currentPos;
         } else {
@@ -2424,6 +2298,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           _runtimeRecoveryAttempts = 0;
         }
       });
+      _scheduleHdPromotionIfStable();
+      _startAutoUpgradeTimerIfNeeded();
       // Only clear loading here for mid-stream recovery (videoParams hasn't fired yet
       // during initial load — let videoParams handle the initial loading overlay).
       if (mounted && _isLoading && _playStartTime != null) {
@@ -2673,13 +2549,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         _hasError = false; 
       });
       
-      if (_silentRetryCount == 1 && _currentUrl != null) {
+      if (_silentRetryCount == 1 && _currentUrl.isNotEmpty) {
         // First retry: just wait and reopen the same URL
         await Future.delayed(Duration(milliseconds: delayMs));
         if (!mounted || _recoveryInProgress == false) return;
         _isRetryingStream = false;
         _hadFailureBeforePlaying = true;
-        await _initializePlayer(_currentUrl!, _currentStreamMeta?['headers'] ?? {});
+        await _initializePlayer(_currentUrl, _currentStreamMeta?['headers'] ?? {});
         return;
       } else {
         // Second retry: wait and re-fetch from API to see if URL changed
@@ -3049,10 +2925,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     // This MUST happen before _fetchPlaybackAndInitialize to ensure libmpv stops
     // requesting HLS playlists and segments for the previous channel. Without this,
     // old streams continue downloading in the background after channel switch.
-    _isStoppingPrevious = true;
-    _player.stop().catchError((_) {}).then((_) {
-      _isStoppingPrevious = false;
-    });
+    _player.stop().catchError((_) {});
 
     // Cancel all timers and subscriptions from the old session immediately
     _bufferTimer?.cancel(); _bufferTimer = null;
@@ -3085,7 +2958,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _autoRetryTimer = null;
     _autoRetryCountdown = 0;
     _autoRetryAttempts = 0;
-    _lastApiHeaders = null;
     _hwdecSoftwareFallbackAttempted = false;
     // Reset smooth playback state for new channel
     _smoothPlaybackEnabled = false;
@@ -3099,7 +2971,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _showPreparingOverlay = false;
     _switchedToSmooth = false;
     _pendingSmoothUrl = null;
-    _warmStartedAt = null;
     _gapWarning = false;
     _gapWarningMessage = '';
     _bufferQualityStatus = 'clean_buffer';
@@ -3699,44 +3570,156 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     );
   }
 
+  String _cleanTitle(String name) {
+    return name
+        .replaceAll(
+          RegExp(
+            r'\s*[\(\[]\s*(1080p|720p|576p|480p|360p|240p|4k|SD|HD|FHD|Geo-blocked|Not 24/7)[^\)\]]*[\)\]]\s*',
+            caseSensitive: false,
+          ),
+          ' ',
+        )
+        .replaceAll(RegExp(r'\s+APAC\b', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\s{2,}'), ' ')
+        .trim();
+  }
+
   Widget _buildLoadingOverlay() {
     if (_isLoading) {
+      final category = _currentChannel.categoryName ?? 'Live TV';
+      final cleanName = _cleanTitle(_currentChannel.name);
       return Container(
-        color: Colors.black87,
+        color: const Color(0xFF090A12),
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(color: Color(AppColors.primary), strokeWidth: 3),
-              // While a direct/live stream can play, warming shows as a small banner over the
-              // video (see _buildWarmingBanner), NOT a full-screen "Preparing" spinner. The
-              // preparing spinner + Play Direct Live button only appears when there is no
-              // playable direct stream (cold source) or a terminal/timeout state.
-              if (_showPreparingOverlay && !_hasPlayableDirectStream) ...[
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Channel Logo Stage
+                Container(
+                  width: 76,
+                  height: 76,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(AppColors.surfaceElevated),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.12),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(AppColors.primary).withOpacity(0.35),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: ChannelLogo(
+                    logoUrl: _currentChannel.logoUrl,
+                    localLogoUrl: _currentChannel.localLogoUrl,
+                    channelName: _currentChannel.name,
+                    size: 60,
+                    borderRadius: 14,
+                  ),
+                ),
                 const SizedBox(height: 16),
-                const Text('Preparing smooth playback...', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(
+                  cleanName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.3,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 6),
-                Text(_warmingProgressText(), style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(AppColors.brandRed),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.circle, size: 6, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      category.toUpperCase(),
+                      style: const TextStyle(
+                        color: Color(AppColors.textSecondary),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                const SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: CircularProgressIndicator(
+                    color: Color(AppColors.primary),
+                    strokeWidth: 2.8,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  _showPreparingOverlay && !_hasPlayableDirectStream
+                      ? 'Preparing smooth buffer...'
+                      : (_streamOverlayMessage.isNotEmpty
+                          ? _streamOverlayMessage
+                          : 'Connecting to broadcast...'),
+                  style: const TextStyle(
+                    color: Color(AppColors.textSecondary),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                if (_showPreparingOverlay && !_hasPlayableDirectStream) ...[
+                  const SizedBox(height: 6),
+                  Text(_warmingProgressText(), style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                ],
                 if (_canGoLive && _directLiveUrl != null && _directLiveUrl!.isNotEmpty) ...[
                   const SizedBox(height: 14),
                   ElevatedButton.icon(
                     onPressed: _goLiveFromWarming,
                     icon: const Icon(Icons.play_arrow_rounded, size: 16),
-                    label: const Text('Play Direct Live'),
+                    label: const Text('Play Direct Stream'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(AppColors.primary),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      minimumSize: const Size(0, 32),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      minimumSize: const Size(0, 34),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ],
-              ] else if (_streamOverlayMessage.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(_streamOverlayMessage, style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
               ],
-            ],
+            ),
           ),
         ),
       );
@@ -3816,10 +3799,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       causeSummary = 'No stable source is available right now.';
     }
 
-    final recentLogs = _globalDiagLog.reversed.take(18).toList().reversed.toList();
-
     return Container(
-      color: Colors.black,
+      color: const Color(0xFF07080E),
       child: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -3827,105 +3808,108 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.signal_cellular_off_rounded, size: 56, color: Colors.white38),
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: const Color(AppColors.brandRed).withOpacity(0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(AppColors.brandRed).withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.tv_off_rounded,
+                      size: 32,
+                      color: Color(AppColors.brandRed),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 16),
                 const Text(
-                  'Stream unavailable',
-                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                  'Stream Temporarily Unavailable',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  causeSummary,
+                  style: const TextStyle(
+                    color: Color(AppColors.textSecondary),
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 if (_autoRetryCountdown > 0)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
-                      'Retrying in $_autoRetryCountdown' + 's...',
-                      style: const TextStyle(color: Colors.blueAccent, fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        causeSummary,
-                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-                        textAlign: TextAlign.left,
-                      ),
-                      const SizedBox(height: 8),
-                      _diagRow('Reason', _lastErrorReason.isNotEmpty ? _lastErrorReason : 'unknown'),
-                      _diagRow('Path', _playbackPath),
-                      _diagRow('Platform', kIsWeb ? 'web' : defaultTargetPlatform.name),
-                      _diagRow('Stream', _currentUrl),
-                      if (_lastErrorDescription.isNotEmpty)
-                        _diagRow('Player error', _lastErrorDescription),
-                    ],
-                  ),
-                ),
-                // Collapsible recent on-screen diagnostic log (Option C: no PC needed)
-                TextButton(
-                  onPressed: () => setState(() => _showDiagDetails = !_showDiagDetails),
-                  child: Text(
-                    _showDiagDetails ? 'Hide diagnostics' : 'Show diagnostics (last logs)',
-                    style: const TextStyle(color: Colors.blueAccent, fontSize: 12),
-                  ),
-                ),
-                if (_showDiagDetails)
-                  Container(
-                    width: double.infinity,
-                    constraints: const BoxConstraints(maxHeight: 220),
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                    child: SingleChildScrollView(
-                      child: SelectableText(
-                        recentLogs.join('\n'),
-                        style: const TextStyle(
-                          color: Colors.greenAccent,
-                          fontSize: 10,
-                          fontFamily: 'monospace',
-                        ),
+                      'Reconnecting automatically in ${_autoRetryCountdown}s...',
+                      style: const TextStyle(
+                        color: Color(AppColors.primaryLight),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                if (_showDiagDetails)
-                  TextButton.icon(
-                    onPressed: () {
-                      final buf = StringBuffer();
-                      buf.writeln('Channel: ${_currentChannel.name} (id=${_currentChannel.id})');
-                      buf.writeln('Reason: $_lastErrorReason');
-                      buf.writeln('Path: $_playbackPath');
-                      buf.writeln('Platform: ${kIsWeb ? 'web' : defaultTargetPlatform.name}');
-                      buf.writeln('Stream: $_currentUrl');
-                      buf.writeln('Player error: $_lastErrorDescription');
-                      buf.writeln('--- recent diagnostics ---');
-                      buf.writeln(recentLogs.join('\n'));
-                      Share.share(buf.toString(), subject: 'NivaTV playback diagnostics');
-                    },
-                    icon: const Icon(Icons.share, size: 14, color: Colors.blueAccent),
-                    label: const Text('Share diagnostics', style: TextStyle(color: Colors.blueAccent, fontSize: 12)),
-                  ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _actionButton(Icons.refresh_rounded, 'Retry', _retry),
+                    _actionButton(Icons.refresh_rounded, 'Try Again', _retry),
                     if (_contextChannels.length > 1) ...[
                       const SizedBox(width: 12),
-                      _actionButton(Icons.skip_next_rounded, 'Next', _playNextChannel, outlined: true),
+                      _actionButton(
+                        Icons.skip_next_rounded,
+                        'Next Channel',
+                        _playNextChannel,
+                        outlined: true,
+                      ),
                     ],
                   ],
                 ),
+                const SizedBox(height: 14),
+                // Discrete technical details toggle
+                TextButton(
+                  onPressed: () => setState(() => _showDiagDetails = !_showDiagDetails),
+                  child: Text(
+                    _showDiagDetails ? 'Hide technical details' : 'Technical details ▾',
+                    style: TextStyle(
+                      color: AppColors.textM(context),
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+                if (_showDiagDetails) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _diagRow('Reason', _lastErrorReason.isNotEmpty ? _lastErrorReason : 'unknown'),
+                        _diagRow('Path', _playbackPath),
+                        _diagRow('Platform', kIsWeb ? 'web' : defaultTargetPlatform.name),
+                        _diagRow('Stream', _currentUrl),
+                        if (_lastErrorDescription.isNotEmpty)
+                          _diagRow('Player error', _lastErrorDescription),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -4528,20 +4512,17 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _sleepTimer?.cancel();
     _sleepTimerMinutes = minutes;
     if (minutes > 0) {
-      _sleepTimerEndTime = DateTime.now().add(Duration(minutes: minutes));
       _sleepTimer = Timer(Duration(minutes: minutes), () {
         if (mounted) {
           _player.pause();
           setState(() {
             _sleepTimerMinutes = 0;
-            _sleepTimerEndTime = null;
           });
           _showPlayerToast('😴 Sleep timer ended. Goodnight!');
         }
       });
       _showPlayerToast('Sleep timer set for $minutes min');
     } else {
-      _sleepTimerEndTime = null;
       _showPlayerToast('Sleep timer turned off');
     }
     setState(() {});

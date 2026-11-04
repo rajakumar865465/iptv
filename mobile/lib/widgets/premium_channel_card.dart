@@ -193,11 +193,9 @@ BoxDecoration _cardDecoration(BuildContext context, {bool offline = false}) {
     color: AppColors.surf(context),
     borderRadius: BorderRadius.circular(20),
     border: Border.all(
-      color: offline
-          ? const Color(AppColors.error).withOpacity(0.4)
-          : (isDark
-              ? AppColors.div(context).withOpacity(0.65)
-              : const Color(0xFFE2E8F0)),
+      color: isDark
+          ? AppColors.div(context).withOpacity(0.65)
+          : const Color(0xFFE2E8F0),
       width: 0.8,
     ),
     boxShadow: [
