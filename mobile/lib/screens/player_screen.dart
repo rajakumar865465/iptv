@@ -385,6 +385,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   // Fix #18: Track when video actually starts playing to compute accurate watch_duration
   DateTime? _playStartTime;
+  bool _preferencesLoaded = false;
 
   // ---- Playback Profile (Phase 4) ----
   PlaybackMode _playbackMode = PlaybackMode.auto;
@@ -724,25 +725,39 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   // ------------------------ Player ------------------------
 
   Future<void> _loadQualitySettingsAndFetch() async {
-    final storage = StorageService();
-    _defaultQualityPref = await storage.getVideoQualityPreference();
-    _dataSaverEnabled = await storage.isDataSaverEnabled();
-    _autoMobileData = await storage.isAutoQualityOnMobileData();
-    _hdOnlyWifi = await storage.isHdOnlyOnWifi();
+    if (!_preferencesLoaded) {
+      final storage = StorageService();
+      try {
+        final results = await Future.wait([
+          storage.getVideoQualityPreference(),
+          storage.isDataSaverEnabled(),
+          storage.isAutoQualityOnMobileData(),
+          storage.isHdOnlyOnWifi(),
+          storage.getPlaybackMode(),
+          storage.getDisplayRefreshRate(),
+          storage.getMatchVideoFrameRate(),
+        ]);
 
-    // Load playback mode from user preferences
-    final modeStr = await storage.getPlaybackMode();
-    _playbackMode = PlaybackMode.values.firstWhere(
-      (e) => e.name == modeStr,
-      orElse: () => PlaybackMode.auto,
-    );
-    // Data Saver mode: cap quality preference to 480p
-    if (_playbackMode == PlaybackMode.dataSaver) {
-      if (_defaultQualityPref == 'auto' ||
-          _defaultQualityPref == '1080p' ||
-          _defaultQualityPref == '720p') {
-        _defaultQualityPref = '480p';
-      }
+        _defaultQualityPref = results[0] as String;
+        _dataSaverEnabled = results[1] as bool;
+        _autoMobileData = results[2] as bool;
+        _hdOnlyWifi = results[3] as bool;
+        final modeStr = results[4] as String;
+        _playbackMode = PlaybackMode.values.firstWhere(
+          (e) => e.name == modeStr,
+          orElse: () => PlaybackMode.auto,
+        );
+        if (_playbackMode == PlaybackMode.dataSaver) {
+          if (_defaultQualityPref == 'auto' ||
+              _defaultQualityPref == '1080p' ||
+              _defaultQualityPref == '720p') {
+            _defaultQualityPref = '480p';
+          }
+        }
+        _displayRefreshRatePref = results[5] as String;
+        _matchVideoFrameRatePref = results[6] as bool;
+        _preferencesLoaded = true;
+      } catch (_) {}
     }
 
     await _resolveFitMode();
@@ -752,10 +767,7 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       _isOnMobileData = connectivityResult.contains(ConnectivityResult.mobile);
     } catch (_) {}
 
-    _displayRefreshRatePref = await storage.getDisplayRefreshRate();
-    _matchVideoFrameRatePref = await storage.getMatchVideoFrameRate();
-
-    if (!kIsWeb && Platform.isAndroid) {
+    if (!kIsWeb && Platform.isAndroid && _supportedDisplayModes.isEmpty) {
       try {
         _supportedDisplayModes = await FlutterDisplayMode.supported;
         _activeDisplayMode = await FlutterDisplayMode.active;
@@ -1282,14 +1294,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         } else {
           throw Exception('No stream URL in playback response');
         }
-        // Concurrent Stream Limit Check
-        final prefsDeviceId = await SharedPreferences.getInstance();
-        final deviceId = prefsDeviceId.getString(StorageKeys.deviceId) ?? 'unknown';
-        try {
-          await _api.sendStreamHeartbeat(_currentChannel.id, deviceId, 'start');
-        } catch (e) {
-          if (e.toString().contains('Device limit reached')) {
-            if (mounted) {
+        // Concurrent Stream Limit Check - execute asynchronously without blocking startup
+        SharedPreferences.getInstance().then((prefsDeviceId) {
+          final deviceId = prefsDeviceId.getString(StorageKeys.deviceId) ?? 'unknown';
+          _api.sendStreamHeartbeat(_currentChannel.id, deviceId, 'start').catchError((e) {
+            if (e.toString().contains('Device limit reached') && mounted) {
+              _player.stop();
               setState(() {
                 _isLoading = false;
                 _hasError = true;
@@ -1297,9 +1307,9 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
                 _streamOverlayMessage = e.toString().replaceFirst('Exception: ', '');
               });
             }
-            return;
-          }
-        }
+            return false;
+          });
+        });
 
         await _initializePlayer(urlToPlay, headersToUse);
       } else {
@@ -1426,23 +1436,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     
     _startHeartbeatTimer();
 
-    // Phase 2b: Background Buffer Build — now that first frame is on screen,
-    // boost the buffer to 15s readahead and 32MB stream buffer for smooth
-    // sustained playback (YouTube-style two-phase buffering).
-    try {
-      final platform = _player.platform;
-      if (!kIsWeb && (platform.runtimeType.toString().contains('NativePlayer') ||
-          platform.runtimeType.toString().contains('LibmpvPlayer'))) {
-        _dynamicReadaheadSecs = 15;
-        await (platform as dynamic).setProperty('demuxer-readahead-secs', '15');
-        await (platform as dynamic).setProperty('stream-buffer-size', '33554432');
-        _playerDebugLog('phase2b_buffer_boost', {'readahead': 15, 'stream_buffer': '32MB'});
-      }
-    } catch (_) {}
-
-    // Phase 5: Prefetch playback API for next 2 channels in the background
-    _prefetchAdjacentPlaybackApis();
-    
     // Remember successful path!
     if (_currentStreamMeta != null) {
       final streamId = _currentStreamMeta!['id']?.toString() ?? '';
@@ -1450,27 +1443,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('pref_path_${_currentChannel.id}_$streamId', _playbackPath);
       }
-    }
-  }
-
-  /// Phase 5: Prefetch playback API for the next 2 channels in the list
-  /// so channel switching is near-instant (cache hit instead of API call).
-  void _prefetchAdjacentPlaybackApis() async {
-    for (int offset = 1; offset <= 2; offset++) {
-      final idx = _currentIndex + offset;
-      if (idx >= _contextChannels.length) break;
-      final ch = _contextChannels[idx];
-      // Skip if already cached and fresh
-      final cacheAge = _playbackApiCacheTime[ch.id];
-      if (cacheAge != null && DateTime.now().difference(cacheAge).inSeconds < 60) continue;
-      try {
-        final res = await _api.get(ApiEndpoints.channelPlaybackPath(ch.id));
-        if (res['success'] == true && res['data'] != null) {
-          _playbackApiCache[ch.id] = res['data'];
-          _playbackApiCacheTime[ch.id] = DateTime.now();
-          _playerDebugLog('prefetch_api_cached', {'channel_id': ch.id, 'offset': offset});
-        }
-      } catch (_) {}
     }
   }
 
@@ -1545,10 +1517,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // available ahead of the playhead — buffer it aggressively (YouTube-style)
       // so short network dips never reach the screen.
       final bool isDelayedStream = url.contains('/api/smooth/');
-      // Phase 2: Instant-Start Buffering — use minimal readahead to show first
-      // frame ASAP. _onStartupSuccess will boost this to 15s once playing.
-      final int fastStartReadahead = isDelayedStream ? 30 : 1;
-      _dynamicReadaheadSecs = fastStartReadahead;
+      final int baseReadaheadSecs = isDelayedStream ? 30 : profile.demuxerReadaheadSecs;
+      _dynamicReadaheadSecs = baseReadaheadSecs;
       final int demuxerMaxBytesMib = isDelayedStream
           ? (profile.demuxerMaxBytesMib < 96 ? 96 : profile.demuxerMaxBytesMib)
           : profile.demuxerMaxBytesMib;
@@ -1556,12 +1526,12 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         final platform = _player.platform;
         if (platform.runtimeType.toString().contains('NativePlayer') ||
             platform.runtimeType.toString().contains('LibmpvPlayer')) {
-          // Phase 2: Instant-Start — minimal readahead for fast first frame
+          // Stable readahead keeps player right behind live edge without starving
           await (platform as dynamic).setProperty(
               'demuxer-readahead-secs', '$_dynamicReadaheadSecs');
-          // cache-secs: keep generous for background buffer building
+          // cache-secs: generous buffer for smooth playback
           await (platform as dynamic).setProperty(
-              'cache-secs', '60');
+              'cache-secs', '${_dynamicReadaheadSecs * 4}');
           await (platform as dynamic).setProperty('cache', 'yes');
           // Bound the demuxer byte buffer so live streams don't balloon RAM.
           await (platform as dynamic).setProperty(
@@ -1588,7 +1558,6 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           //   lack a browser-like User-Agent. Web sends one automatically; libmpv
           //   does not, so we set a sensible default here as a backstop. The
           //   per-stream httpHeaders (if any) override this at the Media level.
-          // Phase 8: Connection Keep-Alive — multiple_requests=1 for HTTP keep-alive
           await (platform as dynamic).setProperty(
               'stream-lavf-o',
               'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1,'
@@ -1597,35 +1566,27 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
               'timeout=30000000,tls_verify=no,'
               'user_agent=Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 '
               '(KHTML, like Gecko) NivaTV/1.2.1 Chrome/120.0 Mobile Safari/537.36');
-          // network-timeout removed: timeout=30000000 in stream-lavf-o already sets 30s
-          // at the lavf layer; a conflicting network-timeout value can cause unexpected races.
-          // IPTV HLS sources often need permissive playlist loading.
+
           try {
             await (platform as dynamic).setProperty('load-unsafe-playlists', 'yes');
           } catch (_) {}
 
-          // Force libmpv to select the lowest bitrate variant initially (Fast-Start Optimization)
-          // Removed because it prevents automatic scaling to high-resolution streams when bandwidth permits.
-
-
-          // Phase 2: Fast-start — 4MB stream buffer initially (expanded after first frame)
+          // 32 MB stream buffer absorbs slow CDN segment starts (HD IPTV segments).
           try {
-            await (platform as dynamic).setProperty('stream-buffer-size', '4194304');
+            await (platform as dynamic).setProperty('stream-buffer-size', '33554432');
           } catch (_) {}
-          // Phase 4: Smart Frame Dropping — allow strategic drops to stay near live edge
-          // Prevents growing latency drift during long viewing sessions
+          // Do not drop frames — IPTV relies on continuous frame delivery for A/V sync.
           try {
-            await (platform as dynamic).setProperty('framedrop', 'decoder+vo');
+            await (platform as dynamic).setProperty('framedrop', 'no');
           } catch (_) {}
-          // Phase 3: Strict Hardware Acceleration — mediacodec-copy for reliable
-          // GPU decoding with frame copy for accurate rendering on Android
+          // Zero-copy direct hardware decoding: auto-safe uses direct surface decoding on Android (0% CPU load)
           try {
-            await (platform as dynamic).setProperty('hwdec', 'mediacodec-copy');
+            await (platform as dynamic).setProperty('hwdec', 'auto-safe');
           } catch (_) {}
-          // Phase 6: Display-Synced Rendering — interpolate frames to match
-          // display refresh rate (60/90/120Hz) for butter-smooth output
+          // Sync video output to audio clock for accurate A/V alignment on IPTV.
+          // Prevents audio jitter and buffer underruns on live broadcast streams.
           try {
-            await (platform as dynamic).setProperty('video-sync', 'display-resample');
+            await (platform as dynamic).setProperty('video-sync', 'audio');
           } catch (_) {}
           try {
             await (platform as dynamic).setProperty('audio-buffer', '0.5');
