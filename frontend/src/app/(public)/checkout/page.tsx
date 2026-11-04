@@ -94,8 +94,15 @@ function CheckoutContent() {
           }
         } catch(e) {}
       }
-      if (p) setPlan(p);
-      else router.push('/pricing');
+      if (p) {
+        if (p.price === 0) {
+          router.replace(`/payment?plan_id=${p.id}`);
+          return;
+        }
+        setPlan(p);
+      } else {
+        router.push('/pricing');
+      }
       
       setLoading(false);
     });

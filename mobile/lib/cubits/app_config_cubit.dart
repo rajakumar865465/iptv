@@ -24,7 +24,10 @@ class AppConfigCubit extends Cubit<AppConfigState> {
   Future<void> fetchConfig() async {
     emit(AppConfigLoading());
     try {
-      final response = await _api.get(ApiEndpoints.config);
+      final response = await _api.get(
+        ApiEndpoints.config,
+        queryParameters: {'version': AppConstants.appVersion},
+      );
       if (response['success'] == true) {
         _config = response['data'] ?? {};
         if (isClosed) return;

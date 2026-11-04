@@ -99,10 +99,6 @@ exports.verifyOtp = async (req, res) => {
     }
 
     // Generate token
-    if (!user.has_claimed_trial) {
-      await ensureUserTrial(user.id);
-    }
-
     const token = generateToken({ userId: user.id, email: user.email, role: user.role });
 
     return success(res, {

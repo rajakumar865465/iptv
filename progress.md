@@ -1,5 +1,54 @@
 # NivaTV - Recent Progress
 
+## Production Release APK v2.8.2 (versionCode 31) Compilation (November 2026)
+- **Resolved Android In-App Update Warnings:**
+  - Incremented `versionCode` from `30` to `31` and version from `2.8.1` to `2.8.2` in [`pubspec.yaml`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/pubspec.yaml) and [`constants.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/constants.dart).
+  - Android Package Manager requires `versionCode` to be strictly higher than the installed version (`31 > 30`) to recognize the installation as a genuine update rather than a duplicate/downgrade attempt.
+  - Successfully compiled split release APKs signed with official production keystore (`upload-keystore.jks`):
+    - `app-arm64-v8a-release.apk` (33.2 MB) -> copied to [`backend/public/downloads/app-release.apk`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/backend/public/downloads/app-release.apk) and [`frontend/public/downloads/NivaTV_arm64_v2.8.2.apk`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/frontend/public/downloads/NivaTV_arm64_v2.8.2.apk).
+    - `app-armeabi-v7a-release.apk` (30.0 MB) -> copied to [`backend/public/downloads/app-release-32bit.apk`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/backend/public/downloads/app-release-32bit.apk) and [`frontend/public/downloads/NivaTV_arm32_v2.8.2.apk`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/frontend/public/downloads/NivaTV_arm32_v2.8.2.apk).
+    - `app-x86_64-release.apk` (38.0 MB) -> copied to [`frontend/public/downloads/NivaTV_x86_64_v2.8.2.apk`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/frontend/public/downloads/NivaTV_x86_64_v2.8.2.apk).
+- **Prepared Database Release Metadata:**
+  - Prepared [`update_release_notification.sql`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/backend/scripts/update_release_notification.sql) updating `app_releases` with version `2.8.2`, `version_code = 31`, `force_update = false`.
+
+
+## Free Plan Activation & Paid Plan Redirect Flow Fix (November 2026)
+- **Resolved Silent Background Auto-Activation:**
+  - Removed unintended calls to `ensureUserTrial(user.id)` on user signup and login across [`authController.js`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/backend/src/controllers/authController.js), [`googleAuthController.js`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/backend/src/controllers/googleAuthController.js), and [`otpAuthController.js`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/backend/src/controllers/otpAuthController.js).
+  - Registering or logging in now leaves `has_claimed_trial = false`, allowing users to experience the deliberate activation checkout experience rather than having trial licenses silently provisioned behind the scenes.
+- **Fixed Paid Plan Redirect Loop After Signup:**
+  - In [`UnifiedProCard.tsx`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/frontend/src/components/public/UnifiedProCard.tsx):
+    - Made `hasClaimedTrial` state and initial resolution strictly respect `user.has_claimed_trial` when authenticated, preventing stale `localStorage` flags from marking brand new users as claimed.
+    - Updated `handleAuthSuccess`: When an unauthenticated user selects the Free Trial and completes registration/login, the card preserves `mode === 'trial'` and navigates directly to `/payment?plan_id=64` (Free Trial plan) rather than falling back to the paid ₹79 Pro plan.
+- **Fixed Plan Resolution & Dedicated Activation UI on `/payment`:**
+  - In [`payment/page.tsx`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/frontend/src/app/(public)/payment/page.tsx):
+    - Fixed URL query param precedence in `getPublicPlans`: `planIdParam` now takes strict priority over default `p[0].id`.
+    - Made `hasClaimedTrial` check use `user ? Boolean(user.has_claimed_trial || user.has_active_subscription) : localStorage...`, preventing false redirects to paid plans for eligible trial users.
+    - Upgraded CTA button for ₹0 plans: Displays a vibrant emerald gradient button **"Activate 1-Month Free Trial Now"** (with rocket/check icon).
+    - Replaced payment gateway badges on ₹0 checkout with reassurance: "100% Free Trial · No Credit Card Required · Instant Activation".
+- **Enhanced Order Success & Congratulations Flow:**
+  - In [`payment/success/page.tsx`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/frontend/src/app/(public)/payment/success/page.tsx):
+    - For Free Trial claims (`amount === 0`), updated header to **"🎉 Free Trial Activated!"** with subtitle "Your 1-Month Free Trial Pro license is now active! Copy your key and start watching."
+    - Preserved complete celebration experience: fireworks display, confetti bursts, Web Audio chime, active license key card with 1-click copy, and step-by-step activation instructions.
+- **Safeguarded Manual Checkout (`/checkout`):**
+  - In [`checkout/page.tsx`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/frontend/src/app/(public)/checkout/page.tsx): Added automatic redirect from `/checkout?plan=64` to `/payment?plan_id=64` to ensure no user is ever asked for a manual UTR receipt for a ₹0 free plan.
+- **Clean Build Verification:** Tested local `npm run build` with Next.js Turbopack: 58/58 static & dynamic pages compiled with 0 errors.
+
+## App Update Notification & Enforced v2.8.1 Upgrade (November 2026)
+- **In-App Notification Created & Active for All Users:**
+  - Inserted notification into PostgreSQL `notifications` table (`id: 3`, `title: '🚀 Major Update v2.8.1 Available!'`, `target_type: 'all'`, `is_active: true`, `action_url: 'https://nivatv.luxomall.in/downloads/app-release.apk'`).
+  - Active users opening the app now see the notification dot on the bell icon and can view the release announcement with download link.
+- **Force Update Configuration in `app_settings`:**
+  - Set `minimum_app_version = '2.8.1'`, `latest_app_version = '2.8.1'`, `force_update = 'true'`, and `announcement_message = 'NivaTV v2.8.1 is now live! Please update your app to continue watching.'`.
+  - Added release entry in `app_releases` table (`version: '2.8.1'`, `version_code: 30`, `is_latest: true`, `force_update: true`).
+- **Smart Version-Aware Backend Endpoint (`/api/app/config`):**
+  - Upgraded [`appConfigController.js`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/backend/src/controllers/appConfigController.js): Clients running v2.8.1 (`?version=2.8.1` or header `x-app-version`) are recognized as up-to-date (`force_update: false`) and stream without interruption.
+  - Older client versions (absent version or `< 2.8.1`) receive `force_update: true` and are directed to the update screen.
+- **Enhanced Force Update Screen (`force_update_screen.dart`):**
+  - Built premium update screen with release notes, "Download & Update Now" button linking directly to `/downloads/app-release.apk`, and secondary "Open Official Download Page" link.
+  - Safeguarded [`splash_screen.dart`](file:///c:/Users/deba_pc.com/OneDrive/Desktop/iptv/mobile/lib/screens/splash_screen.dart) with `_isVersionBelow(AppConstants.appVersion, minVersion)` to guarantee updated clients never get blocked.
+
+
 ## Production Release APK v2.8.1 Build & Deployment Preparation (November 2026)
 - **Resolved Build Environment & SDK Blocks:**
   - Resolved Gradle JVM heap exhaustion by lowering `gradle.properties` JVM heap from 8GB to 2048MB, matching the 8GB host RAM constraint.

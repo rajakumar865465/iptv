@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../constants.dart';
 import '../../models/notification_model.dart';
 import '../../services/api_service.dart';
@@ -474,6 +475,7 @@ class _NotifCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = _catStyle(item.title);
+    final hasAction = item.actionUrl != null && item.actionUrl!.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -485,12 +487,26 @@ class _NotifCard extends StatelessWidget {
           width: 1,
         ),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: hasAction
+              ? () async {
+                  try {
+                    final uri = Uri.parse(item.actionUrl!);
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } catch (e) {
+                    debugPrint('Error launching notification url: $e');
+                  }
+                }
+              : null,
+          borderRadius: BorderRadius.circular(16),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
               // left accent bar
               Container(
                 width: 3,
@@ -581,7 +597,9 @@ class _NotifCard extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }
 

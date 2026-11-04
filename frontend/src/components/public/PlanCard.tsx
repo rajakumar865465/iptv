@@ -122,7 +122,9 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
   const [authOpen, setAuthOpen] = useState(false);
   const [currentMode, setCurrentMode] = useState<string>(paymentMode);
 
-  const hasClaimedTrial = !!user?.has_claimed_trial || (typeof window !== 'undefined' && localStorage.getItem('nivatv_trial_claimed') === 'true');
+  const hasClaimedTrial = user
+    ? Boolean(user.has_claimed_trial || user.has_active_subscription)
+    : (typeof window !== 'undefined' && localStorage.getItem('nivatv_trial_claimed') === 'true');
 
   // If user has already claimed trial, do not render a free trial plan card
   if (plan.price === 0 && hasClaimedTrial) {

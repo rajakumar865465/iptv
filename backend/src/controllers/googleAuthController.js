@@ -96,12 +96,6 @@ exports.googleLogin = async (req, res) => {
          ORDER BY l.expires_at DESC LIMIT 1`,
         [user.id]
       );
-      if (licenseResult.rows.length === 0 && !user.has_claimed_trial) {
-        const trialLic = await ensureUserTrial(user.id);
-        if (trialLic) {
-          licenseResult = { rows: [trialLic] };
-        }
-      }
       license = licenseResult.rows[0] || null;
       licenseStatus = license && new Date(license.expires_at) > now ? license.status : 'none';
 

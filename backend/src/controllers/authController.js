@@ -61,8 +61,6 @@ exports.signup = async (req, res) => {
     );
 
     const user = result.rows[0];
-    // Automatically provision 1-Month Free Trial Pro plan for newly registered users
-    await ensureUserTrial(user.id);
     const token = generateToken({ userId: user.id, email: user.email, role: user.role });
     const refreshToken = generateRefreshToken(user.id);
 
@@ -116,12 +114,6 @@ exports.login = async (req, res) => {
         [user.id]
       );
 
-      if (licenseResult.rows.length === 0 && !user.has_claimed_trial) {
-        const trialLic = await ensureUserTrial(user.id);
-        if (trialLic) {
-          licenseResult = { rows: [trialLic] };
-        }
-      }
       license = licenseResult.rows[0] || null;
       licenseStatus = license && new Date(license.expires_at) > now ? license.status : 'none';
 

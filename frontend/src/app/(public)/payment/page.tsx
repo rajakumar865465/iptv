@@ -99,15 +99,20 @@ function PaymentForm() {
       getPublicPlans()
         .then(p => {
           setPlans(p);
-          if (!selectedPlanId && p.length > 0) setSelectedPlanId(p[0].id);
-          else if (planIdParam && p.find(x => x.id === planIdParam)) setSelectedPlanId(planIdParam);
+          if (planIdParam && p.find(x => x.id === planIdParam)) {
+            setSelectedPlanId(planIdParam);
+          } else if (!selectedPlanId && p.length > 0) {
+            setSelectedPlanId(p[0].id);
+          }
         })
         .catch(() => setError('Failed to load plans. Please refresh the page.'));
     }
   }, [isOfferFlow, offerPriceParam, planIdParam, router]);
 
   const selectedPlan = useMemo(() => plans.find(p => p.id === selectedPlanId), [plans, selectedPlanId]);
-  const hasClaimedTrial = !!user?.has_claimed_trial || (typeof window !== 'undefined' && localStorage.getItem('nivatv_trial_claimed') === 'true');
+  const hasClaimedTrial = user
+    ? Boolean(user.has_claimed_trial || user.has_active_subscription)
+    : (typeof window !== 'undefined' && localStorage.getItem('nivatv_trial_claimed') === 'true');
 
   useEffect(() => {
     if (hasClaimedTrial && selectedPlan?.price === 0) {
@@ -647,7 +652,11 @@ function PaymentForm() {
                 type="button"
                 onClick={handlePay}
                 disabled={loading || !selectedPlan}
-                className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl bg-brand-600 hover:bg-brand-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-extrabold text-base transition-all shadow-xl shadow-brand-600/25 cursor-pointer"
+                className={`w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-extrabold text-base transition-all shadow-xl cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                  finalPrice === 0
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/25'
+                    : 'bg-brand-600 hover:bg-brand-500 text-white shadow-brand-600/25'
+                }`}
               >
                 {loading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -656,7 +665,7 @@ function PaymentForm() {
                     <span>
                       {selectedPlan
                         ? finalPrice === 0
-                          ? 'Claim 100% Free Access Now'
+                          ? 'Activate 1-Month Free Trial Now'
                           : `Pay ₹${Math.round(finalPrice)} Securely`
                         : 'Proceed to Payment'}
                     </span>
@@ -666,18 +675,29 @@ function PaymentForm() {
               </button>
 
               {/* Supported payment methods & guarantee */}
-              <div className="pt-2 text-center space-y-2">
-                <p className="text-xs text-slate-600 dark:text-[var(--color-ink-muted)] font-medium">
-                  Guaranteed safe checkout via <strong className="text-slate-900 dark:text-[var(--color-ink)] font-bold">Razorpay Live Gateway</strong>
-                </p>
-                <div className="flex items-center justify-center gap-3 text-xs text-slate-600 dark:text-[var(--color-ink-subtle)] font-semibold">
-                  <span>UPI (GPay / PhonePe / Paytm)</span>
-                  <span>·</span>
-                  <span>Credit / Debit Cards</span>
-                  <span>·</span>
-                  <span>Netbanking</span>
+              {finalPrice === 0 ? (
+                <div className="pt-2 text-center space-y-1">
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center gap-1.5">
+                    <Check className="w-4 h-4 stroke-[3]" /> 100% Free Trial · No Credit Card Required · Instant Activation
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-[var(--color-ink-subtle)]">
+                    Your 30-day Pro license key will be generated and shown on the next screen immediately.
+                  </p>
                 </div>
-              </div>
+              ) : (
+                <div className="pt-2 text-center space-y-2">
+                  <p className="text-xs text-slate-600 dark:text-[var(--color-ink-muted)] font-medium">
+                    Guaranteed safe checkout via <strong className="text-slate-900 dark:text-[var(--color-ink)] font-bold">Razorpay Live Gateway</strong>
+                  </p>
+                  <div className="flex items-center justify-center gap-3 text-xs text-slate-600 dark:text-[var(--color-ink-subtle)] font-semibold">
+                    <span>UPI (GPay / PhonePe / Paytm)</span>
+                    <span>·</span>
+                    <span>Credit / Debit Cards</span>
+                    <span>·</span>
+                    <span>Netbanking</span>
+                  </div>
+                </div>
+              )}
 
               {/* Manual UPI fallback if mode is both */}
               {paymentMode === 'both' && selectedPlan && (

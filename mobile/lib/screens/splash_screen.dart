@@ -24,6 +24,23 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  bool _isVersionBelow(String current, String target) {
+    try {
+      final cParts = current.split('.').map((s) => int.tryParse(s.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0).toList();
+      final tParts = target.split('.').map((s) => int.tryParse(s.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0).toList();
+      final maxLen = cParts.length > tParts.length ? cParts.length : tParts.length;
+      for (int i = 0; i < maxLen; i++) {
+        final c = i < cParts.length ? cParts[i] : 0;
+        final t = i < tParts.length ? tParts[i] : 0;
+        if (c < t) return true;
+        if (c > t) return false;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -61,12 +78,15 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      // Check force update
+      // Check force update (only blocks if running version is below minimum_app_version)
       if (config['force_update'] == 'true') {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const ForceUpdateScreen()),
-        );
-        return;
+        final minVersion = config['minimum_app_version'] ?? '1.0.0';
+        if (_isVersionBelow(AppConstants.appVersion, minVersion)) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const ForceUpdateScreen()),
+          );
+          return;
+        }
       }
     }
 

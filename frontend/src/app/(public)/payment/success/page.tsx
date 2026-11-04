@@ -266,8 +266,14 @@ function SuccessContent() {
             <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-9 h-9" />
             </div>
-            <h1 className="text-4xl font-extrabold text-[var(--color-ink)] mb-2">Payment Successful!</h1>
-            <p className="text-[var(--color-ink-muted)]">Your license key is ready. Copy it and activate your app.</p>
+            <h1 className="text-4xl font-extrabold text-[var(--color-ink)] mb-2">
+              {order.amount === 0 ? '🎉 Free Trial Activated!' : 'Payment Successful!'}
+            </h1>
+            <p className="text-[var(--color-ink-muted)]">
+              {order.amount === 0
+                ? 'Your 1-Month Free Trial Pro license is now active! Copy your key and start watching.'
+                : 'Your license key is ready. Copy it and activate your app.'}
+            </p>
           </div>
 
           {/* License key */}

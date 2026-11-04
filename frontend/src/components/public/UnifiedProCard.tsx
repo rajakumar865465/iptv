@@ -42,14 +42,20 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
 
   // Check if trial has already been claimed by logged-in user or stored in localStorage
   const [hasClaimedTrial, setHasClaimedTrial] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('nivatv_trial_claimed') === 'true' || !!user?.has_claimed_trial || hasActiveSub;
+    if (user) {
+      return Boolean(user.has_claimed_trial || hasActiveSub);
     }
-    return !!user?.has_claimed_trial || hasActiveSub;
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('nivatv_trial_claimed') === 'true' || hasActiveSub;
+    }
+    return hasActiveSub;
   });
 
   const [mode, setMode] = useState<'trial' | 'paid'>(() => {
-    if (typeof window !== 'undefined' && (localStorage.getItem('nivatv_trial_claimed') === 'true' || !!user?.has_claimed_trial || hasActiveSub)) {
+    if (user) {
+      return (user.has_claimed_trial || hasActiveSub) ? 'paid' : 'trial';
+    }
+    if (typeof window !== 'undefined' && (localStorage.getItem('nivatv_trial_claimed') === 'true' || hasActiveSub)) {
       return 'paid';
     }
     return 'trial';
@@ -57,15 +63,27 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
 
   // React immediately whenever user auth state or trial claimed flag changes
   useEffect(() => {
-    const isClaimed = !!user?.has_claimed_trial || (typeof window !== 'undefined' && localStorage.getItem('nivatv_trial_claimed') === 'true') || !!user?.has_active_subscription;
-    if (isClaimed) {
-      setHasClaimedTrial(true);
-      setMode('paid');
-      try {
-        localStorage.setItem('nivatv_trial_claimed', 'true');
-      } catch (_) {}
+    if (user) {
+      const isClaimed = Boolean(user.has_claimed_trial || user.has_active_subscription);
+      setHasClaimedTrial(isClaimed);
+      if (isClaimed) {
+        setMode('paid');
+        try {
+          localStorage.setItem('nivatv_trial_claimed', 'true');
+        } catch (_) {}
+      } else {
+        try {
+          localStorage.removeItem('nivatv_trial_claimed');
+        } catch (_) {}
+      }
+    } else {
+      const isClaimed = typeof window !== 'undefined' && localStorage.getItem('nivatv_trial_claimed') === 'true';
+      setHasClaimedTrial(isClaimed);
+      if (isClaimed) {
+        setMode('paid');
+      }
     }
-  }, [user?.has_claimed_trial, user?.has_active_subscription]);
+  }, [user?.has_claimed_trial, user?.has_active_subscription, user]);
 
   // If user has claimed trial or has an active subscription, NEVER show trial mode or free cart elements
   const isTrial = !hasClaimedTrial && !user?.has_claimed_trial && !hasActiveSub && mode === 'trial' && !!trialPlan;
@@ -90,15 +108,21 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
 
   const handleAuthSuccess = (_loggedInUser: any) => {
     setAuthOpen(false);
-    const userClaimed = !!(_loggedInUser?.has_claimed_trial || user?.has_claimed_trial);
+    const userClaimed = Boolean(_loggedInUser?.has_claimed_trial || _loggedInUser?.has_active_subscription);
     if (userClaimed) {
       setHasClaimedTrial(true);
       setMode('paid');
       try {
         localStorage.setItem('nivatv_trial_claimed', 'true');
       } catch (_) {}
+    } else {
+      setHasClaimedTrial(false);
+      try {
+        localStorage.removeItem('nivatv_trial_claimed');
+      } catch (_) {}
     }
-    const planToUse = (userClaimed || !isTrial) ? (paidPlan || activePlan) : activePlan;
+    const wantsTrial = mode === 'trial' && !userClaimed && !!trialPlan;
+    const planToUse = wantsTrial ? trialPlan : (paidPlan || activePlan);
     const targetUrl = (paymentMode === 'manual' && planToUse.price > 0)
       ? `/checkout?plan=${planToUse.id}`
       : `/payment?plan_id=${planToUse.id}`;

@@ -87,6 +87,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           try {
             localStorage.setItem('nivatv_trial_claimed', 'true');
           } catch (_) {}
+        } else {
+          try {
+            localStorage.removeItem('nivatv_trial_claimed');
+          } catch (_) {}
         }
         return data.data.user;
       } else if (res.status === 401) {
@@ -142,6 +146,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (userData.has_claimed_trial) {
         try {
           localStorage.setItem('nivatv_trial_claimed', 'true');
+        } catch (_) {}
+      } else {
+        try {
+          localStorage.removeItem('nivatv_trial_claimed');
         } catch (_) {}
       }
     }
