@@ -1950,10 +1950,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // Calculate local ideal timeout
       int idealStartupSecs = profile.startupTimeoutSecs;
       if (isDelayedStream) idealStartupSecs = 45; // Smooth streams get their own massive budget
-      else if (url.contains('/api/proxy/')) idealStartupSecs = 15;
-      else if (_playbackPath == 'backup' || _playbackPath == 'transcode' || _selectedQuality != null) idealStartupSecs = 15;
-      else if (_playbackPath == 'direct' && _currentChannel.healthStatus == 'unstable') idealStartupSecs = 18; // Give extra grace for unstable direct
-      else if (_playbackPath == 'direct') idealStartupSecs = 12;
+      else if (url.contains('/api/proxy/')) idealStartupSecs = 10;
+      else if (_playbackPath == 'backup' || _playbackPath == 'proxy' || _selectedQuality != null) idealStartupSecs = 10;
+      else if (_playbackPath == 'direct' && _currentChannel.healthStatus == 'unstable') idealStartupSecs = 10; // Extra grace for unstable direct
+      else if (_playbackPath == 'direct') idealStartupSecs = 8;
 
       // The actual timeout is whichever is smaller: the ideal local timeout, or the remaining global budget
       final int actualTimeoutSecs = isDelayedStream ? idealStartupSecs : (idealStartupSecs < remainingBudget ? idealStartupSecs : remainingBudget);
@@ -2231,8 +2231,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         // Stall timeout: libmpv pauses on underrun and waits cache-pause-wait (1s mobile, 3s desktop)
         // before emitting a Flutter buffering event. The timer below is the *additional* wait
         // after that before triggering the failure cascade.
-        // Mobile/Stable=40s, Fast=10s. This keeps detection under ~45s while surviving CDN hiccups.
-        final stallSecs = _startupCompleted ? 40 : _activeProfile.stallTimeoutSecs;
+        // Capped to 8s so buffering stalls recover quickly without keeping the user waiting indefinitely.
+        final stallSecs = _startupCompleted ? 8 : _activeProfile.stallTimeoutSecs;
         _bufferTimer ??= Timer(Duration(seconds: stallSecs), () {
           if (mounted) _recoverPlayback('buffer_timeout');
         });
@@ -2390,29 +2390,15 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   }
 
   Future<void> _switchToTranscode() async {
-    setState(() { _streamOverlayMessage = 'Switching to proxy stream...'; _isLoading = true; _hasError = false; });
-    _isRetryingStream = false;
-    try {
-      final token = await StorageService().getToken() ?? '';
-      if (token.isEmpty) throw Exception('No token');
-      // Fix #14: Send token in Authorization header instead of URL query param.
-      // Query param tokens appear in server logs, browser history, and analytics tools.
-      // The backend already prefers Authorization header (streamController.js line 22).
-      final fallbackUrl = '${BackendConfig.baseUrl}${ApiEndpoints.streamTranscodePath(_currentChannel.id, quality: '360')}';
-      final transcodeHeaders = {'Authorization': 'Bearer $token'};
-      _currentStreamMeta = {'url': fallbackUrl, 'headers': transcodeHeaders};
-      await _initializePlayer(fallbackUrl, transcodeHeaders);
-    } catch (e) {
-      if (mounted) {
-        setState(() { _isLoading = false; _hasError = false; _streamOverlayMessage = ''; });
-        _showPlayerToast('Proxy unavailable. Resuming stream.');
-        _isRetryingStream = false;
-        await _initializePlayer(_currentChannel.streamUrl, {
-          if (_currentChannel.userAgent != null) 'User-Agent': _currentChannel.userAgent!,
-          if (_currentChannel.referrer != null) 'Referer': _currentChannel.referrer!,
-        });
-      }
+    if (_proxyUrl != null && _proxyUrl!.isNotEmpty && _currentUrl != _proxyUrl) {
+      setState(() { _streamOverlayMessage = 'Switching to proxy stream...'; _isLoading = true; _hasError = false; });
+      _isRetryingStream = false;
+      _currentStreamMeta = {'url': _proxyUrl!, 'headers': _proxyHeaders};
+      _playbackPath = 'proxy';
+      await _initializePlayer(_proxyUrl!, _proxyHeaders);
+      return;
     }
+    _showPlayerToast('Proxy stream unavailable for this channel');
   }
 
   /// Finds the next lower quality variant below the current selection, or null if none.
@@ -2616,21 +2602,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         return;
       }
 
-      if (_isPremium && !_currentUrl.contains('/api/stream/transcode/')) {
-        if (mounted) setState(() { _streamOverlayMessage = 'Connecting to a better source...'; _isLoading = true; _hasError = false; });
+      if (_proxyUrl != null && _proxyUrl!.isNotEmpty && _currentUrl != _proxyUrl) {
+        if (mounted) setState(() { _streamOverlayMessage = 'Connecting to proxy stream...'; _isLoading = true; _hasError = false; });
         _isRetryingStream = false;
-        try {
-          final token = await StorageService().getToken() ?? '';
-          if (token.isEmpty) throw Exception('No token');
-          final fallbackUrl = '${BackendConfig.baseUrl}${ApiEndpoints.streamTranscodePath(_currentChannel.id, quality: '360')}';
-          final transcodeHeaders = {'Authorization': 'Bearer $token'};
-          _currentStreamMeta = {'url': fallbackUrl, 'headers': transcodeHeaders};
-          _playbackPath = 'transcode';
-          await _initializePlayer(fallbackUrl, transcodeHeaders);
-          return;
-        } catch (e) {
-          if (mounted) setState(() { _isLoading = false; _streamOverlayMessage = ''; });
-        }
+        _currentStreamMeta = {'url': _proxyUrl!, 'headers': _proxyHeaders};
+        _playbackPath = 'proxy';
+        await _initializePlayer(_proxyUrl!, _proxyHeaders);
+        return;
       }
     }
 

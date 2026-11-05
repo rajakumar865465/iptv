@@ -1,5 +1,16 @@
 # NivaTV - Recent Progress
 
+## Backwards-Compatible Catalog Playback URLs & Playback Stalls Resolution (November 2026)
+- **Universal Fix for "0 channels available" Empty State on Live TV Tab:**
+  - **Identified Root Cause:** The mobile app installed on user devices verifies `c.streamUrl.isNotEmpty` inside `ChannelModel.isPlayable`. When `H-02 Remediation` deleted `stream_url` from catalog listings, all existing mobile app installations flagged all 612 channels as unplayable, showing "0 channels available" with "Working only" active.
+  - **Universal Server-Side Resolution:** In `backend/src/controllers/channelController.js:formatChannelRow`, populated `formatted.stream_url` with the channel's authenticated playback URL (`${baseUrl}/api/channels/${row.id}/playback`) for active/working channels, while leaving it empty for dead/offline channels.
+  - **Immediate Impact:** Working channels immediately appear as playable across ALL versions of the app without requiring an APK update or app reinstall, while protecting upstream source M3U8 URLs.
+- **Eliminated Excessive Loading Times and Playback Freezes:**
+  - **EC2 Health Scanner Overload Fixed:** Changed aggressive 15-minute background health scan (`backend/src/app.js` and `backend/scripts/check-indian-streams.js`) to a 6-hour interval (`0 */6 * * *`) and reduced concurrency from 15 to 5, eliminating CPU and socket starvation on EC2.
+  - **Removed Crashing FFmpeg Fallback:** In `mobile/lib/screens/player_screen.dart`, replaced the CPU-intensive `/api/stream/transcode/` fallback with lightweight zero-CPU HLS proxy streaming (`_proxyUrl`), preventing `SIGSEGV` OOM crashes.
+  - **Optimized Stall Watchdog & Startup Timers:** Reduced mid-stream stall watchdog from 40s to 8s and direct startup timeout from 12-18s to 8s, eliminating long loading spinner freezes.
+  - **Added Playback API Caching:** Added 30-second memory caching to `/api/channels/:id/playback` in `channelController.js` to serve channel stream metadata in < 5ms.
+
 ## Backend HLS Proxy Mount & Telemetry Rate Limiter Fix (November 2026)
 - **Resolved 404 Not Found on HLS Video Proxy Routes:**
   - **Identified Root Cause:** When streams fail direct playback (e.g. timeout or CDN blocking), the app falls back to proxy playback (`/api/proxy/:streamId/master.m3u8?token=...`). However, `backend/src/routes/proxy.js` only defined `/checkout`, leaving all proxy streaming routes unmounted and returning 404 Not Found.

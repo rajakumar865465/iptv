@@ -436,17 +436,17 @@ initDatabase().then(() => {
       
       // Fast targeted health scan for visible Indian channels
       const { checkIndianStreams } = require('../scripts/check-indian-streams');
-      cron.schedule('*/15 * * * *', () => {
+      cron.schedule('0 */6 * * *', () => {
         console.log('[health-scan] Starting 15-minute fast health scan...');
         checkIndianStreams().catch(err => console.error('[health-scan] Cron error:', err));
       });
-      console.log('[health-scan] Fast health checker initialized (Runs every 15 mins)');
+      console.log('[health-scan] Health checker initialized (Runs every 6 hours)');
 
       // Run initial health scan 10s after startup
-      setTimeout(() => {
-        console.log('[health-scan] Running initial stream health scan...');
-        checkIndianStreams().catch(err => console.error('[health-scan] Startup error:', err));
-      }, 10000);
+      // setTimeout(() => {
+        // console.log('[health-scan] Running initial stream health scan...');
+        // checkIndianStreams().catch(err => console.error('[health-scan] Startup error:', err));
+      // }, 10000);
       // AUTO-SYNC DISABLED
       // // Sync Hindi M3U every 6 hours (offset by 30 minutes to avoid overlap)
       // const { exec } = require('child_process');

@@ -10,8 +10,8 @@ const http = require('http');
 const { URL } = require('url');
 const db = require('../src/config/db');
 
-const REQUEST_TIMEOUT = 10000;
-const CONCURRENCY = 15;
+const REQUEST_TIMEOUT = 5000;
+const CONCURRENCY = 5;
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
 function makeRequest(url, method, headers = {}) {

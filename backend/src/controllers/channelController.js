@@ -69,6 +69,11 @@ async function checkChannelFailColumns() {
   return channelFailColumnsExist;
 }
 
+// PLAYABLE health statuses — strictly enforced for workingOnly=true
+const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable'];
+// Hidden health statuses — always hidden from normal users
+const DEAD_STATUSES = ['dead', 'offline', 'likely_broken', 'drm_or_unsupported', 'forbidden_403', 'requires_licensed_source'];
+
 const formatChannelRow = (req, row) => {
   if (!row) return row;
   const protocol = req.headers['x-forwarded-proto'] || req.protocol;
@@ -81,11 +86,16 @@ const formatChannelRow = (req, row) => {
     logo_status: row.logo_status || 'unknown'
   };
 
-  // H-02 Remediation: Stream URLs must never be exposed publicly in catalog listings.
+  // H-02 Remediation: Raw source stream URLs must never be exposed publicly in catalog listings.
   // Playback stream URLs are exclusively authorized and served via /api/channels/:id/playback.
+  // To preserve full backwards compatibility for all mobile app versions that verify isPlayable via streamUrl,
+  // we provide the playback endpoint URL for active/working channels (or empty for offline/dead channels).
   const isAdmin = req && req.user && (req.user.role === 'admin' || req.user.role === 'superadmin');
   if (!isAdmin) {
-    delete formatted.stream_url;
+    const isWorking = row.health_status &&
+      !DEAD_STATUSES.includes(row.health_status.toLowerCase()) &&
+      row.status !== 'inactive';
+    formatted.stream_url = isWorking ? `${baseUrl}/api/channels/${row.id}/playback` : '';
     delete formatted.backup_stream_url;
   }
 
@@ -142,10 +152,7 @@ function normalizeLanguage(raw) {
   return map[l] || (raw.trim().length > 0 ? raw.trim() : null);
 }
 
-// PLAYABLE health statuses — strictly enforced for workingOnly=true
-const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable'];
-// Hidden health statuses — always hidden from normal users
-const DEAD_STATUSES = ['dead', 'offline', 'likely_broken', 'drm_or_unsupported', 'forbidden_403', 'requires_licensed_source'];
+
 
 // Build the health_status filter fragment for workingOnly mode
 function buildHealthFilter(paramIndex) {
@@ -405,7 +412,7 @@ exports.getChannels = async (req, res) => {
         },
       };
       
-      cache.set(cacheKey, responseData, 60);
+      cache.set(cacheKey, responseData, 180);
       return res.json(responseData);
     }
 
@@ -415,7 +422,7 @@ exports.getChannels = async (req, res) => {
     );
     const formatted = result.rows.map(row => formatChannelRow(req, row));
     const responseData = { success: true, data: formatted };
-    cache.set(cacheKey, responseData, 60);
+    cache.set(cacheKey, responseData, 180);
     return res.json(responseData);
   } catch (err) {
     console.error('getChannels error:', err);
@@ -983,6 +990,13 @@ const PROXY_BLOCKED_STATUSES = new Set([
 exports.getChannelPlayback = async (req, res) => {
   try {
     const { id } = req.params;
+    const cache = require('../utils/cache');
+    const userId = req.user?.id || 'anon';
+    const cacheKey = 'playback_' + id + '_' + userId;
+    const cachedPlayback = cache.get(cacheKey);
+    if (cachedPlayback) {
+      return success(res, cachedPlayback);
+    }
 
     // Build base URL for proxy links
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
@@ -1314,7 +1328,7 @@ exports.getChannelPlayback = async (req, res) => {
       recReason = 'stream_unstable';
     }
 
-    success(res, {
+    const playbackPayload = {
       channel_id: parseInt(id),
       channel: { id: parseInt(id), name: channel.name || 'Unknown Channel' },
       qualities,
@@ -1364,7 +1378,9 @@ exports.getChannelPlayback = async (req, res) => {
         channel.is_visible_app !== false &&
         !['dead', 'drm_or_unsupported']
           .includes(channel.health_status),
-    });
+    };
+    cache.set(cacheKey, playbackPayload, 30);
+    return success(res, playbackPayload);
   } catch (err) {
     console.error('getChannelPlayback error:', err);
     error(res, 'Failed to fetch playback streams', 500);
