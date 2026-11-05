@@ -11,8 +11,8 @@ class MiniPlayerOverlay extends StatefulWidget {
 }
 
 class _MiniPlayerOverlayState extends State<MiniPlayerOverlay> with WidgetsBindingObserver {
-  final GlobalKey _playerKey = GlobalKey();
-  
+  final GlobalKey<PlayerScreenState> _playerKey = GlobalKey<PlayerScreenState>();
+
   bool _isDragging = false;
   double? _dragX;
   double? _dragY;
@@ -33,6 +33,11 @@ class _MiniPlayerOverlayState extends State<MiniPlayerOverlay> with WidgetsBindi
   Future<bool> didPopRoute() async {
     final cubit = context.read<MiniPlayerCubit>();
     if (cubit.state.state == MiniPlayerStateEnum.fullscreen) {
+      final playerState = _playerKey.currentState;
+      if (playerState != null && playerState.isFullScreen) {
+        playerState.exitFullScreen();
+        return true;
+      }
       cubit.minimize();
       return true; // Intercept back button, don't pop underlying routes
     }

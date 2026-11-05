@@ -34,7 +34,7 @@ class LiveTvEmptyState extends StatelessWidget {
       onAction: hasFilters
           ? onResetFilters
           : (workingOnly ? onToggleWorkingOnly : null),
-      iconColor: const Color(AppColors.textMuted),
+      iconColor: AppColors.textM(context),
     );
   }
 }

@@ -75,7 +75,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
     return RefreshIndicator(
       color: const Color(AppColors.primary),
-      backgroundColor: const Color(AppColors.surface),
+      backgroundColor: AppColors.surf(context),
       onRefresh: () => context.read<FavoriteCubit>().loadFavorites(),
       displacement: 16,
       strokeWidth: 2.5,
@@ -145,10 +145,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Couldn’t load favorites',
               style: TextStyle(
-                color: Color(AppColors.textPrimary),
+                color: AppColors.text1(context),
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.2,
@@ -158,8 +158,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             const SizedBox(height: 8),
             Text(
               message.isNotEmpty ? message : 'Please try again.',
-              style: const TextStyle(
-                color: Color(AppColors.textMuted),
+              style: TextStyle(
+                color: AppColors.textM(context),
                 fontSize: 13,
                 height: 1.5,
               ),

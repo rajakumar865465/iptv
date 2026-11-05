@@ -82,7 +82,7 @@ class _SearchScreenState extends State<SearchScreen>
                       onAction: () => context
                           .read<ChannelCubit>()
                           .searchChannels(query),
-                      iconColor: const Color(AppColors.textMuted),
+                      iconColor: AppColors.textM(context),
                     );
                   }
                   if (state is ChannelLoaded) {
@@ -296,7 +296,7 @@ class _SearchScreenState extends State<SearchScreen>
       subtitle: 'Try a different search term or check the spelling.',
       actionLabel: 'Clear Search',
       onAction: _clearSearch,
-      iconColor: const Color(AppColors.textMuted),
+      iconColor: AppColors.textM(context),
     );
   }
 
@@ -310,8 +310,8 @@ class _SearchScreenState extends State<SearchScreen>
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 6),
           child: Text(
             '${channels.length} result${channels.length == 1 ? '' : 's'}',
-            style: const TextStyle(
-              color: Color(AppColors.textMuted),
+            style: TextStyle(
+              color: AppColors.textM(context),
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -404,10 +404,10 @@ class _SkeletonSearchTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(AppColors.surface),
+        color: AppColors.surf(context),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: const Color(AppColors.divider),
+          color: AppColors.div(context),
           width: 0.5,
         ),
       ),

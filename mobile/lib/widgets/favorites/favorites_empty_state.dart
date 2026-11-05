@@ -48,10 +48,10 @@ class FavoritesEmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 28),
-            const Text(
+            Text(
               'No favorites yet',
               style: TextStyle(
-                color: Color(AppColors.textPrimary),
+                color: AppColors.text1(context),
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -0.3,
@@ -59,10 +59,10 @@ class FavoritesEmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'Tap the heart icon on any channel to save it here for quick access.',
               style: TextStyle(
-                color: Color(AppColors.textMuted),
+                color: AppColors.textM(context),
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 height: 1.5,

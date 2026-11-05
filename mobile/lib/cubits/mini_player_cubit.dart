@@ -91,6 +91,15 @@ class MiniPlayerCubit extends Cubit<MiniPlayerState> {
 
   void minimize() {
     if (state.channel != null) {
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+      Future.delayed(const Duration(milliseconds: 500), () {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+      });
       emit(state.copyWith(state: MiniPlayerStateEnum.minimized));
       _updateNativePipState(true);
     }
@@ -104,6 +113,15 @@ class MiniPlayerCubit extends Cubit<MiniPlayerState> {
   }
 
   void dismiss() {
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    Future.delayed(const Duration(milliseconds: 500), () {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    });
     emit(state.copyWith(state: MiniPlayerStateEnum.hidden));
     _updateNativePipState(false);
   }

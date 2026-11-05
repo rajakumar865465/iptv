@@ -40,3 +40,10 @@ mobile/build/
 # Backend static files / downloads
 backend/public/logos/
 
+# Temporary QA test artifacts & scripts
+*.png
+monkey_tap.txt
+click_scrcpy.*
+create_shortcut.ps1
+start_phone_mirror.bat
+

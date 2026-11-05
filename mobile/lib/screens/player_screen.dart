@@ -136,7 +136,7 @@ class PlayerScreen extends StatefulWidget {
   });
 
   @override
-  State<PlayerScreen> createState() => _PlayerScreenState();
+  PlayerScreenState createState() => PlayerScreenState();
 }
 
 // ----
@@ -232,7 +232,7 @@ const PlaybackProfile kMobileProfile = PlaybackProfile(
   demuxerReadaheadSecs: 6,
   bufferSizeBytes: 32 * 1024 * 1024,
   startupTimeoutSecs: 20,
-  stallTimeoutSecs: 10,
+  stallTimeoutSecs: 14,
   preferredQuality: 'auto',
   demuxerMaxBytesMib: 32,
   demuxerMaxBackBytesMib: 16,
@@ -243,7 +243,7 @@ const PlaybackProfile kMobileProfile = PlaybackProfile(
 Player? _globalWebPlayer;
 VideoController? _globalWebVideoController;
 
-class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixin {
+class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixin {
   final ApiService _api = ApiService();
   final LocalHlsProxy _hlsProxy = LocalHlsProxy();
   // Fix #1: Use media_kit Player instead of VideoPlayerController for proper HLS support
@@ -252,6 +252,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   bool _isLoading = true;
   bool _hasError = false;
   bool _isFullScreen = false;
+
+  bool get isFullScreen => _isFullScreen;
+
+  void exitFullScreen() {
+    if (_isFullScreen) {
+      _toggleFullScreen();
+    }
+  }
   bool _showControls = true;
   String _currentUrl = '';
   late int _currentIndex;
@@ -579,6 +587,13 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
   @override
   void initState() {
     super.initState();
+    // Enable full sensor auto-rotation for seamless portrait/landscape video playback
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     _hlsProxy.start();
     _channelTapTime = DateTime.now();
     _contextChannels = List<ChannelModel>.from(widget.channels);
@@ -623,8 +638,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     } else {
       _player = Player(
         configuration: PlayerConfiguration(
-          // Match the stable profile at startup. libmpv readahead is tuned per stream below.
-          bufferSize: kStableProfile.bufferSizeBytes,
+          // Match mobile profile buffer size (32MB) on Android/iOS to optimize startup latency and memory footprint
+          bufferSize: (!kIsWeb && (Platform.isAndroid || Platform.isIOS))
+              ? kMobileProfile.bufferSizeBytes
+              : kStableProfile.bufferSizeBytes,
           // Disable pitch shifting to save CPU during startup
           pitch: false,
           logLevel: MPVLogLevel.warn,
@@ -1549,7 +1566,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           // Auto-reconnect on network stall — never use seek() on live streams.
           // reconnect_on_network_errors=1 reconnects on TCP-level drops, not just EOF.
           // reconnect_delay_max=5: Indian CDNs may need up to 5s between reconnects.
-          // timeout=30s: segment servers on IPTV CDNs can take 20-25s to respond.
+          // timeout=8s (8000000us): fail and reconnect quickly without 30s hangs on dead sockets.
+          // probesize & analyzeduration: bound demuxer exploration to 1MB / 1.0s to start video instantly.
           // tls_verify=no: libmpv on Android does NOT share Chrome's system CA store,
           //   so HTTPS HLS/ts streams fail with a silent TLS error and the player
           //   hangs on buffering forever. Disabling verification lets the same HTTPS
@@ -1558,12 +1576,17 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
           //   lack a browser-like User-Agent. Web sends one automatically; libmpv
           //   does not, so we set a sensible default here as a backstop. The
           //   per-stream httpHeaders (if any) override this at the Media level.
+          try {
+            await (platform as dynamic).setProperty('demuxer-lavf-probesize', '1000000');
+            await (platform as dynamic).setProperty('demuxer-lavf-analyzeduration', '1.0');
+          } catch (_) {}
+
           await (platform as dynamic).setProperty(
               'stream-lavf-o',
               'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1,'
               'reconnect_on_network_errors=1,reconnect_delay_max=5,'
               'multiple_requests=1,'
-              'timeout=30000000,tls_verify=no,'
+              'timeout=8000000,probesize=1000000,analyzeduration=1000000,tls_verify=no,'
               'user_agent=Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 '
               '(KHTML, like Gecko) NivaTV/1.2.1 Chrome/120.0 Mobile Safari/537.36');
 
@@ -1950,10 +1973,10 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
       // Calculate local ideal timeout
       int idealStartupSecs = profile.startupTimeoutSecs;
       if (isDelayedStream) idealStartupSecs = 45; // Smooth streams get their own massive budget
-      else if (url.contains('/api/proxy/')) idealStartupSecs = 10;
-      else if (_playbackPath == 'backup' || _playbackPath == 'proxy' || _selectedQuality != null) idealStartupSecs = 10;
-      else if (_playbackPath == 'direct' && _currentChannel.healthStatus == 'unstable') idealStartupSecs = 10; // Extra grace for unstable direct
-      else if (_playbackPath == 'direct') idealStartupSecs = 8;
+      else if (url.contains('/api/proxy/')) idealStartupSecs = 14;
+      else if (_playbackPath == 'backup' || _playbackPath == 'proxy' || _selectedQuality != null) idealStartupSecs = 14;
+      else if (_playbackPath == 'direct' && _currentChannel.healthStatus == 'unstable') idealStartupSecs = 14; // Extra grace for unstable direct
+      else if (_playbackPath == 'direct') idealStartupSecs = 14;
 
       // The actual timeout is whichever is smaller: the ideal local timeout, or the remaining global budget
       final int actualTimeoutSecs = isDelayedStream ? idealStartupSecs : (idealStartupSecs < remainingBudget ? idealStartupSecs : remainingBudget);
@@ -2231,8 +2254,8 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
         // Stall timeout: libmpv pauses on underrun and waits cache-pause-wait (1s mobile, 3s desktop)
         // before emitting a Flutter buffering event. The timer below is the *additional* wait
         // after that before triggering the failure cascade.
-        // Capped to 8s so buffering stalls recover quickly without keeping the user waiting indefinitely.
-        final stallSecs = _startupCompleted ? 8 : _activeProfile.stallTimeoutSecs;
+        // Set to 14s so transient cellular dips or normal HLS playlist reload windows recover without premature teardown.
+        final stallSecs = _startupCompleted ? 14 : _activeProfile.stallTimeoutSecs;
         _bufferTimer ??= Timer(Duration(seconds: stallSecs), () {
           if (mounted) _recoverPlayback('buffer_timeout');
         });
@@ -3169,9 +3192,23 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
 
   void _toggleFullScreen() {
     if (!_isFullScreen) {
-      SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
     } else {
       SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+      // After transitioning back to portrait, restore full sensor auto-rotation
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted && !_isFullScreen) {
+          SystemChrome.setPreferredOrientations([
+            DeviceOrientation.portraitUp,
+            DeviceOrientation.portraitDown,
+            DeviceOrientation.landscapeLeft,
+            DeviceOrientation.landscapeRight,
+          ]);
+        }
+      });
     }
     _showControlsWithTimer();
   }
@@ -3246,10 +3283,14 @@ class _PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMix
     _hlsProxy.stop();
     // Fix #9: Disable wakelock when leaving player
     WakelockPlus.disable();
-    if (_isFullScreen) {
-      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    }
+    // Always restore all orientations and edge-to-edge system UI when exiting the player
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     
     // Ensure the home screen snaps back to max 90/120Hz when leaving the player
     if (!kIsWeb && Platform.isAndroid) {

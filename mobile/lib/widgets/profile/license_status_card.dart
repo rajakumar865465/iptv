@@ -162,8 +162,8 @@ class LicenseStatusCard extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         _subtitle,
-                        style: const TextStyle(
-                          color: Color(AppColors.textSecondary),
+                        style: TextStyle(
+                          color: AppColors.text2(context),
                           fontSize: 12.5,
                           fontWeight: FontWeight.w500,
                           height: 1.3,
@@ -174,7 +174,7 @@ class LicenseStatusCard extends StatelessWidget {
                         Text(
                           'Expires on ${DateFormat('dd MMM yyyy').format(license!.expiresAt!)}',
                           style: TextStyle(
-                            color: const Color(AppColors.textMuted).withOpacity(0.9),
+                            color: AppColors.textM(context).withOpacity(0.9),
                             fontSize: 11.5,
                           ),
                         ),
@@ -273,24 +273,24 @@ class _NoLicenseCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 14),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'No Active License',
                       style: TextStyle(
-                        color: Color(AppColors.textPrimary),
+                        color: AppColors.text1(context),
                         fontSize: 14,
                         fontWeight: FontWeight.w900,
                         letterSpacing: -0.2,
                       ),
                     ),
-                    SizedBox(height: 3),
+                    const SizedBox(height: 3),
                     Text(
                       'Activate a license to unlock Live TV and premium features.',
                       style: TextStyle(
-                        color: Color(AppColors.textSecondary),
+                        color: AppColors.text2(context),
                         fontSize: 12.5,
                         fontWeight: FontWeight.w500,
                         height: 1.3,
@@ -305,8 +305,8 @@ class _NoLicenseCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               error!,
-              style: const TextStyle(
-                color: Color(AppColors.textMuted),
+              style: TextStyle(
+                color: AppColors.textM(context),
                 fontSize: 11.5,
               ),
             ),

@@ -249,7 +249,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
 
     return RefreshIndicator(
       color: const Color(AppColors.primary),
-      backgroundColor: const Color(AppColors.surface),
+      backgroundColor: AppColors.surf(context),
       onRefresh: () => context.read<HomeCubit>().loadHome(isRefresh: true),
       displacement: 16,
       strokeWidth: 2.5,
@@ -593,7 +593,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
       subtitle: message.isNotEmpty ? message : 'Could not load content. Please check your internet connection.',
       actionLabel: 'Try Again',
       onAction: () => context.read<HomeCubit>().loadHome(isRefresh: true),
-      iconColor: const Color(AppColors.textMuted),
+      iconColor: AppColors.textM(context),
     );
   }
 

@@ -84,9 +84,9 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(AppColors.surfaceElevated),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: AppColors.surfElevated(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.fromLTRB(
         24, 16, 24,
@@ -104,16 +104,16 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(AppColors.divider),
+                  color: AppColors.div(context),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Edit Profile',
               style: TextStyle(
-                color: Color(AppColors.textPrimary),
+                color: AppColors.text1(context),
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
               ),
@@ -225,24 +225,24 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
       controller: controller,
       keyboardType: keyboardType,
       validator: validator,
-      style: const TextStyle(
-        color: Color(AppColors.textPrimary),
+      style: TextStyle(
+        color: AppColors.text1(context),
         fontSize: 15,
       ),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Color(AppColors.textMuted)),
-        prefixIcon: Icon(icon, color: const Color(AppColors.textMuted), size: 20),
+        labelStyle: TextStyle(color: AppColors.textM(context)),
+        prefixIcon: Icon(icon, color: AppColors.textM(context), size: 20),
         filled: true,
-        fillColor: const Color(AppColors.surfaceLight),
+        fillColor: AppColors.surfLight(context),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(AppColors.divider)),
+          borderSide: BorderSide(color: AppColors.div(context)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(AppColors.divider)),
+          borderSide: BorderSide(color: AppColors.div(context)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

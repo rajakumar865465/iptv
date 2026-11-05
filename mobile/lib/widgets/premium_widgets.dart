@@ -620,7 +620,7 @@ class ProfileMenuTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color mainColor =
-        isDanger ? const Color(AppColors.brandRed) : const Color(AppColors.textPrimary);
+        isDanger ? const Color(AppColors.brandRed) : AppColors.text1(context);
     final Color bgColor =
         iconBg ?? (isDanger ? const Color(AppColors.brandRed) : const Color(AppColors.primary));
 
@@ -651,8 +651,8 @@ class ProfileMenuTile extends StatelessWidget {
           subtitle: subtitle != null
               ? Text(
                   subtitle!,
-                  style: const TextStyle(
-                    color: Color(AppColors.textMuted),
+                  style: TextStyle(
+                    color: AppColors.textM(context),
                     fontSize: 12,
                   ),
                 )
@@ -662,7 +662,7 @@ class ProfileMenuTile extends StatelessWidget {
                 Icons.chevron_right_rounded,
                 color: isDanger
                     ? const Color(AppColors.brandRed).withOpacity(0.5)
-                    : const Color(AppColors.textMuted),
+                    : AppColors.textM(context),
                 size: 18,
               ),
         ),
@@ -703,8 +703,8 @@ class ErrorBanner extends StatelessWidget {
         Expanded(
           child: Text(
             message,
-            style: const TextStyle(
-              color: Color(AppColors.textSecondary),
+            style: TextStyle(
+              color: AppColors.text2(context),
               fontSize: 12,
             ),
           ),

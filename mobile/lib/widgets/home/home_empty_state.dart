@@ -25,15 +25,15 @@ class HomeEmptyState extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
             decoration: BoxDecoration(
-              color: const Color(AppColors.surface),
+              color: AppColors.surf(context),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: const Color(AppColors.divider),
+                color: AppColors.div(context),
                 width: 0.8,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.05),
                   blurRadius: 14,
                   offset: const Offset(0, 6),
                 ),
@@ -45,7 +45,7 @@ class HomeEmptyState extends StatelessWidget {
               subtitle: 'Please try again later. Pull down to refresh or browse Live TV.',
               actionLabel: 'Browse Live TV',
               onAction: onBrowse,
-              iconColor: const Color(AppColors.textMuted),
+              iconColor: AppColors.textM(context),
             ),
           ),
           const SizedBox(height: 16),
@@ -56,8 +56,8 @@ class HomeEmptyState extends StatelessWidget {
                 icon: const Icon(Icons.refresh_rounded, size: 16),
                 label: const Text('Refresh'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(AppColors.textSecondary),
-                  side: const BorderSide(color: Color(AppColors.divider)),
+                  foregroundColor: AppColors.text2(context),
+                  side: BorderSide(color: AppColors.div(context)),
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
