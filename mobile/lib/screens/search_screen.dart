@@ -26,6 +26,8 @@ class _SearchScreenState extends State<SearchScreen>
   @override
   void initState() {
     super.initState();
+    // Reset any directory/category filters from Live TV tab so search runs globally
+    context.read<ChannelCubit>().clearFilters();
     _searchController.text = context.read<ChannelCubit>().currentQuery;
     _focusNode.addListener(() {
       setState(() => _hasFocus = _focusNode.hasFocus);

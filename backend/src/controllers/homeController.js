@@ -18,6 +18,56 @@ const formatChannelRow = (req, row) => {
   };
 };
 
+const canonicalChannelName = (name) => {
+  return (name || '')
+    .toLowerCase()
+    .replace(/\s*[\(\[][^\)\]]*[\)\]]\s*/g, ' ')
+    .replace(/\b(apac|asia|in|india|backup|live|feed)\b/gi, ' ')
+    .replace(/\s*(hd|sd|fhd|uhd|4k)\s*/gi, ' ')
+    .replace(/\s*(1080p?|720p?|576p?|480p?|360p?)\s*/gi, ' ')
+    .replace(/\s*(backup|live|channel|source\s*\d*)\s*/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const qualityRank = (q) => {
+  const s = (q || '').toLowerCase();
+  if (s.includes('4k') || s.includes('2160')) return 5;
+  if (s.includes('fhd') || s.includes('1080')) return 4;
+  if (s.includes('hd') || s.includes('720')) return 3;
+  if (s.includes('sd') || s.includes('576') || s.includes('480')) return 2;
+  if (s.includes('360')) return 1;
+  return 0;
+};
+
+const channelScore = (row) => {
+  let score = qualityRank(row.quality) * 100;
+  const lang = (row.language || '').toLowerCase();
+  if (lang === 'hindi') score += 50;
+  else if (lang === 'english') score += 40;
+  else if (['bengali', 'tamil', 'telugu'].includes(lang)) score += 30;
+  if (row.stream_url) score += 20;
+  if (row.popularity_score > 0) score += Math.min(row.popularity_score, 50);
+  return score;
+};
+
+const deduplicateChannelRows = (rows) => {
+  if (!Array.isArray(rows)) return [];
+  const seen = new Map();
+  for (const row of rows) {
+    const key = canonicalChannelName(row.name);
+    const existing = seen.get(key);
+    if (!existing) {
+      seen.set(key, row);
+    } else {
+      if (channelScore(row) > channelScore(existing)) {
+        seen.set(key, row);
+      }
+    }
+  }
+  return Array.from(seen.values());
+};
+
 // Fix #26: Cache schema introspection results at module level to avoid per-request queries
 let mergedIntoColumnExists = null;
 let healthStatusColumnExists = null;
@@ -281,17 +331,21 @@ exports.getHome = async (req, res) => {
 
     const { premiumResult, popularResult, featuredResult, catChannelsRes } = commonData;
 
-    const premiumChannels  = premiumResult.rows.map(row => formatChannelRow(req, row));
-    const popularChannels  = popularResult.rows.map(row => formatChannelRow(req, row));
-    const featuredChannels = featuredResult.rows.map(row => formatChannelRow(req, row));
-    const categories = catChannelsRes.rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      icon_url: row.icon_url,
-      sort_order: row.cat_sort_order,
-      channel_count: row.channels?.length || 0,
-      channels: (row.channels || []).map(ch => formatChannelRow(req, ch)),
-    }));
+    const premiumChannels  = deduplicateChannelRows(premiumResult.rows.map(row => formatChannelRow(req, row)));
+    const popularChannels  = deduplicateChannelRows(popularResult.rows.map(row => formatChannelRow(req, row)));
+    const featuredChannels = deduplicateChannelRows(featuredResult.rows.map(row => formatChannelRow(req, row)));
+    const categories = catChannelsRes.rows.map(row => {
+      const formatted = (row.channels || []).map(ch => formatChannelRow(req, ch));
+      const deduped = deduplicateChannelRows(formatted);
+      return {
+        id: row.id,
+        name: row.name,
+        icon_url: row.icon_url,
+        sort_order: row.cat_sort_order,
+        channel_count: deduped.length,
+        channels: deduped,
+      };
+    });
 
     return res.json({
       success: true,
