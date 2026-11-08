@@ -437,20 +437,55 @@ class ChannelCubit extends Cubit<ChannelState> {
 
   List<ChannelModel> get allChannels => _allChannels;
 
+  // Keyed on the canonical name only (not language) so regional variants of the
+  // same channel — e.g. Hindi and Urdu "Cartoon Network" feeds — collapse to a
+  // single card. Ties are resolved by _channelScore, so the best feed wins.
   List<ChannelModel> _deduplicateChannels(List<ChannelModel> channels) {
     final seen = <String, ChannelModel>{};
     for (final ch in channels) {
-      final key = '${_canonical(ch.name)}|${(ch.language ?? '').toLowerCase()}';
+      final key = _canonical(ch.name);
       final existing = seen[key];
       if (existing == null) {
         seen[key] = ch;
-      } else {
-        if (ch.streamUrl.isNotEmpty && existing.streamUrl.isEmpty) {
-          seen[key] = ch;
-        }
+      } else if (_channelScore(ch) > _channelScore(existing)) {
+        seen[key] = ch;
       }
     }
     return seen.values.toList();
+  }
+
+  int _qualityRankOf(ChannelModel ch) {
+    switch (ch.qualityLabel) {
+      case '4K':
+        return 5;
+      case 'FHD':
+        return 4;
+      case 'HD':
+        return 3;
+      case 'SD':
+        return 2;
+      case '360p':
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
+  int _channelScore(ChannelModel ch) {
+    int score = _qualityRankOf(ch) * 100;
+    final lang = (ch.language ?? '').toLowerCase();
+    if (lang == 'hindi') {
+      score += 50;
+    } else if (lang == 'english') {
+      score += 40;
+    } else if (lang == 'bengali' || lang == 'tamil' || lang == 'telugu') {
+      score += 30;
+    }
+    if (ch.streamUrl.isNotEmpty) score += 20;
+    if (ch.popularityScore > 0) {
+      score += ch.popularityScore > 50 ? 50 : ch.popularityScore;
+    }
+    return score;
   }
 
   String _canonical(String name) {

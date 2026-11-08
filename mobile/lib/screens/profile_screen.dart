@@ -678,7 +678,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         return ProfileMenuTile(
                           icon: modeIcon,
                           label: 'App Theme',
-                          subtitle: modeLabel,
+                          subtitle: 'Tap to change',
                           iconColor: modeColor,
                           trailing: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
