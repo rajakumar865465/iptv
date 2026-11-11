@@ -647,6 +647,11 @@ exports.updateAppSettings = async (req, res) => {
       'upi_id', 'payment_qr_url', 'telegram_url', 'apk_download_url',
       'stats_channels_count', 'stats_categories_count', 'stats_users_count',
       'app_name', 'support_phone', 'maintenance_mode', 'app_version_required',
+      'force_update', 'minimum_app_version', 'latest_app_version',
+      'announcement_message', 'banner_message', 'max_devices_per_user',
+      'default_language', 'epg_hours_ahead', 'stream_check_interval',
+      'allow_unknown_streams', 'support_telegram', 'privacy_policy_url',
+      'terms_url', 'signup_enabled', 'payment_enabled', 'trial_enabled',
     ];
     const updates = req.body;
     const filteredEntries = Object.entries(updates).filter(([k]) => ALLOWED_SETTINGS_KEYS.includes(k));

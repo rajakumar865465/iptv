@@ -63,8 +63,10 @@ class _MiniPlayerOverlayState extends State<MiniPlayerOverlay> with WidgetsBindi
         final minWidth = screenWidth > 600 ? 320.0 : screenWidth * 0.45;
         final minHeight = minWidth * (9 / 16);
 
+        // Clearance to float above the floating bottom navigation bar (AppBottomNav: ~58px bar + 12px margin + 20px gap + safe area)
+        final bottomOffset = 90.0 + paddingBottom;
         final defaultLeft = screenWidth - minWidth - 20;
-        final defaultTop = screenHeight - minHeight - 20 - paddingBottom;
+        final defaultTop = screenHeight - minHeight - bottomOffset;
 
         double top, left, width, height;
 
@@ -75,9 +77,14 @@ class _MiniPlayerOverlayState extends State<MiniPlayerOverlay> with WidgetsBindi
           width = screenWidth;
           height = screenHeight;
         } else {
-          // Minimized
-          top = _dragY ?? defaultTop;
-          left = _dragX ?? defaultLeft;
+          // Minimized: clamp inside screen bounds above floating bottom nav
+          final minTop = paddingTop + 20;
+          final maxTop = screenHeight - minHeight - bottomOffset;
+          final clampedY = _dragY != null ? _dragY!.clamp(minTop, maxTop) : defaultTop;
+          final clampedX = _dragX != null ? _dragX!.clamp(20.0, screenWidth - minWidth - 20) : defaultLeft;
+
+          top = _isDragging ? (_dragY ?? defaultTop) : clampedY;
+          left = _isDragging ? (_dragX ?? defaultLeft) : clampedX;
           width = minWidth;
           height = minHeight;
         }
@@ -128,11 +135,13 @@ class _MiniPlayerOverlayState extends State<MiniPlayerOverlay> with WidgetsBindi
                   _dragX = 20;
                 }
                 
-                // Keep Y within safe area
-                if (currentY < paddingTop + 20) {
-                  _dragY = paddingTop + 20;
-                } else if (currentY > screenHeight - minHeight - 20 - paddingBottom) {
-                  _dragY = screenHeight - minHeight - 20 - paddingBottom;
+                // Keep Y within safe area and above floating bottom navigation bar
+                final minTop = paddingTop + 20;
+                final maxTop = screenHeight - minHeight - bottomOffset;
+                if (currentY < minTop) {
+                  _dragY = minTop;
+                } else if (currentY > maxTop) {
+                  _dragY = maxTop;
                 }
               });
             } : null,

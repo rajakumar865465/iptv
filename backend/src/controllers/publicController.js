@@ -212,13 +212,13 @@ exports.getAppDownload = async (req, res) => {
     );
     if (result.rows.length === 0) {
       return success(res, {
-        version: '1.2.1',
-        version_code: 12,
+        version: '2.8.7',
+        version_code: 36,
         apk_url: '/downloads/app-release.apk',
-        file_size: '96.5 MB',
-        release_notes: ['Latest stable NivaTV streaming release', 'Ultra-low latency buffering', '500+ Live Indian channels'],
-        minimum_android_version: '6.0',
-        force_update: false,
+        file_size: '33.2 MB',
+        release_notes: ['Fixed channel deduplication across Home, Live TV, and Search', 'Fixed Search tab filter isolation with dedicated SearchCubit', 'Full light and dark theme support across all screens'],
+        minimum_android_version: '7.0',
+        force_update: true,
         created_at: new Date().toISOString()
       });
     }
@@ -227,13 +227,13 @@ exports.getAppDownload = async (req, res) => {
     return success(res, release);
   } catch (err) {
     return success(res, {
-      version: '1.2.1',
-      version_code: 12,
+      version: '2.8.7',
+      version_code: 36,
       apk_url: '/downloads/app-release.apk',
-      file_size: '96.5 MB',
-      release_notes: ['Latest stable NivaTV streaming release', 'Ultra-low latency buffering', '500+ Live Indian channels'],
-      minimum_android_version: '6.0',
-      force_update: false,
+      file_size: '33.2 MB',
+      release_notes: ['Fixed channel deduplication across Home, Live TV, and Search', 'Fixed Search tab filter isolation with dedicated SearchCubit', 'Full light and dark theme support across all screens'],
+      minimum_android_version: '7.0',
+      force_update: true,
       created_at: new Date().toISOString()
     });
   }
@@ -247,6 +247,8 @@ const WEBSITE_KEYS = [
   'stats_channels_count', 'stats_categories_count', 'stats_users_count',
   'app_name', 'support_phone',
   'support_telegram', 'privacy_policy_url', 'terms_url',
+  'latest_app_version', 'minimum_app_version', 'force_update',
+  'announcement_message', 'banner_message',
 ];
 
 exports.getSettings = async (req, res) => {

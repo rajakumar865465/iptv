@@ -50,6 +50,18 @@ android {
                 enableV2Signing = true
                 enableV3Signing = true
                 enableV4Signing = true
+            } else {
+                // Local testing fallback: use the system-wide debug keystore so
+                // a release APK can be installed on a phone without a real
+                // release keystore.
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
             }
         }
     }
@@ -63,10 +75,12 @@ android {
             // here — shipping a release APK signed with the debug key is a
             // security issue (anyone with the AOSP debug key could produce
             // an update that looks legitimately signed).
+            // For local phone testing without a release keystore, sign with
+            // the debug keystore instead (comment out the line below to opt-in).
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {
-                null
+                signingConfigs.getByName("debug")
             }
         }
     }

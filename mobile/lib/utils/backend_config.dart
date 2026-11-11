@@ -23,10 +23,27 @@ class BackendConfig {
   /// BACKEND_URL --dart-define at build time. Falls back to the production
   /// HTTPS endpoint if not supplied (release builds are additionally blocked
   /// by the Gradle guard in android/app/build.gradle.kts when it's missing).
-  static const String baseUrl = String.fromEnvironment(
+  static const String _rawBaseUrl = String.fromEnvironment(
     'BACKEND_URL',
     defaultValue: 'https://nivatv.luxomall.in',
   );
+
+  /// Default backend URL used for the IPTV app. Sanitizes any accidentally
+  /// supplied trailing `/api`, `/api/`, or trailing slashes so all ApiEndpoints
+  /// (which start with `/api`) resolve cleanly without `/api/api` duplication.
+  static String get baseUrl {
+    var url = _rawBaseUrl.trim();
+    while (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    if (url.endsWith('/api')) {
+      url = url.substring(0, url.length - 4);
+    }
+    while (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    return url;
+  }
 
   /// Base URL to fetch channel data (if not using the backend API directly)
   static bool get isConfigured => baseUrl.isNotEmpty;

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
-import '../cubits/channel_cubit.dart';
+import '../cubits/search_cubit.dart';
 import '../cubits/mini_player_cubit.dart';
 import '../models/channel_model.dart';
 import '../widgets/premium_channel_card.dart';
@@ -26,9 +26,7 @@ class _SearchScreenState extends State<SearchScreen>
   @override
   void initState() {
     super.initState();
-    // Reset any directory/category filters from Live TV tab so search runs globally
-    context.read<ChannelCubit>().clearFilters();
-    _searchController.text = context.read<ChannelCubit>().currentQuery;
+    _searchController.text = context.read<SearchCubit>().lastQuery;
     _focusNode.addListener(() {
       setState(() => _hasFocus = _focusNode.hasFocus);
     });
@@ -44,9 +42,9 @@ class _SearchScreenState extends State<SearchScreen>
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 450), () {
+    _debounce = Timer(const Duration(milliseconds: 350), () {
       if (mounted) {
-        context.read<ChannelCubit>().searchChannels(query);
+        context.read<SearchCubit>().search(query);
       }
     });
     setState(() {});
@@ -54,7 +52,7 @@ class _SearchScreenState extends State<SearchScreen>
 
   void _clearSearch() {
     _searchController.clear();
-    context.read<ChannelCubit>().searchChannels('');
+    context.read<SearchCubit>().clear();
     setState(() {});
   }
 
@@ -68,24 +66,24 @@ class _SearchScreenState extends State<SearchScreen>
             _buildSearchHeader(),
             const SizedBox(height: 4),
             Expanded(
-              child: BlocBuilder<ChannelCubit, ChannelState>(
+              child: BlocBuilder<SearchCubit, SearchState>(
                 builder: (context, state) {
                   final query = _searchController.text.trim();
                   if (query.isEmpty) return _buildIdleState();
-                  if (state is ChannelLoading) return _buildSearchLoading();
-                  if (state is ChannelError) {
+                  if (state is SearchLoading) return _buildSearchLoading();
+                  if (state is SearchError) {
                     return EmptyStateWidget(
                       icon: Icons.wifi_off_rounded,
                       title: 'Search Failed',
                       subtitle: state.message,
                       actionLabel: 'Retry',
                       onAction: () => context
-                          .read<ChannelCubit>()
-                          .searchChannels(query),
+                          .read<SearchCubit>()
+                          .search(query),
                       iconColor: AppColors.textM(context),
                     );
                   }
-                  if (state is ChannelLoaded) {
+                  if (state is SearchLoaded) {
                     if (state.channels.isEmpty) return _buildNoResults(query);
                     return _buildResults(state.channels);
                   }
@@ -258,7 +256,9 @@ class _SearchScreenState extends State<SearchScreen>
                     label: term,
                     onTap: () {
                       _searchController.text = term;
-                      _onSearchChanged(term);
+                      if (_debounce?.isActive ?? false) _debounce!.cancel();
+                      context.read<SearchCubit>().search(term);
+                      setState(() {});
                     },
                   ),
               ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
 import '../cubits/home_cubit.dart';
@@ -66,20 +67,61 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  DateTime? _lastBackPressTime;
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bg(context),
-      body: PageView(
-        controller: _pageController,
-        physics: const NeverScrollableScrollPhysics(),
-        children: _pages,
-        onPageChanged: (index) => setState(() => _selectedIndex = index),
-      ),
-      bottomNavigationBar: AppBottomNav(
-        selectedIndex: _selectedIndex,
-        onTap: _onTabTapped,
-        items: _navItems,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+
+        // 1. If player is fullscreen, minimize it
+        final miniPlayerState = context.read<MiniPlayerCubit>().state;
+        if (miniPlayerState.state == MiniPlayerStateEnum.fullscreen) {
+          context.read<MiniPlayerCubit>().minimize();
+          return;
+        }
+
+        // 2. If on a secondary tab (Live TV, Search, My List, Profile), return to Home
+        if (_selectedIndex != 0) {
+          _onTabTapped(0);
+          return;
+        }
+
+        // 3. If on Home tab: double-tap back within 2 seconds to exit
+        final now = DateTime.now();
+        if (_lastBackPressTime == null ||
+            now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+          _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Press back again to exit NivaTV'),
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: const Color(0xEE1E293B),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+          return;
+        }
+
+        // Second press within 2s: exit app cleanly
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.bg(context),
+        body: PageView(
+          controller: _pageController,
+          physics: const NeverScrollableScrollPhysics(),
+          children: _pages,
+          onPageChanged: (index) => setState(() => _selectedIndex = index),
+        ),
+        bottomNavigationBar: AppBottomNav(
+          selectedIndex: _selectedIndex,
+          onTap: _onTabTapped,
+          items: _navItems,
+        ),
       ),
     );
   }
@@ -181,16 +223,21 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
   }
 
   void _openSearch() {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, anim, __) => const SearchScreen(),
-        transitionsBuilder: (_, anim, __, child) => FadeTransition(
-          opacity: anim,
-          child: child,
+    final shell = context.findAncestorStateOfType<_HomeScreenState>();
+    if (shell != null) {
+      shell._onTabTapped(2);
+    } else {
+      Navigator.of(context).push(
+        PageRouteBuilder(
+          pageBuilder: (_, anim, __) => const SearchScreen(),
+          transitionsBuilder: (_, anim, __, child) => FadeTransition(
+            opacity: anim,
+            child: child,
+          ),
+          transitionDuration: const Duration(milliseconds: 220),
         ),
-        transitionDuration: const Duration(milliseconds: 220),
-      ),
-    );
+      );
+    }
   }
 
   void _openPlayer({

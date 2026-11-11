@@ -3570,13 +3570,16 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
       final cleanName = _cleanTitle(_currentChannel.name);
       return Container(
         color: const Color(0xFF090A12),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Channel Logo Stage
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Channel Logo Stage
                 Container(
                   width: 76,
                   height: 76,
@@ -3702,6 +3705,22 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
             ),
           ),
         ),
+              Positioned(
+                top: 8,
+                left: 8,
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                  tooltip: 'Back',
+                  onPressed: _isFullScreen
+                      ? _toggleFullScreen
+                      : () {
+                          context.read<MiniPlayerCubit>().minimize();
+                        },
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
     return const SizedBox.shrink();
@@ -3782,10 +3801,12 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
     return Container(
       color: const Color(0xFF07080E),
       child: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
+        child: Stack(
+          children: [
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
@@ -3893,6 +3914,21 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
               ],
             ),
           ),
+        ),
+            Positioned(
+              top: 8,
+              left: 8,
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                tooltip: 'Back',
+                onPressed: _isFullScreen
+                    ? _toggleFullScreen
+                    : () {
+                        context.read<MiniPlayerCubit>().minimize();
+                      },
+              ),
+            ),
+          ],
         ),
       ),
     );
