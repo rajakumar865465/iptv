@@ -99,6 +99,11 @@ export interface WebsiteSettings {
   stats_users_count?: string;
   app_name?: string;
   support_phone?: string;
+  latest_app_version?: string;
+  minimum_app_version?: string;
+  force_update?: string;
+  announcement_message?: string;
+  banner_message?: string;
 }
 
 export interface OrderResponse {

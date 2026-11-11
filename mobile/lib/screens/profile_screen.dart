@@ -89,26 +89,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
       return (type: 'Active', color: const Color(AppColors.success));
     }
-    return (type: 'Free', color: const Color(AppColors.textSecondary));
+    return (type: 'Free', color: AppColors.text2(context));
   }
 
   void _clearCache() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(AppColors.surfaceElevated),
+        backgroundColor: AppColors.surfElevated(ctx),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
+        title: Text(
           'Clear Cache?',
           style: TextStyle(
-            color: Color(AppColors.textPrimary),
+            color: AppColors.text1(ctx),
             fontWeight: FontWeight.w800,
           ),
         ),
-        content: const Text(
+        content: Text(
           'This will remove cached channels and categories. Your account and license will not be affected.',
           style: TextStyle(
-            color: Color(AppColors.textSecondary),
+            color: AppColors.text2(ctx),
             fontSize: 13.5,
           ),
         ),
@@ -135,9 +135,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await StorageService().clearChannelCache();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cache cleared'),
-          backgroundColor: Color(AppColors.surface),
+        SnackBar(
+          content: const Text('Cache cleared'),
+          backgroundColor: AppColors.surf(context),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -148,19 +148,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(AppColors.surfaceElevated),
+        backgroundColor: AppColors.surfElevated(ctx),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
+        title: Text(
           'Are you sure you want to logout?',
           style: TextStyle(
-            color: Color(AppColors.textPrimary),
+            color: AppColors.text1(ctx),
             fontWeight: FontWeight.w800,
           ),
         ),
-        content: const Text(
+        content: Text(
           'You will need to log in again to watch channels.',
           style: TextStyle(
-            color: Color(AppColors.textSecondary),
+            color: AppColors.text2(ctx),
             fontSize: 13.5,
           ),
         ),
@@ -218,7 +218,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isPremium = licenseState is LicenseActive && licenseState.license.isPremium;
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(AppColors.surfaceElevated),
+      backgroundColor: AppColors.surfElevated(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -233,26 +233,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(AppColors.divider),
+                  color: AppColors.div(ctx),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Smooth Playback',
               style: TextStyle(
-                color: Color(AppColors.textPrimary),
+                color: AppColors.text1(ctx),
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Smooth Playback pre-buffers live TV streams on the server so you get seamless, '
               'stutter-free viewing even on slower connections.',
               style: TextStyle(
-                color: Color(AppColors.textSecondary),
+                color: AppColors.text2(ctx),
                 fontSize: 14,
                 height: 1.6,
               ),
@@ -261,9 +261,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(AppColors.surface),
+                color: AppColors.surf(ctx),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(AppColors.divider)),
+                border: Border.all(color: AppColors.div(ctx)),
               ),
               child: Row(
                 children: [
@@ -271,7 +271,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     isPremium ? Icons.check_circle_rounded : Icons.lock_rounded,
                     color: isPremium
                         ? const Color(AppColors.success)
-                        : const Color(AppColors.textMuted),
+                        : AppColors.textM(ctx),
                     size: 22,
                   ),
                   const SizedBox(width: 12),
@@ -282,7 +282,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(
                       color: isPremium
                           ? const Color(AppColors.success)
-                          : const Color(AppColors.textMuted),
+                          : AppColors.textM(ctx),
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
                     ),
@@ -305,7 +305,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(AppColors.surfaceElevated),
+      backgroundColor: AppColors.surfElevated(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -322,27 +322,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(AppColors.divider),
+                    color: AppColors.div(ctx),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 'Contact Support',
                 style: TextStyle(
-                  color: Color(AppColors.textPrimary),
+                  color: AppColors.text1(ctx),
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 16),
               if (!hasAny)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Text(
                     'No support contacts configured.',
-                    style: TextStyle(color: Color(AppColors.textMuted)),
+                    style: TextStyle(color: AppColors.textM(ctx)),
                   ),
                 ),
               if (whatsapp.isNotEmpty)
@@ -404,9 +404,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(AppColors.surface),
+          color: AppColors.surf(ctx),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(AppColors.divider)),
+          border: Border.all(color: AppColors.div(ctx)),
         ),
         child: Row(
           children: [
@@ -426,16 +426,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   Text(
                     label,
-                    style: const TextStyle(
-                      color: Color(AppColors.textPrimary),
+                    style: TextStyle(
+                      color: AppColors.text1(ctx),
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                      color: Color(AppColors.textMuted),
+                    style: TextStyle(
+                      color: AppColors.textM(ctx),
                       fontSize: 13,
                     ),
                     maxLines: 1,
@@ -444,10 +444,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.arrow_forward_ios_rounded,
               size: 14,
-              color: Color(AppColors.textMuted),
+              color: AppColors.textM(ctx),
             ),
           ],
         ),
@@ -461,9 +461,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (urlStr.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('URL not configured'),
-            backgroundColor: Color(AppColors.surface),
+          SnackBar(
+            content: const Text('URL not configured'),
+            backgroundColor: AppColors.surf(context),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -678,7 +678,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         return ProfileMenuTile(
                           icon: modeIcon,
                           label: 'App Theme',
-                          subtitle: modeLabel,
+                          subtitle: 'Tap to change',
                           iconColor: modeColor,
                           trailing: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
@@ -757,7 +757,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       license = state.license;
       isExpired = true;
     } else if (state is LicenseError) {
-      error = state.message;
+      if (!state.message.contains('DioException') && !state.message.contains('401')) {
+        error = state.message;
+      }
     }
 
     return LicenseStatusCard(

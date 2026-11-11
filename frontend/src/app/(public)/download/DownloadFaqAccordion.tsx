@@ -54,7 +54,7 @@ export default function DownloadFaqAccordion() {
                 </thead>
                 <tbody className="divide-y divide-[var(--color-line)]">
                   {[
-                    { feature: 'File Size', standard: '32.5 MB', legacy: '29.3 MB' },
+                    { feature: 'File Size', standard: '33.2 MB', legacy: '30.0 MB' },
                     { feature: 'Architecture', standard: 'ARM64-v8a', legacy: 'ARMeabi-v7a' },
                     { feature: 'Min Android', standard: 'Android 5.0+', legacy: 'Android 5.0+' },
                     { feature: 'Device Coverage', standard: '~95% of all Android devices', legacy: 'Older / budget devices' },

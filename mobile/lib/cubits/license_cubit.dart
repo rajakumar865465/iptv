@@ -57,7 +57,19 @@ class LicenseCubit extends Cubit<LicenseState> {
       }
     } catch (e) {
       if (isClosed) return;
-      emit(LicenseError(e.toString()));
+      if (e is DioException) {
+        if (e.response?.statusCode == 401) {
+          // Guest or unauthenticated user: no active license
+          emit(LicenseNone());
+          return;
+        }
+        final msg = e.response?.data is Map
+            ? (e.response?.data['error'] ?? e.response?.data['message'])?.toString()
+            : null;
+        emit(LicenseError(msg ?? 'Unable to connect to license service.'));
+      } else {
+        emit(LicenseError('Unable to verify license status.'));
+      }
     }
   }
 

@@ -99,6 +99,14 @@ class HomeCubit extends Cubit<HomeState> {
         final rawCategories = (data['categories'] as List? ?? []);
         final categories = rawCategories
             .map((c) => HomeCategorySection.fromJson(c))
+            .map((s) => HomeCategorySection(
+                  id: s.id,
+                  name: s.name,
+                  iconUrl: s.iconUrl,
+                  sortOrder: s.sortOrder,
+                  channelCount: s.channelCount,
+                  channels: _deduplicate(s.channels),
+                ))
             .where((s) => s.channels.isNotEmpty)
             .toList();
 
@@ -134,9 +142,65 @@ class HomeCubit extends Cubit<HomeState> {
   List<ChannelModel> _parseChannels(dynamic raw) {
     if (raw == null) return const [];
     if (raw is! List) return const [];
-    return raw
+    final list = raw
         .map((c) => ChannelModel.fromJson(c as Map<String, dynamic>))
         .where((c) => c.isPlayable)
         .toList();
+    return _deduplicate(list);
+  }
+
+  static List<ChannelModel> _deduplicate(List<ChannelModel> channels) {
+    final seen = <String, ChannelModel>{};
+    for (final ch in channels) {
+      final key = _canonical(ch.name);
+      final existing = seen[key];
+      if (existing == null) {
+        seen[key] = ch;
+      } else {
+        final existingScore = _channelScore(existing);
+        final chScore = _channelScore(ch);
+        if (chScore > existingScore) {
+          seen[key] = ch;
+        }
+      }
+    }
+    return seen.values.toList();
+  }
+
+  static int _channelScore(ChannelModel ch) {
+    int score = _qualityRank(ch) * 100;
+    final lang = (ch.language ?? '').toLowerCase();
+    if (lang == 'hindi') {
+      score += 50;
+    } else if (lang == 'english') {
+      score += 40;
+    } else if (lang == 'bengali' || lang == 'tamil' || lang == 'telugu') {
+      score += 30;
+    }
+    if (ch.streamUrl.isNotEmpty) score += 20;
+    score += (ch.popularityScore > 0 ? (ch.popularityScore > 50 ? 50 : ch.popularityScore) : 0);
+    return score;
+  }
+
+  static int _qualityRank(ChannelModel ch) {
+    final q = ch.qualityLabel;
+    if (q == '4K') return 5;
+    if (q == 'FHD') return 4;
+    if (q == 'HD') return 3;
+    if (q == 'SD') return 2;
+    if (q == '360p') return 1;
+    return 0;
+  }
+
+  static String _canonical(String name) {
+    return name
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s*[\(\[][^\)\]]*[\)\]]\s*'), ' ')
+        .replaceAll(RegExp(r'\b(apac|asia|in|india|backup|live|feed)\b', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\s*(hd|sd|fhd|uhd|4k)\s*', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\s*(1080p?|720p?|576p?|480p?|360p?)\s*', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\s*(backup|live|channel|source\s*\d*)\s*', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 }

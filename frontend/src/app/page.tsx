@@ -5,7 +5,7 @@ import {
   ShieldCheck, Headphones, Play, Sparkles, Star,
 } from 'lucide-react';
 import {
-  getPublicPlans, getCategories, getWebsiteSettings, getPopularChannels, getPaymentConfig
+  getPublicPlans, getCategories, getWebsiteSettings, getPopularChannels, getPaymentConfig, getAppDownload
 } from '@/lib/publicApi';
 import ChannelLogoImage from '@/components/ChannelLogoImage';
 import PricingGrid from '@/components/public/PricingGrid';
@@ -16,6 +16,7 @@ import PublicFooter from '@/components/public/PublicFooter';
 import AnimatedHeroPhone from '@/components/public/AnimatedHeroPhone';
 import AppShowcase from '@/components/public/AppShowcase';
 import StickyMobileCTA from '@/components/public/StickyMobileCTA';
+import MobileBottomSpacer from '@/components/public/MobileBottomSpacer';
 import SectionHeading from '@/components/public/SectionHeading';
 import MotionReveal from '@/components/public/MotionReveal';
 import LiveChannelTicker from '@/components/public/LiveChannelTicker';
@@ -168,19 +169,25 @@ export default async function HomePage() {
   let channelsCount = '500+';
   let categoriesCount = '15+';
   let paymentMode = 'razorpay';
+  let latestVersion = '';
+  let updateNotice = '';
 
   try {
-    const [s, pRes, cRes, popRes, payConfig] = await Promise.all([
+    const [s, pRes, cRes, popRes, payConfig, appRel] = await Promise.all([
       getWebsiteSettings().catch(() => null),
       getPublicPlans().catch(() => []),
       getCategories().catch(() => []),
       getPopularChannels().catch(() => []),
       getPaymentConfig().catch(() => null),
+      getAppDownload().catch(() => null),
     ]);
     if (s) {
       if (s.stats_channels_count) channelsCount = String(s.stats_channels_count);
       if (s.stats_categories_count) categoriesCount = String(s.stats_categories_count);
+      if (s.latest_app_version) latestVersion = String(s.latest_app_version);
+      updateNotice = s.banner_message || s.announcement_message || '';
     }
+    if (appRel?.version) latestVersion = String(appRel.version);
     plans = pRes;
     categories = cRes;
     popularChannels = popRes;
@@ -328,6 +335,22 @@ export default async function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-8 sm:gap-10 lg:gap-12 items-center">
               <div className="order-1 lg:order-1">
+                {/* Latest Release Notice */}
+                {latestVersion && (
+                  <Link
+                    href="/download"
+                    className="group inline-flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-brand-500/10 hover:bg-brand-500/15 border border-brand-500/25 text-xs sm:text-sm text-[var(--color-ink)] mb-4 transition-all max-w-full shadow-sm"
+                  >
+                    <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-600 text-white text-[10px] font-bold uppercase tracking-wider">
+                      <Sparkles className="w-3 h-3" /> v{latestVersion}
+                    </span>
+                    <span className="truncate text-[var(--color-ink-muted)] group-hover:text-[var(--color-ink)] font-medium">
+                      {updateNotice || `Latest NivaTV v${latestVersion} update is live — download now`}
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-500 group-hover:translate-x-0.5 transition-transform" />
+                  </Link>
+                )}
+
                 {/* Live pill */}
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--color-surface)] border border-[var(--color-line)] backdrop-blur-sm mb-5 shadow-card">
                   <span className="relative flex h-2 w-2">
@@ -653,7 +676,9 @@ export default async function HomePage() {
         </section>
       </main>
 
+      <MobileBottomSpacer />
       <PublicFooter />
+      <StickyMobileCTA />
     </div>
   );
 }

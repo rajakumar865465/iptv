@@ -80,12 +80,12 @@ class _Chip extends StatelessWidget {
                     ],
                   )
                 : null,
-            color: item.selected ? null : const Color(AppColors.surfaceLight),
+            color: item.selected ? null : AppColors.surfLight(context),
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
               color: item.selected
                   ? Colors.transparent
-                  : const Color(AppColors.divider),
+                  : AppColors.div(context),
               width: 0.8,
             ),
             boxShadow: item.selected
@@ -106,7 +106,7 @@ class _Chip extends StatelessWidget {
                 style: TextStyle(
                   color: item.selected
                       ? Colors.white
-                      : const Color(AppColors.textSecondary),
+                      : AppColors.text2(context),
                   fontSize: 12.5,
                   fontWeight: item.selected ? FontWeight.w700 : FontWeight.w500,
                   letterSpacing: -0.1,
@@ -119,7 +119,7 @@ class _Chip extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: item.selected
                         ? Colors.white.withOpacity(0.2)
-                        : const Color(AppColors.surface),
+                        : AppColors.surf(context),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -127,7 +127,7 @@ class _Chip extends StatelessWidget {
                     style: TextStyle(
                       color: item.selected
                           ? Colors.white.withOpacity(0.95)
-                          : const Color(AppColors.textMuted),
+                          : AppColors.textM(context),
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                     ),

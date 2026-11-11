@@ -250,7 +250,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
                 subtitle: state.message,
                 actionLabel: 'Retry',
                 onAction: _reload,
-                iconColor: const Color(AppColors.textMuted),
+                iconColor: AppColors.textM(context),
               );
             }
             if (state is ChannelLoaded) return _buildContent(state);
@@ -305,7 +305,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
 
     return RefreshIndicator(
       color: const Color(AppColors.primary),
-      backgroundColor: const Color(AppColors.surface),
+      backgroundColor: AppColors.surf(context),
       onRefresh: _reload,
       child: CustomScrollView(
         controller: _scrollController,

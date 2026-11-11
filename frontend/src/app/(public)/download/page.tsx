@@ -14,14 +14,15 @@ import {
   ArrowRight,
   Sparkles,
 } from 'lucide-react';
-import { getAppDownload } from '@/lib/publicApi';
+import { getAppDownload, getWebsiteSettings } from '@/lib/publicApi';
 import type { Metadata } from 'next';
 import PageTracker from '@/components/public/PageTracker';
+import MobileBottomSpacer from '@/components/public/MobileBottomSpacer';
 import DownloadFaqAccordion from './DownloadFaqAccordion';
 import AndroidAutoDetectBanner from './AndroidAutoDetectBanner';
 
-// Revalidate every hour — replaces force-dynamic so Cache-Control is public.
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 export const metadata: Metadata = {
   title: 'Download NivaTV APK — Free-to-Air (FTA) Live TV Player',
   description:
@@ -78,10 +79,20 @@ function toDirectDownloadUrl(url: string | null | undefined): string {
 }
 
 export default async function DownloadPage() {
-  const release = await getAppDownload().catch(() => null);
+  const [release, settings] = await Promise.all([
+    getAppDownload().catch(() => null),
+    getWebsiteSettings().catch(() => null),
+  ]);
   const standardDownloadUrl = '/downloads/app-release.apk';
   const legacyDownloadUrl = '/downloads/app-release-32bit.apk';
-  const appVersion = release?.version || '1.2.1';
+  const appVersion = release?.version || settings?.latest_app_version || '2.8.7';
+  const standardFileSize = release?.file_size || '33.2 MB';
+  const legacyFileSize = '30.0 MB';
+  const isForceUpdate = Boolean(release?.force_update || settings?.force_update === 'true');
+  const updateNoticeMessage =
+    settings?.banner_message ||
+    settings?.announcement_message ||
+    `Older versions below v${appVersion} must update to continue streaming seamlessly.`;
 
   const howToJsonLd = {
     '@context': 'https://schema.org',
@@ -106,7 +117,7 @@ export default async function DownloadPage() {
     description:
       'Watch 500+ Indian live TV channels on Android. Includes Hindi, Tamil, Telugu, Bengali, Malayalam, sports and news with zero-stutter hardware playback.',
     downloadUrl: 'https://nivatv.luxomall.in/download',
-    fileSize: '32.5MB',
+    fileSize: standardFileSize.replace(/\s+/g, ''),
     softwareVersion: appVersion,
     offers: {
       '@type': 'Offer',
@@ -153,6 +164,40 @@ export default async function DownloadPage() {
         </p>
       </div>
 
+      {/* Latest Release Notice Banner */}
+      {(isForceUpdate || settings?.banner_message || settings?.announcement_message) && (
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-amber-500/15 via-brand-500/10 to-emerald-500/10 border border-amber-500/35 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5">
+              <AlertCircle className="w-5 h-5 text-amber-500 dark:text-amber-400" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-600 text-white text-[11px] font-bold uppercase tracking-wider">
+                  v{appVersion} Latest Notice
+                </span>
+                {isForceUpdate && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[11px] font-bold uppercase tracking-wider">
+                    Mandatory Update
+                  </span>
+                )}
+              </div>
+              <p className="text-xs sm:text-sm text-[var(--color-ink)] font-medium leading-relaxed">
+                {updateNoticeMessage}
+              </p>
+            </div>
+          </div>
+          <a
+            href={standardDownloadUrl}
+            download={`NivaTV_arm64_v${appVersion}.apk`}
+            className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-brand-600/20 transition-all"
+          >
+            <Download className="w-4 h-4" />
+            <span>Update to v{appVersion}</span>
+          </a>
+        </div>
+      )}
+
       {/* Smart Device Auto-Detector Banner */}
       <AndroidAutoDetectBanner />
 
@@ -189,7 +234,7 @@ export default async function DownloadPage() {
               </div>
               <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-2.5 text-center">
                 <span className="text-[var(--color-ink-muted)] text-[11px] block font-medium">File Size</span>
-                <span className="text-emerald-500 dark:text-emerald-400 font-bold text-xs sm:text-sm">32.5 MB</span>
+                <span className="text-emerald-500 dark:text-emerald-400 font-bold text-xs sm:text-sm">{standardFileSize}</span>
               </div>
               <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-2.5 text-center">
                 <span className="text-[var(--color-ink-muted)] text-[11px] block font-medium">Arch</span>
@@ -263,7 +308,7 @@ export default async function DownloadPage() {
               </div>
               <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-2.5 text-center">
                 <span className="text-[var(--color-ink-muted)] text-[11px] block font-medium">File Size</span>
-                <span className="text-amber-500 dark:text-amber-400 font-bold text-xs sm:text-sm">29.3 MB</span>
+                <span className="text-amber-500 dark:text-amber-400 font-bold text-xs sm:text-sm">{legacyFileSize}</span>
               </div>
               <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-2.5 text-center">
                 <span className="text-[var(--color-ink-muted)] text-[11px] block font-medium">Arch</span>
@@ -340,7 +385,7 @@ export default async function DownloadPage() {
             </div>
             <div>
               <span className="text-[var(--color-ink-muted)] text-xs block mb-1">Optimized Size</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-sm">{release.file_size || '32.5 MB'}</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-sm">{standardFileSize}</span>
             </div>
             <div>
               <span className="text-[var(--color-ink-muted)] text-xs block mb-1">Release Date</span>
@@ -390,7 +435,7 @@ export default async function DownloadPage() {
           <span className="text-brand-500 text-xs font-bold uppercase tracking-wider">Quick Setup</span>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-[var(--color-ink)] mt-1">5-Step Installation Guide</h2>
           <p className="text-[var(--color-ink-muted)] text-sm mt-2">
-            Follow these easy steps to install NivaTV on your Android phone, tablet, or Smart Smart TV.
+            Follow these easy steps to install NivaTV on your Android phone, tablet, or Smart TV.
           </p>
         </div>
 
@@ -437,6 +482,9 @@ export default async function DownloadPage() {
           </div>
         </div>
       </div>
+
+      {/* Bottom safe-area spacer for the mobile floating CTA bar */}
+      <MobileBottomSpacer />
     </div>
   );
 }

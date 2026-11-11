@@ -53,17 +53,51 @@ exports.getStatus = async (req, res) => {
 
 exports.versionCheck = async (req, res) => {
   try {
-    const { version } = req.query;
-    const result = await db.query("SELECT setting_value FROM app_settings WHERE setting_key = 'minimum_app_version'");
-    const minVersion = result.rows[0]?.setting_value || '1.0.0';
+    const clientVersion = req.query.version || req.headers['x-app-version'] || req.headers['app-version'] || '';
+    const [settingsRes, releaseRes] = await Promise.all([
+      db.query(
+        `SELECT setting_key, setting_value
+         FROM app_settings
+         WHERE setting_key = ANY($1)`,
+        [[
+          'minimum_app_version',
+          'latest_app_version',
+          'force_update',
+          'apk_download_url',
+          'announcement_message',
+          'banner_message',
+        ]]
+      ),
+      db.query(
+        `SELECT version, apk_url, force_update
+         FROM app_releases
+         WHERE is_latest = true
+         ORDER BY created_at DESC
+         LIMIT 1`
+      ),
+    ]);
 
-    const isUpdateRequired = version && compareSemver(version, minVersion) < 0;
+    const settings = {};
+    settingsRes.rows.forEach((row) => {
+      settings[row.setting_key] = row.setting_value;
+    });
+
+    const latestRelease = releaseRes.rows[0] || null;
+    const minVersion = settings.minimum_app_version || '1.0.0';
+    const latestVersion = settings.latest_app_version || latestRelease?.version || minVersion;
+    const forceEnabled = settings.force_update === 'true' || latestRelease?.force_update === true;
+    const isBelowMin = !clientVersion || compareSemver(clientVersion, minVersion) < 0;
+    const isOutdated = !clientVersion || compareSemver(clientVersion, latestVersion) < 0;
 
     success(res, {
-      current_version: version || '1.0.0',
+      current_version: clientVersion || '1.0.0',
       minimum_version: minVersion,
-      update_required: isUpdateRequired,
-      force_update: result.rows[0]?.setting_value === 'true',
+      latest_version: latestVersion,
+      update_required: Boolean(isBelowMin || (forceEnabled && isOutdated)),
+      force_update: Boolean(forceEnabled && isBelowMin),
+      apk_download_url: settings.apk_download_url || latestRelease?.apk_url || '/downloads/app-release.apk',
+      download_page_url: '/download',
+      announcement_message: settings.announcement_message || settings.banner_message || '',
     });
   } catch (err) {
     error(res, 'Failed to check version', 500);

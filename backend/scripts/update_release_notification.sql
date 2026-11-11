@@ -1,4 +1,4 @@
--- 1. Insert or update app_releases for v2.8.5
+-- 1. Insert or update app_releases for v2.8.7
 UPDATE app_releases SET is_latest = false WHERE is_latest = true;
 
 INSERT INTO app_releases (
@@ -12,27 +12,39 @@ INSERT INTO app_releases (
     force_update,
     created_at
 ) VALUES (
-    '2.8.5',
-    34,
+    '2.8.7',
+    36,
     '/downloads/app-release.apk',
     '33.2 MB',
-    '["Fixed Working Only channels display: restored visibility of all 620+ active online channels", "Strict offline channel filtering: completely hides broken/offline streams", "Fast hardware-accelerated playback with instant channel loading"]'::jsonb,
+    '["Fixed channel deduplication across Home, Live TV, and Search", "Fixed Search tab filter isolation with dedicated SearchCubit", "Full light and dark theme token support across all screens", "Improved rotation lifecycle, back-button navigation, and low-latency stream buffering"]'::jsonb,
     '7.0',
     true,
     true,
     NOW()
 );
 
--- 2. Update app_settings
+-- 2. Update app_settings (enforce v2.8.7 minimum & expose latest download URL + update notice)
 INSERT INTO app_settings (setting_key, setting_value) VALUES
-    ('minimum_app_version', '2.8.5'),
-    ('latest_app_version', '2.8.5'),
+    ('minimum_app_version', '2.8.7'),
+    ('latest_app_version', '2.8.7'),
     ('force_update', 'true'),
-    ('announcement_message', 'NivaTV v2.8.5 is live! Channels display and working filters fully fixed.')
+    ('apk_download_url', 'https://nivatv.luxomall.in/downloads/app-release.apk'),
+    ('announcement_message', 'NivaTV v2.8.7 is live! Search isolation, channel deduplication, light/dark themes, and smoother playback.'),
+    ('banner_message', 'NivaTV v2.8.7 Update Required — Update older apps for faster channels, isolated search, and Light & Dark themes.')
 ON CONFLICT (setting_key) DO UPDATE
-SET setting_value = EXCLUDED.setting_value;
+SET setting_value = EXCLUDED.setting_value,
+    updated_at = NOW();
 
--- 3. Insert notification for all users
+-- 3. Deactivate superseded app update notices and publish the latest v2.8.7 notice
+UPDATE notifications
+SET is_active = false,
+    updated_at = NOW()
+WHERE is_active = true
+  AND (
+    title ILIKE '%Update%Available%'
+    OR title ~* 'v2\.[0-8]\.[0-7]'
+  );
+
 INSERT INTO notifications (
     title,
     body,
@@ -41,8 +53,8 @@ INSERT INTO notifications (
     action_url,
     created_at
 ) VALUES (
-    '🌟 All Channels Fixed Update v2.8.5 Available!',
-    'NivaTV v2.8.5 is live: all 620+ active channels are now restored and working smoothly. Tap below to download the update.',
+    '🚀 NivaTV v2.8.7 Update Available!',
+    'NivaTV v2.8.7 is live (mandatory update for older versions). Includes instant deduplicated channels, isolated Search filters, Light & Dark themes, and low-latency streaming. Tap to download the latest APK.',
     'all',
     true,
     'https://nivatv.luxomall.in/downloads/app-release.apk',

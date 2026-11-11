@@ -10,6 +10,7 @@ import 'cubits/home_cubit.dart';
 import 'cubits/app_config_cubit.dart';
 import 'cubits/favorite_cubit.dart';
 import 'cubits/mini_player_cubit.dart';
+import 'cubits/search_cubit.dart';
 import 'screens/splash_screen.dart';
 import 'widgets/mini_player_overlay.dart';
 import 'theme.dart';
@@ -150,6 +151,7 @@ class MyApp extends StatelessWidget {
         BlocProvider(create: (context) => AppConfigCubit()),
         BlocProvider(create: (context) => FavoriteCubit()),
         BlocProvider(create: (context) => MiniPlayerCubit()),
+        BlocProvider(create: (context) => SearchCubit()),
       ],
       child: BlocBuilder<ThemeCubit, ThemeMode>(
         builder: (context, themeMode) {

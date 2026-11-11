@@ -89,6 +89,18 @@ class ChannelCubit extends Cubit<ChannelState> {
       _qualityFilter != null ||
       _premiumFilter != 'all';
 
+  /// Clear all directory filters so search or directory returns to full catalog.
+  void clearFilters() {
+    _filterCategoryId = null;
+    _filterCategoryName = null;
+    _filterLanguage = null;
+    _genreFilter = null;
+    _countryFilter = null;
+    _qualityFilter = null;
+    _premiumFilter = 'all';
+    _sortBy = 'recommended';
+  }
+
   Future<void> loadChannels({
     bool isRefresh = false,
     String? query,
@@ -405,32 +417,82 @@ class ChannelCubit extends Cubit<ChannelState> {
     await loadFeaturedChannels();
   }
 
-  Future<void> searchChannels(String query) async {
-    await loadChannels(isRefresh: true, query: query);
+  Future<void> searchChannels(String query, {bool resetFilters = true}) async {
+    if (resetFilters) {
+      clearFilters();
+    }
+    await loadChannels(
+      isRefresh: true,
+      query: query,
+      categoryId: 0,
+      categoryName: '',
+      language: '',
+      genre: '',
+      country: '',
+      quality: '',
+      premiumFilter: 'all',
+      sortBy: 'recommended',
+    );
   }
 
   List<ChannelModel> get allChannels => _allChannels;
 
+  // Keyed on the canonical name only (not language) so regional variants of the
+  // same channel — e.g. Hindi and Urdu "Cartoon Network" feeds — collapse to a
+  // single card. Ties are resolved by _channelScore, so the best feed wins.
   List<ChannelModel> _deduplicateChannels(List<ChannelModel> channels) {
     final seen = <String, ChannelModel>{};
     for (final ch in channels) {
-      final key = '${_canonical(ch.name)}|${(ch.language ?? '').toLowerCase()}|${ch.categoryId ?? 0}';
+      final key = _canonical(ch.name);
       final existing = seen[key];
       if (existing == null) {
         seen[key] = ch;
-      } else {
-        if (ch.streamUrl.isNotEmpty && existing.streamUrl.isEmpty) {
-          seen[key] = ch;
-        }
+      } else if (_channelScore(ch) > _channelScore(existing)) {
+        seen[key] = ch;
       }
     }
     return seen.values.toList();
   }
 
+  int _qualityRankOf(ChannelModel ch) {
+    switch (ch.qualityLabel) {
+      case '4K':
+        return 5;
+      case 'FHD':
+        return 4;
+      case 'HD':
+        return 3;
+      case 'SD':
+        return 2;
+      case '360p':
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
+  int _channelScore(ChannelModel ch) {
+    int score = _qualityRankOf(ch) * 100;
+    final lang = (ch.language ?? '').toLowerCase();
+    if (lang == 'hindi') {
+      score += 50;
+    } else if (lang == 'english') {
+      score += 40;
+    } else if (lang == 'bengali' || lang == 'tamil' || lang == 'telugu') {
+      score += 30;
+    }
+    if (ch.streamUrl.isNotEmpty) score += 20;
+    if (ch.popularityScore > 0) {
+      score += ch.popularityScore > 50 ? 50 : ch.popularityScore;
+    }
+    return score;
+  }
+
   String _canonical(String name) {
     return name
         .toLowerCase()
-        .replaceAll(RegExp(r'\s*\([^)]*\)\s*'), ' ')
+        .replaceAll(RegExp(r'\s*[\(\[][^\)\]]*[\)\]]\s*'), ' ')
+        .replaceAll(RegExp(r'\b(apac|asia|in|india|backup|live|feed)\b', caseSensitive: false), ' ')
         .replaceAll(RegExp(r'\s*(hd|sd|fhd|uhd|4k)\s*', caseSensitive: false), ' ')
         .replaceAll(RegExp(r'\s*(1080p?|720p?|576p?|480p?|360p?)\s*', caseSensitive: false), ' ')
         .replaceAll(RegExp(r'\s*(backup|live|channel|source\s*\d*)\s*', caseSensitive: false), ' ')
