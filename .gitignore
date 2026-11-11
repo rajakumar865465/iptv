@@ -42,6 +42,7 @@ backend/public/logos/
 
 # Temporary QA test artifacts & scripts
 *.png
+qa/
 monkey_tap.txt
 click_scrcpy.*
 create_shortcut.ps1
