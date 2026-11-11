@@ -285,6 +285,10 @@ app.use('/downloads', express.static(path.join(__dirname, '../public/downloads')
 // ARCH-05: Error logging middleware — registers before routes so all 4xx/5xx are captured
 app.use(errorLoggerMiddleware);
 
+// Mandatory App Version Gatekeeper — blocks outdated mobile apps from streaming
+const { versionGatekeeper } = require('./middleware/versionGatekeeper');
+app.use('/api', versionGatekeeper);
+
 // API Routes
 const streamRoutes = require('./routes/streamRoutes');
 const homeRoutes = require('./routes/home');

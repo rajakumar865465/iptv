@@ -1,6 +1,9 @@
 import 'dart:developer' as developer;
+import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../constants.dart';
+import '../main.dart';
+import '../screens/force_update_screen.dart';
 import 'storage_service.dart';
 import 'token_refresh_service.dart';
 
@@ -15,11 +18,17 @@ class ApiService {
       baseUrl: BackendConfig.baseUrl,
       connectTimeout: const Duration(milliseconds: AppConstants.connectTimeout),
       receiveTimeout: const Duration(milliseconds: AppConstants.receiveTimeout),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'X-App-Version': AppConstants.appVersion,
+        'User-Agent': 'NivaTV/${AppConstants.appVersion} (Android; Dart/3.13)',
+      },
     ));
 
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
+        options.headers['X-App-Version'] = AppConstants.appVersion;
+        options.headers['User-Agent'] = 'NivaTV/${AppConstants.appVersion} (Android; Dart/3.13)';
         final token = await _storage.getToken();
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
@@ -43,6 +52,18 @@ class ApiService {
           '[API Error] ${error.response?.statusCode} ${error.requestOptions.path} | ${error.message}',
           name: 'ApiService',
         );
+
+        // Intercept mandatory force update response (HTTP 426 Upgrade Required)
+        if (error.response?.statusCode == 426 ||
+            (error.response?.data is Map && error.response?.data['error'] == 'FORCE_UPDATE_REQUIRED')) {
+          developer.log('[API] 426 FORCE_UPDATE_REQUIRED received — routing to ForceUpdateScreen', name: 'ApiService');
+          appNavigatorKey.currentState?.pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const ForceUpdateScreen()),
+            (route) => false,
+          );
+          return handler.next(error);
+        }
+
         if (error.response?.statusCode == 401 || error.response?.statusCode == 403) {
           final data = error.response?.data;
           bool isTokenError = false;

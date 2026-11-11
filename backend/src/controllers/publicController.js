@@ -8,6 +8,48 @@ const Razorpay = require('razorpay');
 const { verifyToken, verifyAdminToken } = require('../utils/jwt');
 const { activateLicense } = require('../services/subscriptionService');
 const paymentSettings = require('../services/paymentSettings');
+const { invalidateVersionCache } = require('../middleware/versionGatekeeper');
+
+async function syncReleaseToAppSettings(release) {
+  if (!release) return;
+  try {
+    const keys = [];
+    const values = [];
+
+    if (release.is_latest) {
+      keys.push('latest_app_version');
+      values.push(String(release.version));
+      if (release.apk_url) {
+        keys.push('apk_download_url');
+        values.push(String(release.apk_url));
+      }
+      keys.push('force_update');
+      values.push(release.force_update ? 'true' : 'false');
+      if (release.force_update) {
+        keys.push('minimum_app_version');
+        values.push(String(release.version));
+      }
+    } else if (release.force_update) {
+      keys.push('force_update');
+      values.push('true');
+      keys.push('minimum_app_version');
+      values.push(String(release.version));
+    }
+
+    if (keys.length > 0) {
+      await db.query(
+        `INSERT INTO app_settings (setting_key, setting_value, updated_at)
+         SELECT t.key, t.value, NOW() FROM UNNEST($1::text[], $2::text[]) AS t(key, value)
+         ON CONFLICT (setting_key)
+         DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW()`,
+        [keys, values]
+      );
+    }
+    invalidateVersionCache();
+  } catch (err) {
+    console.error('[syncReleaseToAppSettings] Failed to sync settings:', err.message);
+  }
+}
 
 const downloadDir = path.join(__dirname, '..', '..', 'public', 'downloads');
 if (!fs.existsSync(downloadDir)) {
@@ -829,6 +871,7 @@ exports.createAppRelease = async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
       [version, version_code, cleanApkUrl, file_size || null, JSON.stringify(release_notes || []), minimum_android_version || '7.0', !!is_latest, !!force_update]
     );
+    await syncReleaseToAppSettings(result.rows[0]);
     return success(res, result.rows[0], 'Release created', 201);
   } catch (err) {
     return error(res, 'Failed to create release', 500);
@@ -858,6 +901,7 @@ exports.updateAppRelease = async (req, res) => {
       [version, version_code, cleanApkUrl, file_size, release_notes ? JSON.stringify(release_notes) : null, minimum_android_version, is_latest, force_update, id]
     );
     if (result.rows.length === 0) return error(res, 'Release not found', 404);
+    await syncReleaseToAppSettings(result.rows[0]);
     return success(res, result.rows[0], 'Release updated');
   } catch (err) {
     return error(res, 'Failed to update release', 500);

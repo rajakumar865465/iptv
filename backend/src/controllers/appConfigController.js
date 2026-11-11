@@ -16,17 +16,37 @@ function compareSemver(a, b) {
 
 exports.getConfig = async (req, res) => {
   try {
-    const result = await db.query('SELECT setting_key, setting_value FROM app_settings');
+    const [settingsResult, releaseResult] = await Promise.all([
+      db.query('SELECT setting_key, setting_value FROM app_settings'),
+      db.query(`SELECT version, apk_url, force_update FROM app_releases WHERE is_latest = true ORDER BY created_at DESC LIMIT 1`)
+    ]);
+
     const config = {};
-    result.rows.forEach(row => {
+    settingsResult.rows.forEach(row => {
       config[row.setting_key] = row.setting_value;
     });
+
+    const latestRelease = releaseResult.rows[0] || null;
+    if (latestRelease) {
+      if (latestRelease.force_update === true) {
+        config['force_update'] = 'true';
+        if (!config['minimum_app_version'] || compareSemver(latestRelease.version, config['minimum_app_version']) > 0) {
+          config['minimum_app_version'] = latestRelease.version;
+        }
+      }
+      if (!config['latest_app_version']) {
+        config['latest_app_version'] = latestRelease.version;
+      }
+      if (!config['apk_download_url'] && latestRelease.apk_url) {
+        config['apk_download_url'] = latestRelease.apk_url;
+      }
+    }
 
     const clientVersion = req.query.version || req.headers['x-app-version'] || req.headers['app-version'];
     const minVersion = config['minimum_app_version'] || '1.0.0';
 
-    // If force_update is enabled in settings:
-    // If client version is provided and is >= minimum_app_version (e.g. 2.8.1),
+    // If force_update is enabled in settings or releases:
+    // If client version is provided and is >= minimum_app_version (e.g. 2.8.7),
     // they are already on the required version and should NOT be blocked!
     if (config['force_update'] === 'true' && clientVersion) {
       if (compareSemver(clientVersion, minVersion) >= 0) {

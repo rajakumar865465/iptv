@@ -3,6 +3,7 @@ const { comparePassword, hashPassword } = require('../utils/password');
 const { generateAdminToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
 const { generateLicenseKey } = require('../utils/helpers');
+const { invalidateVersionCache } = require('../middleware/versionGatekeeper');
 
 // Defense-in-depth: reject any stream_url that is not http(s) at write time.
 // This stops protocol handlers like file:/concat:/etc. from ever being
@@ -669,6 +670,7 @@ exports.updateAppSettings = async (req, res) => {
     }
 
     await logAdminAction(req, req.user.id, 'update_settings', 'app_settings', null, { updated_keys: keys });
+    invalidateVersionCache();
 
     success(res, null, 'Settings updated');
   } catch (err) {

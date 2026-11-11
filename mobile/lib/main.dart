@@ -20,6 +20,8 @@ import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'utils/backend_config.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -156,6 +158,7 @@ class MyApp extends StatelessWidget {
       child: BlocBuilder<ThemeCubit, ThemeMode>(
         builder: (context, themeMode) {
           return MaterialApp(
+            navigatorKey: appNavigatorKey,
             title: 'NivaTV',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,

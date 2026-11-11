@@ -7,6 +7,8 @@ import '../cubits/channel_cubit.dart';
 import '../cubits/mini_player_cubit.dart';
 import '../cubits/favorite_cubit.dart';
 import '../cubits/license_cubit.dart';
+import '../cubits/app_config_cubit.dart';
+import 'force_update_screen.dart';
 import '../models/channel_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
@@ -35,7 +37,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
   late final PageController _pageController;
   late final List<Widget> _pages;
@@ -48,9 +50,27 @@ class _HomeScreenState extends State<HomeScreen> {
     AppNavItem(icon: Icons.person_rounded, label: 'Profile'),
   ];
 
+  bool _isVersionBelow(String current, String target) {
+    try {
+      final cParts = current.split('.').map((s) => int.tryParse(s.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0).toList();
+      final tParts = target.split('.').map((s) => int.tryParse(s.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0).toList();
+      final maxLen = cParts.length > tParts.length ? cParts.length : tParts.length;
+      for (int i = 0; i < maxLen; i++) {
+        final c = i < cParts.length ? cParts[i] : 0;
+        final t = i < tParts.length ? tParts[i] : 0;
+        if (c < t) return true;
+        if (c > t) return false;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pageController = PageController();
     _pages = [
       const KeepAlivePage(child: HomeContentScreen()),
@@ -63,8 +83,30 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkForceUpdateOnResume();
+    }
+  }
+
+  Future<void> _checkForceUpdateOnResume() async {
+    try {
+      await context.read<AppConfigCubit>().fetchConfig();
+      if (!mounted) return;
+      final cubit = context.read<AppConfigCubit>();
+      if (cubit.isForceUpdate && _isVersionBelow(AppConstants.appVersion, cubit.minAppVersion)) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const ForceUpdateScreen()),
+          (route) => false,
+        );
+      }
+    } catch (_) {}
   }
 
   DateTime? _lastBackPressTime;
