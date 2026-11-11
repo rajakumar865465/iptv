@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import {
   Download,
@@ -188,10 +189,13 @@ export default async function DownloadPage() {
               </p>
             </div>
           </div>
-          <AutoDownloadTrigger
-            version={appVersion}
-            downloadUrl={standardDownloadUrl}
-          />
+          <Suspense fallback={null}>
+            <AutoDownloadTrigger
+              version={appVersion}
+              downloadUrl={standardDownloadUrl}
+              isForceUpdate={isForceUpdate}
+            />
+          </Suspense>
           <a
             href={standardDownloadUrl}
             download={`NivaTV_arm64_v${appVersion}.apk`}

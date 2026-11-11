@@ -40,16 +40,18 @@ class ForceUpdateScreen extends StatelessWidget {
     final text2 = AppColors.text2(context);
     final bgColor = AppColors.bg(context);
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Glowing Icon Badge
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: bgColor,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Glowing Icon Badge
                 Container(
                   width: 96,
                   height: 96,
@@ -110,7 +112,7 @@ class ForceUpdateScreen extends StatelessWidget {
 
                 // Heading
                 Text(
-                  'Update to NivaTV v2.8.1',
+                  'Update to NivaTV v${AppConstants.appVersion}',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: text1,
@@ -160,7 +162,7 @@ class ForceUpdateScreen extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            "What's New in v2.8.1:",
+                            "What's New in v${AppConstants.appVersion}:",
                             style: TextStyle(
                               color: text1,
                               fontSize: 13.5,
@@ -170,13 +172,13 @@ class ForceUpdateScreen extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      _buildBullet('Full in-app official Plans & Pricing integration', text2),
+                      _buildBullet('Search filter isolation with dedicated SearchCubit', text2),
                       const SizedBox(height: 8),
-                      _buildBullet('Brand-new UI/UX design with light & dark themes', text2),
+                      _buildBullet('Channel deduplication across Home, Live TV & Search', text2),
                       const SizedBox(height: 8),
-                      _buildBullet('Faster live stream playback and zero stutter', text2),
+                      _buildBullet('Full Light & Dark theme token system across all screens', text2),
                       const SizedBox(height: 8),
-                      _buildBullet('Critical security and stability improvements', text2),
+                      _buildBullet('Low-latency stream buffering and zero-stutter playback', text2),
                     ],
                   ),
                 ),
@@ -249,8 +251,9 @@ class ForceUpdateScreen extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildBullet(String text, Color textColor) {
     return Row(

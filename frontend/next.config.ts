@@ -71,6 +71,14 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: '/downloads/:path*',
+        headers: [
+          { key: 'Content-Disposition', value: 'attachment' },
+          { key: 'Content-Type', value: 'application/vnd.android.package-archive' },
+          { key: 'Cache-Control', value: 'public, max-age=3600, must-revalidate' },
+        ],
+      },
+      {
         // Exclude sitemap.xml and robots.txt — Cloudflare already adds its own
         // security headers to these files, and having both sets causes duplicate
         // comma-separated header values (e.g. 'DENY,SAMEORIGIN') that make
