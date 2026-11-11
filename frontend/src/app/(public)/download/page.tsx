@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { getAppDownload, getWebsiteSettings } from '@/lib/publicApi';
 import type { Metadata } from 'next';
+import AutoDownloadTrigger from '@/components/public/AutoDownloadTrigger';
 import PageTracker from '@/components/public/PageTracker';
 import MobileBottomSpacer from '@/components/public/MobileBottomSpacer';
 import DownloadFaqAccordion from './DownloadFaqAccordion';
@@ -187,6 +188,10 @@ export default async function DownloadPage() {
               </p>
             </div>
           </div>
+          <AutoDownloadTrigger
+            version={appVersion}
+            downloadUrl={standardDownloadUrl}
+          />
           <a
             href={standardDownloadUrl}
             download={`NivaTV_arm64_v${appVersion}.apk`}
