@@ -21,19 +21,24 @@ cd /home/ubuntu/iptv &&
 git pull &&
 cd backend &&
 npm install &&
-if [ -f .env ]; then set -a && . ./.env && set +a; fi &&
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/update_release_notification.sql &&
+(
+  if [ -f .env ]; then set -a && . ./.env && set +a; fi &&
+  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/update_release_notification.sql
+) &&
 node fix_payment.js &&
 pm2 restart iptv-backend &&
 sleep 3 &&
 cd ../frontend &&
-npm install &&
+npm install --include=dev &&
 npm run build &&
 pm2 restart iptv-frontend &&
 sleep 3 &&
 pm2 status
-'@
+'@ -replace "`r`n", "`n"
 
 ssh -i "$KeyPath" -o StrictHostKeyChecking=no "ubuntu@$HostIp" "$remoteCmd"
+if ($LASTEXITCODE -ne 0) {
+    throw "Remote deployment failed with exit code $LASTEXITCODE"
+}
 
 Write-Host "Deployment Complete!" -ForegroundColor Green
