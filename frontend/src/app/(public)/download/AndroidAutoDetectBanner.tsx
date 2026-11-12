@@ -1,27 +1,38 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Smartphone, CheckCircle, Monitor, Apple, X } from 'lucide-react';
+import { useState, useSyncExternalStore } from 'react';
+import { Smartphone, Monitor, Apple, X } from 'lucide-react';
+
+type DeviceType = 'android-x86' | 'android' | 'ios' | 'desktop' | null;
+
+const emptySubscribe = () => () => {};
+
+function getClientDeviceType(): DeviceType {
+  if (typeof window === 'undefined') return null;
+  const ua = window.navigator.userAgent || '';
+  if (/Android/i.test(ua)) {
+    return /\b(x86_64|x86|i686|gphone_x86|emulator)\b/i.test(ua)
+      ? 'android-x86'
+      : 'android';
+  }
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    return 'ios';
+  }
+  return 'desktop';
+}
 
 export default function AndroidAutoDetectBanner() {
-  const [deviceType, setDeviceType] = useState<'android' | 'ios' | 'desktop' | null>(null);
+  const deviceType = useSyncExternalStore(
+    emptySubscribe,
+    getClientDeviceType,
+    () => null
+  );
   const [dismissed, setDismissed] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const ua = window.navigator.userAgent || '';
-    if (/Android/i.test(ua)) {
-      setDeviceType('android');
-    } else if (/iPhone|iPad|iPod/i.test(ua)) {
-      setDeviceType('ios');
-    } else {
-      setDeviceType('desktop');
-    }
-  }, []);
 
   if (!deviceType || dismissed) return null;
 
-  if (deviceType === 'android') {
+  if (deviceType === 'android' || deviceType === 'android-x86') {
+    const isX86 = deviceType === 'android-x86';
     return (
       <div className="relative mb-8 bg-gradient-to-r from-emerald-500/15 via-brand-500/15 to-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 sm:p-5 flex items-start sm:items-center justify-between gap-4 shadow-lg shadow-emerald-500/5">
         <div className="flex items-center gap-3.5">
@@ -29,15 +40,25 @@ export default function AndroidAutoDetectBanner() {
             <Smartphone className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
-                Android Detected
+                {isX86 ? 'Android x86_64 Detected' : 'Android Detected'}
               </span>
               <span className="text-[var(--color-ink)] font-bold text-sm sm:text-base">Ready for Instant Install</span>
             </div>
             <p className="text-[var(--color-ink-muted)] text-xs sm:text-sm mt-0.5">
-              Your device is compatible with the <strong className="text-[var(--color-ink)]">Standard 64-bit APK (Recommended)</strong>.
+              {isX86 ? (
+                <>
+                  Use the <strong className="text-[var(--color-ink)]">x86_64 APK</strong> or{' '}
+                  <strong className="text-[var(--color-ink)]">Universal APK</strong> for emulators and x86_64 tablets.
+                </>
+              ) : (
+                <>
+                  Recommended: <strong className="text-[var(--color-ink)]">Standard 64-bit APK</strong> for modern phones, or{' '}
+                  <strong className="text-[var(--color-ink)]">Universal APK</strong> if you&apos;re unsure.
+                </>
+              )}
             </p>
           </div>
         </div>

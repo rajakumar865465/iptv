@@ -277,8 +277,12 @@ app.use('/logos', express.static(path.join(__dirname, '../public/logos'), {
 }));
 
 app.use('/downloads', express.static(path.join(__dirname, '../public/downloads'), {
-  setHeaders: (res) => {
-    res.setHeader('Content-Disposition', 'attachment; filename="NivaTV-release.apk"');
+  setHeaders: (res, filePath) => {
+    const filename = path.basename(filePath);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    if (filePath.endsWith('.apk')) {
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+    }
   },
 }));
 

@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
 import '../constants.dart';
+import '../utils/backend_config.dart';
+import '../utils/force_update_helper.dart';
 import 'auth_service.dart';
 import 'token_refresh_service.dart';
-
-import '../utils/backend_config.dart';
 
 class ApiClient {
   Dio? _dio;
@@ -18,11 +18,12 @@ class ApiClient {
       baseUrl: BackendConfig.baseUrl,
       connectTimeout: const Duration(milliseconds: AppConstants.connectTimeout),
       receiveTimeout: const Duration(milliseconds: AppConstants.receiveTimeout),
-      headers: {'Content-Type': 'application/json'},
+      headers: ForceUpdateHelper.appHeaders,
     ));
 
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
+        ForceUpdateHelper.applyAppHeaders(options.headers);
         final token = await _authService.getSession();
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
@@ -30,6 +31,10 @@ class ApiClient {
         return handler.next(options);
       },
       onError: (error, handler) async {
+        if (ForceUpdateHelper.isForceUpdateException(error)) {
+          ForceUpdateHelper.handleDioError(error);
+          return handler.next(error);
+        }
         if (error.response?.statusCode == 401 || error.response?.statusCode == 403) {
           final data = error.response?.data;
           bool isTokenError = false;

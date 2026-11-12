@@ -13,11 +13,11 @@ INSERT INTO app_releases (
     created_at
 ) VALUES (
     '2.8.7',
-    36,
+    4037,
     '/downloads/app-release.apk',
     '33.2 MB',
     '["Fixed channel deduplication across Home, Live TV, and Search", "Fixed Search tab filter isolation with dedicated SearchCubit", "Full light and dark theme token support across all screens", "Improved rotation lifecycle, back-button navigation, and low-latency stream buffering"]'::jsonb,
-    '7.0',
+    '5.0',
     true,
     true,
     NOW()

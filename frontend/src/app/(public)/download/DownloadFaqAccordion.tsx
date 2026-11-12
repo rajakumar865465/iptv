@@ -31,12 +31,14 @@ export default function DownloadFaqAccordion() {
             <p className="text-brand-600 dark:text-brand-400 font-semibold text-sm mb-1">✅ Quick Answer</p>
             <p className="text-[var(--color-ink-muted)] text-sm leading-relaxed">
               <strong className="text-[var(--color-ink)]">If your phone was bought in 2017 or later</strong> — download the{' '}
-              <span className="text-brand-600 dark:text-brand-400 font-semibold">Standard (64-bit)</span> APK. It works on
-              virtually all modern Android phones, tablets, and Android TV boxes.
+              <span className="text-brand-600 dark:text-brand-400 font-semibold">Standard (64-bit)</span> APK for the smallest download.
             </p>
             <p className="text-[var(--color-ink-muted)] text-sm mt-2 leading-relaxed">
-              Only switch to the <span className="text-amber-600 dark:text-amber-400 font-semibold">Legacy (32-bit)</span> APK
-              if the Standard version fails to install on your device.
+              Not sure what CPU your phone, TV box, or emulator uses? Pick the{' '}
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Universal (All-in-One)</span> APK — it bundles
+              ARM64, ARM32, and x86_64 together so it installs everywhere. Use{' '}
+              <span className="text-amber-600 dark:text-amber-400 font-semibold">Legacy (32-bit)</span> for pre-2017 phones or{' '}
+              <span className="text-[var(--color-ink)] font-semibold">x86_64</span> for lightweight Android emulators and Chromebooks.
             </p>
           </div>
 
@@ -49,22 +51,25 @@ export default function DownloadFaqAccordion() {
                   <tr className="border-b border-[var(--color-line)]">
                     <th className="text-left text-[var(--color-ink-muted)] font-medium pb-2 pr-4">Feature</th>
                     <th className="text-left text-brand-600 dark:text-brand-400 font-semibold pb-2 pr-4">Standard (64-bit)</th>
-                    <th className="text-left text-amber-600 dark:text-amber-400 font-semibold pb-2">Legacy (32-bit)</th>
+                    <th className="text-left text-emerald-600 dark:text-emerald-400 font-semibold pb-2 pr-4">Universal (All)</th>
+                    <th className="text-left text-amber-600 dark:text-amber-400 font-semibold pb-2 pr-4">Legacy (32-bit)</th>
+                    <th className="text-left text-[var(--color-ink)] font-semibold pb-2">x86_64</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-line)]">
                   {[
-                    { feature: 'File Size', standard: '33.2 MB', legacy: '30.0 MB' },
-                    { feature: 'Architecture', standard: 'ARM64-v8a', legacy: 'ARMeabi-v7a' },
-                    { feature: 'Min Android', standard: 'Android 5.0+', legacy: 'Android 5.0+' },
-                    { feature: 'Device Coverage', standard: '~95% of all Android devices', legacy: 'Older / budget devices' },
-                    { feature: 'Best For', standard: 'Modern phones, tablets, Android TV', legacy: 'Pre-2017 budget phones' },
-                    { feature: 'Performance', standard: '⚡ Faster (native 64-bit)', legacy: '✓ Compatible' },
+                    { feature: 'Architecture', standard: 'ARM64-v8a', universal: 'ARM64 + ARM32 + x86_64', legacy: 'ARMeabi-v7a', x86: 'x86_64' },
+                    { feature: 'Min Android', standard: 'Android 5.0+', universal: 'Android 5.0+', legacy: 'Android 5.0+', x86: 'Android 5.0+' },
+                    { feature: 'Device Coverage', standard: '~95% of phones', universal: '100% of Android devices', legacy: 'Older / budget devices', x86: 'Emulators & Intel PCs' },
+                    { feature: 'Best For', standard: 'Modern phones, TVs', universal: 'Any device (zero guesswork)', legacy: 'Pre-2017 budget phones', x86: 'Android Studio / Chromebook' },
+                    { feature: 'Download Type', standard: 'Smallest 64-bit', universal: 'All-in-one bundle', legacy: 'Lightweight 32-bit', x86: 'Dedicated x86_64' },
                   ].map(row => (
                     <tr key={row.feature}>
                       <td className="py-2.5 pr-4 text-[var(--color-ink-muted)]">{row.feature}</td>
                       <td className="py-2.5 pr-4 text-[var(--color-ink)]">{row.standard}</td>
-                      <td className="py-2.5 text-[var(--color-ink-muted)]">{row.legacy}</td>
+                      <td className="py-2.5 pr-4 text-emerald-600 dark:text-emerald-400 font-medium">{row.universal}</td>
+                      <td className="py-2.5 pr-4 text-[var(--color-ink-muted)]">{row.legacy}</td>
+                      <td className="py-2.5 text-[var(--color-ink-muted)]">{row.x86}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -73,24 +78,37 @@ export default function DownloadFaqAccordion() {
           </div>
 
           {/* Common devices */}
-          <div className="grid sm:grid-cols-2 gap-3">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl p-3">
-              <p className="text-brand-600 dark:text-brand-400 font-semibold text-xs mb-2">✅ Standard (64-bit) works on</p>
+              <p className="text-brand-600 dark:text-brand-400 font-semibold text-xs mb-2">✅ Standard (64-bit)</p>
               <ul className="space-y-1 text-[var(--color-ink-muted)] text-xs">
-                <li>• Samsung Galaxy S / A / M series (2018+)</li>
-                <li>• Xiaomi / Redmi (2018+)</li>
-                <li>• OnePlus, Realme, OPPO, Vivo</li>
-                <li>• Android TV boxes &amp; smart TVs</li>
-                <li>• All 64-bit Android phones &amp; tablets</li>
+                <li>• Samsung Galaxy (2018+)</li>
+                <li>• Xiaomi, OnePlus, Realme, OPPO, Vivo</li>
+                <li>• Android TV &amp; Fire TV Stick</li>
               </ul>
             </div>
             <div className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl p-3">
-              <p className="text-amber-600 dark:text-amber-400 font-semibold text-xs mb-2">📦 Legacy (32-bit) works on</p>
+              <p className="text-emerald-600 dark:text-emerald-400 font-semibold text-xs mb-2">🌐 Universal (All Devices)</p>
               <ul className="space-y-1 text-[var(--color-ink-muted)] text-xs">
-                <li>• Very old budget Android phones</li>
-                <li>• Devices from 2013–2016</li>
-                <li>• Any device where Standard fails to install</li>
-                <li>• 32-bit only Android hardware</li>
+                <li>• Every Android phone &amp; tablet</li>
+                <li>• Fixes &quot;App not installed&quot; ABI errors</li>
+                <li>• Safe default for sharing</li>
+              </ul>
+            </div>
+            <div className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl p-3">
+              <p className="text-amber-600 dark:text-amber-400 font-semibold text-xs mb-2">📦 Legacy (32-bit)</p>
+              <ul className="space-y-1 text-[var(--color-ink-muted)] text-xs">
+                <li>• Budget phones (2013–2016)</li>
+                <li>• 32-bit only Fire TV / TV boxes</li>
+                <li>• Minimal storage footprint</li>
+              </ul>
+            </div>
+            <div className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl p-3">
+              <p className="text-[var(--color-ink)] font-semibold text-xs mb-2">💻 x86_64 Build</p>
+              <ul className="space-y-1 text-[var(--color-ink-muted)] text-xs">
+                <li>• Android Studio Emulator</li>
+                <li>• Chromebooks &amp; WSA</li>
+                <li>• Intel / AMD Android tablets</li>
               </ul>
             </div>
           </div>

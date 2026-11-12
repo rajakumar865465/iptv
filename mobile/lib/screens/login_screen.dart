@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
 import '../cubits/auth_cubit.dart';
 import '../cubits/license_cubit.dart';
+import '../utils/force_update_helper.dart';
 import 'home_screen.dart';
 import 'license_activation_screen.dart';
 import 'license_expired_screen.dart';
@@ -34,6 +35,14 @@ class _LoginScreenState extends State<LoginScreen> {
       await licenseCubit.checkStatus();
       if (!context.mounted) return;
       final licenseState = context.read<LicenseCubit>().state;
+      if (licenseState is LicenseForceUpdateRequired) {
+        ForceUpdateHelper.navigateToForceUpdate(
+          info: licenseState.info,
+          navigator: Navigator.of(context),
+        );
+        return;
+      }
+      if (ForceUpdateHelper.isActive) return;
       if (licenseState is LicenseActive) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -48,6 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } catch (_) {
+      if (ForceUpdateHelper.isActive || !context.mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),
       );
@@ -72,9 +82,18 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: const Color(AppColors.background),
       body: BlocConsumer<AuthCubit, AuthState>(
         listener: (context, state) {
+          if (state is AuthForceUpdateRequired) {
+            ForceUpdateHelper.navigateToForceUpdate(
+              info: state.info,
+              navigator: Navigator.of(context),
+            );
+            return;
+          }
           if (state is AuthAuthenticated) {
+            if (ForceUpdateHelper.isActive) return;
             _navigateAfterLogin(context);
           } else if (state is AuthError) {
+            if (ForceUpdateHelper.isActive) return;
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

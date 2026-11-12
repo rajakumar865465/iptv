@@ -42,6 +42,11 @@ export default function RootLayout({
   return (
     <html lang="en-IN" className="scroll-smooth" suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var d=document.documentElement,f=document.createElement('div');f.style.display='flex';f.style.flexDirection='column';f.style.rowGap='10px';f.style.position='absolute';f.style.visibility='hidden';f.appendChild(document.createElement('div'));f.appendChild(document.createElement('div'));d.appendChild(f);var ok=f.scrollHeight>=8;d.removeChild(f);if(!ok&&d.className.indexOf('no-flex-gap')===-1)d.className+=(d.className?' ':'')+'no-flex-gap';}catch(e){}})();`,
+          }}
+        />
         <Script id="meta-pixel" strategy="afterInteractive">
           {`
             !function(f,b,e,v,n,t,s)

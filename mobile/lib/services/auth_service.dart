@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
 import '../constants.dart';
 import '../models/user_model.dart';
-
 import '../utils/backend_config.dart';
+import '../utils/force_update_helper.dart';
 import 'storage_service.dart';
 
 class AuthUserResult {
@@ -30,7 +30,7 @@ class AuthService {
     baseUrl: BackendConfig.baseUrl,
     connectTimeout: const Duration(milliseconds: AppConstants.connectTimeout),
     receiveTimeout: const Duration(milliseconds: AppConstants.receiveTimeout),
-    headers: {'Content-Type': 'application/json'},
+    headers: ForceUpdateHelper.appHeaders,
   ));
 
   String? _token;
@@ -38,10 +38,17 @@ class AuthService {
   AuthService() {
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) {
+        ForceUpdateHelper.applyAppHeaders(options.headers);
         if (_token != null) {
           options.headers['Authorization'] = 'Bearer $_token';
         }
         return handler.next(options);
+      },
+      onError: (error, handler) {
+        if (ForceUpdateHelper.isForceUpdateException(error)) {
+          ForceUpdateHelper.handleDioError(error);
+        }
+        return handler.next(error);
       },
     ));
   }
@@ -91,8 +98,15 @@ class AuthService {
       final response = await _dio.post('${ApiEndpoints.auth}/google-login', data: payload);
       return _parseAuthResponse(response.data);
     } catch (e) {
-      if (e is DioException && e.response?.data != null) {
-        throw Exception(e.response!.data['message'] ?? 'Google login failed');
+      if (e is DioException) {
+        if (ForceUpdateHelper.isForceUpdateException(e)) {
+          rethrow;
+        }
+        if (e.response?.data != null) {
+          final data = e.response!.data;
+          final msg = data is Map ? data['message']?.toString() : null;
+          throw Exception(msg ?? 'Google login failed');
+        }
       }
       rethrow;
     }

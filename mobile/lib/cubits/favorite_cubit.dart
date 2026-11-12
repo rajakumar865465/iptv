@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../services/api_service.dart';
 import '../models/channel_model.dart';
 import '../constants.dart';
+import '../utils/force_update_helper.dart';
 
 abstract class FavoriteState {}
 
@@ -10,6 +11,10 @@ class FavoriteLoading extends FavoriteState {}
 class FavoriteLoaded extends FavoriteState {
   final List<ChannelModel> favorites;
   FavoriteLoaded(this.favorites);
+}
+class FavoriteForceUpdateRequired extends FavoriteState {
+  final ForceUpdateInfo? info;
+  FavoriteForceUpdateRequired([this.info]);
 }
 class FavoriteError extends FavoriteState {
   final String message;
@@ -37,6 +42,10 @@ class FavoriteCubit extends Cubit<FavoriteState> {
       }
     } catch (e) {
       if (isClosed) return;
+      if (ForceUpdateHelper.isForceUpdateException(e)) {
+        emit(FavoriteForceUpdateRequired(ForceUpdateHelper.extractInfo(e)));
+        return;
+      }
       emit(FavoriteError(e.toString()));
     }
   }
@@ -49,8 +58,12 @@ class FavoriteCubit extends Cubit<FavoriteState> {
         await _api.post('${ApiEndpoints.favorites}/$channelId', {});
       }
       await loadFavorites();
-    } catch (_) {
+    } catch (e) {
       if (isClosed) return;
+      if (ForceUpdateHelper.isForceUpdateException(e)) {
+        emit(FavoriteForceUpdateRequired(ForceUpdateHelper.extractInfo(e)));
+        return;
+      }
       emit(FavoriteError('Failed to update favorites. Please try again.'));
     }
   }

@@ -52,7 +52,7 @@ class _LicenseStatusScreenState extends State<LicenseStatusScreen> {
       ),
       body: BlocBuilder<LicenseCubit, LicenseState>(
         builder: (context, state) {
-          if (state is LicenseLoading || state is LicenseInitial) {
+          if (state is LicenseLoading || state is LicenseInitial || state is LicenseForceUpdateRequired) {
             return const Center(
               child: CircularProgressIndicator(
                 color: Color(AppColors.primary),

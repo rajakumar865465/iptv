@@ -24,6 +24,7 @@ import '../widgets/premium_channel_card.dart';
 import '../cubits/license_cubit.dart';
 import '../cubits/mini_player_cubit.dart';
 import '../utils/backend_config.dart';
+import '../utils/force_update_helper.dart';
 import '../services/local_hls_proxy.dart';
 
 // Temporary diagnostic logging for the "all channels reconnecting" investigation
@@ -1222,6 +1223,7 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
           webPreferredHeaders = {
             if (token != null) 'Authorization': 'Bearer $token',
           };
+          ForceUpdateHelper.applyAppHeaders(webPreferredHeaders);
           _proxyHeaders = webPreferredHeaders;
           _playerDebugLog('proxy_preferred_web', {
             'channel_id': _currentChannel.id,
@@ -1240,6 +1242,7 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
           _proxyHeaders = {
             if (token != null) 'Authorization': 'Bearer $token',
           };
+          ForceUpdateHelper.applyAppHeaders(_proxyHeaders!);
         }
 
         _playerDebugLog('playback_api_response', {
@@ -1333,6 +1336,9 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
         throw Exception('Playback fetch failed');
       }
     } catch(e) {
+      if (ForceUpdateHelper.isForceUpdateException(e) || ForceUpdateHelper.isActive) {
+        return;
+      }
       _playerDebugLog('playback_api_failed', {
         'channel_id': _currentChannel.id,
         'error': e.toString(),
@@ -1588,7 +1594,7 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
               'multiple_requests=1,'
               'timeout=8000000,probesize=1000000,analyzeduration=1000000,tls_verify=no,'
               'user_agent=Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 '
-              '(KHTML, like Gecko) NivaTV/1.2.1 Chrome/120.0 Mobile Safari/537.36');
+              '(KHTML, like Gecko) NivaTV/${AppConstants.appVersion} Chrome/120.0 Mobile Safari/537.36');
 
           try {
             await (platform as dynamic).setProperty('load-unsafe-playlists', 'yes');
@@ -1645,13 +1651,16 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
       const defaultRequestHeaders = {
         'User-Agent':
             'Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 '
-            '(KHTML, like Gecko) NivaTV/1.2.1 Chrome/120.0 Mobile Safari/537.36',
+            '(KHTML, like Gecko) NivaTV/${AppConstants.appVersion} Chrome/120.0 Mobile Safari/537.36',
         'Accept': '*/*',
         'Connection': 'keep-alive',
       };
       defaultRequestHeaders.forEach((k, v) {
         headers.putIfAbsent(k, () => v);
       });
+      if (url.startsWith(BackendConfig.baseUrl)) {
+        ForceUpdateHelper.applyAppHeaders(headers);
+      }
 
       _playerDebugLog('request_headers_resolved', {
         'channel_id': _currentChannel.id,
@@ -5334,10 +5343,14 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
                             Navigator.pop(context);
                             // Fix #14: Token in Authorization header, not URL query param
                             final token = await StorageService().getToken() ?? '';
+                            final headers = <String, dynamic>{
+                              'Authorization': 'Bearer $token',
+                            };
+                            ForceUpdateHelper.applyAppHeaders(headers);
                             _changeQuality({
                               'label': '480p Data Saver',
                               'url': '${BackendConfig.baseUrl}${ApiEndpoints.streamTranscodePath(_currentChannel.id, quality: '480')}',
-                              'headers': {'Authorization': 'Bearer $token'},
+                              'headers': headers,
                             });
                           }
                         }),
@@ -5348,10 +5361,14 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
                             Navigator.pop(context);
                             // Fix #14: Token in Authorization header, not URL query param
                             final token = await StorageService().getToken() ?? '';
+                            final headers = <String, dynamic>{
+                              'Authorization': 'Bearer $token',
+                            };
+                            ForceUpdateHelper.applyAppHeaders(headers);
                             _changeQuality({
                               'label': '360p Data Saver',
                               'url': '${BackendConfig.baseUrl}${ApiEndpoints.streamTranscodePath(_currentChannel.id, quality: '360')}',
-                              'headers': {'Authorization': 'Bearer $token'},
+                              'headers': headers,
                             });
                           }
                         }),

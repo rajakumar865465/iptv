@@ -68,6 +68,7 @@ class _SearchScreenState extends State<SearchScreen>
             Expanded(
               child: BlocBuilder<SearchCubit, SearchState>(
                 builder: (context, state) {
+                  if (state is SearchForceUpdateRequired) return _buildSearchLoading();
                   final query = _searchController.text.trim();
                   if (query.isEmpty) return _buildIdleState();
                   if (state is SearchLoading) return _buildSearchLoading();

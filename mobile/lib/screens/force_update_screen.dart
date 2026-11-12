@@ -1,14 +1,108 @@
+import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../constants.dart';
+import '../cubits/mini_player_cubit.dart';
 import '../utils/backend_config.dart';
+import '../utils/force_update_helper.dart';
 
-class ForceUpdateScreen extends StatelessWidget {
-  const ForceUpdateScreen({super.key});
+class ForceUpdateScreen extends StatefulWidget {
+  static const String routeName = '/force-update';
 
-  Future<void> _launchDownload(BuildContext context, String path) async {
-    final baseUrl = BackendConfig.baseUrl;
-    final url = '$baseUrl$path';
+  final ForceUpdateInfo? updateInfo;
+
+  const ForceUpdateScreen({super.key, this.updateInfo});
+
+  @override
+  State<ForceUpdateScreen> createState() => _ForceUpdateScreenState();
+}
+
+class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
+  String? _detectedAbi;
+  String _preferredApkPath = '/downloads/app-universal-release.apk';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        context.read<MiniPlayerCubit>().dismiss();
+      } catch (_) {}
+    });
+    _detectDeviceAbi();
+  }
+
+  @override
+  void dispose() {
+    ForceUpdateHelper.resetOnDispose();
+    super.dispose();
+  }
+
+  Future<void> _detectDeviceAbi() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      final info = await DeviceInfoPlugin().androidInfo;
+      final abis = info.supportedAbis.map((e) => e.toLowerCase()).toList();
+      String? matchedAbi;
+      String path = '/downloads/app-universal-release.apk';
+
+      if (abis.contains('x86_64')) {
+        matchedAbi = 'x86_64';
+        path = '/downloads/app-x86_64-release.apk';
+      } else if (abis.contains('arm64-v8a')) {
+        matchedAbi = 'arm64-v8a';
+        path = '/downloads/app-release.apk';
+      } else if (abis.contains('armeabi-v7a') || abis.contains('armeabi')) {
+        matchedAbi = abis.contains('armeabi-v7a') ? 'armeabi-v7a' : 'armeabi';
+        path = '/downloads/app-release-32bit.apk';
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _detectedAbi = matchedAbi;
+        _preferredApkPath = path;
+      });
+    } catch (e) {
+      debugPrint('Failed to detect device ABI: $e');
+    }
+  }
+
+  String _resolveUrl(String target) {
+    final trimmed = target.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    final baseUrl = BackendConfig.baseUrl.replaceAll(RegExp(r'/+$'), '');
+    if (trimmed.startsWith('/')) {
+      return '$baseUrl$trimmed';
+    }
+    return '$baseUrl/$trimmed';
+  }
+
+  String get _primaryDownloadTarget {
+    final serverUrl = widget.updateInfo?.apkDownloadUrl?.trim();
+    if (serverUrl != null &&
+        serverUrl.isNotEmpty &&
+        !serverUrl.endsWith('/downloads/app-release.apk')) {
+      return serverUrl;
+    }
+    return _preferredApkPath;
+  }
+
+  String get _downloadPageTarget {
+    final pageUrl = widget.updateInfo?.downloadPageUrl?.trim();
+    if (pageUrl != null && pageUrl.isNotEmpty) {
+      return pageUrl;
+    }
+    return '/download';
+  }
+
+  Future<void> _launchDownload(BuildContext context, String pathOrUrl) async {
+    final url = _resolveUrl(pathOrUrl);
     try {
       final uri = Uri.parse(url);
       final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -39,6 +133,9 @@ class ForceUpdateScreen extends StatelessWidget {
     final text1 = AppColors.text1(context);
     final text2 = AppColors.text2(context);
     final bgColor = AppColors.bg(context);
+    final targetVersion = widget.updateInfo?.latestVersion ?? AppConstants.appVersion;
+    final subtitleMessage = widget.updateInfo?.message ??
+        'A mandatory application update is required to continue streaming. Please update to the latest version to enjoy all live channels and subscription features.';
 
     return PopScope(
       canPop: false,
@@ -112,7 +209,7 @@ class ForceUpdateScreen extends StatelessWidget {
 
                 // Heading
                 Text(
-                  'Update to NivaTV v${AppConstants.appVersion}',
+                  'Update to NivaTV v$targetVersion',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: text1,
@@ -125,7 +222,7 @@ class ForceUpdateScreen extends StatelessWidget {
 
                 // Subtitle
                 Text(
-                  'A mandatory application update is required to continue streaming. Please update to the latest version to enjoy all live channels and subscription features.',
+                  subtitleMessage,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: text2,
@@ -133,7 +230,19 @@ class ForceUpdateScreen extends StatelessWidget {
                     height: 1.5,
                   ),
                 ),
-                const SizedBox(height: 28),
+                if (_detectedAbi != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'Detected device architecture: $_detectedAbi',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: text2.withOpacity(0.85),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 24),
 
                 // Changelog Card
                 Container(
@@ -162,7 +271,7 @@ class ForceUpdateScreen extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            "What's New in v${AppConstants.appVersion}:",
+                            "What's New in v$targetVersion:",
                             style: TextStyle(
                               color: text1,
                               fontSize: 13.5,
@@ -182,9 +291,9 @@ class ForceUpdateScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 28),
 
-                // Primary CTA: Download APK
+                // Primary CTA: Download ABI-matched APK
                 Container(
                   width: double.infinity,
                   height: 52,
@@ -204,7 +313,7 @@ class ForceUpdateScreen extends StatelessWidget {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: () => _launchDownload(context, '/downloads/app-release.apk'),
+                      onTap: () => _launchDownload(context, _primaryDownloadTarget),
                       borderRadius: BorderRadius.circular(16),
                       child: const Center(
                         child: Row(
@@ -227,11 +336,45 @@ class ForceUpdateScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
 
-                // Secondary CTA: Visit Download Portal
+                // Secondary CTA: Universal APK Fallback
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: OutlinedButton.icon(
+                    onPressed: () =>
+                        _launchDownload(context, '/downloads/app-universal-release.apk'),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: isDark
+                            ? const Color(AppColors.divider)
+                            : const Color(0xFFCBD5E1),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    icon: Icon(
+                      Icons.android_rounded,
+                      size: 18,
+                      color: text1,
+                    ),
+                    label: Text(
+                      'Download Universal APK (All Devices)',
+                      style: TextStyle(
+                        color: text1,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Tertiary CTA: Visit Download Portal
                 TextButton.icon(
-                  onPressed: () => _launchDownload(context, '/download'),
+                  onPressed: () => _launchDownload(context, _downloadPageTarget),
                   icon: Icon(
                     Icons.open_in_browser_rounded,
                     size: 16,

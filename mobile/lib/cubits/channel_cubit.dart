@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../models/channel_model.dart';
 import '../constants.dart';
+import '../utils/force_update_helper.dart';
 
 abstract class ChannelState {}
 
@@ -32,6 +33,11 @@ class ChannelLoaded extends ChannelState {
     this.workingOnly = true,
     this.totalCount = 0,
   });
+}
+
+class ChannelForceUpdateRequired extends ChannelState {
+  final ForceUpdateInfo? info;
+  ChannelForceUpdateRequired([this.info]);
 }
 
 class ChannelError extends ChannelState {
@@ -339,6 +345,10 @@ class ChannelCubit extends Cubit<ChannelState> {
     } catch (e) {
       developer.log('[ChannelCubit] Error: $e', name: 'ChannelCubit');
       if (isClosed) return;
+      if (ForceUpdateHelper.isForceUpdateException(e)) {
+        emit(ChannelForceUpdateRequired(ForceUpdateHelper.extractInfo(e)));
+        return;
+      }
       await _handleLoadError('Unable to load channels. Please check connection and try again.');
     }
   }
@@ -409,6 +419,10 @@ class ChannelCubit extends Cubit<ChannelState> {
       }
     } catch (e) {
       if (isClosed) return;
+      if (ForceUpdateHelper.isForceUpdateException(e)) {
+        emit(ChannelForceUpdateRequired(ForceUpdateHelper.extractInfo(e)));
+        return;
+      }
       emit(ChannelError('Error loading featured channels'));
     }
   }

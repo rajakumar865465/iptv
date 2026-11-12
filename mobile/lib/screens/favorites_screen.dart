@@ -46,7 +46,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               });
               return const FavoritesSkeleton();
             }
-            if (state is FavoriteLoading) return const FavoritesSkeleton();
+            if (state is FavoriteLoading || state is FavoriteForceUpdateRequired) return const FavoritesSkeleton();
             if (state is FavoriteError) return _buildError(state.message);
             if (state is FavoriteLoaded) return _buildContent(state.favorites);
             return const FavoritesSkeleton();

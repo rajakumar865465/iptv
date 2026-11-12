@@ -21,7 +21,8 @@ cd /home/ubuntu/iptv &&
 git pull &&
 cd backend &&
 npm install &&
-psql "$DATABASE_URL" -f scripts/update_release_notification.sql 2>/dev/null || true &&
+if [ -f .env ]; then set -a && . ./.env && set +a; fi &&
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/update_release_notification.sql &&
 node fix_payment.js &&
 pm2 restart iptv-backend &&
 sleep 3 &&

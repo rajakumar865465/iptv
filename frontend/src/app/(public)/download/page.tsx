@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import {
@@ -6,14 +8,14 @@ import {
   CheckCircle,
   AlertCircle,
   Package,
-  Calendar,
-  HardDrive,
   Cpu,
   Zap,
   ShieldCheck,
   Tv,
   ArrowRight,
   Sparkles,
+  Laptop,
+  Globe,
 } from 'lucide-react';
 import { getAppDownload, getWebsiteSettings } from '@/lib/publicApi';
 import type { Metadata } from 'next';
@@ -45,7 +47,7 @@ const INSTALL_STEPS = [
   {
     step: 1,
     title: 'Download the APK',
-    text: 'Choose the Standard 64-bit APK (recommended) or Legacy 32-bit APK above and start the download.',
+    text: 'Pick Standard 64-bit, Universal (all devices), Legacy 32-bit, or x86_64 above and start the download.',
   },
   {
     step: 2,
@@ -69,15 +71,18 @@ const INSTALL_STEPS = [
   },
 ];
 
-function toDirectDownloadUrl(url: string | null | undefined): string {
-  if (!url) return '/downloads/app-release.apk';
-  const trimmed = url.trim();
-  if (trimmed.startsWith('/downloads/')) return trimmed;
-  // Always serve local direct APK download to avoid Google Drive virus scan warning pages
-  if (trimmed.includes('drive.google.com') || trimmed.includes('drive.usercontent.google.com')) {
-    return '/downloads/app-release.apk';
+function getPublicApkSize(filename: string, fallback: string): string {
+  try {
+    const filePath = path.join(/*turbopackIgnore: true*/ process.cwd(), 'public', 'downloads', filename);
+    const stat = fs.statSync(filePath);
+    if (stat.isFile() && stat.size > 0) {
+      const mb = stat.size / (1024 * 1024);
+      return `${mb.toFixed(1)} MB`;
+    }
+  } catch {
+    // Use fallback if APK is served via backend rewrite instead of local public/downloads
   }
-  return trimmed;
+  return fallback;
 }
 
 export default async function DownloadPage() {
@@ -86,10 +91,14 @@ export default async function DownloadPage() {
     getWebsiteSettings().catch(() => null),
   ]);
   const standardDownloadUrl = '/downloads/app-release.apk';
+  const universalDownloadUrl = '/downloads/app-universal-release.apk';
   const legacyDownloadUrl = '/downloads/app-release-32bit.apk';
+  const x86_64DownloadUrl = '/downloads/app-x86_64-release.apk';
   const appVersion = release?.version || settings?.latest_app_version || '2.8.7';
-  const standardFileSize = release?.file_size || '33.2 MB';
-  const legacyFileSize = '30.0 MB';
+  const standardFileSize = getPublicApkSize('app-release.apk', release?.file_size || '33.2 MB');
+  const universalFileSize = getPublicApkSize('app-universal-release.apk', '95.2 MB');
+  const legacyFileSize = getPublicApkSize('app-release-32bit.apk', '30.0 MB');
+  const x86_64FileSize = getPublicApkSize('app-x86_64-release.apk', '38.0 MB');
   const isForceUpdate = Boolean(release?.force_update || settings?.force_update === 'true');
   const updateNoticeMessage =
     settings?.banner_message ||
@@ -193,25 +202,38 @@ export default async function DownloadPage() {
             <AutoDownloadTrigger
               version={appVersion}
               downloadUrl={standardDownloadUrl}
+              universalDownloadUrl={universalDownloadUrl}
+              x86_64DownloadUrl={x86_64DownloadUrl}
+              legacyDownloadUrl={legacyDownloadUrl}
               isForceUpdate={isForceUpdate}
             />
           </Suspense>
-          <a
-            href={standardDownloadUrl}
-            download={`NivaTV_arm64_v${appVersion}.apk`}
-            className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-brand-600/20 transition-all"
-          >
-            <Download className="w-4 h-4" />
-            <span>Update to v{appVersion}</span>
-          </a>
+          <div className="shrink-0 flex flex-wrap items-center gap-2">
+            <a
+              href={standardDownloadUrl}
+              download={`NivaTV_arm64_v${appVersion}.apk`}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-brand-600/20 transition-all"
+            >
+              <Download className="w-4 h-4" />
+              <span>Update to v{appVersion}</span>
+            </a>
+            <a
+              href={universalDownloadUrl}
+              download={`NivaTV_universal_v${appVersion}.apk`}
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-line)] hover:border-brand-500/40 text-[var(--color-ink)] text-xs sm:text-sm font-semibold transition-all"
+            >
+              <Globe className="w-4 h-4 text-emerald-500" />
+              <span>Universal APK</span>
+            </a>
+          </div>
         </div>
       )}
 
       {/* Smart Device Auto-Detector Banner */}
       <AndroidAutoDetectBanner />
 
-      {/* Dual Download Cards Grid */}
-      <div className="grid md:grid-cols-2 gap-6 lg:gap-8 mb-12">
+      {/* Primary Download Cards Grid: Standard 64-bit & Universal */}
+      <div className="grid md:grid-cols-2 gap-6 lg:gap-8 mb-6">
         {/* Card 1: Standard (64-bit) - Recommended */}
         <div className="relative rounded-3xl bg-[var(--color-surface)] border-2 border-brand-500 p-6 sm:p-8 flex flex-col justify-between shadow-2xl shadow-brand-500/10 overflow-hidden">
           {/* Recommended Badge */}
@@ -255,7 +277,7 @@ export default async function DownloadPage() {
             <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-5 flex items-center gap-2.5">
               <ShieldCheck className="w-5 h-5 text-emerald-500 dark:text-emerald-400 shrink-0" />
               <div className="text-xs text-[var(--color-ink-muted)]">
-                <strong className="text-emerald-600 dark:text-emerald-400">Compatible with ~95% of devices</strong>: Samsung, Xiaomi, OnePlus,
+                <strong className="text-emerald-600 dark:text-emerald-400">Compatible with ~95% of phones</strong>: Samsung, Xiaomi, OnePlus,
                 Realme, Vivo, OPPO, Android TV, and Fire TV Stick.
               </div>
             </div>
@@ -272,7 +294,7 @@ export default async function DownloadPage() {
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
-                <span>Clean build with stripped debug symbols for quick loading</span>
+                <span>Compact split build for the fastest download</span>
               </li>
             </ul>
           </div>
@@ -293,18 +315,24 @@ export default async function DownloadPage() {
           </div>
         </div>
 
-        {/* Card 2: Legacy (32-bit) */}
-        <div className="relative rounded-3xl bg-[var(--color-surface)] border border-[var(--color-line)] p-6 sm:p-8 flex flex-col justify-between shadow-xl overflow-hidden hover:border-brand-500/30 transition-colors">
+        {/* Card 2: Universal APK (All Devices) */}
+        <div className="relative rounded-3xl bg-[var(--color-surface)] border border-emerald-500/40 p-6 sm:p-8 flex flex-col justify-between shadow-xl overflow-hidden hover:border-emerald-500/70 transition-colors">
+          <div className="absolute top-0 right-0">
+            <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-bl-2xl bg-emerald-600 text-white text-xs font-bold uppercase tracking-wider shadow-md">
+              <Globe className="w-3.5 h-3.5" /> All Devices
+            </span>
+          </div>
+
           <div>
             {/* Icon & Title */}
             <div className="flex items-center gap-4 mb-4 mt-1">
-              <div className="w-14 h-14 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-line)] flex items-center justify-center shrink-0">
-                <Cpu className="w-7 h-7 text-[var(--color-ink-muted)]" />
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                <Package className="w-7 h-7 text-emerald-500" />
               </div>
               <div>
-                <h2 className="text-xl sm:text-2xl font-bold text-[var(--color-ink)]">Legacy (32-bit)</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-[var(--color-ink)]">Universal APK</h2>
                 <p className="text-[var(--color-ink-muted)] text-xs sm:text-sm font-medium">
-                  For older Android phones &amp; budget hardware
+                  Works on any Android phone, TV, or emulator
                 </p>
               </div>
             </div>
@@ -317,54 +345,121 @@ export default async function DownloadPage() {
               </div>
               <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-2.5 text-center">
                 <span className="text-[var(--color-ink-muted)] text-[11px] block font-medium">File Size</span>
-                <span className="text-amber-500 dark:text-amber-400 font-bold text-xs sm:text-sm">{legacyFileSize}</span>
+                <span className="text-emerald-500 dark:text-emerald-400 font-bold text-xs sm:text-sm">{universalFileSize}</span>
               </div>
               <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-xl p-2.5 text-center">
                 <span className="text-[var(--color-ink-muted)] text-[11px] block font-medium">Arch</span>
-                <span className="text-[var(--color-ink)] font-bold text-xs sm:text-sm">ARMeabi-v7a</span>
+                <span className="text-[var(--color-ink)] font-bold text-xs sm:text-sm">Universal</span>
               </div>
             </div>
 
             {/* Device Coverage Indicator */}
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-5 flex items-center gap-2.5">
-              <AlertCircle className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0" />
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-5 flex items-center gap-2.5">
+              <CheckCircle className="w-5 h-5 text-emerald-500 dark:text-emerald-400 shrink-0" />
               <div className="text-xs text-[var(--color-ink-muted)]">
-                <strong className="text-amber-600 dark:text-amber-500">Targeted for legacy architecture</strong>: Older 32-bit phones
-                (pre-2017) or entry-level chipsets that do not support 64-bit instruction sets.
+                <strong className="text-emerald-600 dark:text-emerald-400">100% Architecture Coverage</strong>: Bundles ARM64, ARM32,
+                and x86_64 in one package — no &quot;App not installed&quot; ABI mismatch.
               </div>
             </div>
 
             {/* Feature Highlights */}
             <ul className="space-y-2 mb-6 text-xs sm:text-sm text-[var(--color-ink-muted)]">
               <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-[var(--color-ink-muted)] shrink-0" />
-                <span>Broad compatibility fallback for older devices</span>
+                <CheckCircle className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                <span>Best choice if you aren&apos;t sure which CPU your device runs</span>
               </li>
               <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-[var(--color-ink-muted)] shrink-0" />
-                <span>Ultra-lightweight RAM &amp; storage footprint</span>
+                <CheckCircle className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                <span>Works seamlessly on phones, TV boxes, FireStick &amp; emulators</span>
               </li>
               <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-[var(--color-ink-muted)] shrink-0" />
-                <span>Use if the Standard APK shows &quot;App not installed&quot;</span>
+                <CheckCircle className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                <span>Safe single-file installer to share across different devices</span>
               </li>
             </ul>
           </div>
 
           <div>
             <a
-              href={legacyDownloadUrl}
-              download={`NivaTV_arm32_v${appVersion}.apk`}
-              className="group flex items-center justify-center gap-2.5 w-full py-4 px-6 rounded-2xl bg-[var(--color-surface-2)] border border-[var(--color-line)] hover:bg-[var(--color-surface)] text-[var(--color-ink)] font-bold text-base sm:text-lg transition-all hover:scale-[1.02] active:scale-[0.99]"
+              href={universalDownloadUrl}
+              download={`NivaTV_universal_v${appVersion}.apk`}
+              className="group flex items-center justify-center gap-2.5 w-full py-4 px-6 rounded-2xl bg-[var(--color-surface-2)] border border-emerald-500/40 hover:bg-emerald-600 hover:border-emerald-600 hover:text-white text-[var(--color-ink)] font-bold text-base sm:text-lg transition-all hover:scale-[1.02] active:scale-[0.99]"
             >
-              <Download className="w-5 h-5 text-[var(--color-ink-muted)]" />
-              <span>Download APK (32-bit)</span>
-              <ArrowRight className="w-4 h-4 opacity-50 group-hover:translate-x-1 transition-transform" />
+              <Download className="w-5 h-5 text-emerald-500 group-hover:text-white transition-colors" />
+              <span>Download Universal APK</span>
+              <ArrowRight className="w-4 h-4 opacity-70 group-hover:translate-x-1 transition-transform" />
             </a>
             <p className="text-center text-[11px] text-[var(--color-ink-muted)] mt-2.5">
-              Alternative build • Recommended only for 32-bit hardware
+              ARM64 + ARM32 + x86_64 • Guaranteed compatibility
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Architecture-Specific Builds Grid: Legacy (32-bit) & x86_64 */}
+      <div className="grid md:grid-cols-2 gap-6 mb-12">
+        {/* Card 3: Legacy (32-bit) */}
+        <div className="rounded-2xl bg-[var(--color-surface)] border border-[var(--color-line)] p-5 sm:p-6 flex flex-col justify-between hover:border-brand-500/30 transition-colors">
+          <div>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-line)] flex items-center justify-center shrink-0">
+                  <Cpu className="w-5 h-5 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-[var(--color-ink)]">Legacy (32-bit)</h3>
+                  <p className="text-xs text-[var(--color-ink-muted)]">ARMeabi-v7a • {legacyFileSize}</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-[11px] font-semibold">
+                Pre-2017 Phones
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-[var(--color-ink-muted)] leading-relaxed mb-4">
+              Lightweight 32-bit build for older Android phones (2013–2016) or 32-bit TV sticks without 64-bit CPU support.
+            </p>
+          </div>
+          <a
+            href={legacyDownloadUrl}
+            download={`NivaTV_arm32_v${appVersion}.apk`}
+            className="group flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-line)] hover:border-brand-500/40 text-[var(--color-ink)] font-bold text-sm transition-all"
+          >
+            <Download className="w-4 h-4 text-[var(--color-ink-muted)]" />
+            <span>Download APK (32-bit)</span>
+            <ArrowRight className="w-4 h-4 opacity-50 group-hover:translate-x-1 transition-transform" />
+          </a>
+        </div>
+
+        {/* Card 4: x86_64 (Emulator / Intel Tablet / Chromebook) */}
+        <div className="rounded-2xl bg-[var(--color-surface)] border border-[var(--color-line)] p-5 sm:p-6 flex flex-col justify-between hover:border-brand-500/30 transition-colors">
+          <div>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-line)] flex items-center justify-center shrink-0">
+                  <Laptop className="w-5 h-5 text-brand-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-[var(--color-ink)]">x86_64 Build</h3>
+                  <p className="text-xs text-[var(--color-ink-muted)]">x86_64 • {x86_64FileSize}</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-600 dark:text-brand-400 text-[11px] font-semibold">
+                Emulators &amp; Intel
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-[var(--color-ink-muted)] leading-relaxed mb-4">
+              Dedicated 64-bit x86 APK for Android emulators, Chromebooks, Windows Subsystem for Android, and Intel tablets.
+            </p>
+          </div>
+          <a
+            href={x86_64DownloadUrl}
+            download={`NivaTV_x86_64_v${appVersion}.apk`}
+            className="group flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-line)] hover:border-brand-500/40 text-[var(--color-ink)] font-bold text-sm transition-all"
+          >
+            <Download className="w-4 h-4 text-[var(--color-ink-muted)]" />
+            <span>Download APK (x86_64)</span>
+            <ArrowRight className="w-4 h-4 opacity-50 group-hover:translate-x-1 transition-transform" />
+          </a>
         </div>
       </div>
 
@@ -390,7 +485,7 @@ export default async function DownloadPage() {
             </div>
             <div>
               <span className="text-[var(--color-ink-muted)] text-xs block mb-1">Architecture</span>
-              <span className="text-[var(--color-ink)] font-semibold text-sm">ARM64 / ARM32</span>
+              <span className="text-[var(--color-ink)] font-semibold text-sm">Universal, ARM64, ARM32 &amp; x86_64</span>
             </div>
             <div>
               <span className="text-[var(--color-ink-muted)] text-xs block mb-1">Optimized Size</span>
@@ -449,7 +544,7 @@ export default async function DownloadPage() {
         </div>
 
         <div className="grid md:grid-cols-5 gap-4 relative">
-          {INSTALL_STEPS.map((s, index) => (
+          {INSTALL_STEPS.map((s) => (
             <div
               key={s.step}
               className="bg-[var(--color-surface)] border border-[var(--color-line)] rounded-2xl p-5 flex flex-col justify-between hover:border-brand-500/30 transition-colors"

@@ -8,7 +8,7 @@ import '../cubits/mini_player_cubit.dart';
 import '../cubits/favorite_cubit.dart';
 import '../cubits/license_cubit.dart';
 import '../cubits/app_config_cubit.dart';
-import 'force_update_screen.dart';
+import '../utils/force_update_helper.dart';
 import '../models/channel_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
@@ -50,23 +50,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     AppNavItem(icon: Icons.person_rounded, label: 'Profile'),
   ];
 
-  bool _isVersionBelow(String current, String target) {
-    try {
-      final cParts = current.split('.').map((s) => int.tryParse(s.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0).toList();
-      final tParts = target.split('.').map((s) => int.tryParse(s.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0).toList();
-      final maxLen = cParts.length > tParts.length ? cParts.length : tParts.length;
-      for (int i = 0; i < maxLen; i++) {
-        final c = i < cParts.length ? cParts[i] : 0;
-        final t = i < tParts.length ? tParts[i] : 0;
-        if (c < t) return true;
-        if (c > t) return false;
-      }
-      return false;
-    } catch (_) {
-      return false;
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -100,10 +83,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       await context.read<AppConfigCubit>().fetchConfig();
       if (!mounted) return;
       final cubit = context.read<AppConfigCubit>();
-      if (cubit.isForceUpdate && _isVersionBelow(AppConstants.appVersion, cubit.minAppVersion)) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const ForceUpdateScreen()),
-          (route) => false,
+      final state = cubit.state;
+      if (state is AppConfigForceUpdateRequired) {
+        ForceUpdateHelper.navigateToForceUpdate(
+          info: state.info,
+          navigator: Navigator.of(context),
+        );
+        return;
+      }
+      if (cubit.isForceUpdate &&
+          ForceUpdateHelper.isVersionBelow(AppConstants.appVersion, cubit.minAppVersion)) {
+        ForceUpdateHelper.navigateToForceUpdate(
+          info: cubit.forceUpdateInfo,
+          navigator: Navigator.of(context),
         );
       }
     } catch (_) {}
@@ -305,7 +297,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
       body: SafeArea(
         child: BlocBuilder<HomeCubit, HomeState>(
           builder: (context, state) {
-            if (state is HomeLoading) return const HomeSkeleton();
+            if (state is HomeLoading || state is HomeForceUpdateRequired) return const HomeSkeleton();
             if (state is HomeError) return _buildFullError(state.message);
             if (state is HomeLoaded) return _buildContent(state);
             return const HomeSkeleton();

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../services/api_service.dart';
+import '../utils/force_update_helper.dart';
 
 class ReportProblemScreen extends StatefulWidget {
   const ReportProblemScreen({super.key});
@@ -90,6 +91,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
         setState(() => _error = response['message']?.toString() ?? 'Failed to submit');
       }
     } on DioException catch (e) {
+      if (ForceUpdateHelper.isForceUpdateException(e)) return;
       setState(() =>
           _error = (e.response?.data as Map?)?['message']?.toString() ?? 'Network error. Please try again.');
     } finally {

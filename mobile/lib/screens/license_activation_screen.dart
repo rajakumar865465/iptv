@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
 import '../cubits/license_cubit.dart';
+import '../utils/force_update_helper.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'payment_screen.dart';
@@ -120,7 +121,15 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
       ),
       body: BlocConsumer<LicenseCubit, LicenseState>(
         listener: (context, state) {
+          if (state is LicenseForceUpdateRequired) {
+            ForceUpdateHelper.navigateToForceUpdate(
+              info: state.info,
+              navigator: Navigator.of(context),
+            );
+            return;
+          }
           if (state is LicenseActive) {
+            if (ForceUpdateHelper.isActive) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Row(
@@ -141,6 +150,7 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
               MaterialPageRoute(builder: (_) => const HomeScreen()),
             );
           } else if (state is LicenseError) {
+            if (ForceUpdateHelper.isActive) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Row(

@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../models/channel_model.dart';
 import '../constants.dart';
+import '../utils/force_update_helper.dart';
 
 // ─── States ───────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,11 @@ class HomeLoaded extends HomeState {
       popularChannels.isNotEmpty ||
       featuredChannels.isNotEmpty ||
       categories.isNotEmpty;
+}
+
+class HomeForceUpdateRequired extends HomeState {
+  final ForceUpdateInfo? info;
+  HomeForceUpdateRequired([this.info]);
 }
 
 class HomeError extends HomeState {
@@ -135,6 +141,10 @@ class HomeCubit extends Cubit<HomeState> {
     } catch (e) {
       developer.log('[HomeCubit] Error: $e', name: 'HomeCubit');
       if (isClosed) return;
+      if (ForceUpdateHelper.isForceUpdateException(e)) {
+        emit(HomeForceUpdateRequired(ForceUpdateHelper.extractInfo(e)));
+        return;
+      }
       emit(HomeError('Unable to load home. Please check your connection.'));
     }
   }

@@ -242,7 +242,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
       body: SafeArea(
         child: BlocBuilder<ChannelCubit, ChannelState>(
           builder: (context, state) {
-            if (state is ChannelLoading) return const LiveTvSkeleton();
+            if (state is ChannelLoading || state is ChannelForceUpdateRequired) return const LiveTvSkeleton();
             if (state is ChannelError) {
               return EmptyStateWidget(
                 icon: Icons.wifi_off_rounded,

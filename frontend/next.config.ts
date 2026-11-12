@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 // Backend URL: use env var in production, fallback to localhost for development.
@@ -49,7 +50,7 @@ const nextConfig: NextConfig = {
     ],
   },
   // Silence "multiple lockfiles" warning — our root is the frontend dir
-  outputFileTracingRoot: require('path').join(__dirname),
+  outputFileTracingRoot: path.join(__dirname),
   // Required for nginx to proxy correctly on EC2
   async rewrites() {
     return [
@@ -74,8 +75,14 @@ const nextConfig: NextConfig = {
         source: '/downloads/:path*',
         headers: [
           { key: 'Content-Disposition', value: 'attachment' },
-          { key: 'Content-Type', value: 'application/vnd.android.package-archive' },
           { key: 'Cache-Control', value: 'public, max-age=3600, must-revalidate' },
+        ],
+      },
+      {
+        source: '/downloads/:filename([^/]+\\.apk)',
+        headers: [
+          { key: 'Content-Disposition', value: 'attachment; filename=":filename"' },
+          { key: 'Content-Type', value: 'application/vnd.android.package-archive' },
         ],
       },
       {

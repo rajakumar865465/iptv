@@ -1,13 +1,10 @@
 import 'dart:developer' as developer;
-import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../constants.dart';
-import '../main.dart';
-import '../screens/force_update_screen.dart';
+import '../utils/backend_config.dart';
+import '../utils/force_update_helper.dart';
 import 'storage_service.dart';
 import 'token_refresh_service.dart';
-
-import '../utils/backend_config.dart';
 
 class ApiService {
   late Dio _dio;
@@ -18,17 +15,12 @@ class ApiService {
       baseUrl: BackendConfig.baseUrl,
       connectTimeout: const Duration(milliseconds: AppConstants.connectTimeout),
       receiveTimeout: const Duration(milliseconds: AppConstants.receiveTimeout),
-      headers: {
-        'Content-Type': 'application/json',
-        'X-App-Version': AppConstants.appVersion,
-        'User-Agent': 'NivaTV/${AppConstants.appVersion} (Android; Dart/3.13)',
-      },
+      headers: ForceUpdateHelper.appHeaders,
     ));
 
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        options.headers['X-App-Version'] = AppConstants.appVersion;
-        options.headers['User-Agent'] = 'NivaTV/${AppConstants.appVersion} (Android; Dart/3.13)';
+        ForceUpdateHelper.applyAppHeaders(options.headers);
         final token = await _storage.getToken();
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
@@ -54,13 +46,9 @@ class ApiService {
         );
 
         // Intercept mandatory force update response (HTTP 426 Upgrade Required)
-        if (error.response?.statusCode == 426 ||
-            (error.response?.data is Map && error.response?.data['error'] == 'FORCE_UPDATE_REQUIRED')) {
+        if (ForceUpdateHelper.isForceUpdateException(error)) {
           developer.log('[API] 426 FORCE_UPDATE_REQUIRED received — routing to ForceUpdateScreen', name: 'ApiService');
-          appNavigatorKey.currentState?.pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const ForceUpdateScreen()),
-            (route) => false,
-          );
+          ForceUpdateHelper.handleDioError(error);
           return handler.next(error);
         }
 

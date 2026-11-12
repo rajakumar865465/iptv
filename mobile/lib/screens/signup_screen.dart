@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
 import '../cubits/auth_cubit.dart';
+import '../utils/force_update_helper.dart';
 import 'license_activation_screen.dart';
 import 'login_screen.dart';
 
@@ -78,11 +79,20 @@ class _SignupScreenState extends State<SignupScreen> {
       ),
       body: BlocConsumer<AuthCubit, AuthState>(
         listener: (context, state) {
+          if (state is AuthForceUpdateRequired) {
+            ForceUpdateHelper.navigateToForceUpdate(
+              info: state.info,
+              navigator: Navigator.of(context),
+            );
+            return;
+          }
           if (state is AuthAuthenticated) {
+            if (ForceUpdateHelper.isActive) return;
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),
             );
           } else if (state is AuthError) {
+            if (ForceUpdateHelper.isActive) return;
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

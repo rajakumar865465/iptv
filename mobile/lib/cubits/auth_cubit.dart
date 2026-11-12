@@ -7,6 +7,7 @@ import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
 import '../services/token_refresh_service.dart';
+import '../utils/force_update_helper.dart';
 
 // States
 abstract class AuthState {}
@@ -18,6 +19,10 @@ class AuthLoading extends AuthState {
 }
 class AuthAuthenticated extends AuthState {}
 class AuthUnauthenticated extends AuthState {}
+class AuthForceUpdateRequired extends AuthState {
+  final ForceUpdateInfo? info;
+  AuthForceUpdateRequired([this.info]);
+}
 class AuthError extends AuthState {
   final String message;
   AuthError(this.message);
@@ -61,6 +66,10 @@ class AuthCubit extends Cubit<AuthState> {
         emit(AuthError('Login failed'));
       }
     } catch (e) {
+      if (ForceUpdateHelper.isForceUpdateException(e)) {
+        emit(AuthForceUpdateRequired(ForceUpdateHelper.extractInfo(e)));
+        return;
+      }
       if (e is DioException) {
         final statusCode = e.response?.statusCode;
         // On Flutter web, Dio returns error response bodies as raw String instead of
@@ -169,6 +178,10 @@ class AuthCubit extends Cubit<AuthState> {
       }
     } catch (e) {
       developer.log('loginWithGoogle error: $e');
+      if (ForceUpdateHelper.isForceUpdateException(e)) {
+        emit(AuthForceUpdateRequired(ForceUpdateHelper.extractInfo(e)));
+        return;
+      }
       final errorStr = e.toString().toLowerCase();
 
       if (errorStr.contains('device_limit_reached')) {
@@ -213,6 +226,10 @@ class AuthCubit extends Cubit<AuthState> {
         emit(AuthError('Signup failed'));
       }
     } catch (e) {
+      if (ForceUpdateHelper.isForceUpdateException(e)) {
+        emit(AuthForceUpdateRequired(ForceUpdateHelper.extractInfo(e)));
+        return;
+      }
       if (e is DioException) {
         final statusCode = e.response?.statusCode;
         var rawS = e.response?.data;
@@ -261,6 +278,10 @@ class AuthCubit extends Cubit<AuthState> {
           emit(AuthUnauthenticated());
         }
       } catch (e) {
+        if (ForceUpdateHelper.isForceUpdateException(e)) {
+          emit(AuthForceUpdateRequired(ForceUpdateHelper.extractInfo(e)));
+          return;
+        }
         if (e is DioException && (e.response?.statusCode == 401 || e.response?.statusCode == 403)) {
           // Confirmed invalid token — clear auth data only, preserve app settings.
           await _storage.clearAuthData();

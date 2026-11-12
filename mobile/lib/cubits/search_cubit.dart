@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../services/api_service.dart';
 import '../models/channel_model.dart';
 import '../constants.dart';
+import '../utils/force_update_helper.dart';
 
 abstract class SearchState {}
 
@@ -15,6 +16,11 @@ class SearchLoaded extends SearchState {
   final String query;
 
   SearchLoaded(this.channels, this.query);
+}
+
+class SearchForceUpdateRequired extends SearchState {
+  final ForceUpdateInfo? info;
+  SearchForceUpdateRequired([this.info]);
 }
 
 class SearchError extends SearchState {
@@ -76,6 +82,10 @@ class SearchCubit extends Cubit<SearchState> {
     } catch (e) {
       developer.log('[SearchCubit] Error searching: $e', name: 'SearchCubit');
       if (isClosed) return;
+      if (ForceUpdateHelper.isForceUpdateException(e)) {
+        emit(SearchForceUpdateRequired(ForceUpdateHelper.extractInfo(e)));
+        return;
+      }
       emit(SearchError('Unable to search. Please check your connection.'));
     }
   }

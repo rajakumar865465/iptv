@@ -6,8 +6,8 @@ import '../cubits/license_cubit.dart';
 import '../cubits/channel_cubit.dart';
 import '../constants.dart';
 import '../services/storage_service.dart';
+import '../utils/force_update_helper.dart';
 import 'blocked_screen.dart';
-import 'force_update_screen.dart';
 import 'home_screen.dart';
 import 'license_activation_screen.dart';
 import 'license_expired_screen.dart';
@@ -24,23 +24,6 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  bool _isVersionBelow(String current, String target) {
-    try {
-      final cParts = current.split('.').map((s) => int.tryParse(s.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0).toList();
-      final tParts = target.split('.').map((s) => int.tryParse(s.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0).toList();
-      final maxLen = cParts.length > tParts.length ? cParts.length : tParts.length;
-      for (int i = 0; i < maxLen; i++) {
-        final c = i < cParts.length ? cParts[i] : 0;
-        final t = i < tParts.length ? tParts[i] : 0;
-        if (c < t) return true;
-        if (c > t) return false;
-      }
-      return false;
-    } catch (_) {
-      return false;
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -67,6 +50,13 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!context.mounted) return;
 
     final appConfig = context.read<AppConfigCubit>().state;
+    if (appConfig is AppConfigForceUpdateRequired) {
+      ForceUpdateHelper.navigateToForceUpdate(
+        info: appConfig.info,
+        navigator: Navigator.of(context),
+      );
+      return;
+    }
     if (appConfig is AppConfigLoaded) {
       final config = appConfig.config;
 
@@ -81,9 +71,10 @@ class _SplashScreenState extends State<SplashScreen> {
       // Check force update (only blocks if running version is below minimum_app_version)
       if (config['force_update'] == 'true') {
         final minVersion = config['minimum_app_version'] ?? '1.0.0';
-        if (_isVersionBelow(AppConstants.appVersion, minVersion)) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const ForceUpdateScreen()),
+        if (ForceUpdateHelper.isVersionBelow(AppConstants.appVersion, minVersion)) {
+          ForceUpdateHelper.navigateToForceUpdate(
+            info: ForceUpdateInfo.fromConfig(config),
+            navigator: Navigator.of(context),
           );
           return;
         }
@@ -107,6 +98,15 @@ class _SplashScreenState extends State<SplashScreen> {
         try {
           meResult = await authCubit.me(throwOnError: true);
         } catch (e) {
+          if (ForceUpdateHelper.isForceUpdateException(e)) {
+            if (context.mounted) {
+              ForceUpdateHelper.navigateToForceUpdate(
+                info: ForceUpdateHelper.extractInfo(e),
+                navigator: Navigator.of(context),
+              );
+            }
+            return;
+          }
           if (e is DioException) {
             if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
               // Access token expired (15-min lifetime). Try to rotate it via the
@@ -115,6 +115,15 @@ class _SplashScreenState extends State<SplashScreen> {
               try {
                 refreshed = await authCubit.tryRefresh();
               } catch (refreshErr) {
+                if (ForceUpdateHelper.isForceUpdateException(refreshErr)) {
+                  if (context.mounted) {
+                    ForceUpdateHelper.navigateToForceUpdate(
+                      info: ForceUpdateHelper.extractInfo(refreshErr),
+                      navigator: Navigator.of(context),
+                    );
+                  }
+                  return;
+                }
                 // If refresh throws (e.g. network timeout), don't clear the session.
                 isTemporaryError = true;
               }
@@ -123,6 +132,15 @@ class _SplashScreenState extends State<SplashScreen> {
                 try {
                   meResult = await authCubit.me(throwOnError: true);
                 } catch (e2) {
+                  if (ForceUpdateHelper.isForceUpdateException(e2)) {
+                    if (context.mounted) {
+                      ForceUpdateHelper.navigateToForceUpdate(
+                        info: ForceUpdateHelper.extractInfo(e2),
+                        navigator: Navigator.of(context),
+                      );
+                    }
+                    return;
+                  }
                   // Refresh succeeded but /me still failed — fall through to
                   // the temporary-error handling below if it's not a hard 401/403.
                   if (e2 is DioException &&
@@ -162,6 +180,8 @@ class _SplashScreenState extends State<SplashScreen> {
           }
         }
 
+        if (ForceUpdateHelper.isActive) return;
+
         // Only force login if the /me call returned a non-success 200 response
         // (i.e., API responded but explicitly said the session is invalid).
         // Temporary errors keep the token alive so the user stays logged in.
@@ -191,13 +211,30 @@ class _SplashScreenState extends State<SplashScreen> {
         if (!context.mounted) return;
 
         final licenseState = context.read<LicenseCubit>().state;
+        if (licenseState is LicenseForceUpdateRequired) {
+          ForceUpdateHelper.navigateToForceUpdate(
+            info: licenseState.info,
+            navigator: Navigator.of(context),
+          );
+          return;
+        }
+        if (ForceUpdateHelper.isActive) return;
+
         if (licenseState is LicenseActive || (isTemporaryError && licenseState is LicenseError)) {
           await context.read<ChannelCubit>().loadChannels();
-          if (context.mounted) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const HomeScreen()),
+          if (!context.mounted) return;
+          final channelState = context.read<ChannelCubit>().state;
+          if (channelState is ChannelForceUpdateRequired) {
+            ForceUpdateHelper.navigateToForceUpdate(
+              info: channelState.info,
+              navigator: Navigator.of(context),
             );
+            return;
           }
+          if (ForceUpdateHelper.isActive) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
         } else if (licenseState is LicenseExpired) {
           if (context.mounted) {
             Navigator.of(context).pushReplacement(
@@ -218,6 +255,15 @@ class _SplashScreenState extends State<SplashScreen> {
           }
         }
       } catch (e) {
+        if (ForceUpdateHelper.isForceUpdateException(e) || ForceUpdateHelper.isActive) {
+          if (context.mounted) {
+            ForceUpdateHelper.navigateToForceUpdate(
+              info: ForceUpdateHelper.extractInfo(e),
+              navigator: Navigator.of(context),
+            );
+          }
+          return;
+        }
         // On unexpected error, fall back to login
         if (context.mounted) {
           Navigator.of(context).pushReplacement(

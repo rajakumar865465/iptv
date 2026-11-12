@@ -2,6 +2,12 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "browserslist": [
+    "chrome 83",
+    "edge 83",
+    "firefox 78",
+    "safari 13.1"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",

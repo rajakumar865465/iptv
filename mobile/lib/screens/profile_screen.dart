@@ -9,6 +9,7 @@ import '../cubits/theme_cubit.dart';
 import '../models/license_model.dart';
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
+import '../utils/force_update_helper.dart';
 import '../widgets/profile/edit_profile_sheet.dart';
 import '../widgets/profile/license_status_card.dart';
 import '../widgets/profile/profile_header_card.dart';
@@ -756,8 +757,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } else if (state is LicenseExpired) {
       license = state.license;
       isExpired = true;
+    } else if (state is LicenseForceUpdateRequired) {
+      error = null;
     } else if (state is LicenseError) {
-      if (!state.message.contains('DioException') && !state.message.contains('401')) {
+      if (!ForceUpdateHelper.isActive &&
+          !state.message.contains('DioException') &&
+          !state.message.contains('401') &&
+          !state.message.contains('426') &&
+          !state.message.contains('FORCE_UPDATE_REQUIRED')) {
         error = state.message;
       }
     }

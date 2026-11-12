@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../services/api_service.dart';
 import '../models/license_model.dart';
 import '../constants.dart';
+import '../utils/force_update_helper.dart';
 
 abstract class LicenseState {}
 
@@ -17,6 +18,10 @@ class LicenseExpired extends LicenseState {
   LicenseExpired(this.license);
 }
 class LicenseNone extends LicenseState {}
+class LicenseForceUpdateRequired extends LicenseState {
+  final ForceUpdateInfo? info;
+  LicenseForceUpdateRequired([this.info]);
+}
 class LicenseError extends LicenseState {
   final String message;
   LicenseError(this.message);
@@ -57,6 +62,10 @@ class LicenseCubit extends Cubit<LicenseState> {
       }
     } catch (e) {
       if (isClosed) return;
+      if (ForceUpdateHelper.isForceUpdateException(e)) {
+        emit(LicenseForceUpdateRequired(ForceUpdateHelper.extractInfo(e)));
+        return;
+      }
       if (e is DioException) {
         if (e.response?.statusCode == 401) {
           // Guest or unauthenticated user: no active license
@@ -88,6 +97,10 @@ class LicenseCubit extends Cubit<LicenseState> {
       }
     } catch (e) {
       if (isClosed) return;
+      if (ForceUpdateHelper.isForceUpdateException(e)) {
+        emit(LicenseForceUpdateRequired(ForceUpdateHelper.extractInfo(e)));
+        return;
+      }
       if (e is DioException) {
         final data = e.response?.data;
         if (data is Map && data['error'] == 'DEVICE_LIMIT_REACHED') {
