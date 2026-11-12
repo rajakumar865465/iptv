@@ -35,7 +35,12 @@ export default function AutoDownloadTrigger({
 
   const archParam = searchParams.get('arch');
   const ua = typeof window !== 'undefined' ? window.navigator.userAgent || '' : '';
-  const isX86Android = /Android/i.test(ua) && /\b(x86_64|x86|i686|gphone_x86|emulator)\b/i.test(ua);
+  const platform = typeof window !== 'undefined' ? window.navigator.platform || '' : '';
+  const isX86Android =
+    /Android/i.test(ua) &&
+    /(?:^|[^a-z0-9])(x86_64|x86|i686|gphone_x86|gphone64_x86|emulator)(?:$|[^a-z0-9])/i.test(
+      `${ua} ${platform}`
+    );
 
   let resolvedUrl = downloadUrl;
   if (archParam === 'universal' && universalDownloadUrl) {

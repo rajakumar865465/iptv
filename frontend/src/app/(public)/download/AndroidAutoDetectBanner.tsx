@@ -10,8 +10,11 @@ const emptySubscribe = () => () => {};
 function getClientDeviceType(): DeviceType {
   if (typeof window === 'undefined') return null;
   const ua = window.navigator.userAgent || '';
+  const platform = window.navigator.platform || '';
   if (/Android/i.test(ua)) {
-    return /\b(x86_64|x86|i686|gphone_x86|emulator)\b/i.test(ua)
+    return /(?:^|[^a-z0-9])(x86_64|x86|i686|gphone_x86|gphone64_x86|emulator)(?:$|[^a-z0-9])/i.test(
+      `${ua} ${platform}`
+    )
       ? 'android-x86'
       : 'android';
   }
@@ -56,7 +59,8 @@ export default function AndroidAutoDetectBanner() {
               ) : (
                 <>
                   Recommended: <strong className="text-[var(--color-ink)]">Standard 64-bit APK</strong> for modern phones, or{' '}
-                  <strong className="text-[var(--color-ink)]">Universal APK</strong> if you&apos;re unsure.
+                  <strong className="text-[var(--color-ink)]">Universal APK</strong>{' '}
+                  if you&apos;re unsure.
                 </>
               )}
             </p>
