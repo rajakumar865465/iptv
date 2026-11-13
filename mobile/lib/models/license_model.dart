@@ -25,31 +25,72 @@ class LicenseModel {
 
   factory LicenseModel.fromJson(Map<String, dynamic> json) {
     return LicenseModel(
-      id: json['id'],
-      licenseKey: json['license_key'],
-      status: json['status'],
-      planName: json['plan_name'],
-      planTier: json['plan_tier'] ?? 'free',
-      durationDays: json['duration_days'],
-      maxDevices: json['max_devices'],
-      activatedAt: json['activated_at'] != null ? DateTime.parse(json['activated_at']) : null,
-      expiresAt: json['expires_at'] != null ? DateTime.parse(json['expires_at']) : null,
-      remainingDays: json['remaining_days'],
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      licenseKey: json['license_key']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'none',
+      planName: json['plan_name']?.toString(),
+      planTier: json['plan_tier']?.toString() ?? 'free',
+      durationDays: (json['duration_days'] as num?)?.toInt(),
+      maxDevices: (json['max_devices'] as num?)?.toInt(),
+      activatedAt: json['activated_at'] != null ? DateTime.tryParse(json['activated_at'].toString()) : null,
+      expiresAt: json['expires_at'] != null ? DateTime.tryParse(json['expires_at'].toString()) : null,
+      remainingDays: (json['remaining_days'] as num?)?.toInt(),
     );
   }
 
-  bool get isActive => status == 'active';
-  bool get isExpired => status == 'expired';
-  bool get isRevoked => status == 'revoked';
-  bool get isPremium => durationDays != null && durationDays! > 1;
-  bool get isSuspended => status == 'suspended';
-  bool get hasProAccess => planTier == 'pro' || planTier == 'plus';
-  bool get hasPlusAccess => planTier == 'plus';
+  String get normalizedStatus => status.trim().toLowerCase();
+
+  String get normalizedTier {
+    final t = planTier.trim().toLowerCase();
+    if (t == 'plus' || t == 'pro' || t == 'starter' || t == 'free') return t;
+    return 'free';
+  }
+
+  bool get isTrial => normalizedStatus == 'trial';
+  bool get isRevoked => normalizedStatus == 'revoked';
+  bool get isSuspended => normalizedStatus == 'suspended';
+  bool get isBlocked => normalizedStatus == 'blocked';
+  bool get isPendingPayment => normalizedStatus == 'pending_payment';
+
+  bool get isDateExpired {
+    if (expiresAt != null && !expiresAt!.isAfter(DateTime.now())) {
+      return true;
+    }
+    if (remainingDays != null && remainingDays! <= 0) {
+      return true;
+    }
+    return false;
+  }
+
+  bool get isEffectiveActive {
+    if (normalizedStatus != 'active' && normalizedStatus != 'trial') {
+      return false;
+    }
+    return !isDateExpired;
+  }
+
+  bool get isActive => isEffectiveActive;
+  bool get isExpired => normalizedStatus == 'expired' || ((normalizedStatus == 'active' || normalizedStatus == 'trial') && isDateExpired);
+
+  bool get hasProAccess =>
+      isEffectiveActive && (normalizedTier == 'pro' || normalizedTier == 'plus');
+  bool get hasPlusAccess => isEffectiveActive && normalizedTier == 'plus';
+  bool get isPremium => hasProAccess;
+
+  bool canAccessChannelTier(String channelTier) {
+    final ch = channelTier.trim().toLowerCase();
+    if (ch.isEmpty || ch == 'free') return true;
+    if (!isEffectiveActive) return false;
+    if (ch == 'pro') return hasProAccess;
+    if (ch == 'plus') return hasPlusAccess;
+    return false;
+  }
 }
 
 class PlanModel {
   final int id;
   final String name;
+  final String planTier;
   final double price;
   final int durationDays;
   final int maxDevices;
@@ -62,6 +103,7 @@ class PlanModel {
   PlanModel({
     required this.id,
     required this.name,
+    this.planTier = 'free',
     required this.price,
     required this.durationDays,
     required this.maxDevices,
@@ -74,16 +116,17 @@ class PlanModel {
 
   factory PlanModel.fromJson(Map<String, dynamic> json) {
     return PlanModel(
-      id: json['id'],
-      name: json['name'] ?? '',
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      name: json['name']?.toString() ?? '',
+      planTier: (json['plan_tier']?.toString() ?? 'free').trim().toLowerCase(),
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
-      durationDays: json['duration_days'] ?? 0,
-      maxDevices: json['max_devices'] ?? 1,
-      description: json['description'],
+      durationDays: (json['duration_days'] as num?)?.toInt() ?? 0,
+      maxDevices: (json['max_devices'] as num?)?.toInt() ?? 1,
+      description: json['description']?.toString(),
       isPopular: json['is_popular'] == true,
       isBestValue: json['is_best_value'] == true,
       regularPrice: (json['regular_price'] as num?)?.toDouble(),
-      offerLabel: json['offer_label'],
+      offerLabel: json['offer_label']?.toString(),
     );
   }
 }

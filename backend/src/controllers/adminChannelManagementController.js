@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const { logAudit } = require('../utils/auditLogger');
 const { runImportJob } = require('../jobs/m3u_import_engine');
+const cache = require('../utils/cache');
 
 // --- HIDE CHANNEL ---
 exports.hideChannel = async (req, res) => {
@@ -38,6 +39,7 @@ exports.hideChannel = async (req, res) => {
       old_value: { is_hidden: false }, new_value: { is_hidden: true }, reason,
       ip_address: req.ip, user_agent: req.get('User-Agent')
     });
+    cache.invalidateChannelCaches();
 
     success(res, { message: 'Channel hidden successfully' });
   } catch (err) {
@@ -78,6 +80,7 @@ exports.removeChannel = async (req, res) => {
       old_value: { is_removed: false }, new_value: { is_removed: true }, reason,
       ip_address: req.ip, user_agent: req.get('User-Agent')
     });
+    cache.invalidateChannelCaches();
 
     success(res, { message: 'Channel removed from public successfully' });
   } catch (err) {
@@ -110,6 +113,7 @@ exports.restoreChannel = async (req, res) => {
       new_value: { is_hidden: false, is_removed: false },
       ip_address: req.ip, user_agent: req.get('User-Agent')
     });
+    cache.invalidateChannelCaches();
 
     success(res, { message: 'Channel restored successfully' });
   } catch (err) {
@@ -136,6 +140,7 @@ exports.restoreAllHiddenChannels = async (req, res) => {
       new_value: { is_hidden: false, is_removed: false, restored_count: result.rowCount },
       ip_address: req.ip, user_agent: req.get('User-Agent')
     });
+    cache.invalidateChannelCaches();
 
     success(res, { message: `${result.rowCount} hidden channels restored successfully` });
   } catch (err) {

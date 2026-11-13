@@ -4,6 +4,7 @@ import '../constants.dart';
 import '../cubits/auth_cubit.dart';
 import '../cubits/license_cubit.dart';
 import '../utils/force_update_helper.dart';
+import 'blocked_screen.dart';
 import 'home_screen.dart';
 import 'license_activation_screen.dart';
 import 'license_expired_screen.dart';
@@ -48,9 +49,17 @@ class _LoginScreenState extends State<LoginScreen> {
           MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
       } else if (licenseState is LicenseExpired) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const LicenseExpiredScreen()),
-        );
+        if (licenseState.license?.isBlocked == true) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const BlockedScreen()),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => LicenseExpiredScreen(license: licenseState.license),
+            ),
+          );
+        }
       } else {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),

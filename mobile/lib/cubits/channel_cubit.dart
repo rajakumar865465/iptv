@@ -69,6 +69,7 @@ class ChannelCubit extends Cubit<ChannelState> {
   String? _qualityFilter; // hd | sd | 4k
   String _sortBy = 'recommended'; // recommended | popular | premium | az | recent | quality | stable | number | watched | updated
   String _premiumFilter = 'all'; // all | true | false
+  String? _tierFilter; // null | 'free' | 'pro' | 'plus'
 
   // Track what filter was active when chips were last loaded so we know when to reload them
   int? _chipsLoadedForCategoryId;  // category used when language chips were last fetched
@@ -83,6 +84,7 @@ class ChannelCubit extends Cubit<ChannelState> {
   String? get qualityFilter => _qualityFilter;
   String get sortBy => _sortBy;
   String get premiumFilter => _premiumFilter;
+  String? get tierFilter => _tierFilter;
   bool get workingOnly => _workingOnly;
   String get currentQuery => _currentQuery;
 
@@ -93,7 +95,8 @@ class ChannelCubit extends Cubit<ChannelState> {
       _genreFilter != null ||
       _countryFilter != null ||
       _qualityFilter != null ||
-      _premiumFilter != 'all';
+      _premiumFilter != 'all' ||
+      _tierFilter != null;
 
   /// Clear all directory filters so search or directory returns to full catalog.
   void clearFilters() {
@@ -104,6 +107,7 @@ class ChannelCubit extends Cubit<ChannelState> {
     _countryFilter = null;
     _qualityFilter = null;
     _premiumFilter = 'all';
+    _tierFilter = null;
     _sortBy = 'recommended';
   }
 
@@ -120,6 +124,7 @@ class ChannelCubit extends Cubit<ChannelState> {
     String? quality,
     String? sortBy,
     String? premiumFilter,
+    String? tierFilter,
     // When false, omit page/limit so the server returns the FULL filtered set in
     // one response — used by the Live TV directory to build A–Z / quick sections.
     bool paginate = true,
@@ -178,6 +183,10 @@ class ChannelCubit extends Cubit<ChannelState> {
 
     if (sortBy != null) _sortBy = sortBy;
     if (premiumFilter != null) _premiumFilter = premiumFilter;
+    if (tierFilter != null) {
+      final cleanTier = tierFilter.trim().toLowerCase();
+      _tierFilter = (cleanTier.isEmpty || cleanTier == 'all') ? null : cleanTier;
+    }
 
     // When category filter changes, language chip counts must be reloaded for that category.
     // When language filter changes, category chip counts must be reloaded for that language.
@@ -221,6 +230,7 @@ class ChannelCubit extends Cubit<ChannelState> {
       }
       if (_sortBy != 'recommended') params['sort'] = _sortBy;
       if (_premiumFilter != 'all') params['premium'] = _premiumFilter;
+      if (_tierFilter != null) params['tier'] = _tierFilter;
 
       developer.log(
         '[ChannelCubit] API call: ${ApiEndpoints.channelList} params=$params',
@@ -316,7 +326,8 @@ class ChannelCubit extends Cubit<ChannelState> {
         if (_currentPage == 2 && _currentQuery.isEmpty &&
             _filterCategoryId == null && _filterLanguage == null &&
             _genreFilter == null && _countryFilter == null &&
-            _qualityFilter == null && _premiumFilter == 'all') {
+            _qualityFilter == null && _premiumFilter == 'all' &&
+            _tierFilter == null) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString(StorageKeys.cachedChannels, jsonEncode(channelRes['data']));
           await prefs.setString(StorageKeys.cachedCategories, jsonEncode(
@@ -445,6 +456,7 @@ class ChannelCubit extends Cubit<ChannelState> {
       country: '',
       quality: '',
       premiumFilter: 'all',
+      tierFilter: '',
       sortBy: 'recommended',
     );
   }

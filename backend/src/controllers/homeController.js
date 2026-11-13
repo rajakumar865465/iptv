@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
+const { getEffectiveChannelTier } = require('../services/subscriptionService');
 
 // PLAYABLE health statuses — must match channelController.js
 const WORKING_STATUSES = ['online', 'playable', 'stable', 'unstable'];
@@ -10,12 +11,19 @@ const formatChannelRow = (req, row) => {
   const protocol = req.headers['x-forwarded-proto'] || req.protocol;
   const baseUrl = `${protocol}://${req.get('host')}`;
   const localUrl = row.local_logo_url ? `${baseUrl}${row.local_logo_url}` : null;
-  return {
+  const isAdmin = req.user && (req.user.role === 'admin' || req.user.role === 'superadmin');
+  const formatted = {
     ...row,
+    channel_tier: getEffectiveChannelTier(row),
     logo_url: localUrl || row.logo_url,
     local_logo_url: localUrl,
     logo_status: row.logo_status || 'unknown',
   };
+  if (!isAdmin) {
+    formatted.stream_url = formatted.stream_url ? '/api/channels/' + row.id + '/play' : null;
+    delete formatted.backup_stream_url;
+  }
+  return formatted;
 };
 
 const canonicalChannelName = (name) => {
@@ -191,6 +199,9 @@ exports.getHome = async (req, res) => {
            LEFT JOIN categories cat ON c.category_id = cat.id
            WHERE wh.user_id = $1
              AND c.status = 'active'
+             AND c.is_hidden IS NOT TRUE
+             AND c.is_removed IS NOT TRUE
+             AND c.is_visible_app IS NOT FALSE
              AND c.stream_url IS NOT NULL AND c.stream_url != ''
            ORDER BY wh.channel_id, wh.watched_at DESC
            LIMIT 10`,
@@ -216,7 +227,7 @@ exports.getHome = async (req, res) => {
           `SELECT c.*, cat.name AS category_name
            FROM channels c ${JOIN}
            ${BASE_WHERE}
-             AND c.is_premium = true
+             AND (c.is_premium = true OR c.is_paid = true OR LOWER(COALESCE(c.channel_tier, 'free')) IN ('pro', 'plus'))
            ORDER BY
              CASE WHEN c.is_featured = true THEN 0 ELSE 1 END,
              COALESCE(c.popularity_score, 0) DESC,
@@ -298,6 +309,9 @@ exports.getHome = async (req, res) => {
                  'category_name', rc.category_name,
                  'language', rc.language,
                  'quality', rc.quality,
+                 'status', rc.status,
+                 'channel_tier', rc.channel_tier,
+                 'is_paid', rc.is_paid,
                  'is_premium', rc.is_premium,
                  'is_featured', rc.is_featured,
                  'is_popular', rc.is_popular,
@@ -331,12 +345,11 @@ exports.getHome = async (req, res) => {
 
     const { premiumResult, popularResult, featuredResult, catChannelsRes } = commonData;
 
-    const premiumChannels  = deduplicateChannelRows(premiumResult.rows.map(row => formatChannelRow(req, row)));
-    const popularChannels  = deduplicateChannelRows(popularResult.rows.map(row => formatChannelRow(req, row)));
-    const featuredChannels = deduplicateChannelRows(featuredResult.rows.map(row => formatChannelRow(req, row)));
+    const premiumChannels  = deduplicateChannelRows(premiumResult.rows).map(row => formatChannelRow(req, row));
+    const popularChannels  = deduplicateChannelRows(popularResult.rows).map(row => formatChannelRow(req, row));
+    const featuredChannels = deduplicateChannelRows(featuredResult.rows).map(row => formatChannelRow(req, row));
     const categories = catChannelsRes.rows.map(row => {
-      const formatted = (row.channels || []).map(ch => formatChannelRow(req, ch));
-      const deduped = deduplicateChannelRows(formatted);
+      const deduped = deduplicateChannelRows(row.channels || []).map(ch => formatChannelRow(req, ch));
       return {
         id: row.id,
         name: row.name,

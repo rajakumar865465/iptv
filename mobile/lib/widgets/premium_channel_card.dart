@@ -256,7 +256,8 @@ Widget _logoContainer(
 }
 
 Widget _topLeftBadge(ChannelModel channel) {
-  if (channel.isPremium) return const _SmallPremiumBadge();
+  if (channel.isPlusTier) return const _SmallPlusBadge();
+  if (channel.isProTier) return const _SmallPremiumBadge();
   if (channel.qualityLabel.isNotEmpty && channel.qualityLabel != 'SD') {
     return QualityBadge(channel.qualityLabel);
   }
@@ -1049,6 +1050,44 @@ class _SmallPremiumBadge extends StatelessWidget {
           fontSize: 8,
           fontWeight: FontWeight.w900,
           color: Colors.black,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+}
+
+class _SmallPlusBadge extends StatelessWidget {
+  const _SmallPlusBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2.5),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF9333EA),
+            Color(0xFF6366F1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF9333EA).withOpacity(0.4),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: const Text(
+        'PLUS',
+        style: TextStyle(
+          fontSize: 8,
+          fontWeight: FontWeight.w900,
+          color: Colors.white,
           letterSpacing: 0.5,
         ),
       ),

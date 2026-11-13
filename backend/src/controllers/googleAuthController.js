@@ -1,7 +1,7 @@
 const db = require('../config/db');
 const { generateToken, generateRefreshToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
-const { ensureUserTrial } = require('../services/subscriptionService');
+const { ensureUserTrial, resolveUserLicense } = require('../services/subscriptionService');
 const { OAuth2Client } = require('google-auth-library');
 const DEFAULT_GOOGLE_CLIENT_ID = '73771138100-in6cnnidmh4hd3ltcubls6glq4a3k0rj.apps.googleusercontent.com';
 const googleClientId = process.env.GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
@@ -74,38 +74,48 @@ exports.googleLogin = async (req, res) => {
       user = insertResult.rows[0];
     }
 
+    if (user.status === 'blocked') {
+      return res.status(403).json({
+        success: false,
+        error: 'USER_BLOCKED',
+        error_code: 'USER_BLOCKED',
+        message: 'Your account has been blocked. Please contact support.',
+      });
+    }
     if (user.status !== 'active') {
       return error(res, 'User account is not active', 403);
     }
 
-    
     await db.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
-    
-    let license = null;
-    let licenseStatus = 'none';
+
+    let resolved = {
+      effectiveLicense: null,
+      activeLicenses: [],
+      licenseStatus: 'none',
+      effectivePlanTier: 'free',
+      remainingDays: 0,
+      maxDevices: 1,
+    };
     let deviceCount = { rows: [{ count: 0 }] };
     const now = new Date();
-    
+
     const { device_id, device_name, app_version, forceLogoutOldest, force_logout_oldest } = req.body;
-    
+
     try {
-      const licenseResult = await db.query(
-        `SELECT l.*, p.name as plan_name, p.plan_tier FROM licenses l
-         LEFT JOIN plans p ON l.plan_id = p.id
-         WHERE l.user_id = $1 AND l.status IN ('active', 'trial', 'pending_payment')
-         ORDER BY l.expires_at DESC LIMIT 1`,
-        [user.id]
-      );
-      license = licenseResult.rows[0] || null;
-      licenseStatus = license && new Date(license.expires_at) > now ? license.status : 'none';
+      resolved = await resolveUserLicense(db, {
+        userId: user.id,
+        email: user.email || null,
+        now,
+        autoLink: true,
+      });
+      const maxDevices = resolved.maxDevices || 1;
 
       if (device_id) {
         const existingDevice = await db.query('SELECT id FROM devices WHERE device_id = $1 AND user_id = $2', [device_id, user.id]);
         if (existingDevice.rows.length === 0) {
           const deviceCountRes = await db.query('SELECT COUNT(*) FROM devices WHERE user_id = $1 AND status = $2', [user.id, 'active']);
           let currentDeviceCount = parseInt(deviceCountRes.rows[0].count);
-          const maxDevices = license?.max_devices || 1;
-          
+
           if (currentDeviceCount >= maxDevices) {
             if (forceLogoutOldest || force_logout_oldest) {
               while (currentDeviceCount >= maxDevices) {
@@ -113,7 +123,12 @@ exports.googleLogin = async (req, res) => {
                 currentDeviceCount--;
               }
             } else {
-              return res.status(403).json({ success: false, error: 'DEVICE_LIMIT_REACHED', message: 'Device limit reached. Do you want to logout your oldest device to continue?' });
+              return res.status(403).json({
+                success: false,
+                error: 'DEVICE_LIMIT_REACHED',
+                error_code: 'DEVICE_LIMIT_REACHED',
+                message: 'Device limit reached. Do you want to logout your oldest device to continue?'
+              });
             }
           }
           await db.query('INSERT INTO devices (user_id, device_id, device_name, app_version, platform) VALUES ($1, $2, $3, $4, $5)', [user.id, device_id, device_name || 'Unknown', app_version || '1.0.0', req.body.platform || 'android']);
@@ -125,23 +140,26 @@ exports.googleLogin = async (req, res) => {
     } catch (dbErr) {
       console.error('License/device query error:', dbErr.message);
     }
-    
+
     const token = generateToken({ userId: user.id, email: user.email, role: user.role });
     const refreshToken = generateRefreshToken(user.id);
+    const lic = resolved.effectiveLicense;
 
     return success(res, {
       token,
       refreshToken,
       user_status: user.status,
-      license_status: licenseStatus,
-      device_status: { count: parseInt(deviceCount.rows[0].count), max: license?.max_devices || 1 },
-      license: license ? {
-        id: license.id,
-        status: license.status,
-        plan_name: license.plan_name,
-        plan_tier: license.plan_tier || 'free',
-        expires_at: license.expires_at,
-        remaining_days: license.expires_at ? Math.ceil((new Date(license.expires_at) - now) / (1000 * 60 * 60 * 24)) : 0,
+      license_status: resolved.licenseStatus,
+      device_status: { count: parseInt(deviceCount.rows[0].count), max: resolved.maxDevices || 1 },
+      license: lic ? {
+        id: lic.id,
+        license_key: lic.license_key,
+        status: lic.status,
+        plan_name: lic.plan_name,
+        plan_tier: resolved.effectivePlanTier,
+        expires_at: lic.expires_at,
+        remaining_days: resolved.remainingDays,
+        max_devices: resolved.maxDevices || 1,
       } : null,
       user: {
         id: user.id,

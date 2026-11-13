@@ -6,7 +6,14 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const Razorpay = require('razorpay');
 const { verifyToken, verifyAdminToken } = require('../utils/jwt');
-const { activateLicense } = require('../services/subscriptionService');
+const {
+  activateLicense,
+  resolveUserLicense,
+  getEffectiveChannelTier,
+  normalizePlanTier,
+  TIER_RANK,
+} = require('../services/subscriptionService');
+const cache = require('../utils/cache');
 const paymentSettings = require('../services/paymentSettings');
 const { invalidateVersionCache } = require('../middleware/versionGatekeeper');
 
@@ -113,6 +120,7 @@ const formatChannelRow = (req, row) => {
   const localUrl = row.local_logo_url ? `${baseUrl}${row.local_logo_url}` : null;
   return {
     ...row,
+    channel_tier: getEffectiveChannelTier(row),
     logo_url: localUrl || row.logo_url,
     local_logo_url: localUrl,
   };
@@ -123,7 +131,7 @@ exports.getPlans = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT id, name, slug, price, regular_price, duration_days, max_devices, description,
-              sort_order, offer_label, is_popular, is_best_value
+              sort_order, offer_label, is_popular, is_best_value, plan_tier
        FROM plans
        WHERE COALESCE(status, 'active') = 'active'
          AND COALESCE(is_visible, true) = true
@@ -143,7 +151,7 @@ exports.getPopularChannels = async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 12, 20);
     // Try popular/featured first
     const result = await db.query(
-      `SELECT c.id, c.name, c.logo_url, c.local_logo_url, c.language, c.is_premium, c.is_featured, c.is_popular,
+      `SELECT c.id, c.name, c.logo_url, c.local_logo_url, c.language, c.is_premium, c.is_paid, c.channel_tier, c.is_featured, c.is_popular,
               cat.name AS category
        FROM channels c
        LEFT JOIN categories cat ON c.category_id = cat.id
@@ -155,7 +163,7 @@ exports.getPopularChannels = async (req, res) => {
     // Fallback: return any active channels if none are flagged
     if (result.rows.length === 0) {
       const fallback = await db.query(
-        `SELECT c.id, c.name, c.logo_url, c.local_logo_url, c.language, c.is_premium, c.is_featured, c.is_popular,
+        `SELECT c.id, c.name, c.logo_url, c.local_logo_url, c.language, c.is_premium, c.is_paid, c.channel_tier, c.is_featured, c.is_popular,
                 cat.name AS category
          FROM channels c
          LEFT JOIN categories cat ON c.category_id = cat.id
@@ -177,7 +185,7 @@ exports.getChannelPreview = async (req, res) => {
   try {
     const categoryFilter = req.query.category;
     let sql =
-      `SELECT c.id, c.name, c.logo_url, c.local_logo_url, c.language, c.is_premium, c.is_featured, c.is_popular,
+      `SELECT c.id, c.name, c.logo_url, c.local_logo_url, c.language, c.is_premium, c.is_paid, c.channel_tier, c.is_featured, c.is_popular,
               cat.name AS category
        FROM channels c
        LEFT JOIN categories cat ON c.category_id = cat.id
@@ -324,7 +332,7 @@ exports.createOrder = async (req, res) => {
     }
 
     const planResult = await db.query(
-      `SELECT id, name, slug, price, duration_days, max_devices FROM plans WHERE id = $1 AND status = 'active'`,
+      `SELECT id, name, slug, price, duration_days, max_devices, plan_tier FROM plans WHERE id = $1 AND status = 'active'`,
       [plan_id]
     );
     if (planResult.rows.length === 0) {
@@ -484,6 +492,10 @@ exports.createOrder = async (req, res) => {
         }
       }
       
+      if (userId) {
+        cache.invalidatePlaybackCache(userId);
+      }
+
       return success(res, {
         order_id: orderId,
         amount: 0,
@@ -502,30 +514,16 @@ exports.createOrder = async (req, res) => {
     // Check if user already has an active subscription: lower plans are blocked, same plan is blocked, only upgrades allowed
     const targetUserId = userId;
     const targetEmail = email ? email.toLowerCase().trim() : null;
-    const activeLicCheck = await db.query(
-      `SELECT l.id, l.expires_at, p.id as plan_id, p.name as plan_name, p.plan_tier, p.price 
-       FROM licenses l 
-       JOIN plans p ON l.plan_id = p.id 
-       WHERE ((l.user_id = $1 AND $1 > 0) OR (l.customer_email IS NOT NULL AND LOWER(l.customer_email) = $2))
-         AND l.status = 'active' 
-         AND l.expires_at > NOW() 
-       ORDER BY l.expires_at DESC 
-       LIMIT 1`,
-      [targetUserId || 0, targetEmail || '']
-    );
+    const resolvedLic = await resolveUserLicense(db, {
+      userId: targetUserId || null,
+      email: targetEmail || null,
+      autoLink: Boolean(targetUserId),
+    });
 
-    if (activeLicCheck.rows.length > 0) {
-      const activePlan = activeLicCheck.rows[0];
-      const getRank = (tier, price) => {
-        const t = (tier || '').toLowerCase();
-        if (t === 'plus' || price >= 500) return 3;
-        if (t === 'pro' || price >= 60) return 2;
-        if (t === 'starter' || price > 0) return 1;
-        return 0;
-      };
-
-      const curRank = getRank(activePlan.plan_tier, Number(activePlan.price || 0));
-      const targetRank = getRank(plan.plan_tier, Number(plan.price || 0));
+    if (resolvedLic.effectiveLicense) {
+      const activePlan = resolvedLic.effectiveLicense;
+      const curRank = TIER_RANK[normalizePlanTier(activePlan.plan_tier)] || 0;
+      const targetRank = TIER_RANK[normalizePlanTier(plan.plan_tier)] || 0;
 
       if (targetRank < curRank) {
         return error(res, `You are already subscribed to a higher tier plan (${activePlan.plan_name}). Downgrading is not permitted.`, 400);
@@ -709,6 +707,9 @@ exports.verifyPayment = async (req, res) => {
     }
 
     await client.query('COMMIT');
+    if (finalUserId) {
+      cache.invalidatePlaybackCache(finalUserId);
+    }
 
     return success(res, {
       license_key: licenseKey,

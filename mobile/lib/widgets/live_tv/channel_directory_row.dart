@@ -154,21 +154,31 @@ class ChannelDirectoryRow extends StatelessWidget {
               if (_offline)
                 const _OfflineChip()
               else ...[
+                if (channel.isPlusTier) ...[
+                  const _PlusChip(),
+                  const SizedBox(width: 5),
+                ] else if (channel.isProTier) ...[
+                  const _ProChip(),
+                  const SizedBox(width: 5),
+                ],
                 if (isLocked)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2.5),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
+                      color: Colors.black.withOpacity(0.55),
                       borderRadius: BorderRadius.circular(5),
                     ),
                     child: const Icon(Icons.lock_rounded, size: 10, color: Colors.white),
                   )
                 else ...[
-                  if (channel.isPremium)
-                    const _ProChip()
-                  else if (channel.qualityLabel.isNotEmpty && channel.qualityLabel != 'SD')
+                  if (!channel.isPaidTier &&
+                      channel.qualityLabel.isNotEmpty &&
+                      channel.qualityLabel != 'SD')
                     QualityBadge(channel.qualityLabel),
-                  const SizedBox(width: 6),
+                  if (!channel.isPaidTier &&
+                      channel.qualityLabel.isNotEmpty &&
+                      channel.qualityLabel != 'SD')
+                    const SizedBox(width: 6),
                   const LiveBadge(small: true),
                 ]
               ],
@@ -282,6 +292,34 @@ class _ProChip extends StatelessWidget {
           fontSize: 8,
           fontWeight: FontWeight.w900,
           color: Colors.black,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+}
+
+class _PlusChip extends StatelessWidget {
+  const _PlusChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2.5),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF9333EA), Color(0xFF6366F1)],
+        ),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: const Text(
+        'PLUS',
+        style: TextStyle(
+          fontSize: 8,
+          fontWeight: FontWeight.w900,
+          color: Colors.white,
           letterSpacing: 0.5,
         ),
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
 import '../cubits/favorite_cubit.dart';
+import '../cubits/license_cubit.dart';
 import '../cubits/mini_player_cubit.dart';
 import '../models/channel_model.dart';
 import '../widgets/favorites/favorites_empty_state.dart';
@@ -73,6 +74,19 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       );
     }
 
+    final licenseState = context.watch<LicenseCubit>().state;
+    final bool hasPro =
+        licenseState is LicenseActive && licenseState.license.hasProAccess;
+    final bool hasPlus =
+        licenseState is LicenseActive && licenseState.license.hasPlusAccess;
+
+    bool isChannelLocked(ChannelModel c) {
+      final tier = c.normalizedTier;
+      if (tier == 'free') return false;
+      if (tier == 'plus') return !hasPlus;
+      return !hasPro;
+    }
+
     return RefreshIndicator(
       color: const Color(AppColors.primary),
       backgroundColor: AppColors.surf(context),
@@ -108,6 +122,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     channel: channel,
                     variant: PremiumChannelCardVariant.grid,
                     showFavorite: true,
+                    isLocked: isChannelLocked(channel),
                     onTap: () => _openPlayer(channel, favorites, index),
                   );
                 },

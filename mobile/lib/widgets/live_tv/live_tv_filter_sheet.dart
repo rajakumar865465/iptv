@@ -10,6 +10,7 @@ class LiveTvFilters {
   final String? country;
   final String? quality;    // null | 'hd' | 'sd' | '4k'
   final String premiumFilter; // 'all' | 'true' | 'false'
+  final String? tierFilter;   // null | 'free' | 'pro' | 'plus'
 
   const LiveTvFilters({
     this.genre,
@@ -17,6 +18,7 @@ class LiveTvFilters {
     this.country,
     this.quality,
     this.premiumFilter = 'all',
+    this.tierFilter,
   });
 }
 
@@ -52,6 +54,7 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
   String? _country;
   String? _quality;
   String _premium = 'all';
+  String? _tier;
 
   @override
   void initState() {
@@ -61,6 +64,7 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
     _country = widget.initial.country;
     _quality = widget.initial.quality;
     _premium = widget.initial.premiumFilter;
+    _tier = widget.initial.tierFilter;
   }
 
   @override
@@ -114,6 +118,7 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
                       _country = null;
                       _quality = null;
                       _premium = 'all';
+                      _tier = null;
                     });
                   },
                   child: Container(
@@ -153,9 +158,51 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
                   _section(
                     'Access Tier',
                     [
-                      _chip(context, 'All', _premium == 'all', () => setState(() => _premium = 'all')),
-                      _chip(context, 'Free Channels', _premium == 'false', () => setState(() => _premium = 'false')),
-                      _chip(context, 'Premium Only', _premium == 'true', () => setState(() => _premium = 'true')),
+                      _chip(
+                        context,
+                        'All',
+                        _tier == null && _premium == 'all',
+                        () => setState(() {
+                          _tier = null;
+                          _premium = 'all';
+                        }),
+                      ),
+                      _chip(
+                        context,
+                        'Free',
+                        _tier == 'free' || _premium == 'false',
+                        () => setState(() {
+                          _tier = 'free';
+                          _premium = 'all';
+                        }),
+                      ),
+                      _chip(
+                        context,
+                        'Pro',
+                        _tier == 'pro',
+                        () => setState(() {
+                          _tier = 'pro';
+                          _premium = 'all';
+                        }),
+                      ),
+                      _chip(
+                        context,
+                        'Plus',
+                        _tier == 'plus',
+                        () => setState(() {
+                          _tier = 'plus';
+                          _premium = 'all';
+                        }),
+                      ),
+                      _chip(
+                        context,
+                        'All Paid (Pro + Plus)',
+                        _tier == null && _premium == 'true',
+                        () => setState(() {
+                          _tier = null;
+                          _premium = 'true';
+                        }),
+                      ),
                     ],
                   ),
                   _section(
@@ -213,6 +260,7 @@ class _LiveTvFilterSheetState extends State<LiveTvFilterSheet> {
                     country: _country,
                     quality: _quality,
                     premiumFilter: _premium,
+                    tierFilter: _tier,
                   ));
                   Navigator.pop(context);
                 },

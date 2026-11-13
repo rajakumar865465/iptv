@@ -57,6 +57,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   String? _country;
   String? _quality;
   String _premium = 'all';
+  String? _tierFilter;
 
   bool _workingOnly = true;
   String _selectedSort = 'az';
@@ -107,6 +108,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
       _country = cubit.countryFilter;
       _quality = cubit.qualityFilter;
       _premium = cubit.premiumFilter;
+      _tierFilter = cubit.tierFilter;
       _workingOnly = cubit.workingOnly;
       _selectedSort = _validSorts.contains(cubit.sortBy) ? cubit.sortBy : 'az';
       _searchController.text = cubit.currentQuery;
@@ -138,6 +140,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
           country: _country ?? '',
           quality: _quality ?? '',
           premiumFilter: _premium,
+          tierFilter: _tierFilter ?? '',
           sortBy: _selectedSort,
         );
   }
@@ -175,6 +178,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
           country: _country,
           quality: _quality,
           premiumFilter: _premium,
+          tierFilter: _tierFilter,
         ),
         languages: _orderLanguages(state.languages),
         countries: _countriesFrom(state),
@@ -190,6 +194,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
       _country = f.country;
       _quality = f.quality;
       _premium = f.premiumFilter;
+      _tierFilter = f.tierFilter;
     });
     _reload();
   }
@@ -204,6 +209,7 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
       _country = null;
       _quality = null;
       _premium = 'all';
+      _tierFilter = null;
     });
     _reload();
   }
@@ -216,14 +222,16 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
       _genre != null ||
       _country != null ||
       _quality != null ||
-      _premium != 'all';
+      _premium != 'all' ||
+      _tierFilter != null;
 
   bool get _hasNonGenreActiveFilters =>
       _selectedCategoryId != null ||
       _language != null ||
       _country != null ||
       _quality != null ||
-      _premium != 'all';
+      _premium != 'all' ||
+      _tierFilter != null;
 
   List<String> _countriesFrom(ChannelLoaded state) {
     final set = <String>{};
@@ -292,15 +300,15 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
     final showQuick = !_hasSearch && !_hasActiveFilters;
     final entries = _buildEntries(channels, _selectedSort);
 
-    final licenseState = context.read<LicenseCubit>().state;
+    final licenseState = context.watch<LicenseCubit>().state;
     final bool hasPro = licenseState is LicenseActive && licenseState.license.hasProAccess;
     final bool hasPlus = licenseState is LicenseActive && licenseState.license.hasPlusAccess;
 
     bool isChannelLocked(ChannelModel c) {
-      if (c.channelTier == 'free') return false;
-      if (c.channelTier == 'plus' && !hasPlus) return true;
-      if (c.channelTier == 'pro' && !hasPro) return true;
-      return false;
+      final tier = c.normalizedTier;
+      if (tier == 'free') return false;
+      if (tier == 'plus') return !hasPlus;
+      return !hasPro;
     }
 
     return RefreshIndicator(
@@ -741,8 +749,18 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
         _reload();
       }));
     }
-    if (_premium != 'all') {
-      chips.add(_activeChip(_premium == 'true' ? 'Premium' : 'Free', () {
+    if (_tierFilter != null) {
+      final label = _tierFilter == 'plus'
+          ? 'Plus'
+          : _tierFilter == 'pro'
+              ? 'Pro'
+              : 'Free';
+      chips.add(_activeChip('Tier: $label', () {
+        setState(() => _tierFilter = null);
+        _reload();
+      }));
+    } else if (_premium != 'all') {
+      chips.add(_activeChip(_premium == 'true' ? 'Paid (Pro + Plus)' : 'Free', () {
         setState(() => _premium = 'all');
         _reload();
       }));

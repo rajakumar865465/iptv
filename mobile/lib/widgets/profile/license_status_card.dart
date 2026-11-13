@@ -35,7 +35,9 @@ class LicenseStatusCard extends StatelessWidget {
   }
 
   bool get _isTrial =>
-      isActive && license?.durationDays != null && license!.durationDays! <= 1;
+      isActive &&
+      (license?.isTrial == true ||
+          (license?.durationDays != null && license!.durationDays! <= 1));
 
   List<Color> get _gradientColors {
     if (isExpired) {
@@ -63,31 +65,49 @@ class LicenseStatusCard extends StatelessWidget {
   }
 
   Color get _accentColor {
-    if (isExpired) return const Color(AppColors.error);
+    if (isExpired) {
+      if (license?.isPendingPayment == true) return const Color(AppColors.warning);
+      return const Color(AppColors.error);
+    }
     if (_isExpiringSoon) return const Color(AppColors.warning);
     if (isActive) return const Color(AppColors.success);
     return const Color(AppColors.premiumGold);
   }
 
   String get _statusTitle {
-    if (isExpired) return 'License Expired';
-    if (_isExpiringSoon) return 'Expiring Soon';
+    if (isExpired) {
+      if (license?.isRevoked == true) return 'License Revoked';
+      if (license?.isSuspended == true) return 'License Suspended';
+      if (license?.isBlocked == true) return 'License Blocked';
+      if (license?.isPendingPayment == true) return 'Payment Pending';
+      return 'License Expired';
+    }
+    if (_isExpiringSoon) return _isTrial ? 'Trial Expiring Soon' : 'Expiring Soon';
     if (isActive) return _isTrial ? 'Trial Active' : 'License Active';
     return 'No Active License';
   }
 
   String get _subtitle {
     if (isExpired) {
+      if (license?.isRevoked == true) return 'License revoked. Contact support or activate a new key.';
+      if (license?.isSuspended == true) return 'License suspended. Contact support to restore access.';
+      if (license?.isBlocked == true) return 'License blocked. Contact support for assistance.';
+      if (license?.isPendingPayment == true) return 'Payment pending confirmation.';
       return 'Renew your plan to continue watching.';
     }
+    final tierLabel = license?.hasPlusAccess == true
+        ? 'Plus'
+        : license?.hasProAccess == true
+            ? 'Pro'
+            : 'Starter';
+    final plan = license?.planName ?? '$tierLabel Plan';
     if (_isExpiringSoon) {
-      return '${license?.remainingDays ?? 0} days remaining • Renew now to stay active.';
+      return '${license?.remainingDays ?? 0} days remaining • $plan';
     }
     if (isActive) {
-      final plan = license?.planName ?? 'Premium Plan';
       final days = license?.remainingDays;
-      if (days != null) return '$days days remaining • $plan';
-      return plan;
+      if (days != null) return '$days days remaining • $plan ($tierLabel)';
+      return '$plan ($tierLabel)';
     }
     return 'Activate a license to watch Live TV.';
   }
@@ -99,6 +119,7 @@ class LicenseStatusCard extends StatelessWidget {
     }
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),

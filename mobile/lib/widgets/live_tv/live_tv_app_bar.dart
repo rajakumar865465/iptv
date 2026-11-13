@@ -73,6 +73,7 @@ class LiveTvAppBar extends StatelessWidget {
           // Filter action
           if (onFilterTap != null)
             GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: onFilterTap,
               child: Container(
                 width: 38,
@@ -122,6 +123,7 @@ class _SortButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () => _showSheet(context),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
+import '../cubits/license_cubit.dart';
 import '../cubits/search_cubit.dart';
 import '../cubits/mini_player_cubit.dart';
 import '../models/channel_model.dart';
@@ -304,6 +305,19 @@ class _SearchScreenState extends State<SearchScreen>
   // ─── Results ────────────────────────────────────────────────────────────────
 
   Widget _buildResults(List<ChannelModel> channels) {
+    final licenseState = context.watch<LicenseCubit>().state;
+    final bool hasPro =
+        licenseState is LicenseActive && licenseState.license.hasProAccess;
+    final bool hasPlus =
+        licenseState is LicenseActive && licenseState.license.hasPlusAccess;
+
+    bool isChannelLocked(ChannelModel c) {
+      final tier = c.normalizedTier;
+      if (tier == 'free') return false;
+      if (tier == 'plus') return !hasPlus;
+      return !hasPro;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -333,6 +347,7 @@ class _SearchScreenState extends State<SearchScreen>
                 channel: channels[index],
                 variant: PremiumChannelCardVariant.list,
                 showFavorite: true,
+                isLocked: isChannelLocked(channels[index]),
                 onTap: () => _openPlayer(channels[index], channels, index),
               );
             },

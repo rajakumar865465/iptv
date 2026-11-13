@@ -16,6 +16,11 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const bufferRecorder = require('../jobs/buffer_recorder');
 const { generateSmoothToken } = require('../utils/jwt');
+const {
+  getEffectiveChannelTier,
+  canPlanAccessChannel,
+  resolveUserLicense,
+} = require('../services/subscriptionService');
 
 const STORAGE_BASE = process.env.BUFFER_STORAGE_PATH
   || path.join(__dirname, '../../storage/buffers');
@@ -83,7 +88,7 @@ exports.getSmoothPlayback = async (req, res) => {
     const baseUrl = `${protocol}://${req.get('host')}`;
 
     const result = await db.query(
-      `SELECT id, name, stream_url, health_status,
+      `SELECT id, name, stream_url, health_status, status,
               smooth_playback_enabled, playback_delay_seconds,
               buffer_status, buffer_depth_seconds, is_buffer_ready,
               restream_mode, last_buffer_error,
@@ -92,7 +97,7 @@ exports.getSmoothPlayback = async (req, res) => {
               recorder_last_failure_reason, recorder_backup_attempts,
               recorder_status_detail, recorder_failed_stream_url, recorder_backup_stream_url,
               needs_manual_verification,
-              is_hidden, is_removed,
+              is_hidden, is_removed, is_visible_app,
               gap_handling_mode, allow_skip_missing_segments,
               missing_segment_count, skipped_segment_count, recovered_segment_count,
               backup_segment_count, lower_quality_segment_count,
@@ -108,67 +113,47 @@ exports.getSmoothPlayback = async (req, res) => {
     if (result.rows.length === 0) return error(res, 'Channel not found', 404);
     const ch = result.rows[0];
 
-    if (ch.is_hidden || ch.is_removed) {
+    if (ch.status !== 'active' || ch.is_hidden || ch.is_removed || ch.is_visible_app === false) {
       return res.status(403).json({ success: false, message: 'Channel not available', error_code: 'CHANNEL_NOT_AVAILABLE' });
     }
 
-    // ── Enforce Channel Tier ──────────────────────────────────────────────
-    if (ch.channel_tier === 'pro' || ch.channel_tier === 'plus') {
-      let allowed = false;
-      if (req.user) {
-        const licenseRes = await db.query(
-          `SELECT p.plan_tier 
-           FROM licenses l 
-           JOIN plans p ON l.plan_id = p.id 
-           WHERE l.user_id = $1 
-             AND l.status IN ('active', 'trial') 
-             AND l.expires_at > NOW() 
-           ORDER BY p.price DESC LIMIT 1`,
-          [req.user.id]
-        );
-        
-        if (licenseRes.rows.length > 0) {
-          const planTier = licenseRes.rows[0].plan_tier;
-          if (ch.channel_tier === 'plus' && planTier === 'plus') {
-            allowed = true;
-          } else if (ch.channel_tier === 'pro' && (planTier === 'pro' || planTier === 'plus')) {
-            allowed = true;
-          }
-        }
-      }
-
-      if (!allowed) {
-        return res.status(403).json({
-          success: false,
-          message: 'This channel requires an upgraded plan.',
-          error_code: 'upgrade_required',
-        });
-      }
-    }
-
-    // Entitlement guard — mirrors channelController.getChannelPlayback: premium/
-    // paid channels require an authenticated user with an active, non-expired
-    // license before any stream URL (including direct_live_url) is returned.
-    const isPremiumChannel = ch.is_premium === true || ch.is_paid === true;
-    if (isPremiumChannel) {
+    // ── Enforce Channel Tier & Active License Entitlement ───────────────────
+    const requiredTier = getEffectiveChannelTier(ch);
+    if (requiredTier !== 'free') {
       if (!req.user) {
         return res.status(401).json({
           success: false,
-          message: 'Sign in required to play this premium channel.',
+          message: 'Sign in required to play this channel.',
           error_code: 'AUTH_REQUIRED',
+          required_tier: requiredTier,
         });
       }
-      const licenseRes = await db.query(
-        `SELECT 1 FROM licenses
-         WHERE user_id = $1 AND status = 'active' AND expires_at > NOW()
-         LIMIT 1`,
-        [req.user.id]
-      );
-      if (licenseRes.rows.length === 0) {
+
+      const resolved = await resolveUserLicense(db, {
+        userId: req.user.id,
+        email: req.user.email || null,
+        autoLink: true,
+      });
+
+      if (resolved.activeLicenses.length === 0) {
         return res.status(403).json({
           success: false,
-          message: 'An active subscription is required to play this premium channel.',
+          message: 'An active subscription is required to play this channel.',
           error_code: 'LICENSE_REQUIRED',
+          license_status: resolved.licenseStatus,
+          required_tier: requiredTier,
+          current_tier: 'free',
+        });
+      }
+
+      if (!canPlanAccessChannel(resolved.effectivePlanTier, ch)) {
+        return res.status(403).json({
+          success: false,
+          message: `This channel requires a ${requiredTier.toUpperCase()} plan.`,
+          error_code: 'upgrade_required',
+          license_status: resolved.licenseStatus,
+          required_tier: requiredTier,
+          current_tier: resolved.effectivePlanTier,
         });
       }
     }

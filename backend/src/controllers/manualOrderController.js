@@ -2,7 +2,7 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const { verifyToken } = require('../utils/jwt');
 const paymentSettings = require('../services/paymentSettings');
-const { generateOrderId, remainingDays } = require('../services/subscriptionService');
+const { generateOrderId, remainingDays, isLicenseStatusUsable } = require('../services/subscriptionService');
 
 /**
  * Manual UPI payment flow — customer-facing half.
@@ -65,7 +65,7 @@ function resolveUserId(req) {
 
 async function loadPlan(planId) {
   const result = await db.query(
-    `SELECT id, name, slug, price, duration_days, max_devices, description
+    `SELECT id, name, slug, price, duration_days, max_devices, description, plan_tier
        FROM plans
       WHERE id = $1
         AND COALESCE(status, 'active') = 'active'
@@ -137,6 +137,7 @@ exports.getCheckout = async (req, res) => {
         list_price: Number(plan.price),
         duration_days: plan.duration_days,
         max_devices: plan.max_devices,
+        plan_tier: plan.plan_tier,
         description: plan.description,
       },
       amount: amountRupees,
@@ -396,7 +397,7 @@ exports.getManualOrder = async (req, res) => {
     const row = result.rows[0];
     const settings = await paymentSettings.getPaymentSettings();
     // Expiry is judged at read time, so a stalled cron job can't extend access.
-    const licenseLive = row.license_status === 'active' && row.expires_at && new Date(row.expires_at) > new Date();
+    const licenseLive = isLicenseStatusUsable(row.license_status) && row.expires_at && new Date(row.expires_at) > new Date();
 
     return success(res, {
       order_id: row.order_id,

@@ -220,6 +220,15 @@ class _LicenseStatusScreenState extends State<LicenseStatusScreen> {
               ),
             ),
             const SizedBox(height: 12),
+          ] else if (license != null && !license.hasPlusAccess) ...[
+            _primaryButton(
+              label: license.hasProAccess ? 'Upgrade to Plus' : 'Upgrade Plan',
+              icon: Icons.workspace_premium_rounded,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const PaymentScreen()),
+              ),
+            ),
+            const SizedBox(height: 12),
           ],
           if (!isActive)
             _secondaryButton(
@@ -241,6 +250,7 @@ class _LicenseStatusScreenState extends State<LicenseStatusScreen> {
   Widget _buildStatusCard(LicenseModel? license, {required bool isActive}) {
     final remaining = license?.remainingDays ?? 0;
     final isExpiringSoon = isActive && remaining <= 7;
+    final isTrial = isActive && (license?.isTrial == true);
 
     Color statusColor;
     IconData statusIcon;
@@ -254,18 +264,45 @@ class _LicenseStatusScreenState extends State<LicenseStatusScreen> {
       statusIcon = isExpiringSoon
           ? Icons.warning_amber_rounded
           : Icons.verified_rounded;
-      statusLabel = isExpiringSoon ? 'Expiring Soon' : 'License Active';
-      statusSub = isExpiringSoon
-          ? '$remaining day${remaining == 1 ? '' : 's'} remaining'
-          : '$remaining day${remaining == 1 ? '' : 's'} remaining';
+      statusLabel = isExpiringSoon
+          ? (isTrial ? 'Trial Expiring Soon' : 'Expiring Soon')
+          : (isTrial ? 'Free Trial Active' : 'License Active');
+      statusSub = '$remaining day${remaining == 1 ? '' : 's'} remaining';
     } else {
       statusColor = const Color(AppColors.error);
-      statusIcon = Icons.cancel_rounded;
-      statusLabel = license?.isRevoked == true ? 'License Revoked' : 'License Expired';
-      statusSub = license?.expiresAt != null
-          ? 'Expired on ${_formatDate(license!.expiresAt!)}'
-          : 'Your license is no longer active';
+      if (license?.isRevoked == true) {
+        statusIcon = Icons.block_rounded;
+        statusLabel = 'License Revoked';
+        statusSub = 'This license has been revoked';
+      } else if (license?.isSuspended == true) {
+        statusIcon = Icons.pause_circle_outline_rounded;
+        statusLabel = 'License Suspended';
+        statusSub = 'This license is temporarily suspended';
+      } else if (license?.isBlocked == true) {
+        statusIcon = Icons.gpp_bad_outlined;
+        statusLabel = 'License Blocked';
+        statusSub = 'This license has been blocked';
+      } else if (license?.isPendingPayment == true) {
+        statusColor = const Color(AppColors.warning);
+        statusIcon = Icons.hourglass_top_rounded;
+        statusLabel = 'Payment Pending';
+        statusSub = 'Awaiting payment confirmation';
+      } else {
+        statusIcon = Icons.cancel_rounded;
+        statusLabel = 'License Expired';
+        statusSub = license?.expiresAt != null
+            ? 'Expired on ${_formatDate(license!.expiresAt!)}'
+            : 'Your license is no longer active';
+      }
     }
+
+    final tierLabel = license == null
+        ? null
+        : (license.hasPlusAccess
+            ? '${license.planName ?? "Plus"} • All Channels + Exclusives'
+            : license.hasProAccess
+                ? '${license.planName ?? "Pro"} • Free + Pro Channels'
+                : '${license.planName ?? "Starter"} • Free Channels Only');
 
     return Container(
       width: double.infinity,
@@ -326,7 +363,7 @@ class _LicenseStatusScreenState extends State<LicenseStatusScreen> {
             const SizedBox(height: 16),
             _progressBar(license),
           ],
-          if (isActive && license?.planName != null) ...[
+          if (isActive && tierLabel != null) ...[
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -343,12 +380,14 @@ class _LicenseStatusScreenState extends State<LicenseStatusScreen> {
                   const Icon(Icons.star_rounded,
                       color: Color(AppColors.premiumGold), size: 14),
                   const SizedBox(width: 6),
-                  Text(
-                    license!.planName!,
-                    style: const TextStyle(
-                      color: Color(AppColors.premiumGold),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
+                  Flexible(
+                    child: Text(
+                      tierLabel,
+                      style: const TextStyle(
+                        color: Color(AppColors.premiumGold),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ],
@@ -361,8 +400,10 @@ class _LicenseStatusScreenState extends State<LicenseStatusScreen> {
   }
 
   Widget _progressBar(LicenseModel license) {
-    final total = license.durationDays ?? 30;
-    final remaining = license.remainingDays ?? 0;
+    final total = (license.durationDays != null && license.durationDays! > 0)
+        ? license.durationDays!
+        : 30;
+    final remaining = (license.remainingDays ?? 0).clamp(0, total);
     final elapsed = (total - remaining).clamp(0, total);
     final progress = total > 0 ? elapsed / total : 0.0;
     final color = remaining <= 7

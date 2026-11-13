@@ -75,6 +75,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _checkForceUpdateOnResume();
+      try {
+        context.read<LicenseCubit>().checkStatus();
+      } catch (_) {}
     }
   }
 
@@ -317,15 +320,15 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
       state.categories.isNotEmpty;
 
   Widget _buildContent(HomeLoaded state) {
-    final licenseState = context.read<LicenseCubit>().state;
+    final licenseState = context.watch<LicenseCubit>().state;
     final bool hasPro = licenseState is LicenseActive && licenseState.license.hasProAccess;
     final bool hasPlus = licenseState is LicenseActive && licenseState.license.hasPlusAccess;
 
     bool isChannelLocked(ChannelModel c) {
-      if (c.channelTier == 'free') return false;
-      if (c.channelTier == 'plus' && !hasPlus) return true;
-      if (c.channelTier == 'pro' && !hasPro) return true;
-      return false;
+      final tier = c.normalizedTier;
+      if (tier == 'free') return false;
+      if (tier == 'plus') return !hasPlus;
+      return !hasPro;
     }
 
     return RefreshIndicator(
@@ -344,7 +347,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
               builder: (context, ls) => HomeHeader(
                 greeting: _greeting,
                 userName: _userName,
-                isPremium: ls is LicenseActive,
+                isPremium: ls is LicenseActive && ls.license.hasProAccess,
                 onNotificationTap: () {
                   showModalBottomSheet(
                     context: context,

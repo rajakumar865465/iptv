@@ -282,10 +282,22 @@ class AuthCubit extends Cubit<AuthState> {
           emit(AuthForceUpdateRequired(ForceUpdateHelper.extractInfo(e)));
           return;
         }
-        if (e is DioException && (e.response?.statusCode == 401 || e.response?.statusCode == 403)) {
-          // Confirmed invalid token — clear auth data only, preserve app settings.
+        if (e is DioException && e.response?.statusCode == 401) {
+          // Confirmed invalid/expired token — clear auth data only, preserve app settings.
           await _storage.clearAuthData();
           emit(AuthUnauthenticated());
+          return;
+        }
+        if (e is DioException && e.response?.statusCode == 403) {
+          final data = e.response?.data;
+          final errCode = data is Map ? (data['error_code'] ?? data['error'])?.toString() : null;
+          if (errCode == 'USER_BLOCKED') {
+            emit(AuthError(data?['message']?.toString() ?? 'Your account has been blocked.'));
+            return;
+          }
+          emit(AuthError(data is Map && data['message'] != null
+              ? data['message'].toString()
+              : 'Access denied. Please try again.'));
           return;
         }
         // Fix #22: Only treat network/connectivity errors as "offline authenticated".

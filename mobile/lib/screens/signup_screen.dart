@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
 import '../cubits/auth_cubit.dart';
+import '../cubits/license_cubit.dart';
 import '../utils/force_update_helper.dart';
+import 'blocked_screen.dart';
+import 'home_screen.dart';
 import 'license_activation_screen.dart';
+import 'license_expired_screen.dart';
 import 'login_screen.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -31,6 +35,49 @@ class _SignupScreenState extends State<SignupScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _navigateAfterSignup(BuildContext context) async {
+    try {
+      final licenseCubit = context.read<LicenseCubit>();
+      await licenseCubit.checkStatus();
+      if (!context.mounted) return;
+      final licenseState = context.read<LicenseCubit>().state;
+      if (licenseState is LicenseForceUpdateRequired) {
+        ForceUpdateHelper.navigateToForceUpdate(
+          info: licenseState.info,
+          navigator: Navigator.of(context),
+        );
+        return;
+      }
+      if (ForceUpdateHelper.isActive) return;
+      if (licenseState is LicenseActive) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      } else if (licenseState is LicenseExpired) {
+        if (licenseState.license?.isBlocked == true) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const BlockedScreen()),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => LicenseExpiredScreen(license: licenseState.license),
+            ),
+          );
+        }
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),
+        );
+      }
+    } catch (_) {
+      if (ForceUpdateHelper.isActive || !context.mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),
+      );
+    }
   }
 
   void _submitSignup() {
@@ -88,9 +135,7 @@ class _SignupScreenState extends State<SignupScreen> {
           }
           if (state is AuthAuthenticated) {
             if (ForceUpdateHelper.isActive) return;
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),
-            );
+            _navigateAfterSignup(context);
           } else if (state is AuthError) {
             if (ForceUpdateHelper.isActive) return;
             ScaffoldMessenger.of(context).hideCurrentSnackBar();

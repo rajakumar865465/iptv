@@ -1,7 +1,7 @@
 const db = require('../config/db');
-const { generateToken } = require('../utils/jwt');
+const { generateToken, generateRefreshToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
-const { ensureUserTrial } = require('../services/subscriptionService');
+const { ensureUserTrial, resolveUserLicense } = require('../services/subscriptionService');
 
 // Helper to generate 6-digit OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
@@ -94,15 +94,97 @@ exports.verifyOtp = async (req, res) => {
       user = insertResult.rows[0];
     }
 
+    if (user.status === 'blocked') {
+      return res.status(403).json({
+        success: false,
+        error: 'USER_BLOCKED',
+        error_code: 'USER_BLOCKED',
+        message: 'Your account has been blocked. Please contact support.',
+      });
+    }
     if (user.status !== 'active') {
       return error(res, 'User account is not active', 403);
     }
 
-    // Generate token
+    await db.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
+
+    const now = new Date();
+    let resolved = {
+      effectiveLicense: null,
+      activeLicenses: [],
+      licenseStatus: 'none',
+      effectivePlanTier: 'free',
+      remainingDays: 0,
+      maxDevices: 1,
+    };
+    let deviceCount = { rows: [{ count: 0 }] };
+    const { device_id, device_name, app_version, forceLogoutOldest, force_logout_oldest } = req.body;
+
+    try {
+      resolved = await resolveUserLicense(db, {
+        userId: user.id,
+        email: user.email || null,
+        now,
+        autoLink: true,
+      });
+      const maxDevices = resolved.maxDevices || 1;
+
+      if (device_id) {
+        const existingDevice = await db.query('SELECT id FROM devices WHERE device_id = $1 AND user_id = $2', [device_id, user.id]);
+        if (existingDevice.rows.length === 0) {
+          const deviceCountRes = await db.query('SELECT COUNT(*) FROM devices WHERE user_id = $1 AND status = $2', [user.id, 'active']);
+          let currentDeviceCount = parseInt(deviceCountRes.rows[0].count, 10);
+          if (currentDeviceCount >= maxDevices) {
+            if (forceLogoutOldest || force_logout_oldest) {
+              while (currentDeviceCount >= maxDevices) {
+                await db.query(
+                  `DELETE FROM devices WHERE id IN (SELECT id FROM devices WHERE user_id = $1 ORDER BY last_active_at ASC LIMIT 1)`,
+                  [user.id]
+                );
+                currentDeviceCount--;
+              }
+            } else {
+              return res.status(403).json({
+                success: false,
+                error: 'DEVICE_LIMIT_REACHED',
+                error_code: 'DEVICE_LIMIT_REACHED',
+                message: 'Device limit reached. Do you want to logout your oldest device to continue?',
+              });
+            }
+          }
+          await db.query(
+            'INSERT INTO devices (user_id, device_id, device_name, app_version, platform) VALUES ($1, $2, $3, $4, $5)',
+            [user.id, device_id, device_name || 'Unknown', app_version || '1.0.0', req.body.platform || 'android']
+          );
+        } else {
+          await db.query('UPDATE devices SET last_active_at = NOW(), app_version = $1 WHERE id = $2', [app_version || '1.0.0', existingDevice.rows[0].id]);
+        }
+      }
+      deviceCount = await db.query('SELECT COUNT(*) FROM devices WHERE user_id = $1 AND status = $2', [user.id, 'active']);
+    } catch (dbErr) {
+      console.error('OTP license/device query error:', dbErr.message);
+    }
+
     const token = generateToken({ userId: user.id, email: user.email, role: user.role });
+    const refreshToken = generateRefreshToken(user.id);
+    const lic = resolved.effectiveLicense;
 
     return success(res, {
       token,
+      refreshToken,
+      user_status: user.status,
+      license_status: resolved.licenseStatus,
+      device_status: { count: parseInt(deviceCount.rows[0].count, 10), max: resolved.maxDevices || 1 },
+      license: lic ? {
+        id: lic.id,
+        license_key: lic.license_key,
+        status: lic.status,
+        plan_name: lic.plan_name,
+        plan_tier: resolved.effectivePlanTier,
+        expires_at: lic.expires_at,
+        remaining_days: resolved.remainingDays,
+        max_devices: resolved.maxDevices || 1,
+      } : null,
       user: {
         id: user.id,
         full_name: user.full_name,

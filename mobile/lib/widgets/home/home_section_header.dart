@@ -69,6 +69,7 @@ class HomeSectionHeader extends StatelessWidget {
           // See All
           if (onSeeAll != null)
             GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: onSeeAll,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),

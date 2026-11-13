@@ -36,7 +36,12 @@ const authMiddleware = async (req, res, next) => {
 
     const user = result.rows[0];
     if (user.status === 'blocked') {
-      return res.status(403).json({ success: false, message: 'Your account has been blocked. Please contact support.' });
+      return res.status(403).json({
+        success: false,
+        error: 'USER_BLOCKED',
+        error_code: 'USER_BLOCKED',
+        message: 'Your account has been blocked. Please contact support.',
+      });
     }
 
     req.user = user;
@@ -49,7 +54,8 @@ const authMiddleware = async (req, res, next) => {
 /**
  * optionalAuth — like authMiddleware but does NOT reject unauthenticated requests.
  * Sets req.user if a valid token is present, otherwise leaves req.user as undefined.
- * Used for endpoints that work for both logged-in and anonymous users.
+ * Blocked accounts presenting a valid token are rejected with 403 USER_BLOCKED so
+ * they cannot silently downgrade to anonymous access.
  */
 const optionalAuth = async (req, res, next) => {
   try {
@@ -76,7 +82,15 @@ const optionalAuth = async (req, res, next) => {
       'SELECT id, full_name, email, mobile, status, role FROM users WHERE id = $1',
       [decoded.userId]
     );
-    if (result.rows.length > 0 && result.rows[0].status !== 'blocked') {
+    if (result.rows.length > 0) {
+      if (result.rows[0].status === 'blocked') {
+        return res.status(403).json({
+          success: false,
+          error: 'USER_BLOCKED',
+          error_code: 'USER_BLOCKED',
+          message: 'Your account has been blocked. Please contact support.',
+        });
+      }
       req.user = result.rows[0];
     }
   } catch (_) {

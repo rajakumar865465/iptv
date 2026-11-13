@@ -18,6 +18,7 @@ import '../widgets/settings/theme_selector_sheet.dart';
 import 'login_screen.dart';
 import 'license_status_screen.dart';
 import 'license_activation_screen.dart';
+import 'payment_screen.dart';
 import 'playback_settings_screen.dart';
 import 'report_problem_screen.dart';
 
@@ -82,13 +83,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
   ({String type, Color color}) _accountInfo(LicenseState state) {
     if (state is LicenseActive) {
       final license = state.license;
-      if (license.isPremium) {
-        return (type: 'Premium', color: const Color(AppColors.premiumGold));
+      if (license.hasPlusAccess) {
+        return (
+          type: license.isTrial ? 'Plus Trial' : 'Plus',
+          color: const Color(0xFFA855F7),
+        );
       }
-      if (license.durationDays != null && license.durationDays! <= 1) {
+      if (license.hasProAccess) {
+        return (
+          type: license.isTrial ? 'Pro Trial' : 'Pro',
+          color: const Color(AppColors.premiumGold),
+        );
+      }
+      if (license.isTrial) {
         return (type: 'Trial', color: const Color(AppColors.success));
       }
-      return (type: 'Active', color: const Color(AppColors.success));
+      return (type: 'Starter', color: const Color(AppColors.success));
+    }
+    if (state is LicenseExpired) {
+      final license = state.license;
+      if (license?.isBlocked == true) {
+        return (type: 'Blocked', color: const Color(AppColors.error));
+      }
+      if (license?.isRevoked == true) {
+        return (type: 'Revoked', color: const Color(AppColors.error));
+      }
+      if (license?.isSuspended == true) {
+        return (type: 'Suspended', color: const Color(AppColors.error));
+      }
+      if (license?.isPendingPayment == true) {
+        return (type: 'Pending', color: const Color(AppColors.warning));
+      }
+      return (type: 'Expired', color: const Color(AppColors.error));
     }
     return (type: 'Free', color: AppColors.text2(context));
   }
@@ -216,7 +242,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showSmoothPlaybackInfo(LicenseState licenseState) {
-    final isPremium = licenseState is LicenseActive && licenseState.license.isPremium;
+    final hasPro =
+        licenseState is LicenseActive && licenseState.license.hasProAccess;
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surfElevated(context),
@@ -269,28 +296,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Row(
                 children: [
                   Icon(
-                    isPremium ? Icons.check_circle_rounded : Icons.lock_rounded,
-                    color: isPremium
+                    hasPro ? Icons.check_circle_rounded : Icons.lock_rounded,
+                    color: hasPro
                         ? const Color(AppColors.success)
                         : AppColors.textM(ctx),
                     size: 22,
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    isPremium
-                        ? 'Available on your plan'
-                        : 'Upgrade to Premium to unlock',
-                    style: TextStyle(
-                      color: isPremium
-                          ? const Color(AppColors.success)
-                          : AppColors.textM(ctx),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
+                  Expanded(
+                    child: Text(
+                      hasPro
+                          ? 'Available on your Pro / Plus plan'
+                          : 'Requires Pro or Plus plan to unlock',
+                      style: TextStyle(
+                        color: hasPro
+                            ? const Color(AppColors.success)
+                            : AppColors.textM(ctx),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
+            if (!hasPro) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const PaymentScreen()),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(AppColors.primary),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'View Plans & Upgrade',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
           ],
         ),
@@ -612,7 +667,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ProfileMenuTile(
                       icon: Icons.speed_rounded,
                       label: 'Smooth Playback Status',
-                      subtitle: 'Available',
+                      subtitle: (licenseState is LicenseActive &&
+                              licenseState.license.hasProAccess)
+                          ? 'Available on your plan'
+                          : 'Requires Pro or Plus plan',
                       iconColor: const Color(0xFF0EA5E9),
                       onTap: () => _showSmoothPlaybackInfo(licenseState),
                     ),

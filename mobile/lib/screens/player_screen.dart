@@ -26,6 +26,10 @@ import '../cubits/mini_player_cubit.dart';
 import '../utils/backend_config.dart';
 import '../utils/force_update_helper.dart';
 import '../services/local_hls_proxy.dart';
+import '../main.dart';
+import 'blocked_screen.dart';
+import 'license_activation_screen.dart';
+import 'payment_screen.dart';
 
 // Temporary diagnostic logging for the "all channels reconnecting" investigation
 // (work.md). Redacts token/auth values. Safe to remove once root cause is confirmed.
@@ -499,11 +503,11 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
   final ScrollController _scrollController = ScrollController();
   List<ChannelModel> _moreLiveChannels = [];
 
-  /// True if the current user has an active premium license with transcode access (duration > 1 day)
+  /// True if the current user has an active license with Pro/Plus access (paid channels & transcode)
   bool get _isPremium {
     final s = context.read<LicenseCubit>().state;
     if (s is! LicenseActive) return false;
-    return s.license.isPremium; // isPremium = durationDays > 1
+    return s.license.hasProAccess;
   }
   bool _moreLoading = false;
 
@@ -1346,17 +1350,38 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
       if (mounted) {
         String msg = 'Playback service unavailable.\nPlease try again later.';
         
-        // Handle 403 upgrade_required specifically
+        // Handle 403 entitlement / lifecycle errors specifically
         if (e is DioException && e.response?.statusCode == 403) {
           final data = e.response?.data;
-          if (data != null && data['error_code'] == 'upgrade_required') {
-            msg = data['message'] ?? 'Upgrade your plan to watch this channel.';
-            // We can also trigger the upgrade dialog directly
+          final map = data is Map ? data : null;
+          final errorCode = map?['error_code']?.toString();
+          final apiMsg = map?['message']?.toString();
+          if (errorCode == 'USER_BLOCKED') {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              _showUpgradeDialog(msg);
+              if (!mounted) return;
+              context.read<MiniPlayerCubit>().dismiss();
+              (appNavigatorKey.currentState ?? Navigator.of(context))
+                  .pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const BlockedScreen()),
+                (route) => false,
+              );
             });
-          } else {
-             msg = data?['message'] ?? msg;
+            return;
+          } else if (errorCode == 'LICENSE_REQUIRED' ||
+              errorCode == 'upgrade_required') {
+            msg = apiMsg ?? 'Upgrade your plan to watch this channel.';
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              context.read<LicenseCubit>().checkStatus();
+              _showUpgradeDialog(
+                msg,
+                title: errorCode == 'LICENSE_REQUIRED'
+                    ? 'License Required'
+                    : 'Upgrade Required',
+              );
+            });
+          } else if (apiMsg != null && apiMsg.isNotEmpty) {
+            msg = apiMsg;
           }
         }
 
@@ -1373,17 +1398,22 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
     }
   }
 
-  void _showUpgradeDialog(String message) {
+  void _showUpgradeDialog(String message, {String title = 'Upgrade Required'}) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: const Color(AppColors.surface),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.workspace_premium, color: Colors.amber),
-            SizedBox(width: 8),
-            Text('Upgrade Required', style: TextStyle(color: Colors.white, fontSize: 20)),
+            const Icon(Icons.workspace_premium, color: Colors.amber),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontSize: 20),
+              ),
+            ),
           ],
         ),
         content: Text(
@@ -1392,18 +1422,27 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const LicenseActivationScreen()),
+              );
+            },
+            child: const Text('Activate Key', style: TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(AppColors.primary)),
             onPressed: () {
-              Navigator.pop(context);
-              // Handle navigation to upgrade/plans screen
-              ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please contact support to upgrade your plan.')));
+              Navigator.pop(dialogCtx);
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const PaymentScreen()),
+              );
             },
-            child: const Text('Upgrade', style: TextStyle(color: Colors.white)),
+            child: const Text('View Plans', style: TextStyle(color: Colors.white)),
           )
         ],
       ),
@@ -4688,27 +4727,39 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
                 child: const Text('GO LIVE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
               ),
             ),
-          // ── Premium badge ────────────────────────────────────────────────────
+          // ── Tier badge ───────────────────────────────────────────────────────
           Builder(builder: (ctx) {
             final licenseState = context.watch<LicenseCubit>().state;
-            final isPrem = licenseState is LicenseActive && licenseState.license.isPremium;
-            if (!isPrem && !_isPremium) return const SizedBox.shrink();
+            if (licenseState is! LicenseActive) return const SizedBox.shrink();
+            final license = licenseState.license;
+            if (!license.hasProAccess) return const SizedBox.shrink();
+            final isPlus = license.hasPlusAccess;
+            final badgeColor = isPlus ? const Color(0xFFA855F7) : const Color(0xFFFFD700);
             return Container(
               margin: const EdgeInsets.only(right: 4),
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF4A3B00), Color(0xFF2A2000)],
+                gradient: LinearGradient(
+                  colors: isPlus
+                      ? const [Color(0xFF4C1D95), Color(0xFF2E1065)]
+                      : const [Color(0xFF4A3B00), Color(0xFF2A2000)],
                 ),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.7), width: 0.8),
+                border: Border.all(color: badgeColor.withOpacity(0.7), width: 0.8),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.workspace_premium_rounded, color: Color(0xFFFFD700), size: 12),
-                  SizedBox(width: 3),
-                  Text('PRO', style: TextStyle(color: Color(0xFFFFD700), fontSize: 9.5, fontWeight: FontWeight.w800)),
+                children: [
+                  Icon(Icons.workspace_premium_rounded, color: badgeColor, size: 12),
+                  const SizedBox(width: 3),
+                  Text(
+                    isPlus ? 'PLUS' : 'PRO',
+                    style: TextStyle(
+                      color: badgeColor,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ],
               ),
             );
@@ -5332,7 +5383,7 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
                   ),
                   Builder(builder: (ctx) {
                     final licenseState = context.read<LicenseCubit>().state;
-                    final isPremium = licenseState is LicenseActive && licenseState.license.isPremium;
+                    final isPremium = licenseState is LicenseActive && licenseState.license.hasProAccess;
                     
                     return Column(
                       children: [
@@ -5692,33 +5743,34 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
     Navigator.pop(context); // Close bottom sheet
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: const Color(AppColors.surface),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
             Icon(Icons.workspace_premium, color: Colors.amber),
             SizedBox(width: 8),
-            Text('Premium Feature', style: TextStyle(color: Colors.white, fontSize: 20)),
+            Text('Pro Feature', style: TextStyle(color: Colors.white, fontSize: 20)),
           ],
         ),
         content: const Text(
-          'Data Saver resolutions (480p and 360p) require real-time server processing and are only available to Premium users.\n\nUpgrade your plan to unlock this feature and save massive amounts of mobile data!',
+          'Data Saver resolutions (480p and 360p) require real-time server processing and are only available on Pro and Plus plans.\n\nUpgrade your plan to unlock this feature and save mobile data!',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(AppColors.primary)),
             onPressed: () {
-              Navigator.pop(context);
-              // Handle navigation to upgrade/plans screen
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please contact support to upgrade your plan.')));
+              Navigator.pop(dialogCtx);
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const PaymentScreen()),
+              );
             },
-            child: const Text('Upgrade', style: TextStyle(color: Colors.white)),
+            child: const Text('View Plans', style: TextStyle(color: Colors.white)),
           )
         ],
       ),
@@ -6135,13 +6187,13 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
   }
 
   bool _isChannelLocked(ChannelModel c) {
-    if (c.channelTier == 'free') return false;
-    final licenseState = context.read<LicenseCubit>().state;
+    final tier = c.normalizedTier;
+    if (tier == 'free') return false;
+    final licenseState = context.watch<LicenseCubit>().state;
     final bool hasPro = licenseState is LicenseActive && licenseState.license.hasProAccess;
     final bool hasPlus = licenseState is LicenseActive && licenseState.license.hasPlusAccess;
-    if (c.channelTier == 'plus' && !hasPlus) return true;
-    if (c.channelTier == 'pro' && !hasPro) return true;
-    return false;
+    if (tier == 'plus') return !hasPlus;
+    return !hasPro;
   }
 
   Widget _buildRelatedCard(ChannelModel ch) {

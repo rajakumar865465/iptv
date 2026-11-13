@@ -7,6 +7,11 @@ const db = require('../config/db');
 const { encryptSegmentUrl, decryptSegmentToken } = require('../utils/proxyToken');
 const { verifyProxySessionToken } = require('../utils/jwt');
 const crypto = require('node:crypto');
+const {
+  getEffectiveChannelTier,
+  canPlanAccessChannel,
+  resolveUserLicense,
+} = require('../services/subscriptionService');
 
 // ── Persistent connection pools ────────────────────────────────────────────────
 // Re-using TCP connections to upstream CDNs eliminates the 50-200ms TCP+TLS
@@ -123,14 +128,18 @@ async function verifyProxyAccess(req, streamId) {
 
   const ip = req.ip || req.connection?.remoteAddress || 'unknown';
 
+  let userEmail = null;
   if (!userId) {
     console.error(`[verifyProxyAccess] No userId found. query.token: ${!!req.query.token}, req.user: ${!!req.user}`);
     const e = new Error('Active license required (No token provided)'); e.statusCode = 401; throw e;
   } else if (userId !== 'anon') {
     // Check if user account is blocked
-    const uRes = await db.query('SELECT status, role FROM users WHERE id = $1', [userId]);
-    if (uRes.rows.length > 0 && uRes.rows[0].status === 'blocked') {
-      const e = new Error('Account blocked'); e.statusCode = 403; throw e;
+    const uRes = await db.query('SELECT email, status, role FROM users WHERE id = $1', [userId]);
+    if (uRes.rows.length > 0) {
+      if (uRes.rows[0].status === 'blocked') {
+        const e = new Error('Account blocked'); e.statusCode = 403; throw e;
+      }
+      userEmail = uRes.rows[0].email || null;
     }
   }
 
@@ -140,9 +149,9 @@ async function verifyProxyAccess(req, streamId) {
   let channel = null;
 
   const csRes = await db.query(`
-    SELECT cs.*, c.is_hidden, c.is_removed, c.is_visible_app,
+    SELECT cs.*, c.status AS channel_status, c.is_hidden, c.is_removed, c.is_visible_app,
            c.health_status AS channel_health, c.name AS channel_name,
-           c.is_featured, c.is_popular, c.is_premium
+           c.is_featured, c.is_popular, c.is_premium, c.is_paid, c.channel_tier
     FROM channel_streams cs
     JOIN channels c ON c.id = cs.channel_id
     WHERE cs.id = $1
@@ -152,17 +161,22 @@ async function verifyProxyAccess(req, streamId) {
     const row = csRes.rows[0];
     stream = row;
     channel = {
+      status: row.channel_status,
       is_hidden: row.is_hidden,
       is_removed: row.is_removed,
       is_visible_app: row.is_visible_app,
       health_status: row.channel_health,
       name: row.channel_name,
+      is_premium: row.is_premium,
+      is_paid: row.is_paid,
+      channel_tier: row.channel_tier,
     };
   } else {
     // Fallback: streamId might be a channels.id (legacy)
     const chRes = await db.query(`
       SELECT id, stream_url, user_agent, referrer AS referer,
-             is_hidden, is_removed, is_visible_app, health_status, name
+             status, is_hidden, is_removed, is_visible_app, health_status, name,
+             is_premium, is_paid, channel_tier
       FROM channels WHERE id = $1
     `, [streamId]);
     if (chRes.rows.length === 0) {
@@ -173,7 +187,11 @@ async function verifyProxyAccess(req, streamId) {
     channel = row;
   }
 
-  // ── Stream active check ───────────────────────────────────────────────────
+  // ── Channel & stream visibility check ────────────────────────────────────
+  if (channel.status !== 'active' || channel.is_hidden || channel.is_removed || channel.is_visible_app === false) {
+    console.warn(`[proxy] proxy_block_reason: channel_unavailable (streamId=${streamId})`);
+    const e = new Error('Channel is not available'); e.statusCode = 403; throw e;
+  }
   if (stream.is_hidden) {
     console.warn(`[proxy] proxy_block_reason: stream_hidden (streamId=${streamId})`);
     const e = new Error('Stream is not available'); e.statusCode = 404; throw e;
@@ -181,6 +199,25 @@ async function verifyProxyAccess(req, streamId) {
   if (stream.is_active === false) {
     console.warn(`[proxy] proxy_block_reason: stream_inactive (streamId=${streamId})`);
     const e = new Error('Stream is not active'); e.statusCode = 404; throw e;
+  }
+
+  // ── Tier & license entitlement check ─────────────────────────────────────
+  const requiredTier = getEffectiveChannelTier(channel);
+  if (requiredTier !== 'free') {
+    if (!userId || userId === 'anon') {
+      const e = new Error('Sign in required to play this channel'); e.statusCode = 401; throw e;
+    }
+    const resolved = await resolveUserLicense(db, {
+      userId,
+      email: userEmail,
+      autoLink: true,
+    });
+    if (resolved.activeLicenses.length === 0) {
+      const e = new Error('Active subscription required to play this channel'); e.statusCode = 403; throw e;
+    }
+    if (!canPlanAccessChannel(resolved.effectivePlanTier, channel)) {
+      const e = new Error(`This channel requires a ${requiredTier.toUpperCase()} plan`); e.statusCode = 403; throw e;
+    }
   }
 
   // ── DRM / geo-blocked / unlicensed check ─────────────────────────────────

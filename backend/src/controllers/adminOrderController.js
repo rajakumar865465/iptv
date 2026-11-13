@@ -202,7 +202,7 @@ exports.getOrderSummary = async (req, res) => {
     const subs = await db.query(
       `SELECT COUNT(*)::int AS active
          FROM licenses
-        WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at > NOW()`
+        WHERE status IN ('active', 'trial') AND expires_at IS NOT NULL AND expires_at > NOW()`
     );
 
     const row = orders.rows[0];

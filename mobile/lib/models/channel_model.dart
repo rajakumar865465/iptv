@@ -30,6 +30,7 @@ class ChannelModel {
   final int? channelNumber;
   final String? genre;
   final DateTime? createdAt;
+  final bool isPaid;
   final String channelTier;
 
   ChannelModel({
@@ -64,8 +65,20 @@ class ChannelModel {
     this.channelNumber,
     this.genre,
     this.createdAt,
+    this.isPaid = false,
     this.channelTier = 'free',
   });
+
+  String get normalizedTier {
+    final t = channelTier.trim().toLowerCase();
+    if (t == 'plus') return 'plus';
+    if (t == 'pro' || isPremium || isPaid) return 'pro';
+    return 'free';
+  }
+
+  bool get isPlusTier => normalizedTier == 'plus';
+  bool get isProTier => normalizedTier == 'pro';
+  bool get isPaidTier => isProTier || isPlusTier;
 
   /// True if this channel is likely playable (shown when workingOnly=true).
   /// Note: [streamUrl] is deliberately omitted from public catalog listings for security,
@@ -123,6 +136,15 @@ class ChannelModel {
       return s == 'true' || s == '1';
     }
 
+    final parsedPremium = parseBool(json['is_premium']);
+    final parsedPaid = parseBool(json['is_paid']);
+    final rawTier = json['channel_tier']?.toString().trim().toLowerCase();
+    final resolvedTier = rawTier == 'plus'
+        ? 'plus'
+        : (rawTier == 'pro' || parsedPremium || parsedPaid)
+            ? 'pro'
+            : 'free';
+
     return ChannelModel(
       id: json['id'],
       name: json['name'] ?? '',
@@ -136,7 +158,8 @@ class ChannelModel {
       status: json['status'] ?? 'active',
       healthStatus: parseString(json['health_status']),
       isFeatured: parseBool(json['is_featured']),
-      isPremium: parseBool(json['is_premium']),
+      isPremium: parsedPremium || resolvedTier != 'free',
+      isPaid: parsedPaid,
       isPopular: parseBool(json['is_popular']),
       sortOrder: parseInt(json['sort_order']),
       popularityScore: parseInt(json['popularity_score']),
@@ -155,7 +178,7 @@ class ChannelModel {
       channelNumber: json['channel_number'] == null ? null : parseInt(json['channel_number']),
       genre: parseString(json['genre']),
       createdAt: json['created_at'] == null ? null : DateTime.tryParse(json['created_at'].toString()),
-      channelTier: json['channel_tier'] ?? 'free',
+      channelTier: resolvedTier,
     );
   }
 
@@ -174,6 +197,7 @@ class ChannelModel {
       'health_status': healthStatus,
       'is_featured': isFeatured,
       'is_premium': isPremium,
+      'is_paid': isPaid,
       'is_popular': isPopular,
       'sort_order': sortOrder,
       'popularity_score': popularityScore,

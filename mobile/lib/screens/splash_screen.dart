@@ -108,7 +108,19 @@ class _SplashScreenState extends State<SplashScreen> {
             return;
           }
           if (e is DioException) {
-            if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+            if (e.response?.statusCode == 403) {
+              final data = e.response?.data;
+              final errCode = data is Map ? (data['error_code'] ?? data['error'])?.toString() : null;
+              if (errCode == 'USER_BLOCKED') {
+                if (context.mounted) {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (_) => const BlockedScreen()),
+                  );
+                }
+                return;
+              }
+              isTemporaryError = true;
+            } else if (e.response?.statusCode == 401) {
               // Access token expired (15-min lifetime). Try to rotate it via the
               // stored 30-day refresh token before giving up on the session.
               bool refreshed = false;
@@ -141,11 +153,21 @@ class _SplashScreenState extends State<SplashScreen> {
                     }
                     return;
                   }
+                  if (e2 is DioException && e2.response?.statusCode == 403) {
+                    final data2 = e2.response?.data;
+                    final errCode2 = data2 is Map ? (data2['error_code'] ?? data2['error'])?.toString() : null;
+                    if (errCode2 == 'USER_BLOCKED') {
+                      if (context.mounted) {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(builder: (_) => const BlockedScreen()),
+                        );
+                      }
+                      return;
+                    }
+                  }
                   // Refresh succeeded but /me still failed — fall through to
-                  // the temporary-error handling below if it's not a hard 401/403.
-                  if (e2 is DioException &&
-                      (e2.response?.statusCode == 401 ||
-                       e2.response?.statusCode == 403)) {
+                  // the temporary-error handling below if it's not a hard 401.
+                  if (e2 is DioException && e2.response?.statusCode == 401) {
                     await StorageService().clearAuthData();
                     if (context.mounted) {
                       Navigator.of(context).pushReplacement(
@@ -237,9 +259,17 @@ class _SplashScreenState extends State<SplashScreen> {
           );
         } else if (licenseState is LicenseExpired) {
           if (context.mounted) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const LicenseExpiredScreen()),
-            );
+            if (licenseState.license?.isBlocked == true) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const BlockedScreen()),
+              );
+            } else {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (_) => LicenseExpiredScreen(license: licenseState.license),
+                ),
+              );
+            }
           }
         } else if (licenseState is LicenseNone || licenseState is LicenseError) {
           if (context.mounted) {

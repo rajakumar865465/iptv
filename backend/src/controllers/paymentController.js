@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const { generateLicenseKey } = require('../utils/helpers');
+const { activateLicense } = require('../services/subscriptionService');
+const cache = require('../utils/cache');
 
 // Razorpay integration (add to package.json: npm install razorpay)
 let razorpay = null;
@@ -162,8 +164,7 @@ exports.verifyRazorpayPayment = async (req, res) => {
       return success(res, { success: true, already_processed: true });
     }
 
-    // Create/activate license
-    const licenseKey = generateLicenseKey();
+    // Create/activate license via unified subscription service (supports stacking/upgrades)
     const planResult = await client.query('SELECT * FROM plans WHERE id = $1', [payment.plan_id]);
     const plan = planResult.rows[0];
     if (!plan) {
@@ -171,19 +172,31 @@ exports.verifyRazorpayPayment = async (req, res) => {
       return error(res, 'Plan not found for this payment', 404);
     }
 
-    await client.query(
-      `INSERT INTO licenses (license_key, plan_id, user_id, status, duration_days, max_devices, activated_at, expires_at)
-       VALUES ($1, $2, $3, 'active', $4, $5, NOW(), NOW() + INTERVAL '1 day' * $4)`,
-      [licenseKey, payment.plan_id, payment.user_id, plan.duration_days, plan.max_devices]
-    );
+    const userEmailRes = await client.query('SELECT email FROM users WHERE id = $1', [payment.user_id]);
+    const customerEmail = userEmailRes.rows[0]?.email || null;
 
-    // Update user status if needed
-    await client.query('UPDATE users SET status = $1 WHERE id = $2 AND status = $3',
-      ['active', payment.user_id, 'blocked']);
+    const activation = await activateLicense(client, {
+      planId: payment.plan_id,
+      durationDays: plan.duration_days || 30,
+      maxDevices: plan.max_devices || 1,
+      userId: payment.user_id,
+      customerEmail,
+      paymentId: payment.id,
+      stackingEnabled: true,
+      now: new Date(),
+    });
 
     await client.query('COMMIT');
+    if (payment.user_id) {
+      cache.invalidatePlaybackCache(payment.user_id);
+    }
 
-    success(res, { success: true, license_key: licenseKey });
+    success(res, {
+      success: true,
+      license_key: activation.licenseKey,
+      expires_at: activation.expiresAt,
+      stacked: activation.stacked,
+    });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('Payment verification error:', err.message);

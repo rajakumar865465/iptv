@@ -12,6 +12,7 @@ class MiniPlayerOverlay extends StatefulWidget {
 
 class _MiniPlayerOverlayState extends State<MiniPlayerOverlay> with WidgetsBindingObserver {
   final GlobalKey<PlayerScreenState> _playerKey = GlobalKey<PlayerScreenState>();
+  final GlobalKey<NavigatorState> _playerNavKey = GlobalKey<NavigatorState>();
 
   bool _isDragging = false;
   double? _dragX;
@@ -31,6 +32,11 @@ class _MiniPlayerOverlayState extends State<MiniPlayerOverlay> with WidgetsBindi
 
   @override
   Future<bool> didPopRoute() async {
+    final nav = _playerNavKey.currentState;
+    if (nav != null && nav.canPop()) {
+      nav.pop();
+      return true;
+    }
     final cubit = context.read<MiniPlayerCubit>();
     if (cubit.state.state == MiniPlayerStateEnum.fullscreen) {
       final playerState = _playerKey.currentState;
@@ -89,17 +95,6 @@ class _MiniPlayerOverlayState extends State<MiniPlayerOverlay> with WidgetsBindi
           height = minHeight;
         }
 
-        Widget playerWidget = PlayerScreen(
-          key: _playerKey,
-          channel: state.channel!,
-          channels: state.contextChannels,
-          initialIndex: state.initialIndex,
-          sourceType: state.sourceType,
-          sourceFilters: state.sourceFilters,
-          isMinimized: isMinimized,
-          isOsPipMode: isOsPipMode,
-        );
-
         return AnimatedPositioned(
           duration: _isDragging || isOsPipMode 
               ? Duration.zero 
@@ -150,29 +145,61 @@ class _MiniPlayerOverlayState extends State<MiniPlayerOverlay> with WidgetsBindi
               color: Colors.black,
               borderRadius: BorderRadius.circular(isMinimized ? 12 : 0),
               clipBehavior: Clip.antiAlias,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  playerWidget,
-                  if (isMinimized && !isOsPipMode)
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: GestureDetector(
-                        onTap: () {
-                          context.read<MiniPlayerCubit>().dismiss();
-                        },
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            color: Colors.black54,
-                            shape: BoxShape.circle,
+              child: Navigator(
+                key: _playerNavKey,
+                onGenerateRoute: (_) => PageRouteBuilder(
+                  transitionDuration: Duration.zero,
+                  reverseTransitionDuration: Duration.zero,
+                  pageBuilder: (navCtx, _, __) =>
+                      BlocBuilder<MiniPlayerCubit, MiniPlayerState>(
+                    builder: (ctx, innerState) {
+                      if (innerState.state == MiniPlayerStateEnum.hidden ||
+                          innerState.channel == null) {
+                        return const SizedBox.shrink();
+                      }
+                      final innerMinimized =
+                          innerState.state == MiniPlayerStateEnum.minimized;
+                      final innerOsPip = innerState.isOsPipMode;
+                      return Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          PlayerScreen(
+                            key: _playerKey,
+                            channel: innerState.channel!,
+                            channels: innerState.contextChannels,
+                            initialIndex: innerState.initialIndex,
+                            sourceType: innerState.sourceType,
+                            sourceFilters: innerState.sourceFilters,
+                            isMinimized: innerMinimized,
+                            isOsPipMode: innerOsPip,
                           ),
-                          padding: const EdgeInsets.all(4),
-                          child: const Icon(Icons.close, color: Colors.white, size: 18),
-                        ),
-                      ),
-                    ),
-                ],
+                          if (innerMinimized && !innerOsPip)
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () {
+                                  ctx.read<MiniPlayerCubit>().dismiss();
+                                },
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  padding: const EdgeInsets.all(4),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
           ),

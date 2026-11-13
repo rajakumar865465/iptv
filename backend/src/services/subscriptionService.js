@@ -11,6 +11,38 @@ const crypto = require('crypto');
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+const TIER_RANK = {
+  free: 0,
+  starter: 1,
+  pro: 2,
+  plus: 3,
+};
+
+function normalizePlanTier(tier) {
+  const t = String(tier || '').trim().toLowerCase();
+  if (t === 'plus' || t === 'pro' || t === 'starter') return t;
+  return 'free';
+}
+
+function getEffectiveChannelTier(channel) {
+  if (!channel) return 'free';
+  const t = String(channel.channel_tier || '').trim().toLowerCase();
+  if (t === 'plus') return 'plus';
+  if (t === 'pro') return 'pro';
+  if (channel.is_premium === true || channel.is_paid === true) return 'pro';
+  return 'free';
+}
+
+function canPlanAccessChannel(planTier, channel) {
+  const effectivePlanTier = normalizePlanTier(planTier);
+  const effectiveChannelTier = getEffectiveChannelTier(channel);
+  return (TIER_RANK[effectivePlanTier] || 0) >= (TIER_RANK[effectiveChannelTier] || 0);
+}
+
+function isLicenseStatusUsable(status) {
+  return status === 'active' || status === 'trial';
+}
+
 function generateLicenseKey() {
   const part = () => crypto.randomBytes(2).toString('hex').toUpperCase();
   return `NVT-${part()}-${part()}-${part()}`;
@@ -71,7 +103,7 @@ function calculateSubscriptionDates(durationDays, currentExpiry = null, stacking
 /** Expiry is evaluated live on every read, so a delayed cron job can't grant free access. */
 function isSubscriptionActive(subscription, now = new Date()) {
   if (!subscription) return false;
-  if (subscription.status !== 'active') return false;
+  if (!isLicenseStatusUsable(subscription.status)) return false;
   if (!subscription.expires_at) return false;
   return new Date(subscription.expires_at).getTime() > now.getTime();
 }
@@ -91,22 +123,140 @@ function remainingDays(expiresAt, now = new Date()) {
 async function findActiveSubscription(client, { userId, email }) {
   const conditions = [];
   const params = [];
-  if (userId) { params.push(userId); conditions.push(`user_id = $${params.length}`); }
-  if (email) { params.push(String(email).toLowerCase().trim()); conditions.push(`LOWER(customer_email) = $${params.length}`); }
+  if (userId) { params.push(userId); conditions.push(`l.user_id = $${params.length}`); }
+  if (email) { params.push(String(email).toLowerCase().trim()); conditions.push(`LOWER(l.customer_email) = $${params.length}`); }
   if (conditions.length === 0) return null;
 
   const result = await client.query(
-    `SELECT id, license_key, status, expires_at, plan_id
-       FROM licenses
+    `SELECT l.id, l.license_key, l.status, l.expires_at, l.plan_id, l.duration_days, l.max_devices,
+            p.name AS plan_name, p.plan_tier, p.max_devices AS plan_max_devices
+       FROM licenses l
+       LEFT JOIN plans p ON l.plan_id = p.id
       WHERE (${conditions.join(' OR ')})
-        AND status = 'active'
-        AND expires_at IS NOT NULL
-        AND expires_at > NOW()
-      ORDER BY expires_at DESC
+        AND l.status IN ('active', 'trial')
+        AND l.expires_at IS NOT NULL
+        AND l.expires_at > NOW()
+      ORDER BY l.expires_at DESC
       LIMIT 1`,
     params
   );
   return result.rows[0] || null;
+}
+
+/**
+ * Resolves the user's current license state with live lazy-expiry normalization.
+ * Returns { effectiveLicense, activeLicenses, allLicenses, licenseStatus, effectivePlanTier, remainingDays, maxDevices }.
+ */
+async function resolveUserLicense(clientOrDb, { userId, email = null, now = new Date(), autoLink = true } = {}) {
+  if (!userId && !email) {
+    return {
+      effectiveLicense: null,
+      activeLicenses: [],
+      allLicenses: [],
+      licenseStatus: 'none',
+      effectivePlanTier: 'free',
+      remainingDays: 0,
+      maxDevices: 1,
+    };
+  }
+
+  const normalizedEmail = email ? String(email).toLowerCase().trim() : null;
+
+  if (autoLink && userId && normalizedEmail) {
+    await clientOrDb.query(
+      'UPDATE licenses SET user_id = $1 WHERE user_id IS NULL AND LOWER(customer_email) = $2',
+      [userId, normalizedEmail]
+    ).catch(() => {});
+  }
+
+  const conditions = [];
+  const params = [];
+  if (userId) {
+    params.push(userId);
+    conditions.push(`l.user_id = $${params.length}`);
+  }
+  if (normalizedEmail) {
+    params.push(normalizedEmail);
+    conditions.push(`(l.customer_email IS NOT NULL AND LOWER(l.customer_email) = $${params.length})`);
+  }
+
+  const result = await clientOrDb.query(
+    `SELECT l.*, p.name AS plan_name, p.plan_tier, p.price AS plan_price,
+            p.duration_days AS plan_duration_days, p.max_devices AS plan_max_devices
+       FROM licenses l
+       LEFT JOIN plans p ON l.plan_id = p.id
+      WHERE ${conditions.join(' OR ')}
+      ORDER BY l.expires_at DESC NULLS LAST, l.created_at DESC`,
+    params
+  );
+
+  const expiredIds = [];
+  const rows = result.rows.map((row) => {
+    const copy = { ...row };
+    const expiresMs = copy.expires_at ? new Date(copy.expires_at).getTime() : NaN;
+    const isPastExpiry = !Number.isFinite(expiresMs) || expiresMs <= now.getTime();
+    if (isLicenseStatusUsable(copy.status) && isPastExpiry) {
+      copy.status = 'expired';
+      expiredIds.push(copy.id);
+    }
+    return copy;
+  });
+
+  if (expiredIds.length > 0) {
+    await clientOrDb.query(
+      `UPDATE licenses SET status = 'expired', updated_at = NOW() WHERE id = ANY($1::int[]) AND status IN ('active', 'trial')`,
+      [expiredIds]
+    ).catch(() => {});
+  }
+
+  const activeLicenses = rows
+    .filter((row) => isSubscriptionActive(row, now))
+    .sort((a, b) => {
+      const rankDiff = (TIER_RANK[normalizePlanTier(b.plan_tier)] || 0) - (TIER_RANK[normalizePlanTier(a.plan_tier)] || 0);
+      if (rankDiff !== 0) return rankDiff;
+      return new Date(b.expires_at).getTime() - new Date(a.expires_at).getTime();
+    });
+
+  if (activeLicenses.length > 0) {
+    const primary = activeLicenses[0];
+    const effectivePlanTier = normalizePlanTier(primary.plan_tier);
+    return {
+      effectiveLicense: {
+        ...primary,
+        plan_tier: effectivePlanTier,
+        max_devices: primary.max_devices || primary.plan_max_devices || 1,
+        remaining_days: remainingDays(primary.expires_at, now),
+      },
+      activeLicenses,
+      allLicenses: rows,
+      licenseStatus: primary.status, // 'active' or 'trial'
+      effectivePlanTier,
+      remainingDays: remainingDays(primary.expires_at, now),
+      maxDevices: primary.max_devices || primary.plan_max_devices || 1,
+    };
+  }
+
+  const pendingOrLatest =
+    rows.find((r) => r.status === 'pending_payment') ||
+    rows.find((r) => ['expired', 'revoked', 'suspended', 'blocked'].includes(r.status)) ||
+    null;
+
+  return {
+    effectiveLicense: pendingOrLatest
+      ? {
+          ...pendingOrLatest,
+          plan_tier: normalizePlanTier(pendingOrLatest.plan_tier),
+          max_devices: pendingOrLatest.max_devices || pendingOrLatest.plan_max_devices || 1,
+          remaining_days: 0,
+        }
+      : null,
+    activeLicenses: [],
+    allLicenses: rows,
+    licenseStatus: pendingOrLatest ? pendingOrLatest.status : 'none',
+    effectivePlanTier: 'free',
+    remainingDays: 0,
+    maxDevices: 1,
+  };
 }
 
 /**
@@ -156,6 +306,13 @@ async function activateLicense(client, {
     licenseId = inserted.rows[0].id;
   }
 
+  if (userId) {
+    try {
+      const cache = require('../utils/cache');
+      cache.invalidatePlaybackCache(userId);
+    } catch (_) {}
+  }
+
   return {
     licenseId,
     licenseKey,
@@ -169,8 +326,8 @@ async function activateLicense(client, {
 
 /**
  * Auto-provisions a 30-day Free Trial Pro license for a user if:
- * 1. User has not already claimed a trial (has_claimed_trial = false).
- * 2. User has no existing active or historical licenses.
+ * 1. User is not blocked and has not already claimed a trial (has_claimed_trial = false).
+ * 2. User has no existing active or historical licenses (by user_id or email) or orders.
  *
  * Atomically creates:
  * - Active License for 30 days with max_devices: 1, plan_tier: 'pro'
@@ -186,22 +343,41 @@ async function ensureUserTrial(userId) {
   try {
     // 1. Check user eligibility
     const userRes = await db.query(
-      'SELECT id, full_name, email, mobile, COALESCE(has_claimed_trial, false) AS has_claimed_trial FROM users WHERE id = $1',
+      'SELECT id, full_name, email, mobile, status, COALESCE(has_claimed_trial, false) AS has_claimed_trial FROM users WHERE id = $1',
       [userId]
     );
     if (userRes.rows.length === 0) return null;
     const user = userRes.rows[0];
 
+    if (user.status === 'blocked') return null;
     if (user.has_claimed_trial) return null;
 
-    // 2. Check if user already has any license
+    const customerEmail = user.email ? user.email.toLowerCase().trim() : null;
+
+    // 2. Check if user already has any license (by user_id or customer_email) or trial order
     const licRes = await db.query(
-      'SELECT id FROM licenses WHERE user_id = $1 LIMIT 1',
-      [userId]
+      `SELECT id FROM licenses
+       WHERE user_id = $1
+          OR ($2::text IS NOT NULL AND customer_email IS NOT NULL AND LOWER(customer_email) = $2)
+       LIMIT 1`,
+      [userId, customerEmail]
     );
     if (licRes.rows.length > 0) {
       await db.query('UPDATE users SET has_claimed_trial = true WHERE id = $1', [userId]);
       return null;
+    }
+
+    if (customerEmail) {
+      const orderRes = await db.query(
+        `SELECT 1 FROM public_orders
+         WHERE user_id = $1 OR (email IS NOT NULL AND LOWER(email) = $2)
+         LIMIT 1`,
+        [userId, customerEmail]
+      );
+      if (orderRes.rows.length > 0) {
+        await db.query('UPDATE users SET has_claimed_trial = true WHERE id = $1', [userId]);
+        return null;
+      }
     }
 
     // 3. Find the active 30-day Free Trial Pro Plan
@@ -220,7 +396,6 @@ async function ensureUserTrial(userId) {
     const durationDays = trialPlan.duration_days || 30;
     const expiresAt = new Date(now.getTime() + durationDays * MS_PER_DAY);
     const licenseKey = generateLicenseKey();
-    const customerEmail = user.email ? user.email.toLowerCase().trim() : null;
     const orderId = `FREE_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 
     // 4. Insert license
@@ -262,10 +437,15 @@ async function ensureUserTrial(userId) {
     // 6. Mark trial claimed on user
     await db.query('UPDATE users SET has_claimed_trial = true WHERE id = $1', [user.id]);
 
+    try {
+      const cache = require('../utils/cache');
+      cache.invalidatePlaybackCache(user.id);
+    } catch (_) {}
+
     return {
       ...newLicenseRow,
       plan_name: trialPlan.name,
-      plan_tier: trialPlan.plan_tier || 'pro',
+      plan_tier: normalizePlanTier(trialPlan.plan_tier || 'pro'),
     };
   } catch (err) {
     console.error('[ensureUserTrial] Error provisioning trial:', err.message);
@@ -275,12 +455,18 @@ async function ensureUserTrial(userId) {
 
 module.exports = {
   MS_PER_DAY,
+  TIER_RANK,
+  normalizePlanTier,
+  getEffectiveChannelTier,
+  canPlanAccessChannel,
+  isLicenseStatusUsable,
   generateLicenseKey,
   generateOrderId,
   calculateSubscriptionDates,
   isSubscriptionActive,
   remainingDays,
   findActiveSubscription,
+  resolveUserLicense,
   activateLicense,
   ensureUserTrial,
 };

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dio/dio.dart';
 import '../services/api_service.dart';
@@ -50,7 +51,7 @@ class LicenseCubit extends Cubit<LicenseState> {
         } else {
           final license = LicenseModel.fromJson(data);
           if (isClosed) return;
-          if (license.isActive) {
+          if (license.isEffectiveActive) {
             emit(LicenseActive(license));
           } else {
             emit(LicenseExpired(license));
@@ -102,10 +103,25 @@ class LicenseCubit extends Cubit<LicenseState> {
         return;
       }
       if (e is DioException) {
-        final data = e.response?.data;
-        if (data is Map && data['error'] == 'DEVICE_LIMIT_REACHED') {
-          emit(LicenseDeviceLimitReached(licenseKey, data['message'] ?? 'Device limit reached'));
-          return;
+        dynamic data = e.response?.data;
+        if (data is String) {
+          try {
+            data = jsonDecode(data);
+          } catch (_) {}
+        }
+        if (data is Map) {
+          if (data['error'] == 'DEVICE_LIMIT_REACHED' || data['error_code'] == 'DEVICE_LIMIT_REACHED') {
+            emit(LicenseDeviceLimitReached(
+              licenseKey,
+              data['message']?.toString() ?? 'Device limit reached',
+            ));
+            return;
+          }
+          final msg = (data['message'] ?? data['error'])?.toString().trim();
+          if (msg != null && msg.isNotEmpty) {
+            emit(LicenseError(msg));
+            return;
+          }
         }
       }
       emit(LicenseError('Activation failed. Please try again.'));

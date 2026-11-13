@@ -4,6 +4,7 @@ const { generateAdminToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
 const { generateLicenseKey } = require('../utils/helpers');
 const { invalidateVersionCache } = require('../middleware/versionGatekeeper');
+const cache = require('../utils/cache');
 
 // Defense-in-depth: reject any stream_url that is not http(s) at write time.
 // This stops protocol handlers like file:/concat:/etc. from ever being
@@ -161,6 +162,7 @@ exports.updateUserStatus = async (req, res) => {
     if (result.rows.length === 0) return error(res, 'User not found', 404);
 
     await logAdminAction(req, req.user.id, 'update_user_status', 'users', id, { status });
+    cache.invalidatePlaybackCache(id);
 
     success(res, result.rows[0], 'User status updated');
   } catch (err) {
@@ -201,6 +203,7 @@ exports.deleteUser = async (req, res) => {
     await logAdminAction(req, req.user.id, 'delete_user', 'users', id);
     
     await client.query('COMMIT');
+    cache.invalidatePlaybackCache(id);
     success(res, null, 'User deleted successfully');
   } catch (err) {
     await client.query('ROLLBACK');
@@ -281,6 +284,8 @@ exports.updateLicense = async (req, res) => {
     if (result.rows.length === 0) return error(res, 'License not found', 404);
 
     await logAdminAction(req, req.user.id, 'update_license', 'licenses', id, { status, user_id, expires_at });
+    if (result.rows[0]?.user_id) cache.invalidatePlaybackCache(result.rows[0].user_id);
+    if (user_id && user_id !== result.rows[0]?.user_id) cache.invalidatePlaybackCache(user_id);
 
     success(res, result.rows[0], 'License updated');
   } catch (err) {
@@ -302,6 +307,7 @@ exports.extendLicense = async (req, res) => {
     if (result.rows.length === 0) return error(res, 'License not found', 404);
 
     await logAdminAction(req, req.user.id, 'extend_license', 'licenses', id, { days });
+    if (result.rows[0]?.user_id) cache.invalidatePlaybackCache(result.rows[0].user_id);
 
     success(res, result.rows[0], 'License extended');
   } catch (err) {
@@ -319,6 +325,7 @@ exports.suspendLicense = async (req, res) => {
     if (result.rows.length === 0) return error(res, 'License not found', 404);
 
     await logAdminAction(req, req.user.id, 'suspend_license', 'licenses', id);
+    if (result.rows[0]?.user_id) cache.invalidatePlaybackCache(result.rows[0].user_id);
 
     success(res, result.rows[0], 'License suspended');
   } catch (err) {
@@ -336,6 +343,7 @@ exports.revokeLicense = async (req, res) => {
     if (result.rows.length === 0) return error(res, 'License not found', 404);
 
     await logAdminAction(req, req.user.id, 'revoke_license', 'licenses', id);
+    if (result.rows[0]?.user_id) cache.invalidatePlaybackCache(result.rows[0].user_id);
 
     success(res, result.rows[0], 'License revoked');
   } catch (err) {
@@ -353,6 +361,7 @@ exports.expireLicense = async (req, res) => {
     if (result.rows.length === 0) return error(res, 'License not found', 404);
 
     await logAdminAction(req, req.user.id, 'expire_license', 'licenses', id);
+    if (result.rows[0]?.user_id) cache.invalidatePlaybackCache(result.rows[0].user_id);
 
     success(res, result.rows[0], 'License expired');
   } catch (err) {
@@ -370,6 +379,7 @@ exports.deleteLicense = async (req, res) => {
     if (result.rows.length === 0) return error(res, 'License not found', 404);
 
     await logAdminAction(req, req.user.id, 'delete_license', 'licenses', id);
+    if (result.rows[0]?.user_id) cache.invalidatePlaybackCache(result.rows[0].user_id);
 
     success(res, result.rows[0], 'License deleted');
   } catch (err) {
@@ -401,6 +411,7 @@ exports.createChannel = async (req, res) => {
     );
 
     await logAdminAction(req, req.user.id, 'create_channel', 'channels', result.rows[0].id, { name, category_id, language });
+    cache.invalidateChannelCaches();
 
     success(res, result.rows[0], 'Channel created', 201);
   } catch (err) {
@@ -491,6 +502,7 @@ exports.updateChannel = async (req, res) => {
     if (result.rows.length === 0) return error(res, 'Channel not found', 404);
 
     await logAdminAction(req, req.user.id, 'update_channel', 'channels', id, fields);
+    cache.invalidateChannelCaches();
 
     success(res, result.rows[0], 'Channel updated');
   } catch (err) {
@@ -505,6 +517,7 @@ exports.deleteChannel = async (req, res) => {
     if (result.rowCount === 0) return error(res, 'Channel not found', 404);
 
     await logAdminAction(req, req.user.id, 'delete_channel', 'channels', id);
+    cache.invalidateChannelCaches();
 
     success(res, null, 'Channel deleted');
   } catch (err) {
@@ -521,7 +534,8 @@ exports.bulkDeleteChannels = async (req, res) => {
     const result = await db.query('DELETE FROM channels WHERE id = ANY($1::int[])', [ids]);
     
     await logAdminAction(req, req.user.id, 'bulk_delete_channels', 'channels', null, { count: result.rowCount });
-    
+    cache.invalidateChannelCaches();
+
     success(res, { deleted: result.rowCount }, `${result.rowCount} channels deleted`);
   } catch (err) {
     console.error('bulkDeleteChannels error:', err);
@@ -578,6 +592,7 @@ exports.createCategory = async (req, res) => {
     );
 
     await logAdminAction(req, req.user.id, 'create_category', 'categories', result.rows[0].id, { name, sort_order });
+    cache.invalidateChannelCaches();
 
     success(res, result.rows[0], 'Category created', 201);
   } catch (err) {
@@ -605,6 +620,7 @@ exports.updateCategory = async (req, res) => {
     if (result.rows.length === 0) return error(res, 'Category not found', 404);
 
     await logAdminAction(req, req.user.id, 'update_category', 'categories', id, { name, status, sort_order });
+    cache.invalidateChannelCaches();
 
     success(res, result.rows[0], 'Category updated');
   } catch (err) {
@@ -620,6 +636,7 @@ exports.deleteCategory = async (req, res) => {
     await db.query('DELETE FROM categories WHERE id = $1', [id]);
 
     await logAdminAction(req, req.user.id, 'delete_category', 'categories', id);
+    cache.invalidateChannelCaches();
 
     success(res, null, 'Category deleted');
   } catch (err) {

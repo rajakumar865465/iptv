@@ -4,6 +4,11 @@ const { URL } = require('url');
 const db = require('../config/db');
 const { verifyToken } = require('../utils/jwt');
 const { error: sendError } = require('../utils/response');
+const {
+  getEffectiveChannelTier,
+  canPlanAccessChannel,
+  resolveUserLicense,
+} = require('../services/subscriptionService');
 // SSRF protection: reuse the same DNS-resolving safety check used by the proxy
 // so a malicious/compromised stream_url can't be used to reach internal
 // services or the cloud metadata endpoint via the ffmpeg transcode path.
@@ -36,23 +41,61 @@ exports.transcodeStream = async (req, res) => {
   try {
     const decoded = verifyToken(token);
 
-    // BUG-10 FIX: JWT payload uses `userId`, not `id`. Using decoded.id was always undefined,
-    // causing every premium user to get a 403. Use decoded.userId instead.
-    const licenseResult = await db.query(
-      `SELECT * FROM licenses
-       WHERE user_id = $1 AND status = 'active' AND expires_at > NOW()`,
-      [decoded.userId]
-    );
-
-    if (licenseResult.rows.length === 0) {
-      return res.status(403).send('Forbidden: No active license');
+    const userRes = await db.query('SELECT id, email, status FROM users WHERE id = $1', [decoded.userId]);
+    if (userRes.rows.length === 0) {
+      return res.status(401).send('Unauthorized: User not found');
+    }
+    const userRow = userRes.rows[0];
+    if (userRow.status === 'blocked') {
+      return res.status(403).json({
+        success: false,
+        error: 'USER_BLOCKED',
+        error_code: 'USER_BLOCKED',
+        message: 'Your account has been blocked. Please contact support.',
+      });
     }
 
-    const license = licenseResult.rows[0];
-    // Fix #16: Changed <= 1 to < 1 so 1-day plan users can access transcoding.
-    // Only 0-day/fractional-day records (effectively no duration) are blocked.
-    if (license.duration_days < 1) {
-      return res.status(403).send('Forbidden: This feature requires a Premium License');
+    const channelCheckRes = await db.query(
+      'SELECT id, stream_url, status, is_hidden, is_removed, is_visible_app, channel_tier, is_premium, is_paid FROM channels WHERE id = $1',
+      [channelId]
+    );
+    if (channelCheckRes.rows.length === 0) {
+      return res.status(404).send('Channel not found');
+    }
+    const chRow = channelCheckRes.rows[0];
+    if (chRow.status !== 'active' || chRow.is_hidden || chRow.is_removed || chRow.is_visible_app === false) {
+      return res.status(403).json({
+        success: false,
+        error_code: 'CHANNEL_NOT_AVAILABLE',
+        message: 'Channel is not available.',
+      });
+    }
+
+    const resolved = await resolveUserLicense(db, {
+      userId: userRow.id,
+      email: userRow.email || null,
+      autoLink: true,
+    });
+
+    if (resolved.activeLicenses.length === 0) {
+      return res.status(403).json({
+        success: false,
+        error_code: 'LICENSE_REQUIRED',
+        license_status: resolved.licenseStatus,
+        message: 'Forbidden: No active license',
+      });
+    }
+
+    const requiredTier = getEffectiveChannelTier(chRow);
+    if (!canPlanAccessChannel(resolved.effectivePlanTier, chRow)) {
+      return res.status(403).json({
+        success: false,
+        error_code: 'upgrade_required',
+        required_tier: requiredTier,
+        current_tier: resolved.effectivePlanTier,
+        license_status: resolved.licenseStatus,
+        message: `This channel requires a ${requiredTier.toUpperCase()} plan.`,
+      });
     }
 
     // PLAYBACK-04: Reject if too many active transcode sessions
@@ -66,7 +109,7 @@ exports.transcodeStream = async (req, res) => {
     let streamUrl;
     const streamsResult = await db.query(
       `SELECT stream_url FROM channel_streams
-       WHERE channel_id = $1 AND (health_status IS NULL OR health_status != 'offline')
+       WHERE channel_id = $1 AND is_hidden IS NOT TRUE AND (health_status IS NULL OR health_status != 'offline')
        ORDER BY priority ASC, health_score DESC
        LIMIT 1`,
       [channelId]
@@ -75,14 +118,7 @@ exports.transcodeStream = async (req, res) => {
     if (streamsResult.rows.length > 0) {
       streamUrl = streamsResult.rows[0].stream_url;
     } else {
-      const channelResult = await db.query(
-        'SELECT stream_url FROM channels WHERE id = $1',
-        [channelId]
-      );
-      if (channelResult.rows.length === 0) {
-        return res.status(404).send('Channel not found');
-      }
-      streamUrl = channelResult.rows[0].stream_url;
+      streamUrl = chRow.stream_url;
     }
 
     if (!streamUrl) {

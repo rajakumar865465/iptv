@@ -53,15 +53,31 @@ class ApiService {
         }
 
         if (error.response?.statusCode == 401 || error.response?.statusCode == 403) {
+          final statusCode = error.response?.statusCode;
           final data = error.response?.data;
           bool isTokenError = false;
 
-          if (data is Map && data['message'] != null) {
-            final msg = data['message'].toString().toLowerCase();
-            if (msg.contains('invalid token') || msg.contains('token expired') || (error.response?.statusCode == 403 && data['error'] != 'DEVICE_LIMIT_REACHED')) {
+          if (data is Map) {
+            final errCode = (data['error_code'] ?? data['error'] ?? '').toString().toUpperCase();
+            final msg = (data['message'] ?? '').toString().toLowerCase();
+            final isBusiness403 = statusCode == 403 ||
+                errCode == 'DEVICE_LIMIT_REACHED' ||
+                errCode == 'USER_BLOCKED' ||
+                errCode == 'UPGRADE_REQUIRED' ||
+                errCode == 'LICENSE_REQUIRED' ||
+                errCode == 'CHANNEL_NOT_AVAILABLE' ||
+                errCode == 'AUTH_REQUIRED';
+
+            if (!isBusiness403 &&
+                statusCode == 401 &&
+                (msg.contains('invalid token') ||
+                    msg.contains('token expired') ||
+                    msg.contains('invalid or expired token') ||
+                    msg.contains('no token provided') ||
+                    msg.contains('user not found'))) {
               isTokenError = true;
             }
-          } else if (error.response?.statusCode == 403) {
+          } else if (statusCode == 401) {
             isTokenError = true;
           }
 

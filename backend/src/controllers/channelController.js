@@ -2,6 +2,11 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const { generateProxySessionToken } = require('../utils/jwt');
 const crypto = require('crypto');
+const {
+  getEffectiveChannelTier,
+  canPlanAccessChannel,
+  resolveUserLicense,
+} = require('../services/subscriptionService');
 
 const ALLOW_UNKNOWN = process.env.ALLOW_UNKNOWN_STREAMS === 'true';
 
@@ -83,7 +88,8 @@ const formatChannelRow = (req, row) => {
     ...row,
     logo_url: localUrl || row.logo_url,
     local_logo_url: localUrl,
-    logo_status: row.logo_status || 'unknown'
+    logo_status: row.logo_status || 'unknown',
+    channel_tier: getEffectiveChannelTier(row),
   };
 
   // H-02 Remediation: Raw source stream URLs must never be exposed publicly in catalog listings.
@@ -169,7 +175,8 @@ function buildHealthFilter(paramIndex) {
 exports.getChannels = async (req, res) => {
   try {
     const cache = require('../utils/cache');
-    const cacheKey = 'channels_' + JSON.stringify(req.query);
+    const isAdmin = Boolean(req.user && (req.user.role === 'admin' || req.user.role === 'superadmin'));
+    const cacheKey = 'channels_' + (isAdmin ? 'admin_' : 'public_') + JSON.stringify(req.query);
     const cachedData = cache.get(cacheKey);
     if (cachedData) {
       return res.json(cachedData);
@@ -188,9 +195,10 @@ exports.getChannels = async (req, res) => {
       showOffline,
       workingOnly,
       premium,        // 'true' | 'false' | 'all'
+      tier,           // 'free' | 'pro' | 'plus'
       genre,          // coarse 9-genre facet (News, Movies, Sports, …)
       quality,        // 'hd' | 'sd' | '4k' — resolution bucket filter
-      region,           // 'world' allows showing international channels
+      region,         // 'world' allows showing international channels
       sort,           // recommended | popular | premium | az | recent | quality | stable | number | watched | updated
     } = req.query;
 
@@ -276,11 +284,23 @@ exports.getChannels = async (req, res) => {
       params.push(`%${category}%`);
     }
 
-    // Premium filter
+    // Premium / Tier filter
     if (premium === 'true') {
-      conditions.push(`c.is_premium = true`);
+      conditions.push(`(c.is_premium = true OR c.is_paid = true OR LOWER(COALESCE(c.channel_tier, 'free')) IN ('pro', 'plus'))`);
     } else if (premium === 'false') {
-      conditions.push(`(c.is_premium = false OR c.is_premium IS NULL)`);
+      conditions.push(`(COALESCE(c.is_premium, false) = false AND COALESCE(c.is_paid, false) = false AND LOWER(COALESCE(c.channel_tier, 'free')) NOT IN ('pro', 'plus'))`);
+    }
+    if (tier && typeof tier === 'string') {
+      const cleanTier = tier.trim().toLowerCase();
+      if (cleanTier === 'free') {
+        conditions.push(`(COALESCE(c.is_premium, false) = false AND COALESCE(c.is_paid, false) = false AND LOWER(COALESCE(c.channel_tier, 'free')) NOT IN ('pro', 'plus'))`);
+      } else if (cleanTier === 'pro') {
+        conditions.push(`(LOWER(COALESCE(c.channel_tier, '')) = 'pro' OR (LOWER(COALESCE(c.channel_tier, 'free')) != 'plus' AND (c.is_premium = true OR c.is_paid = true)))`);
+      } else if (cleanTier === 'plus') {
+        conditions.push(`LOWER(COALESCE(c.channel_tier, '')) = 'plus'`);
+      } else if (cleanTier === 'paid') {
+        conditions.push(`(c.is_premium = true OR c.is_paid = true OR LOWER(COALESCE(c.channel_tier, 'free')) IN ('pro', 'plus'))`);
+      }
     }
     // premium='all' or omitted: no filter
 
@@ -992,11 +1012,6 @@ exports.getChannelPlayback = async (req, res) => {
     const { id } = req.params;
     const cache = require('../utils/cache');
     const userId = req.user?.id || 'anon';
-    const cacheKey = 'playback_' + id + '_' + userId;
-    const cachedPlayback = cache.get(cacheKey);
-    if (cachedPlayback) {
-      return success(res, cachedPlayback);
-    }
 
     // Build base URL for proxy links
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
@@ -1006,8 +1021,8 @@ exports.getChannelPlayback = async (req, res) => {
     // Fix #26: Use cached table check
     const hasStreamsTable = await checkChannelStreamsTable();
 
-    // ── Guard: channel must be visible ──────────────────────────────────────
-    // Hidden / removed channels must not be playable from the public API
+    // ── Guard: channel must be visible & active ─────────────────────────────
+    // Hidden / removed / inactive channels must not be playable from the public API
     const channelRes = await db.query(
       `SELECT c.*, cat.name AS category_name
        FROM channels c
@@ -1019,7 +1034,7 @@ exports.getChannelPlayback = async (req, res) => {
       return error(res, 'Channel not found', 404);
     }
     const channel = channelRes.rows[0];
-    if (channel.is_hidden || channel.is_removed || channel.is_visible_app === false) {
+    if (channel.status !== 'active' || channel.is_hidden || channel.is_removed || channel.is_visible_app === false) {
       return res.status(403).json({
         success: false,
         message: 'Channel is not available.',
@@ -1027,68 +1042,51 @@ exports.getChannelPlayback = async (req, res) => {
       });
     }
 
-    // ── Enforce Channel Tier ──────────────────────────────────────────────
-    // If the channel requires a specific tier, verify the user's license.
-    if (channel.channel_tier === 'pro' || channel.channel_tier === 'plus') {
-      let allowed = false;
-      if (req.user) {
-        // Look up the user's active license and plan tier
-        const licenseRes = await db.query(
-          `SELECT p.plan_tier 
-           FROM licenses l 
-           JOIN plans p ON l.plan_id = p.id 
-           WHERE l.user_id = $1 
-             AND l.status IN ('active', 'trial') 
-             AND l.expires_at > NOW() 
-           ORDER BY p.price DESC LIMIT 1`,
-          [req.user.id]
-        );
-        
-        if (licenseRes.rows.length > 0) {
-          const planTier = licenseRes.rows[0].plan_tier;
-          if (channel.channel_tier === 'plus' && planTier === 'plus') {
-            allowed = true;
-          } else if (channel.channel_tier === 'pro' && (planTier === 'pro' || planTier === 'plus')) {
-            allowed = true;
-          }
-        }
+    // ── Enforce Channel Tier & Active License Entitlement ───────────────────
+    const requiredTier = getEffectiveChannelTier(channel);
+    if (requiredTier !== 'free') {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Sign in required to play this channel.',
+          error_code: 'AUTH_REQUIRED',
+          required_tier: requiredTier,
+        });
       }
 
-      if (!allowed) {
+      const resolved = await resolveUserLicense(db, {
+        userId: req.user.id,
+        email: req.user.email || null,
+        autoLink: true,
+      });
+
+      if (resolved.activeLicenses.length === 0) {
         return res.status(403).json({
           success: false,
-          message: 'This channel requires an upgraded plan.',
+          message: 'An active subscription is required to play this channel.',
+          error_code: 'LICENSE_REQUIRED',
+          license_status: resolved.licenseStatus,
+          required_tier: requiredTier,
+          current_tier: 'free',
+        });
+      }
+
+      if (!canPlanAccessChannel(resolved.effectivePlanTier, channel)) {
+        return res.status(403).json({
+          success: false,
+          message: `This channel requires a ${requiredTier.toUpperCase()} plan.`,
           error_code: 'upgrade_required',
+          license_status: resolved.licenseStatus,
+          required_tier: requiredTier,
+          current_tier: resolved.effectivePlanTier,
         });
       }
     }
 
-    // ── Entitlement guard: premium/paid channels require an authenticated
-    // user with an active, non-expired license before any stream/proxy URLs
-    // are returned. Free-tier channels keep the existing anonymous access.
-    const isPremiumChannel = channel.is_premium === true || channel.is_paid === true;
-    if (isPremiumChannel) {
-      if (!req.user) {
-        return res.status(401).json({
-          success: false,
-          message: 'Sign in required to play this premium channel.',
-          error_code: 'AUTH_REQUIRED',
-        });
-      }
-
-      const licenseRes = await db.query(
-        `SELECT 1 FROM licenses
-         WHERE user_id = $1 AND status = 'active' AND expires_at > NOW()
-         LIMIT 1`,
-        [req.user.id]
-      );
-      if (licenseRes.rows.length === 0) {
-        return res.status(403).json({
-          success: false,
-          message: 'An active subscription is required to play this premium channel.',
-          error_code: 'LICENSE_REQUIRED',
-        });
-      }
+    const cacheKey = `playback_${id}_${userId}_${requiredTier}`;
+    const cachedPlayback = cache.get(cacheKey);
+    if (cachedPlayback) {
+      return success(res, cachedPlayback);
     }
 
     // ── Helper: compile safe headers for a stream row ───────────────────────

@@ -22,6 +22,7 @@ const adminOrderController = require('../controllers/adminOrderController');
 const adminAuthMiddleware = require('../middleware/adminAuth');
 const { authLimiter } = require('../middleware/rateLimit');
 const db = require('../config/db');
+const cache = require('../utils/cache');
 
 // Public admin login
 router.post('/login', authLimiter, adminController.adminLogin);
@@ -286,6 +287,7 @@ router.put('/channels/:id/ui', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Channel not found' });
     }
 
+    cache.invalidateChannelCaches();
     return res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     console.error('[admin] channel ui update error:', err.message);
