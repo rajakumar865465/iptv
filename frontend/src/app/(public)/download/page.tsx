@@ -208,21 +208,21 @@ export default async function DownloadPage() {
               isForceUpdate={isForceUpdate}
             />
           </Suspense>
-          <div className="shrink-0 flex flex-wrap items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto shrink-0">
             <a
               href={standardDownloadUrl}
               download={`NivaTV_arm64_v${appVersion}.apk`}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-brand-600/20 transition-all"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-brand-600/20 transition-all text-center"
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-4 h-4 shrink-0" />
               <span>Update to v{appVersion}</span>
             </a>
             <a
               href={universalDownloadUrl}
               download={`NivaTV_universal_v${appVersion}.apk`}
-              className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-line)] hover:border-brand-500/40 text-[var(--color-ink)] text-xs sm:text-sm font-semibold transition-all"
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-line)] hover:border-brand-500/40 text-[var(--color-ink)] text-xs sm:text-sm font-semibold transition-all text-center"
             >
-              <Globe className="w-4 h-4 text-emerald-500" />
+              <Globe className="w-4 h-4 text-emerald-500 shrink-0" />
               <span>Universal APK</span>
             </a>
           </div>

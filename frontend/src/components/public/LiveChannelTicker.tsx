@@ -78,7 +78,7 @@ export default function LiveChannelTicker({ channels }: LiveChannelTickerProps) 
   };
 
   return (
-    <div className="marquee-pause relative overflow-hidden py-6 sm:py-8">
+    <div className="marquee-pause relative w-full max-w-full overflow-hidden py-6 sm:py-8">
       {/* Edge fades so channels slide in/out instead of clipping hard */}
       <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 sm:w-32 bg-gradient-to-r from-[var(--color-base)] to-transparent" />
       <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 sm:w-32 bg-gradient-to-l from-[var(--color-base)] to-transparent" />

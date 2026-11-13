@@ -15,7 +15,7 @@ export default function StickyMobileCTA() {
 
   return (
     <div
-      className={`md:hidden fixed bottom-0 left-0 right-0 z-40 transition-transform duration-300 ${
+      className={`md:hidden fixed bottom-0 left-0 right-0 w-full max-w-full overflow-hidden z-40 transition-transform duration-300 ${
         visible ? 'translate-y-0' : 'translate-y-full'
       }`}
     >

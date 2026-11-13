@@ -40,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en-IN" className="scroll-smooth" suppressHydrationWarning>
+    <html lang="en-IN" className="scroll-smooth w-full max-w-full overflow-x-clip" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -63,7 +63,7 @@ export default function RootLayout({
         </Script>
       </head>
       <body
-        className={`${inter.variable} ${poppins.variable} antialiased font-sans`}
+        className={`${inter.variable} ${poppins.variable} antialiased font-sans w-full max-w-full overflow-x-clip min-h-screen`}
         suppressHydrationWarning
       >
         <noscript>

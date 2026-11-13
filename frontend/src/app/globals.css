@@ -77,7 +77,14 @@
 }
 
 /* ── Base body styles ────────────────────────────────────────────────────── */
+html {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 body {
+  max-width: 100%;
+  overflow-x: clip;
   background: var(--color-base);
   color: var(--color-ink);
   font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;

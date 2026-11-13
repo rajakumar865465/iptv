@@ -301,18 +301,17 @@ export default async function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[var(--color-base)] text-[var(--color-ink)] overflow-x-hidden">
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-[var(--color-base)] text-[var(--color-ink)] flex flex-col">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <PageTracker page="home" />
       <PublicHeader />
-      <StickyMobileCTA />
 
-      <main>
+      <main className="w-full max-w-full overflow-x-clip flex-1 min-w-0">
         {/* ───────────────────────── HERO ───────────────────────── */}
-        <section className="relative pt-24 sm:pt-28 md:pt-36 pb-14 sm:pb-20 md:pb-28 overflow-hidden noise-texture">
+        <section className="relative pt-24 sm:pt-28 md:pt-36 pb-14 sm:pb-20 md:pb-28 overflow-hidden isolate noise-texture w-full max-w-full">
           {/* Layered cinematic background: brand aurora + light mode warm gradient */}
           <div className="pointer-events-none absolute inset-0 -z-10">
             {/* Dark mode: subtle grid */}
@@ -332,19 +331,19 @@ export default async function HomePage() {
             <div className="absolute bottom-[-10%] left-[-6%] w-[32%] h-[42%] bg-brand-700/10 blur-[120px] rounded-full" />
           </div>
 
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid lg:grid-cols-2 gap-8 sm:gap-10 lg:gap-12 items-center">
-              <div className="order-1 lg:order-1">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full min-w-0">
+            <div className="grid lg:grid-cols-2 gap-8 sm:gap-10 lg:gap-12 items-center min-w-0">
+              <div className="order-1 lg:order-1 min-w-0 w-full">
                 {/* Latest Release Notice */}
                 {latestVersion && (
                   <Link
                     href="/download"
-                    className="group inline-flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-brand-500/10 hover:bg-brand-500/15 border border-brand-500/25 text-xs sm:text-sm text-[var(--color-ink)] mb-4 transition-all max-w-full shadow-sm"
+                    className="group flex sm:inline-flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-2xl bg-brand-500/10 hover:bg-brand-500/15 border border-brand-500/25 text-xs sm:text-sm text-[var(--color-ink)] mb-4 transition-all w-full sm:w-auto max-w-full min-w-0 shadow-sm"
                   >
                     <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-600 text-white text-[10px] font-bold uppercase tracking-wider">
                       <Sparkles className="w-3 h-3" /> v{latestVersion}
                     </span>
-                    <span className="truncate text-[var(--color-ink-muted)] group-hover:text-[var(--color-ink)] font-medium">
+                    <span className="truncate min-w-0 flex-1 text-[var(--color-ink-muted)] group-hover:text-[var(--color-ink)] font-medium">
                       {updateNotice || `Latest NivaTV v${latestVersion} update is live — download now`}
                     </span>
                     <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-500 group-hover:translate-x-0.5 transition-transform" />
@@ -636,7 +635,7 @@ export default async function HomePage() {
         <section className="py-16 sm:py-24 md:py-28">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <MotionReveal>
-              <div className="relative overflow-hidden rounded-3xl border border-brand-500/25 bg-gradient-to-br from-brand-600/20 via-brand-700/10 to-[var(--color-surface)] p-8 sm:p-12 md:p-16 text-center shadow-card-lg">
+              <div className="relative overflow-hidden rounded-3xl border border-brand-500/25 bg-gradient-to-br from-brand-600/20 via-brand-700/10 to-[var(--color-surface)] p-6 sm:p-12 md:p-16 text-center shadow-card-lg">
                 <div className="pointer-events-none absolute inset-0 -z-10">
                   <div className="absolute top-[-30%] left-1/2 -translate-x-1/2 w-[60%] h-[80%] bg-brand-600/25 blur-[100px] rounded-full" />
                 </div>

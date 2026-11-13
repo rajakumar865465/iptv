@@ -260,10 +260,10 @@ export default function AnimatedHeroPhone() {
   const ScreenComponent = SCREENS[display].component;
 
   return (
-    <div className="flex flex-col items-center select-none">
-      <div className="relative">
+    <div className="flex flex-col items-center select-none w-full max-w-full overflow-hidden">
+      <div className="relative max-w-full">
         <div className="absolute inset-0 bg-brand-600/15 blur-[60px] rounded-full scale-75 translate-y-8 pointer-events-none" />
-        <div className="relative w-[260px]">
+        <div className="relative w-[260px] max-w-full">
           <div className="rounded-[44px] bg-gradient-to-b from-[#333333] via-[#222222] to-[#151515] border border-white/15 shadow-2xl shadow-black/60 p-[8px] pb-4">
             <div className="flex justify-center pt-1.5 mb-1.5">
               <div className="w-[63px] h-[15px] bg-black rounded-full" />

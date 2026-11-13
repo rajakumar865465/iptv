@@ -277,13 +277,13 @@ export default async function PricingPage() {
   ];
 
   return (
-    <div className="pt-24 pb-20 px-4">
+    <div className="pt-24 pb-20 px-4 w-full max-w-full overflow-x-clip min-w-0">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <OfferTrigger />
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto w-full min-w-0">
 
         {/* Header */}
         <div className="text-center mb-6">

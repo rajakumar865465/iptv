@@ -189,7 +189,7 @@ function CheckoutContent() {
         onClose={() => setAuthOpen(false)}
         onSuccess={handleAuthSuccess}
       />
-      <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 py-8">
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-2 gap-8 py-8">
       {/* Left Column - Payment Info & QR */}
       <div className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded-2xl p-6 shadow-xl">
         <h2 className="text-2xl font-bold text-[var(--color-ink)] mb-6">Complete Your Payment</h2>
@@ -247,7 +247,7 @@ function CheckoutContent() {
             <input required type="text" value={form.full_name} onChange={e => setForm({...form, full_name: e.target.value})} className="w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl px-4 py-2.5 text-[var(--color-ink)] focus:outline-none focus:border-brand-500" placeholder="e.g. Rahul Kumar" />
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[var(--color-ink-muted)] text-sm mb-1.5">Email</label>
               <input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full bg-[var(--color-surface)] border border-[var(--color-line)] rounded-xl px-4 py-2.5 text-[var(--color-ink)] focus:outline-none focus:border-brand-500" placeholder="your@email.com" />

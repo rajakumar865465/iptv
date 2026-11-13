@@ -13,9 +13,9 @@ export const metadata: Metadata = {
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[var(--color-base)] text-[var(--color-ink)]">
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-[var(--color-base)] text-[var(--color-ink)] flex flex-col">
       <PublicHeader />
-      <main>{children}</main>
+      <main className="w-full max-w-full overflow-x-clip flex-1 min-w-0">{children}</main>
       <PublicFooter />
     </div>
   );
