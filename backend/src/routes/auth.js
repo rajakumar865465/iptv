@@ -18,5 +18,6 @@ router.post('/reset-password', authLimiter, authController.resetPassword);
 router.get('/me', authMiddleware, authController.me);
 router.get('/my-purchases', authMiddleware, authController.myPurchases);
 router.post('/stream-heartbeat', authMiddleware, authController.streamHeartbeat);
+router.post('/app-heartbeat', authMiddleware, authController.appHeartbeat);
 
 module.exports = router;

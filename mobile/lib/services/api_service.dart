@@ -25,6 +25,10 @@ class ApiService {
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
+        final deviceId = await _storage.getDeviceId();
+        if (deviceId.isNotEmpty) {
+          options.headers['x-device-id'] = deviceId;
+        }
         // Debug log the final API URL
         developer.log(
           '[API Request] ${options.method} ${options.baseUrl}${options.path} | Query: ${options.queryParameters}',
@@ -178,6 +182,21 @@ class ApiService {
       }
       developer.log('Stream heartbeat failed: $e', name: 'ApiService');
       return false; // Return false on generic errors so we don't interrupt playback for network drops
+    }
+  }
+
+  Future<bool> sendAppHeartbeat({String screen = 'Home'}) async {
+    try {
+      final deviceId = await _storage.getDeviceId();
+      if (deviceId.isEmpty) return false;
+      final response = await post(ApiEndpoints.appHeartbeat, {
+        'device_id': deviceId,
+        'screen': screen,
+        'platform': 'android',
+      });
+      return response['success'] == true;
+    } catch (_) {
+      return false;
     }
   }
 }

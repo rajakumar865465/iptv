@@ -147,6 +147,7 @@ class ApiEndpoints {
   static const String me = '$auth/me';
   static const String refreshToken = '$auth/refresh-token';
   static const String streamHeartbeat = '$auth/stream-heartbeat';
+  static const String appHeartbeat = '$auth/app-heartbeat';
 
   // App Config
   static const String config = '$appConfig/config';

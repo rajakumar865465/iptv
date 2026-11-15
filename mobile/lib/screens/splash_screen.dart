@@ -6,6 +6,7 @@ import '../cubits/license_cubit.dart';
 import '../cubits/channel_cubit.dart';
 import '../constants.dart';
 import '../services/storage_service.dart';
+import '../services/app_presence_service.dart';
 import '../utils/force_update_helper.dart';
 import 'blocked_screen.dart';
 import 'home_screen.dart';
@@ -258,6 +259,7 @@ class _SplashScreenState extends State<SplashScreen> {
             return;
           }
           if (ForceUpdateHelper.isActive) return;
+          AppPresenceService().initialize();
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const HomeScreen()),
           );

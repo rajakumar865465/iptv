@@ -45,6 +45,15 @@ const authMiddleware = async (req, res, next) => {
     }
 
     req.user = user;
+
+    const deviceId = req.headers['x-device-id'];
+    if (deviceId) {
+      db.query(
+        'UPDATE devices SET last_active_at = NOW() WHERE device_id = $1 AND user_id = $2',
+        [deviceId, user.id]
+      ).catch(() => {});
+    }
+
     next();
   } catch (err) {
     return res.status(401).json({ success: false, message: 'Invalid or expired token' });

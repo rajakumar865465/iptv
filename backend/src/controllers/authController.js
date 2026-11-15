@@ -709,3 +709,31 @@ exports.streamHeartbeat = async (req, res) => {
     error(res, 'Failed to process heartbeat', 500);
   }
 };
+
+exports.appHeartbeat = async (req, res) => {
+  try {
+    const { device_id, screen, app_version, platform, device_model } = req.body;
+    if (!device_id) return error(res, 'device_id is required', 400);
+
+    const userId = req.user.id;
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || req.ip || null;
+    const resolvedAppVersion = req.headers['x-app-version'] || app_version || null;
+    const resolvedPlatform = req.headers['x-client-platform'] || platform || 'android';
+
+    await db.query(`
+      UPDATE devices
+      SET last_active_at = NOW(),
+          current_screen = COALESCE($1, current_screen, 'Home'),
+          ip_address = COALESCE($2, ip_address),
+          app_version = COALESCE($3, app_version),
+          platform = COALESCE($4, platform),
+          device_name = COALESCE($5, device_name)
+      WHERE device_id = $6 AND user_id = $7
+    `, [screen || 'Home', clientIp, resolvedAppVersion, resolvedPlatform, device_model, device_id, userId]).catch(() => {});
+
+    return success(res, { success: true });
+  } catch (err) {
+    console.error('appHeartbeat error:', err);
+    error(res, 'Failed to process app heartbeat', 500);
+  }
+};

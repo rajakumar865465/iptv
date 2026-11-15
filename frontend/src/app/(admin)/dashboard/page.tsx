@@ -23,6 +23,7 @@ interface Stats {
   revenueSeries: RevenuePoint[];
   deviceBreakdown: DevicePoint[];
   liveViewers?: number;
+  totalActiveInApp?: number;
 }
 
 const COLORS = ['#10b981', '#06b6d4', '#6366f1', '#8b5cf6', '#ec4899'];
@@ -117,7 +118,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Real-time Live Stream Viewers Banner */}
+      {/* Real-time Live Stream & In-App Viewers Banner */}
       <Link href="/live-viewers">
         <motion.div
           whileHover={{ scale: 1.01 }}
@@ -129,22 +130,25 @@ export default function DashboardPage() {
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center flex-wrap gap-2">
                 <span className="text-base font-bold text-slate-100 group-hover:text-emerald-300 transition-colors">
-                  Live TV Stream Monitor
+                  Live App & Stream Monitor
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  {stats.liveViewers || 0} Online Watching Now
+                  {stats.totalActiveInApp || stats.liveViewers || 0} Online in App
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  {stats.liveViewers || 0} Watching Live TV
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Track who is live streaming right now, channel names, devices, IP addresses, and real-time durations.
+                Track all active users currently on the app — both live TV streamers and users browsing channels.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 group-hover:translate-x-1 transition-transform self-end sm:self-center">
-            <span>View Live Viewers</span>
+            <span>View All Active Users</span>
             <ArrowUpRight className="w-4 h-4" />
           </div>
         </motion.div>

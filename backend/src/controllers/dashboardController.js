@@ -55,12 +55,16 @@ exports.getDashboardStats = async (req, res) => {
         GROUP BY COALESCE(platform, 'Unknown')
       `),
       db.query(`
-        SELECT COUNT(*) as live_count
+        SELECT 
+          COUNT(*) FILTER (WHERE last_stream_ping_at > NOW() - INTERVAL '75 seconds' AND active_channel_id IS NOT NULL) AS live_count,
+          COUNT(*) FILTER (WHERE (last_stream_ping_at > NOW() - INTERVAL '75 seconds' AND active_channel_id IS NOT NULL) OR last_active_at > NOW() - INTERVAL '2 minutes') AS in_app_count
         FROM devices 
-        WHERE last_stream_ping_at > NOW() - INTERVAL '75 seconds' 
-          AND active_channel_id IS NOT NULL
-      `).catch(() => ({ rows: [{ live_count: 0 }] }))
+      `).catch(() => ({ rows: [{ live_count: 0, in_app_count: 0 }] }))
     ]);
+
+    const liveStats = liveStreamStats.rows[0] || {};
+    const liveViewersCount = parseInt(liveStats.live_count || 0, 10);
+    const inAppUsersCount = parseInt(liveStats.in_app_count || 0, 10);
 
     success(res, {
       users: userStats.rows[0],
@@ -72,7 +76,8 @@ exports.getDashboardStats = async (req, res) => {
       recentPayments: recentPayments.rows,
       revenueSeries: revenueSeries.rows,
       deviceBreakdown: deviceBreakdown.rows.length > 0 ? deviceBreakdown.rows : [{name: 'Android', value: 1}, {name: 'iOS', value: 1}],
-      liveViewers: parseInt(liveStreamStats.rows[0]?.live_count || 0, 10)
+      liveViewers: liveViewersCount,
+      totalActiveInApp: inAppUsersCount
     });
   } catch (err) {
     console.error('getDashboardStats error:', err);

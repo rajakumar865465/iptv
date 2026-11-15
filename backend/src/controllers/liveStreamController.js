@@ -18,7 +18,14 @@ exports.getLiveStreams = async (req, res) => {
         COALESCE(s.ip_address, d.ip_address) AS ip_address,
         COALESCE(s.started_at, d.stream_started_at, d.last_stream_ping_at) AS started_at,
         d.last_stream_ping_at,
+        d.last_active_at,
         GREATEST(0, EXTRACT(EPOCH FROM (NOW() - COALESCE(s.started_at, d.stream_started_at, d.last_stream_ping_at)))::INT) AS duration_seconds,
+        GREATEST(0, EXTRACT(EPOCH FROM (NOW() - COALESCE(d.last_active_at, d.last_stream_ping_at, NOW())))::INT) AS seconds_since_active,
+        CASE 
+          WHEN d.last_stream_ping_at > NOW() - INTERVAL '75 seconds' AND d.active_channel_id IS NOT NULL THEN 'streaming'
+          ELSE 'in_app'
+        END AS activity_status,
+        COALESCE(d.current_screen, 'Home') AS current_screen,
         u.id AS user_id,
         COALESCE(u.full_name, 'Anonymous Viewer') AS user_name,
         u.email AS user_email,
@@ -34,21 +41,33 @@ exports.getLiveStreams = async (req, res) => {
         l.status AS license_status
       FROM devices d
       JOIN users u ON d.user_id = u.id
-      JOIN channels c ON d.active_channel_id = c.id
+      LEFT JOIN channels c ON d.active_channel_id = c.id
       LEFT JOIN categories cat ON c.category_id = cat.id
       LEFT JOIN stream_sessions s ON s.device_id = d.device_id AND s.is_active = TRUE
       LEFT JOIN licenses l ON d.license_id = l.id
       LEFT JOIN plans p ON l.plan_id = p.id
-      WHERE d.last_stream_ping_at > NOW() - INTERVAL '75 seconds'
-        AND d.active_channel_id IS NOT NULL
-      ORDER BY d.last_stream_ping_at DESC
+      WHERE (
+        (d.last_stream_ping_at > NOW() - INTERVAL '75 seconds' AND d.active_channel_id IS NOT NULL)
+        OR (d.last_active_at > NOW() - INTERVAL '2 minutes')
+      )
+      ORDER BY 
+        CASE WHEN d.last_stream_ping_at > NOW() - INTERVAL '75 seconds' AND d.active_channel_id IS NOT NULL THEN 0 ELSE 1 END,
+        COALESCE(d.last_stream_ping_at, d.last_active_at) DESC
     `);
 
-    // Channel popularity among live viewers
+    // Channel popularity among active streamers
     const channelCounts = {};
+    let streamingCount = 0;
+    let inAppCount = 0;
+
     for (const row of result.rows) {
-      const chName = row.channel_name || 'Unknown';
-      channelCounts[chName] = (channelCounts[chName] || 0) + 1;
+      if (row.activity_status === 'streaming') {
+        streamingCount++;
+        const chName = row.channel_name || 'Unknown';
+        channelCounts[chName] = (channelCounts[chName] || 0) + 1;
+      } else {
+        inAppCount++;
+      }
     }
 
     const topLiveChannels = Object.entries(channelCounts)
@@ -57,7 +76,10 @@ exports.getLiveStreams = async (req, res) => {
       .slice(0, 5);
 
     success(res, {
-      total_viewers: result.rows.length,
+      total_viewers: streamingCount,
+      total_online_users: result.rows.length,
+      streaming_viewers: streamingCount,
+      in_app_users: inAppCount,
       streams: result.rows,
       top_live_channels: topLiveChannels,
       timestamp: new Date().toISOString()
