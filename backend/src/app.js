@@ -401,6 +401,14 @@ initDatabase().then(() => {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT} (WebSocket: ws://0.0.0.0:${PORT}/ws)`);
     
+    // Start Stream Session Reaper for high-precision live viewer & watch-time tracking
+    try {
+      const { startStreamReaper } = require('./jobs/stream_reaper');
+      startStreamReaper();
+    } catch (reaperErr) {
+      console.error('Failed to start stream reaper:', reaperErr.message);
+    }
+    
     // Start Smooth Playback buffer recorders (Disabled per user request)
     // const bufferRecorder = require('./jobs/buffer_recorder');
     // bufferRecorder.startAllEnabledRecorders().catch(err =>

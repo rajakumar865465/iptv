@@ -176,10 +176,17 @@ router.post('/notifications', notificationController.createNotification);
 router.put('/notifications/:id', notificationController.updateNotification);
 router.delete('/notifications/:id', notificationController.deleteNotification);
 
+// ─── Live Stream Monitoring ───────────────────────
+const liveStreamController = require('../controllers/liveStreamController');
+router.get('/live-streams', liveStreamController.getLiveStreams);
+router.delete('/live-streams/:id/kill', liveStreamController.killLiveStream);
+router.get('/users/:userId/watch-history', liveStreamController.getUserWatchHistory);
+
 // ─── Analytics ────────────────────────────────────
 router.get('/analytics/users', analyticsController.getUserAnalytics);
 router.get('/analytics/revenue', analyticsController.getRevenueAnalytics);
 router.get('/analytics/playback', analyticsController.getPlaybackAnalytics);
+router.get('/analytics/watch-time', analyticsController.getWatchTimeAnalytics);
 
 // ─── Stream Scanner ───────────────────────────────
 router.post('/scanner/trigger', scannerController.triggerScan);

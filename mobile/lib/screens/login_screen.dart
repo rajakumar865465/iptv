@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants.dart';
+import '../cubits/app_config_cubit.dart';
 import '../cubits/auth_cubit.dart';
 import '../cubits/license_cubit.dart';
 import '../utils/force_update_helper.dart';
@@ -22,6 +23,38 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _checkVersionOnInit();
+    });
+  }
+
+  void _checkVersionOnInit() {
+    final appConfigState = context.read<AppConfigCubit>().state;
+    if (appConfigState is AppConfigForceUpdateRequired) {
+      ForceUpdateHelper.navigateToForceUpdate(
+        info: appConfigState.info,
+        navigator: Navigator.of(context),
+      );
+      return;
+    }
+    if (appConfigState is AppConfigLoaded) {
+      final config = appConfigState.config;
+      final minVersion = config['minimum_app_version'] ?? '1.0.0';
+      final isOutdated = ForceUpdateHelper.isVersionBelow(AppConstants.appVersion, minVersion);
+      final isForceUpdateFlag = config['force_update'] == 'true';
+      if (isOutdated && (isForceUpdateFlag || minVersion != '1.0.0')) {
+        ForceUpdateHelper.navigateToForceUpdate(
+          info: ForceUpdateInfo.fromConfig(config),
+          navigator: Navigator.of(context),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -103,6 +136,20 @@ class _LoginScreenState extends State<LoginScreen> {
             _navigateAfterLogin(context);
           } else if (state is AuthError) {
             if (ForceUpdateHelper.isActive) return;
+            final msg = state.message.toLowerCase();
+            if (msg.contains('mandatory update') ||
+                msg.contains('force_update') ||
+                msg.contains('continue streaming') ||
+                msg.contains('update to nivatv')) {
+              ForceUpdateHelper.navigateToForceUpdate(
+                info: ForceUpdateInfo(
+                  message: state.message,
+                  downloadPageUrl: '/download',
+                ),
+                navigator: Navigator.of(context),
+              );
+              return;
+            }
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

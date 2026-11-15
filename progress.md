@@ -1,5 +1,31 @@
 # NivaTV - Recent Progress
 
+## Real-Time Live Viewers Tracking & High-Precision Watch Time Analytics (November 2026)
+- **Database Schema Migration 066 (`066_live_stream_sessions_and_watch_time.sql`):**
+  - Created `stream_sessions` table with second-level accuracy tracking `user_id`, `device_id`, `channel_id`, `started_at`, `last_ping_at`, `ended_at`, `duration_seconds`, `is_active`, `ip_address`, `app_version`, `client_platform`, and `device_model`.
+  - Added fast indexed lookups (`idx_stream_sessions_active`, `idx_stream_sessions_user`, `idx_stream_sessions_channel`, `idx_stream_sessions_started_at`).
+  - Augmented `devices` table with `stream_started_at`, `current_session_id`, and `ip_address` for fast state caching.
+- **Enhanced Heartbeat & Session Telemetry (`authController.js`):**
+  - `action === 'start'`: Closes any existing dangling session on that device, creates a new session in `stream_sessions`, updates `devices` state, and broadcasts `live_streams_changed` over WebSocket.
+  - `action === 'ping'`: Updates `last_ping_at` and dynamically computes `duration_seconds` for active sessions without locking the database.
+  - `action === 'stop'`: Finalizes active session with exact duration and timestamp, clears device streaming flags, and notifies real-time listeners.
+- **Background Stream Reaper Watchdog (`backend/src/jobs/stream_reaper.js`):**
+  - Automatically identifies sessions whose heartbeat has timed out (>90s) due to app crash, phone power off, or network loss.
+  - Closes orphaned sessions using their last proven ping time, guaranteeing 100% accurate watch times without artificial inflation.
+- **New Admin Live Stream Endpoints (`liveStreamController.js`, `analyticsController.js`, `routes/admin.js`):**
+  - `GET /api/internal/live-streams`: Returns active concurrent streamers with User identity (Name, Email, Mobile, Subscription), Channel (Name, Logo, Category, Channel #), Device info (Model, OS, Version, IP), and live elapsed duration.
+  - `DELETE /api/internal/live-streams/:id/kill`: Remote disconnect/kill switch for admins.
+  - `GET /api/internal/analytics/watch-time`: Comprehensive analytics including total platform watch hours, average daily watch time per user, avg session length, 24-hour peak viewing distribution curve (IST), category share, and top channels ranked by actual hours streamed.
+  - `GET /api/internal/users/:userId/watch-history`: User watch history with total hours, top channels, and paginated session logs.
+  - `GET /api/internal/dashboard/stats`: Enhanced with `liveViewers` concurrent count.
+- **Admin Panel UI/UX Modernization:**
+  - **Dedicated Live TV Viewers Page (`/live-viewers`):** Real-time monitoring dashboard with pulsing live beacon, live ticking duration timer, channel thumbnails, search/filters, and stream disconnect modal.
+  - **Overview Dashboard Widget (`/dashboard`):** Added high-visibility "Live TV Stream Monitor" banner linking directly to live viewers.
+  - **Upgraded Analytics (`/analytics`):** Interactive watch time area chart, 24-hour peak viewing bar chart, category share breakdown, and top channels ranked by duration.
+  - **User Watch Activity (`/users`):** Added 4th tab "Watch Activity" to the user details drawer showing lifetime watch hours, top channels, and session logs.
+  - **Sidebar Navigation (`Sidebar.tsx`):** Added "Live Viewers" link under Overview with an emerald pulsing indicator.
+  - **WebSocket Authentication (`websocket.ts`):** Fixed admin token injection on `/ws?token=...` for stable, real-time live events.
+
 ## Backwards-Compatible Catalog Playback URLs & Playback Stalls Resolution (November 2026)
 - **Universal Fix for "0 channels available" Empty State on Live TV Tab:**
   - **Identified Root Cause:** The mobile app installed on user devices verifies `c.streamUrl.isNotEmpty` inside `ChannelModel.isPlayable`. When `H-02 Remediation` deleted `stream_url` from catalog listings, all existing mobile app installations flagged all 612 channels as unplayable, showing "0 channels available" with "Working only" active.

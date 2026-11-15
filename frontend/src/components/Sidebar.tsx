@@ -27,6 +27,7 @@ const navSections: NavSection[] = [
     title: 'Overview',
     items: [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/live-viewers', label: 'Live Viewers', icon: Radio },
       { href: '/analytics', label: 'Analytics', icon: BarChart3 },
       { href: '/logs', label: 'Logs', icon: ScrollText },
       { href: '/system', label: 'System', icon: Activity },
@@ -129,6 +130,12 @@ export default function Sidebar() {
                   >
                     <Icon size={16} aria-hidden="true" />
                     <span>{item.label}</span>
+                    {item.href === '/live-viewers' && (
+                      <span className="ml-auto flex h-2 w-2 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                    )}
                   </Link>
                 );
               })}

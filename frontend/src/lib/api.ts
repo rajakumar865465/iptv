@@ -313,6 +313,18 @@ export const getRevenueAnalytics = (days = 30) =>
 export const getPlaybackAnalytics = () =>
   api.get('/analytics/playback').then((r) => r.data.data);
 
+export const getWatchTimeAnalytics = (days = 30) =>
+  api.get('/analytics/watch-time', { params: { days } }).then((r) => r.data.data);
+
+export const getLiveStreams = () =>
+  api.get('/live-streams').then((r) => r.data.data);
+
+export const killLiveStream = (id: string | number) =>
+  api.delete(`/live-streams/${id}/kill`).then((r) => r.data.data);
+
+export const getUserWatchHistory = (userId: string | number, params?: { page?: number; limit?: number }) =>
+  api.get(`/users/${userId}/watch-history`, { params }).then((r) => r.data.data);
+
 export const triggerScan = (data?: Record<string, unknown>) =>
   api.post('/scanner/trigger', data).then((r) => r.data.data);
 

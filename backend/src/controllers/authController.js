@@ -567,16 +567,39 @@ exports.myPurchases = async (req, res) => {
 
 exports.streamHeartbeat = async (req, res) => {
   try {
-    const { channel_id, device_id, action } = req.body;
+    const { channel_id, device_id, action, app_version, platform, device_model } = req.body;
     if (!device_id || !action) return error(res, 'device_id and action are required', 400);
 
     const userId = req.user.id;
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || req.ip || null;
+    const resolvedAppVersion = req.headers['x-app-version'] || app_version || null;
+    const resolvedPlatform = req.headers['x-client-platform'] || platform || 'android';
+    const resolvedDeviceModel = device_model || null;
 
     if (action === 'stop') {
-      await db.query(
-        'UPDATE devices SET last_stream_ping_at = NULL, active_channel_id = NULL WHERE device_id = $1 AND user_id = $2',
-        [device_id, userId]
-      );
+      // 1. Close active session in stream_sessions
+      await db.query(`
+        UPDATE stream_sessions
+        SET is_active = FALSE,
+            ended_at = NOW(),
+            duration_seconds = GREATEST(0, EXTRACT(EPOCH FROM (NOW() - started_at))::INT)
+        WHERE device_id = $1 AND user_id = $2 AND is_active = TRUE
+      `, [device_id, userId]).catch(() => {});
+
+      // 2. Clear streaming state in devices table
+      await db.query(`
+        UPDATE devices
+        SET last_stream_ping_at = NULL,
+            active_channel_id = NULL,
+            stream_started_at = NULL,
+            current_session_id = NULL,
+            last_active_at = NOW()
+        WHERE device_id = $1 AND user_id = $2
+      `, [device_id, userId]);
+
+      // 3. Notify real-time WebSocket listeners
+      global.broadcastToClients?.('live_streams_changed', { event: 'stop', device_id, user_id });
+
       return success(res, { success: true });
     }
 
@@ -588,6 +611,7 @@ exports.streamHeartbeat = async (req, res) => {
       });
       const maxDevices = resolved.maxDevices || 1;
 
+      // Check active devices streaming in last 60 seconds
       const activeDevicesRes = await db.query(
         `SELECT COUNT(*) FROM devices
          WHERE user_id = $1
@@ -607,10 +631,74 @@ exports.streamHeartbeat = async (req, res) => {
         });
       }
 
-      await db.query(
-        'UPDATE devices SET last_stream_ping_at = NOW(), active_channel_id = $1 WHERE device_id = $2 AND user_id = $3',
-        [channel_id || null, device_id, userId]
-      );
+      if (action === 'start') {
+        // Close previous dangling active sessions for this device
+        await db.query(`
+          UPDATE stream_sessions
+          SET is_active = FALSE,
+              ended_at = last_ping_at,
+              duration_seconds = GREATEST(0, EXTRACT(EPOCH FROM (last_ping_at - started_at))::INT)
+          WHERE device_id = $1 AND is_active = TRUE
+        `, [device_id]).catch(() => {});
+
+        // Insert new session
+        let newSessionId = null;
+        try {
+          const insertRes = await db.query(`
+            INSERT INTO stream_sessions (
+              user_id, device_id, channel_id, license_id, started_at, last_ping_at,
+              is_active, ip_address, app_version, client_platform, device_model
+            ) VALUES ($1, $2, $3, $4, NOW(), NOW(), TRUE, $5, $6, $7, $8)
+            RETURNING id
+          `, [
+            userId,
+            device_id,
+            channel_id || null,
+            resolved.licenseId || null,
+            clientIp,
+            resolvedAppVersion,
+            resolvedPlatform,
+            resolvedDeviceModel
+          ]);
+          newSessionId = insertRes.rows[0]?.id || null;
+        } catch (sessionErr) {
+          // If table not migrated yet, do not break playback
+          console.warn('stream_sessions insert warning:', sessionErr.message);
+        }
+
+        // Update devices table
+        await db.query(`
+          UPDATE devices
+          SET last_stream_ping_at = NOW(),
+              active_channel_id = $1,
+              stream_started_at = NOW(),
+              current_session_id = $2,
+              ip_address = COALESCE($3, ip_address),
+              app_version = COALESCE($4, app_version),
+              last_active_at = NOW()
+          WHERE device_id = $5 AND user_id = $6
+        `, [channel_id || null, newSessionId, clientIp, resolvedAppVersion, device_id, userId]);
+
+        global.broadcastToClients?.('live_streams_changed', { event: 'start', device_id, user_id, channel_id });
+      } else {
+        // action === 'ping'
+        await db.query(`
+          UPDATE devices
+          SET last_stream_ping_at = NOW(),
+              active_channel_id = COALESCE($1, active_channel_id),
+              last_active_at = NOW()
+          WHERE device_id = $2 AND user_id = $3
+        `, [channel_id || null, device_id, userId]);
+
+        // Update active session duration and last_ping_at
+        await db.query(`
+          UPDATE stream_sessions
+          SET last_ping_at = NOW(),
+              duration_seconds = GREATEST(0, EXTRACT(EPOCH FROM (NOW() - started_at))::INT),
+              channel_id = COALESCE($1, channel_id)
+          WHERE device_id = $2 AND user_id = $3 AND is_active = TRUE
+        `, [channel_id || null, device_id, userId]).catch(() => {});
+      }
 
       return success(res, { success: true });
     }

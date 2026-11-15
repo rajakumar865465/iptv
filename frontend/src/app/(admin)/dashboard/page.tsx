@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Users, MonitorSmartphone, KeyRound, CreditCard, AlertTriangle, Globe, Activity, ArrowUpRight, ArrowDownRight, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+import { Users, MonitorSmartphone, KeyRound, CreditCard, AlertTriangle, Globe, Activity, ArrowUpRight, ArrowDownRight, RefreshCw, Radio } from 'lucide-react';
 import { getDashboardStats } from '@/lib/api';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { motion } from 'framer-motion';
@@ -21,6 +22,7 @@ interface Stats {
   recentPayments: RecentPayment[];
   revenueSeries: RevenuePoint[];
   deviceBreakdown: DevicePoint[];
+  liveViewers?: number;
 }
 
 const COLORS = ['#10b981', '#06b6d4', '#6366f1', '#8b5cf6', '#ec4899'];
@@ -114,6 +116,39 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Real-time Live Stream Viewers Banner */}
+      <Link href="/live-viewers">
+        <motion.div
+          whileHover={{ scale: 1.01 }}
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 via-slate-900/60 to-slate-900/40 backdrop-blur-xl hover:border-emerald-500/60 transition-all cursor-pointer group shadow-lg shadow-emerald-950/20"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="relative flex items-center justify-center p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+              <Radio className="w-5 h-5 animate-pulse" />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-base font-bold text-slate-100 group-hover:text-emerald-300 transition-colors">
+                  Live TV Stream Monitor
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  {stats.liveViewers || 0} Online Watching Now
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Track who is live streaming right now, channel names, devices, IP addresses, and real-time durations.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 group-hover:translate-x-1 transition-transform self-end sm:self-center">
+            <span>View Live Viewers</span>
+            <ArrowUpRight className="w-4 h-4" />
+          </div>
+        </motion.div>
+      </Link>
 
       <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {statCards.map((card, idx) => (

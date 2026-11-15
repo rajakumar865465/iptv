@@ -31,21 +31,13 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkAppStart() async {
-    // Show splash for at least 2 seconds
-    await Future.delayed(const Duration(seconds: 2));
+    // Show splash for at least 1.5 seconds for branding display
+    await Future.delayed(const Duration(milliseconds: 1500));
 
     if (!context.mounted) return;
 
-    // First, check if onboarding is complete
-    final hasOnboarding = await StorageService().hasSeenOnboarding();
-    if (!hasOnboarding && context.mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-      );
-      return;
-    }
-
-    // Fetch app config first (maintenance, force update, etc.)
+    // STEP 1: PRIORITIZE CONFIG & APP VERSION CHECK FIRST (Instant launch gatekeeper)
+    // Never allow an outdated or incompatible app to proceed to onboarding or login.
     await context.read<AppConfigCubit>().fetchConfig();
     if (!context.mounted) return;
 
@@ -60,7 +52,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (appConfig is AppConfigLoaded) {
       final config = appConfig.config;
 
-      // Check maintenance mode
+      // Check maintenance mode first
       if (config['maintenance_mode'] == 'true') {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const MaintenanceScreen()),
@@ -68,20 +60,32 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      // Check force update (only blocks if running version is below minimum_app_version)
-      if (config['force_update'] == 'true') {
-        final minVersion = config['minimum_app_version'] ?? '1.0.0';
-        if (ForceUpdateHelper.isVersionBelow(AppConstants.appVersion, minVersion)) {
-          ForceUpdateHelper.navigateToForceUpdate(
-            info: ForceUpdateInfo.fromConfig(config),
-            navigator: Navigator.of(context),
-          );
-          return;
-        }
+      // Check force update: block if force_update is true OR running version is below minimum_app_version
+      final minVersion = config['minimum_app_version'] ?? '1.0.0';
+      final isOutdated = ForceUpdateHelper.isVersionBelow(AppConstants.appVersion, minVersion);
+      final isForceUpdateFlag = config['force_update'] == 'true';
+
+      if (isOutdated && (isForceUpdateFlag || minVersion != '1.0.0')) {
+        ForceUpdateHelper.navigateToForceUpdate(
+          info: ForceUpdateInfo.fromConfig(config),
+          navigator: Navigator.of(context),
+        );
+        return;
       }
     }
 
-    // Check auth state and validate user on backend
+    if (ForceUpdateHelper.isActive) return;
+
+    // STEP 2: CHECK ONBOARDING (Only for compatible app versions)
+    final hasOnboarding = await StorageService().hasSeenOnboarding();
+    if (!hasOnboarding && context.mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+      );
+      return;
+    }
+
+    // STEP 3: CHECK AUTH STATE & VALIDATE USER SESSION
     final token = await StorageService().getToken();
     if (token != null && context.mounted) {
       // Validate token and get fresh user/me data

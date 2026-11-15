@@ -3,7 +3,7 @@ const { success, error } = require('../utils/response');
 
 exports.getDashboardStats = async (req, res) => {
   try {
-    const [userStats, channelStats, licenseStats, paymentStats, deviceStats, recentUsers, recentPayments, revenueSeries, deviceBreakdown] = await Promise.all([
+    const [userStats, channelStats, licenseStats, paymentStats, deviceStats, recentUsers, recentPayments, revenueSeries, deviceBreakdown, liveStreamStats] = await Promise.all([
       db.query(`SELECT
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE status = 'active') as active,
@@ -53,7 +53,13 @@ exports.getDashboardStats = async (req, res) => {
         SELECT COALESCE(platform, 'Unknown') as name, COUNT(*) as value 
         FROM devices 
         GROUP BY COALESCE(platform, 'Unknown')
-      `)
+      `),
+      db.query(`
+        SELECT COUNT(*) as live_count
+        FROM devices 
+        WHERE last_stream_ping_at > NOW() - INTERVAL '75 seconds' 
+          AND active_channel_id IS NOT NULL
+      `).catch(() => ({ rows: [{ live_count: 0 }] }))
     ]);
 
     success(res, {
@@ -65,7 +71,8 @@ exports.getDashboardStats = async (req, res) => {
       recentUsers: recentUsers.rows,
       recentPayments: recentPayments.rows,
       revenueSeries: revenueSeries.rows,
-      deviceBreakdown: deviceBreakdown.rows.length > 0 ? deviceBreakdown.rows : [{name: 'Android', value: 1}, {name: 'iOS', value: 1}]
+      deviceBreakdown: deviceBreakdown.rows.length > 0 ? deviceBreakdown.rows : [{name: 'Android', value: 1}, {name: 'iOS', value: 1}],
+      liveViewers: parseInt(liveStreamStats.rows[0]?.live_count || 0, 10)
     });
   } catch (err) {
     console.error('getDashboardStats error:', err);

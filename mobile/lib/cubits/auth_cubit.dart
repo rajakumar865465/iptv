@@ -72,8 +72,7 @@ class AuthCubit extends Cubit<AuthState> {
       }
       if (e is DioException) {
         final statusCode = e.response?.statusCode;
-        // On Flutter web, Dio returns error response bodies as raw String instead of
-        // a parsed Map. Parse manually so DEVICE_LIMIT_REACHED is always detected.
+        // On Flutter web or certain clients, Dio returns error response bodies as raw String
         var raw = e.response?.data;
         Map<String, dynamic>? data;
         if (raw is Map<String, dynamic>) {
@@ -81,14 +80,26 @@ class AuthCubit extends Cubit<AuthState> {
         } else if (raw is String) {
           try { data = jsonDecode(raw) as Map<String, dynamic>?; } catch (_) {}
         }
+
+        // Catch any 426 Upgrade Required or FORCE_UPDATE_REQUIRED response
+        if (statusCode == 426 || (data != null && (data['error'] == 'FORCE_UPDATE_REQUIRED' || data['error_code'] == 'FORCE_UPDATE_REQUIRED'))) {
+          emit(AuthForceUpdateRequired(ForceUpdateHelper.extractInfo(e) ?? ForceUpdateInfo.fromResponseMap(data)));
+          return;
+        }
+
         String message = 'Login failed. Please check your credentials.';
 
         if (data != null && data['message'] != null) {
+          final msgStr = data['message'].toString();
+          if (msgStr.toLowerCase().contains('mandatory update') || msgStr.toLowerCase().contains('continue streaming')) {
+            emit(AuthForceUpdateRequired(ForceUpdateInfo.fromResponseMap(data) ?? ForceUpdateInfo(message: msgStr)));
+            return;
+          }
           if (data['error'] == 'DEVICE_LIMIT_REACHED') {
             emit(AuthDeviceLimitReached(email, password, data['message'].toString()));
             return;
           }
-          message = data['message'].toString();
+          message = msgStr;
         } else if (statusCode == 401) {
           message = 'Invalid email or password.';
         } else if (statusCode == 403) {
@@ -239,9 +250,18 @@ class AuthCubit extends Cubit<AuthState> {
         } else if (rawS is String) {
           try { data = jsonDecode(rawS) as Map<String, dynamic>?; } catch (_) {}
         }
+        if (statusCode == 426 || (data != null && (data['error'] == 'FORCE_UPDATE_REQUIRED' || data['error_code'] == 'FORCE_UPDATE_REQUIRED'))) {
+          emit(AuthForceUpdateRequired(ForceUpdateHelper.extractInfo(e) ?? ForceUpdateInfo.fromResponseMap(data)));
+          return;
+        }
         String message = 'Signup failed. Please try again.';
         if (data != null && data['message'] != null) {
-          message = data['message'].toString();
+          final msgStr = data['message'].toString();
+          if (msgStr.toLowerCase().contains('mandatory update') || msgStr.toLowerCase().contains('continue streaming')) {
+            emit(AuthForceUpdateRequired(ForceUpdateInfo.fromResponseMap(data) ?? ForceUpdateInfo(message: msgStr)));
+            return;
+          }
+          message = msgStr;
         } else if (statusCode == 409) {
           message = 'Email or mobile number already registered.';
         } else if (statusCode != null && statusCode >= 500) {
