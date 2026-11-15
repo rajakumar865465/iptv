@@ -1,5 +1,26 @@
 # NivaTV - Recent Progress
 
+## Production Release v2.8.8 Compilation, Web Download Deployment & Emulator End-to-End Verification (November 2026)
+- **Compiled Split Release APKs v2.8.8 (versionCode 4038):**
+  - Incremented version from `2.8.7+4037` to `2.8.8+4038` in `mobile/pubspec.yaml` and `mobile/lib/constants.dart`.
+  - Built official production split binaries targeting `BACKEND_URL=https://nivatv.luxomall.in` with full code obfuscation and split debug symbols:
+    - `app-arm64-v8a-release.apk` (33.3 MB, versionCode: 6038)
+    - `app-armeabi-v7a-release.apk` (30.1 MB, versionCode: 5038)
+    - `app-x86_64-release.apk` (38.0 MB, versionCode: 8038)
+  - Synchronized APK binaries across `backend/public/downloads/` and `frontend/public/downloads/` with both clean filenames (`app-release.apk`, `app-release-32bit.apk`, `app-x86_64-release.apk`) and versioned tags (`NivaTV_arm64_v2.8.8.apk`, `NivaTV_arm32_v2.8.8.apk`, `NivaTV_x86_64_v2.8.8.apk`).
+- **EC2 Production Deployment & Database Release Update:**
+  - Pushed all code updates to GitHub `origin/main` (`d3ecc88` and `79e2ef2`).
+  - Deployed to EC2 server: pulled latest `main` branch, uploaded binaries, and restarted `iptv-backend` in PM2.
+  - Updated PostgreSQL `app_settings` (`minimum_app_version = '2.8.8'`, `latest_app_version = '2.8.8'`) and inserted release entry into `app_releases` with `version = '2.8.8'`, `version_code = 4038`, `is_latest = true`.
+  - Upgraded `authController.appHeartbeat` with an `UPSERT` (`INSERT ... ON CONFLICT (user_id, device_id) DO UPDATE ...`) to ensure real-time presence tracking works seamlessly across all device IDs without pre-existing registration barriers.
+- **Android Emulator End-to-End Verification (`emulator-5554`):**
+  - **Web Download Testing:** Opened Google Chrome on the emulator to the official web download portal (`https://nivatv.luxomall.in/download`). Verified that the page correctly auto-detected Android x86_64 architecture and served `v2.8.8` (`app-x86_64-release.apk`). Downloaded file to `/sdcard/Download` and verified package manager install upgrade (`Success`).
+  - **App Execution & UI:** Launched NivaTV (`versionName=2.8.8`, `versionCode=8038`). Home screen rendered instantly with user greeting (`QA Tester`), category pills, trending row, and bottom navigation bar.
+  - **Channel Directory & Playback:** Navigated to `Live TV` tab showing 575 active playable channels. Selected and played `22Scope News (1080p)`: stream initialized immediately in full HD (1080p) with zero buffering or stutter.
+  - **Real-Time Stream Session Tracking:** Verified active session in PostgreSQL `stream_sessions`: recorded `user_id = 39` (`QA Tester`), `channel = '22Scope News (1080p)'`, `is_active = true`, `client_platform = 'android'`, `app_version = '2.8.8'`.
+  - **PiP Mini-Player & Stream Stop:** Closed playback via PiP mini-player. Stream session cleanly finalized: `is_active = false`, `duration_seconds = 372` (exact 6m 12s watch time), and cleared active channel markers on the device.
+
+
 ## Real-Time Live Viewers Tracking & High-Precision Watch Time Analytics (November 2026)
 - **Database Schema Migration 066 (`066_live_stream_sessions_and_watch_time.sql`):**
   - Created `stream_sessions` table with second-level accuracy tracking `user_id`, `device_id`, `channel_id`, `started_at`, `last_ping_at`, `ended_at`, `duration_seconds`, `is_active`, `ip_address`, `app_version`, `client_platform`, and `device_model`.
