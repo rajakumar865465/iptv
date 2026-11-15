@@ -721,15 +721,19 @@ exports.appHeartbeat = async (req, res) => {
     const resolvedPlatform = req.headers['x-client-platform'] || platform || 'android';
 
     await db.query(`
-      UPDATE devices
-      SET last_active_at = NOW(),
-          current_screen = COALESCE($1, current_screen, 'Home'),
-          ip_address = COALESCE($2, ip_address),
-          app_version = COALESCE($3, app_version),
-          platform = COALESCE($4, platform),
-          device_name = COALESCE($5, device_name)
-      WHERE device_id = $6 AND user_id = $7
-    `, [screen || 'Home', clientIp, resolvedAppVersion, resolvedPlatform, device_model, device_id, userId]).catch(() => {});
+      INSERT INTO devices (user_id, device_id, device_name, current_screen, last_active_at, ip_address, app_version, platform)
+      VALUES ($1, $2, COALESCE($3, 'Mobile Device'), COALESCE($4, 'Home'), NOW(), $5, $6, $7)
+      ON CONFLICT (user_id, device_id)
+      DO UPDATE SET
+        last_active_at = NOW(),
+        current_screen = COALESCE($4, devices.current_screen, 'Home'),
+        ip_address = COALESCE($5, devices.ip_address),
+        app_version = COALESCE($6, devices.app_version),
+        platform = COALESCE($7, devices.platform),
+        device_name = COALESCE($3, devices.device_name);
+    `, [userId, device_id, device_model, screen || 'Home', clientIp, resolvedAppVersion, resolvedPlatform]).catch((err) => {
+      console.error('appHeartbeat db error:', err);
+    });
 
     return success(res, { success: true });
   } catch (err) {
