@@ -1,5 +1,42 @@
 # NivaTV - Recent Progress
 
+## Production Release v2.8.9 Compilation, Viewer Experience & Picture Quality Overhaul & EC2 Admin Frontend Deployment (November 2026)
+- **Player Gesture Controls Purge & Software Dimming Elimination:**
+  - In `mobile/lib/screens/player_screen.dart`, completely removed vertical drag handlers (`onVerticalDragUpdate`, `onVerticalDragStart`, `onVerticalDragEnd`) that altered volume and brightness.
+  - Eliminated accidental double-tap handlers (`onDoubleTapDown`) that switched channels or paused playback during handling.
+  - Removed the artificial black container software overlay (`Colors.black.withOpacity((1.0 - _brightness) * 0.85)`) from both fullscreen and portrait layouts that caused video to permanently darken whenever the left screen was swiped down.
+  - Retained single-tap control toggling with smooth 250ms show/hide transitions.
+  - Replaced secondary toolbar volume/brightness sliders with a `Vivid Cinema` badge and clean `_isMuted` audio toggle.
+- **Hardware Backlight Override Service:**
+  - Created `mobile/lib/services/screen_brightness_service.dart` invoking native Android `MethodChannel('com.iptv.iptv_app/screen')`.
+  - In `MainActivity.kt`, implemented `setScreenBrightness` setting `window.attributes.screenBrightness = 1.0f` (100% full hardware backlight) and `resetScreenBrightness` restoring default system auto-brightness upon player exit or PiP.
+- **Libmpv Vivid Cinema Picture Engine:**
+  - Configured hardware post-processing filters in `player_screen.dart`:
+    - `contrast: '6'`: Deepens true blacks and strips milky broadcast fog.
+    - `brightness: '4'`: Lifts midtones cleanly without clipping highlights.
+    - `saturation: '8'`: Saturated, vibrant Indian broadcast and sports color fidelity.
+    - `gamma: '3'`: Expands dark scene shadow detail.
+    - `video-output-levels: 'full'`: Maps broadcast 16-235 YUV range to the full 0-255 mobile OLED/IPS display range.
+    - `filterQuality: FilterQuality.high` applied to the native video texture.
+- **Compiled Split Release APKs v2.8.9 (versionCode 4039):**
+  - Incremented version from `2.8.8+4038` to `2.8.9+4039` in `mobile/pubspec.yaml` and `mobile/lib/constants.dart`.
+  - Built official production split binaries targeting `BACKEND_URL=https://nivatv.luxomall.in`:
+    - `app-arm64-v8a-release.apk` (34.8 MB, MD5: `2213d1de6f0ca753039e8063b45b72ed`)
+    - `app-armeabi-v7a-release.apk` (31.5 MB, MD5: `c13086f245fc2c8913c6f18c9ac5260e`)
+    - `app-x86_64-release.apk` (39.8 MB, MD5: `4d2a60781d75ea8913c34090424f4774`)
+  - Deployed and synchronized all binaries to EC2 server (`44.206.18.189`) across both `backend/public/downloads/` and `frontend/public/downloads/` with 100% verified checksum matches.
+- **EC2 Admin Panel Production Build & Deployment:**
+  - Executed `npm run build` on EC2, compiling all 58 static and dynamic Next.js routes.
+  - Restarted PM2 service `iptv-frontend`.
+  - Verified live deployment of the **Live Viewers** monitoring suite:
+    - Sidebar navigation with animated pulsing emerald beacon.
+    - Dashboard Overview **"Live App & Stream Monitor"** card showing both active in-app browsing users and live stream viewers.
+    - Dedicated `/live-viewers` page with real-time viewer cards, live ticking duration, user identity, device details, and remote disconnect kill switch.
+- **Database Release Update:**
+  - Executed `backend/scripts/update_release_v2.8.9.sql` on EC2 `iptv_db`.
+  - Updated `app_releases` with version `2.8.9`, `version_code = 4039`, `is_latest = true`, `force_update = true`.
+  - Updated `notifications` with in-app release announcement for v2.8.9.
+
 ## Production Release v2.8.8 Compilation, Web Download Deployment & Emulator End-to-End Verification (November 2026)
 - **Compiled Split Release APKs v2.8.8 (versionCode 4038):**
   - Incremented version from `2.8.7+4037` to `2.8.8+4038` in `mobile/pubspec.yaml` and `mobile/lib/constants.dart`.
