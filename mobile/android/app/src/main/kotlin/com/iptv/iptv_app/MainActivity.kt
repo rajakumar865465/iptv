@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Rational
+import android.view.WindowManager
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -17,6 +18,7 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     private val PIP_CHANNEL = "com.iptv.iptv_app/pip"
     private val UPDATER_CHANNEL = "com.iptv.iptv_app/updater"
+    private val SCREEN_CHANNEL = "com.iptv.iptv_app/screen"
     private var methodChannel: MethodChannel? = null
     private var isPipAllowed = false
 
@@ -116,6 +118,34 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("INSTALL_ERROR", e.localizedMessage ?: e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // 3. Screen Hardware Backlight Control MethodChannel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SCREEN_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setScreenBrightness" -> {
+                    try {
+                        val brightness = (call.argument<Double>("brightness") ?: 1.0).toFloat().coerceIn(0.1f, 1.0f)
+                        val lp = window.attributes
+                        lp.screenBrightness = brightness
+                        window.attributes = lp
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("BRIGHTNESS_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "resetScreenBrightness" -> {
+                    try {
+                        val lp = window.attributes
+                        lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                        window.attributes = lp
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("RESET_ERROR", e.localizedMessage, null)
                     }
                 }
                 else -> result.notImplemented()

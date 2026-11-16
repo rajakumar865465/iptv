@@ -26,6 +26,7 @@ import '../cubits/mini_player_cubit.dart';
 import '../utils/backend_config.dart';
 import '../utils/force_update_helper.dart';
 import '../services/local_hls_proxy.dart';
+import '../services/screen_brightness_service.dart';
 import '../main.dart';
 import 'blocked_screen.dart';
 import 'license_activation_screen.dart';
@@ -318,11 +319,7 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
   bool _isLocked = false;
   bool _showLockHud = false;
   Timer? _lockHudTimer;
-  double _volume = 100.0;
-  double _brightness = 1.0;
-  bool _showVolumeHud = false;
-  bool _showBrightnessHud = false;
-  Timer? _hudTimer;
+  bool _isMuted = false;
   bool _isSpeedBoosted = false;
   int _sleepTimerMinutes = 0;
   Timer? _sleepTimer;
@@ -652,7 +649,13 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
           logLevel: MPVLogLevel.warn,
         ),
       );
-      _videoController = VideoController(_player);
+      _videoController = VideoController(
+        _player,
+        configuration: const VideoControllerConfiguration(
+          enableHardwareAcceleration: true,
+          hwdec: 'auto-safe',
+        ),
+      );
     }
 
     // Fix #9: Keep screen on during playback
@@ -660,6 +663,9 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
       WakelockPlus.enable();
       _wakelockEnabled = true;
     }
+
+    // Boost Android hardware screen backlight for cinema/video viewing
+    ScreenBrightnessService.boostBrightness();
 
     _controlsAnimController = AnimationController(
       vsync: this,
@@ -687,6 +693,13 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
   @override
   void didUpdateWidget(PlayerScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.isMinimized != oldWidget.isMinimized || widget.isOsPipMode != oldWidget.isOsPipMode) {
+      if (widget.isMinimized || widget.isOsPipMode) {
+        ScreenBrightnessService.resetBrightness();
+      } else {
+        ScreenBrightnessService.boostBrightness();
+      }
+    }
     if (oldWidget.channel.id != widget.channel.id) {
       _stopHeartbeatTimer();
       _bufferTimer?.cancel();
@@ -1669,6 +1682,20 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
           // Deinterlace older SD IPTV channels (many Indian channels are still interlaced).
           try {
             await (platform as dynamic).setProperty('deinterlace', 'auto');
+          } catch (_) {}
+
+          // Cinema Picture Engine: High clarity, vibrant colors, rich contrast, and 0-255 dynamic range
+          try {
+            // Contrast: deepens true blacks and strips the milky/foggy broadcast haze
+            await (platform as dynamic).setProperty('contrast', '6');
+            // Video brightness: boosts midtones and shadows without clipping highlights
+            await (platform as dynamic).setProperty('brightness', '4');
+            // Saturation: rich, vibrant colors matching Indian broadcast & sports standards
+            await (platform as dynamic).setProperty('saturation', '8');
+            // Gamma: lifts shadow details for dark movie/news scenes
+            await (platform as dynamic).setProperty('gamma', '3');
+            // Full color dynamic range: converts 16-235 broadcast clamp to full 0-255 mobile screen range
+            await (platform as dynamic).setProperty('video-output-levels', 'full');
           } catch (_) {}
 
         }
@@ -3288,7 +3315,6 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
     // Fix #14: Dispose video player FIRST before animation controller to prevent
     // animation callbacks firing after widget is unmounted
     _stopHeartbeatTimer();
-    _hudTimer?.cancel();
     _lockHudTimer?.cancel();
     _sleepTimer?.cancel();
     _bufferTimer?.cancel();
@@ -3331,6 +3357,8 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
     _hlsProxy.stop();
     // Fix #9: Disable wakelock when leaving player
     WakelockPlus.disable();
+    // Restore system screen brightness when leaving player
+    ScreenBrightnessService.resetBrightness();
     // Always restore all orientations and edge-to-edge system UI when exiting the player
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -3432,15 +3460,6 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
         children: [
           // Video fills the entire screen
           Positioned.fill(child: _buildVideoSurface()),
-          // Software Brightness Dimming Layer
-          if (_brightness < 1.0)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Container(
-                  color: Colors.black.withOpacity((1.0 - _brightness) * 0.85),
-                ),
-              ),
-            ),
           if (_isLoading) Positioned.fill(child: _buildLoadingOverlay()),
           if (_hasError) Positioned.fill(child: _buildErrorOverlay()),
           if (_warmingOverLive)
@@ -3461,8 +3480,6 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
             ),
           
           // HUD Overlays
-          if (_showBrightnessHud) _buildBrightnessHud(),
-          if (_showVolumeHud) _buildVolumeHud(),
           if (_isSpeedBoosted) _buildSpeedBoostHud(),
           _buildSlowConnectionOverlay(),
           _buildPlayerToast(),
@@ -3493,15 +3510,6 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
                   fit: StackFit.expand,
                   children: [
                     _buildVideoSurface(),
-                    // Software Brightness Dimming Layer
-                    if (_brightness < 1.0)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: Container(
-                            color: Colors.black.withOpacity((1.0 - _brightness) * 0.85),
-                          ),
-                        ),
-                      ),
                     if (_isLoading) Positioned.fill(child: _buildLoadingOverlay()),
                     if (_hasError) Positioned.fill(child: _buildErrorOverlay()),
                     if (_warmingOverLive)
@@ -3524,8 +3532,6 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
                       ),
                     
                     // HUD Overlays
-                    if (_showBrightnessHud) _buildBrightnessHud(),
-                    if (_showVolumeHud) _buildVolumeHud(),
                     if (_isSpeedBoosted) _buildSpeedBoostHud(),
                     _buildSlowConnectionOverlay(),
                     _buildPlayerToast(),
@@ -3591,7 +3597,7 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
             controller: _videoController,
             fit: _getBoxFit(),
             controls: NoVideoControls,
-            filterQuality: FilterQuality.medium,
+            filterQuality: FilterQuality.high,
           ),
         ),
       ),
@@ -4262,81 +4268,8 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
         }
         _toggleControls();
       },
-      onDoubleTapDown: (details) {
-        if (_isLocked) return;
-        final screenWidth = MediaQuery.of(context).size.width;
-        final x = details.globalPosition.dx;
-        if (x < screenWidth * 0.35) {
-          _playPreviousChannel();
-          _showPlayerToast('⏮ Previous Channel');
-        } else if (x > screenWidth * 0.65) {
-          _playNextChannel();
-          _showPlayerToast('⏭ Next Channel');
-        } else {
-          _userPaused = _player.state.playing;
-          _player.playOrPause();
-          _showControlsWithTimer();
-        }
-      },
-      onVerticalDragUpdate: (details) {
-        if (_isLocked) return;
-        final screenWidth = MediaQuery.of(context).size.width;
-        final x = details.globalPosition.dx;
-        final delta = -details.primaryDelta! / 200.0;
-        if (x < screenWidth * 0.5) {
-          _adjustBrightness(delta);
-        } else {
-          _adjustVolume(delta * 100);
-        }
-      },
-      onLongPressStart: (_) {
-        if (_isLocked) return;
-        _enableSpeedBoost(true);
-      },
-      onLongPressEnd: (_) {
-        if (_isLocked) return;
-        _enableSpeedBoost(false);
-      },
       child: child,
     );
-  }
-
-  void _adjustBrightness(double delta) {
-    setState(() {
-      _brightness = (_brightness + delta).clamp(0.15, 1.0);
-      _showBrightnessHud = true;
-      _showVolumeHud = false;
-    });
-    _hudTimer?.cancel();
-    _hudTimer = Timer(const Duration(milliseconds: 1400), () {
-      if (mounted) setState(() { _showBrightnessHud = false; });
-    });
-  }
-
-  void _adjustVolume(double delta) {
-    final currentVol = _player.state.volume;
-    final newVol = (currentVol + delta).clamp(0.0, 100.0);
-    _player.setVolume(newVol);
-    setState(() {
-      _volume = newVol;
-      _showVolumeHud = true;
-      _showBrightnessHud = false;
-    });
-    _hudTimer?.cancel();
-    _hudTimer = Timer(const Duration(milliseconds: 1400), () {
-      if (mounted) setState(() { _showVolumeHud = false; });
-    });
-  }
-
-  void _enableSpeedBoost(bool enable) {
-    if (enable) {
-      _player.setRate(1.5);
-      setState(() { _isSpeedBoosted = true; });
-      HapticFeedback.selectionClick();
-    } else {
-      _player.setRate(1.0);
-      setState(() { _isSpeedBoosted = false; });
-    }
   }
 
   void _showLockNotice() {
@@ -4391,100 +4324,6 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
                 ),
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBrightnessHud() {
-    return Positioned(
-      left: 20,
-      top: 0,
-      bottom: 0,
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.8),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white24, width: 0.8),
-            boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 16)],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                _brightness > 0.6 ? Icons.brightness_7_rounded : (_brightness > 0.3 ? Icons.brightness_6_rounded : Icons.brightness_4_rounded),
-                color: const Color(AppColors.primary),
-                size: 22,
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 100,
-                width: 5,
-                child: RotatedBox(
-                  quarterTurns: 3,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(2.5),
-                    child: LinearProgressIndicator(
-                      value: _brightness,
-                      backgroundColor: Colors.white24,
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(AppColors.primary)),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text('${(_brightness * 100).toInt()}%', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVolumeHud() {
-    return Positioned(
-      right: 20,
-      top: 0,
-      bottom: 0,
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.8),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white24, width: 0.8),
-            boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 16)],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                _volume == 0 ? Icons.volume_off_rounded : (_volume < 50 ? Icons.volume_down_rounded : Icons.volume_up_rounded),
-                color: const Color(AppColors.primary),
-                size: 22,
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 100,
-                width: 5,
-                child: RotatedBox(
-                  quarterTurns: 3,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(2.5),
-                    child: LinearProgressIndicator(
-                      value: _volume / 100.0,
-                      backgroundColor: Colors.white24,
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(AppColors.primary)),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text('${_volume.toInt()}%', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-            ],
           ),
         ),
       ),
@@ -5042,41 +4881,38 @@ class PlayerScreenState extends State<PlayerScreen> with TickerProviderStateMixi
           },
         ),
         const SizedBox(height: 16),
-        // Secondary Quick Actions Toolbar: Volume | Brightness | Aspect | Sleep | Share
+        // Secondary Quick Actions Toolbar: Aspect | Vivid Cinema | Audio Mute | Sleep | Share
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _quickActionPill(
-                icon: _volume == 0 ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-                label: '${_volume.toInt()}%',
-                onTap: () {
-                  if (_volume > 0) {
-                    _adjustVolume(-_volume);
-                  } else {
-                    _adjustVolume(80);
-                  }
-                },
-              ),
-              const SizedBox(width: 8),
-              _quickActionPill(
-                icon: Icons.brightness_medium_rounded,
-                label: '${(_brightness * 100).toInt()}%',
-                onTap: () {
-                  double nextB = _brightness <= 0.35 ? 1.0 : (_brightness <= 0.65 ? 0.3 : 0.6);
-                  setState(() { _brightness = nextB; _showBrightnessHud = true; });
-                  _hudTimer?.cancel();
-                  _hudTimer = Timer(const Duration(milliseconds: 1400), () {
-                    if (mounted) setState(() { _showBrightnessHud = false; });
-                  });
-                },
-              ),
-              const SizedBox(width: 8),
-              _quickActionPill(
                 icon: Icons.aspect_ratio_rounded,
                 label: _getFitSubtitle(),
                 onTap: _onDoubleTapFitToggle,
+              ),
+              const SizedBox(width: 8),
+              _quickActionPill(
+                icon: Icons.auto_awesome_rounded,
+                label: 'Vivid Cinema',
+                isActive: true,
+                onTap: () {
+                  _showPlayerToast('✨ Vivid Cinema: Picture & Contrast Boosted');
+                },
+              ),
+              const SizedBox(width: 8),
+              _quickActionPill(
+                icon: _isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                label: _isMuted ? 'Muted' : 'Audio',
+                isActive: _isMuted,
+                onTap: () {
+                  setState(() {
+                    _isMuted = !_isMuted;
+                  });
+                  _player.setVolume(_isMuted ? 0.0 : 100.0);
+                  _showPlayerToast(_isMuted ? '🔇 Audio Muted' : '🔊 Audio Unmuted');
+                },
               ),
               const SizedBox(width: 8),
               _quickActionPill(

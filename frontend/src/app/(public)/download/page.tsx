@@ -94,7 +94,7 @@ export default async function DownloadPage() {
   const universalDownloadUrl = '/downloads/app-universal-release.apk';
   const legacyDownloadUrl = '/downloads/app-release-32bit.apk';
   const x86_64DownloadUrl = '/downloads/app-x86_64-release.apk';
-  const appVersion = release?.version || settings?.latest_app_version || '2.8.7';
+  const appVersion = release?.version || settings?.latest_app_version || '2.8.9';
   const standardFileSize = getPublicApkSize('app-release.apk', release?.file_size || '33.2 MB');
   const universalFileSize = getPublicApkSize('app-universal-release.apk', '95.2 MB');
   const legacyFileSize = getPublicApkSize('app-release-32bit.apk', '30.0 MB');
@@ -229,8 +229,14 @@ export default async function DownloadPage() {
         </div>
       )}
 
-      {/* Smart Device Auto-Detector Banner */}
-      <AndroidAutoDetectBanner />
+      {/* Smart Device Auto-Detector Banner with 1-Click Optimized Download */}
+      <AndroidAutoDetectBanner
+        appVersion={appVersion}
+        standardDownloadUrl={standardDownloadUrl}
+        universalDownloadUrl={universalDownloadUrl}
+        x86_64DownloadUrl={x86_64DownloadUrl}
+        legacyDownloadUrl={legacyDownloadUrl}
+      />
 
       {/* Primary Download Cards Grid: Standard 64-bit & Universal */}
       <div className="grid md:grid-cols-2 gap-6 lg:gap-8 mb-6">
