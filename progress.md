@@ -26,10 +26,18 @@
     - `app-armeabi-v7a-release.apk` (30.0 MB, MD5: `8000D607058B4A03D66102D870F29B59`)
     - `app-x86_64-release.apk` (38.0 MB, MD5: `ABCB91B1B97FA4DABFE03CEAC4296407`)
   - Synchronized binaries across `backend/public/downloads/` and `frontend/public/downloads/` with both clean names and versioned tags (`NivaTV_arm64_v2.9.0.apk`, `NivaTV_arm32_v2.9.0.apk`, `NivaTV_x86_64_v2.9.0.apk`).
-- **Database Release Script Prepared (`backend/scripts/update_release_v2.9.0.sql`):**
+- **Database Release Script Prepared & Applied (`backend/scripts/update_release_v2.9.0.sql`):**
   - Updates `app_releases` with version `2.9.0`, `version_code = 4040`, `is_latest = true`, `force_update = true`.
   - Configures `app_settings` for version `2.9.0`.
   - Publishes in-app notification announcement for v2.9.0.
+- **EC2 Production Deployment via SSH (`F:\chrome\iptv.pem`):**
+  - Connected directly to Ubuntu EC2 VPS (`44.206.18.189`) using SSH key `F:\chrome\iptv.pem`.
+  - Pulled latest commits (`4711ff8`), discarding cached download overrides (`git reset --hard origin/main`).
+  - Executed `backend/scripts/update_release_v2.9.0.sql` against PostgreSQL `iptv_db`.
+  - Restarted PM2 service `iptv-backend` cleanly (pid `579696`, online).
+  - Verified 100% MD5 checksum matches for production binaries across `backend/public/downloads/` and `frontend/public/downloads/`.
+  - Verified live API config response from `https://nivatv.luxomall.in/api/app/config` (`minimum_app_version: '2.9.0'`, `latest_app_version: '2.9.0'`).
+  - Verified public HTTP 200 download headers for `app-release.apk` (ARM64) and `app-release-32bit.apk` (ARM32).
 
 
 - **Player Gesture Controls Purge & Software Dimming Elimination:**
