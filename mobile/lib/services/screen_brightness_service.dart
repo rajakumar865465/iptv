@@ -2,29 +2,23 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// Service to control Android hardware window backlight brightness during video playback.
-/// Overrides auto-dimming / power-saving screen dimming while watching channels,
-/// and restores the user's OS-level brightness upon exiting or minimizing to PiP.
+/// Service to manage Android window backlight brightness during video playback.
+/// Respects the user's natural system auto-brightness / display setting to prevent
+/// severe battery drain, display heating, and thermal throttling.
 class ScreenBrightnessService {
   static const MethodChannel _channel = MethodChannel('com.iptv.iptv_app/screen');
   static bool _isBoosted = false;
 
-  /// Boosts the device screen backlight for cinema/video viewing (default 1.0 = 100%)
+  /// Keeps device brightness at the user's system level.
+  /// Intentionally avoids forcing 100% full backlight which caused heavy device overheating and thermal throttling.
   static Future<void> boostBrightness({double brightness = 1.0}) async {
-    if (kIsWeb || !Platform.isAndroid) return;
-    try {
-      await _channel.invokeMethod('setScreenBrightness', {
-        'brightness': brightness.clamp(0.1, 1.0),
-      });
-      _isBoosted = true;
-    } catch (e) {
-      debugPrint('[ScreenBrightnessService] boost failed: $e');
-    }
+    // Intentionally no-op to protect phone battery and keep phone cool.
+    return;
   }
 
   /// Restores the phone's system-default / automatic brightness
   static Future<void> resetBrightness() async {
-    if (kIsWeb || !Platform.isAndroid || !_isBoosted) return;
+    if (kIsWeb || !Platform.isAndroid) return;
     try {
       await _channel.invokeMethod('resetScreenBrightness');
       _isBoosted = false;
