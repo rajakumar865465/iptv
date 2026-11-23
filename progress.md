@@ -1,5 +1,19 @@
 # NivaTV - Recent Progress
 
+## Free Trial Plan Visibility & Dynamic Duration Restoration (November 2026)
+- **Identified Root Causes for Missing Free Trial on Website:**
+  - **Legacy Scratchcard Duration Filter in `publicApi.ts`:** In `frontend/src/lib/publicApi.ts`, `getPublicPlans` contained a legacy global filter `filter(p => p.duration_days !== 7)`. When the administrator configured the Free Trial plan ("Pro Free Trial") with `duration_days = 7` (as seen in admin panel), the frontend automatically stripped the plan from both SSR and client-side queries, leaving `plans` with only the paid tiers (Starter ₹49, Pro ₹79, Plus ₹699).
+  - **Hardcoded IDs and Pro Card Consolidation in `PricingGrid.tsx`:** `PricingGrid.tsx` formerly attempted to collapse plans into exactly 3 columns by looking up hardcoded IDs (`p.id === 64 || p.price === 0` and `p.id === 63`) into `UnifiedProCard`. When the Free Trial was stripped by `publicApi.ts`, `UnifiedProCard` received an `undefined` trial plan and rendered exclusively as the paid Pro ₹79 card.
+  - **Null Return on Trial Claimed in `PlanCard.tsx`:** `PlanCard.tsx` had an eager check: `if (plan.price === 0 && hasClaimedTrial) return null;`. Anonymous visitors whose browsers carried an old `nivatv_trial_claimed` flag in `localStorage` had the Free Trial card suppressed entirely.
+  - **Hardcoded 30-Day Copy:** Multiple screens and components hardcoded "1-Month" and "30 Days" instead of reading `plan.duration_days`.
+- **Systematic Architecture Upgrades:**
+  - **Refined `getPublicPlans()` Filter:** Changed `filter(p => p.duration_days !== 7)` to strictly filter hidden offer slugs (`filter(p => p.slug !== 'seven-days' && p.slug !== 'seven-days-offer')`), ensuring active public Free Trial plans of any duration (7 days, 14 days, 30 days) are fetched cleanly.
+  - **Dynamic Multi-Tier Responsive Pricing Grid:** Replaced static 3-column hardcoded card matching with an adaptive grid (`sm:grid-cols-2 lg:grid-cols-4`) that displays all active plans (Free Trial, Starter, Pro, Plus) cleanly and symmetrically.
+  - **Refined `PlanCard.tsx` Experience:** Removed the `return null` suppression. Logged-in users who already claimed the trial see the Free Trial card with a disabled "Trial Already Claimed" button and helpful guidance, preserving pricing transparency and page symmetry.
+  - **Dynamic Duration Labels:** Implemented `getTrialDurationLabel(days)` and `getTrialFeatures(days, devices)` to automatically reflect the exact duration configured in the admin panel (e.g. "7-Day Free Trial", "7 Days Access • 1 Device", "7 Days 100% Free access").
+  - **Synchronized Checkout Flow:** Updated `/payment` and `/payment/success` to dynamically format duration labels and button CTAs.
+  - **Build Verification:** Verified clean build with Next.js Turbopack (`npm run build`) — all 58 static/dynamic routes compiled with 0 errors.
+
 ## Production Release v2.9.0 Compilation, A/V Synchronization & Zero-Lag Ultra-Smooth Engine Overhaul (November 2026)
 - **Root Cause Investigation for Audio/Video Desync, App Lag & Device Heating:**
   - **`framedrop: 'no'` A/V Desync Root Cause:** In `mobile/lib/screens/player_screen.dart`, `framedrop` was set to `'no'`. When video decoding or rendering fell slightly behind (common during stream startup, HLS segment transitions, or under CPU/GPU load), libmpv was strictly prohibited from dropping late video frames. Audio played in real time while late video frames queued up, causing video to steadily lag seconds behind audio ("audio comes first, video comes later"). Conversely, when audio packets dropped or stalled during live stream restarts, video rushed ahead ("video comes first, audio comes later").
