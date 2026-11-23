@@ -14,80 +14,54 @@ interface Props {
   paymentMode?: string;
 }
 
-const TRIAL_FEATURES = [
-  'Free-to-Air (FTA) channels',
-  'All Exclusive Pro channels',
-  'Indian & regional content',
-  'Full HD & 4K streams',
-  '30 Days 100% Free access',
-  '1 Device (Mobile / Android TV)',
-];
-
-const PAID_FEATURES = [
-  'Free-to-Air (FTA) channels',
-  'All Exclusive Pro channels',
-  'Indian & regional content',
-  'HD quality streams',
-  'Regular channel updates',
-  '2 Devices (Multi-device access)',
-  'No auto-renewal',
-];
-
 export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'razorpay' }: Props) {
   const router = useRouter();
   const { user, token } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
 
   const hasActiveSub = Boolean(user?.has_active_subscription);
+  const isUserClaimed = Boolean(user && (user.has_claimed_trial || hasActiveSub));
 
-  // Check if trial has already been claimed by logged-in user or stored in localStorage
-  const [hasClaimedTrial, setHasClaimedTrial] = useState<boolean>(() => {
-    if (user) {
-      return Boolean(user.has_claimed_trial || hasActiveSub);
-    }
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('nivatv_trial_claimed') === 'true' || hasActiveSub;
-    }
-    return hasActiveSub;
-  });
-
+  // Default to trial mode so the 100% Free Trial is immediately visible to all visitors
   const [mode, setMode] = useState<'trial' | 'paid'>(() => {
-    if (user) {
-      return (user.has_claimed_trial || hasActiveSub) ? 'paid' : 'trial';
-    }
-    if (typeof window !== 'undefined' && (localStorage.getItem('nivatv_trial_claimed') === 'true' || hasActiveSub)) {
-      return 'paid';
-    }
-    return 'trial';
+    if (isUserClaimed) return 'paid';
+    return trialPlan ? 'trial' : 'paid';
   });
 
-  // React immediately whenever user auth state or trial claimed flag changes
   useEffect(() => {
-    if (user) {
-      const isClaimed = Boolean(user.has_claimed_trial || user.has_active_subscription);
-      setHasClaimedTrial(isClaimed);
-      if (isClaimed) {
-        setMode('paid');
-        try {
-          localStorage.setItem('nivatv_trial_claimed', 'true');
-        } catch (_) {}
-      } else {
-        try {
-          localStorage.removeItem('nivatv_trial_claimed');
-        } catch (_) {}
-      }
-    } else {
-      const isClaimed = typeof window !== 'undefined' && localStorage.getItem('nivatv_trial_claimed') === 'true';
-      setHasClaimedTrial(isClaimed);
-      if (isClaimed) {
-        setMode('paid');
-      }
+    if (isUserClaimed) {
+      setMode('paid');
     }
-  }, [user?.has_claimed_trial, user?.has_active_subscription, user]);
+  }, [isUserClaimed]);
 
-  // If user has claimed trial or has an active subscription, NEVER show trial mode or free cart elements
-  const isTrial = !hasClaimedTrial && !user?.has_claimed_trial && !hasActiveSub && mode === 'trial' && !!trialPlan;
+  const isTrial = mode === 'trial' && !!trialPlan;
   const activePlan = isTrial ? trialPlan! : (paidPlan || trialPlan!);
+
+  const trialDays = trialPlan?.duration_days ?? 7;
+  const trialDevices = trialPlan?.max_devices ?? 1;
+  const paidDevices = paidPlan?.max_devices ?? 2;
+  const paidPrice = Math.round(paidPlan?.price || 79);
+
+  const trialFeatures = [
+    'Free-to-Air (FTA) channels',
+    'All Exclusive Pro channels',
+    'Indian & regional content',
+    'Full HD & 4K streams',
+    `${trialDays} Days 100% Free access`,
+    `${trialDevices} Device${trialDevices > 1 ? 's' : ''} (Mobile / Android TV)`,
+  ];
+
+  const paidFeatures = [
+    'Free-to-Air (FTA) channels',
+    'All Exclusive Pro channels',
+    'Indian & regional content',
+    'HD quality streams',
+    'Regular channel updates',
+    `${paidDevices} Devices (Multi-device access)`,
+    'No auto-renewal',
+  ];
+
+  const features = isTrial ? trialFeatures : paidFeatures;
 
   const handleAction = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -109,20 +83,8 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
   const handleAuthSuccess = (_loggedInUser: any) => {
     setAuthOpen(false);
     const userClaimed = Boolean(_loggedInUser?.has_claimed_trial || _loggedInUser?.has_active_subscription);
-    if (userClaimed) {
-      setHasClaimedTrial(true);
-      setMode('paid');
-      try {
-        localStorage.setItem('nivatv_trial_claimed', 'true');
-      } catch (_) {}
-    } else {
-      setHasClaimedTrial(false);
-      try {
-        localStorage.removeItem('nivatv_trial_claimed');
-      } catch (_) {}
-    }
     const wantsTrial = mode === 'trial' && !userClaimed && !!trialPlan;
-    const planToUse = wantsTrial ? trialPlan : (paidPlan || activePlan);
+    const planToUse = wantsTrial ? trialPlan! : (paidPlan || activePlan);
     const targetUrl = (paymentMode === 'manual' && planToUse.price > 0)
       ? `/checkout?plan=${planToUse.id}`
       : `/payment?plan_id=${planToUse.id}`;
@@ -136,28 +98,32 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
   const isLowerPlan = hasActiveSub && userRank > cardRank;
   const isUpgrade = hasActiveSub && userRank < cardRank;
 
-  // Card theme styling: emerald for Free Trial, clean WHITE / surface for Paid Pro
+  // Card theme styling: glowing emerald for Free Trial, clean surface for Paid Pro
   const wrapperClass = isTrial
     ? 'relative rounded-2xl border flex flex-col transition-all duration-300 hover:-translate-y-1.5 overflow-hidden shadow-card hover:shadow-card-hover bg-gradient-to-b from-emerald-600/20 via-emerald-600/8 to-[var(--color-surface)] border-emerald-500/50 shadow-xl shadow-emerald-500/10'
     : 'relative rounded-2xl border flex flex-col transition-all duration-300 hover:-translate-y-1.5 overflow-hidden shadow-card hover:shadow-card-hover bg-[var(--color-surface)] border-[var(--color-line)] hover:border-[var(--color-ink-subtle)]/30';
 
-  const badgeText = isTrial ? '1-Month Free Trial' : '';
+  const badgeText = isTrial ? (trialPlan?.offer_label || `${trialDays}-Day Free Trial`) : '';
   const badgeClass = isTrial ? 'bg-emerald-600 text-white' : '';
   const iconCls = isTrial ? 'text-emerald-500' : 'text-green-500';
-  const btnClass = isTrial
+
+  let buttonLabel = isTrial ? `Claim ${trialDays}-Day Free Trial` : 'Start Watching Instantly';
+  let buttonDisabled = false;
+  let customBtnClass = isTrial
     ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/25'
     : 'bg-[var(--color-surface-2)] hover:bg-[var(--color-line)] text-[var(--color-ink)] border border-[var(--color-line)]';
-
-  const features = isTrial ? TRIAL_FEATURES : PAID_FEATURES;
-
-  let buttonLabel = isTrial ? 'Claim 1-Month Free Trial' : 'Start Watching Instantly';
-  let buttonDisabled = false;
-  let customBtnClass = btnClass;
   let subtitleText: React.ReactNode = null;
 
   if (isTrial) {
-    buttonLabel = 'Claim 1-Month Free Trial';
-    subtitleText = 'Try it for 30 Days, 100% Free. No Credit Card Required.';
+    if (isUserClaimed) {
+      buttonLabel = 'Trial Already Claimed';
+      buttonDisabled = true;
+      customBtnClass = 'bg-[var(--color-surface-2)] text-[var(--color-ink-subtle)] border border-[var(--color-line)] opacity-60 cursor-not-allowed';
+      subtitleText = `You have already activated your free trial. Switch to ₹${paidPrice}/mo to continue watching.`;
+    } else {
+      buttonLabel = trialPlan?.offer_label ? `Claim ${trialPlan.offer_label}` : `Claim ${trialDays}-Day Free Trial`;
+      subtitleText = `Try it for ${trialDays} Days, 100% Free. No Credit Card Required.`;
+    }
   } else if (isCurrentPlan) {
     buttonLabel = 'Already Subscribed';
     buttonDisabled = true;
@@ -172,7 +138,7 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
     buttonLabel = 'Upgrade to Pro';
     buttonDisabled = false;
     customBtnClass = 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-500/25 font-bold';
-    subtitleText = 'Upgrade now to unlock 2 devices and all exclusive channels.';
+    subtitleText = `Upgrade now to unlock ${paidDevices} devices and all exclusive channels.`;
   } else {
     subtitleText = 'Instant license key generated immediately after payment.';
   }
@@ -189,7 +155,7 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
         {/* Top tag */}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           {isTrial ? (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 font-bold">
               <Sparkles className="w-3 h-3" />
               100% FREE TRIAL
             </span>
@@ -207,35 +173,37 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
               Recommended Upgrade
             </span>
           ) : (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--color-surface-2)] text-[var(--color-ink-muted)] border border-[var(--color-line)]">
-              2 Devices Access
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--color-surface-2)] text-[var(--color-ink-muted)] border border-[var(--color-line)] font-semibold">
+              {paidDevices} Devices Access
             </span>
           )}
         </div>
 
-        <h3 className="text-xl font-bold text-[var(--color-ink)] mb-1">Pro</h3>
+        <h3 className="text-xl font-bold text-[var(--color-ink)] mb-1">
+          {isTrial ? (trialPlan?.name || 'Pro Free Trial') : (paidPlan?.name || 'Pro')}
+        </h3>
         <p className="text-[var(--color-ink-muted)] text-sm mb-1">
           {isTrial
-            ? 'All Free & Pro channels unlocked with 1 device access'
-            : 'All free and paid channels validity - 30 days'}
+            ? (trialPlan?.description || `${trialDays} Day 100% Free Trial - All Free and Pro starter channels unlocked with ${trialDevices} device access`)
+            : (paidPlan?.description || 'All free and paid channels validity - 30 days')}
         </p>
         <p className="text-[var(--color-ink-subtle)] text-xs mb-3">
-          Monthly Plan &bull; {isTrial ? '1 Device' : '2 Devices'}
+          {isTrial ? `${trialDays} Days Access \u2022 ${trialDevices} Device` : `Monthly Plan \u2022 ${paidDevices} Devices`}
         </p>
 
-        {/* Option toggle ONLY for new/eligible visitors who have NOT claimed the trial */}
-        {!hasClaimedTrial && !user?.has_claimed_trial && paidPlan && trialPlan && (
+        {/* Option toggle — ALWAYS visible so visitor can switch between ₹0 Free Trial and ₹79/mo Paid */}
+        {trialPlan && paidPlan && (
           <div className="mb-4 bg-[var(--color-surface-2)] p-1 rounded-xl flex items-center border border-[var(--color-line)] text-xs font-semibold">
             <button
               type="button"
               onClick={() => setMode('trial')}
               className={`flex-1 py-1.5 px-2 rounded-lg text-center transition-all cursor-pointer ${
                 mode === 'trial'
-                  ? 'bg-emerald-600 text-white shadow-sm'
+                  ? 'bg-emerald-600 text-white shadow-sm font-bold'
                   : 'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]'
               }`}
             >
-              1 Device &bull; ₹0 Free Trial
+              {trialDevices} Device &bull; ₹0 Free Trial
             </button>
             <button
               type="button"
@@ -246,7 +214,7 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
                   : 'text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]'
               }`}
             >
-              2 Devices &bull; ₹79/mo
+              {paidDevices} Devices &bull; ₹{paidPrice}/mo
             </button>
           </div>
         )}
@@ -257,7 +225,7 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
             {isTrial ? (
               <>
                 <span className="text-2xl text-red-500/80 line-through font-bold decoration-2">
-                  ₹{Math.round(trialPlan?.regular_price || 79)}
+                  ₹{Math.round(trialPlan?.regular_price || paidPrice)}
                 </span>
                 <span className="text-4xl font-extrabold text-emerald-500">
                   ₹0
@@ -269,7 +237,7 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
             ) : (
               <>
                 <span className="text-4xl font-extrabold text-[var(--color-ink)]">
-                  ₹{Math.round(activePlan.price || 79)}
+                  ₹{paidPrice}
                 </span>
                 <span className="text-[var(--color-ink-subtle)] text-sm font-semibold mb-1">
                   /month
@@ -279,15 +247,15 @@ export default function UnifiedProCard({ trialPlan, paidPlan, paymentMode = 'raz
           </div>
         </div>
 
-        {/* Monthly subtitle */}
+        {/* Subtitle */}
         <div className="mb-3">
           {isTrial ? (
             <p className="text-[var(--color-ink-subtle)] text-xs font-medium">
-              Enjoy 30 days full access with 1 device, then ₹79/month
+              Enjoy {trialDays} days full access with {trialDevices} device, then ₹{paidPrice}/month
             </p>
           ) : (
             <p className="text-emerald-500 font-bold text-xs">
-              Great value with 2-device multi-screen access!
+              Great value with {paidDevices}-device multi-screen access!
             </p>
           )}
         </div>
