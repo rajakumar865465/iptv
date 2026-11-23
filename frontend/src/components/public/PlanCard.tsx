@@ -16,14 +16,24 @@ const FEATURES = [
   'No auto-renewal',
 ];
 
-const TRIAL_FEATURES = [
-  'Free-to-Air (FTA) channels',
-  'All Exclusive Pro channels',
-  'Indian & regional content',
-  'Full HD & 4K streams',
-  '30 Days 100% Free access',
-  '1 Device (Mobile / Android TV)',
-];
+function getTrialDurationLabel(days: number): string {
+  if (days >= 365) return `${Math.round(days / 365)}-Year Free Trial`;
+  if (days >= 30) return `${Math.round(days / 30)}-Month Free Trial`;
+  if (days === 7) return '7-Day Free Trial';
+  if (days === 1) return '24-Hour Free Trial';
+  return `${days}-Day Free Trial`;
+}
+
+function getTrialFeatures(days: number, devices: number) {
+  return [
+    'Free-to-Air (FTA) channels',
+    'All Exclusive Pro channels',
+    'Indian & regional content',
+    'Full HD & 4K streams',
+    `${days} Days 100% Free access`,
+    `${devices} Device${devices > 1 ? 's' : ''} (Mobile / Android TV)`,
+  ];
+}
 
 export type PlanVariant = 'most-popular' | 'save-more' | 'best-value' | 'starter' | 'free-trial';
 
@@ -44,7 +54,7 @@ export function planVariant(plan: Plan): PlanVariant {
 }
 
 function getCtaText(plan: Plan, variant: PlanVariant): string {
-  if (plan.price === 0) return 'Claim 1-Month Free Trial';
+  if (plan.price === 0) return `Claim ${getTrialDurationLabel(plan.duration_days)}`;
   if (variant === 'best-value') return 'Unlock 500+ Channels Now';
   return 'Start Watching Instantly';
 }
@@ -122,14 +132,7 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
   const [authOpen, setAuthOpen] = useState(false);
   const [currentMode, setCurrentMode] = useState<string>(paymentMode);
 
-  const hasClaimedTrial = user
-    ? Boolean(user.has_claimed_trial || user.has_active_subscription)
-    : (typeof window !== 'undefined' && localStorage.getItem('nivatv_trial_claimed') === 'true');
-
-  // If user has already claimed trial, do not render a free trial plan card
-  if (plan.price === 0 && hasClaimedTrial) {
-    return null;
-  }
+  const hasClaimedTrial = Boolean(user?.has_claimed_trial || user?.has_active_subscription);
 
   useEffect(() => {
     getPaymentConfig()
@@ -169,7 +172,7 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
   const isFree = plan.price === 0;
   const hasOffer = plan.regular_price && plan.regular_price > plan.price;
 
-  const features = isFree ? TRIAL_FEATURES : FEATURES;
+  const features = isFree ? getTrialFeatures(plan.duration_days, plan.max_devices) : FEATURES;
   const hasActiveSub = Boolean(user?.has_active_subscription);
   const userRank = hasActiveSub ? getPlanTierRank(user?.subscription_plan_tier, user?.subscription_plan_price) : 0;
   const planRank = getPlanTierRank(plan.plan_tier, plan.price);
@@ -187,7 +190,7 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
   let badgeText = '';
   let badgeClass = '';
   if (resolvedVariant === 'free-trial') {
-    badgeText = '1-Month Free Trial';
+    badgeText = plan.offer_label || getTrialDurationLabel(plan.duration_days);
     badgeClass = 'bg-emerald-600 text-white';
   } else if (resolvedVariant === 'most-popular') {
     badgeText = 'Most Popular';
@@ -216,14 +219,21 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
   else if (resolvedVariant === 'best-value')
     btnClass = 'bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20';
 
-  let buttonLabel = ctaText || (isFree ? 'Claim 1-Month Free Trial' : getCtaText(plan, resolvedVariant));
+  let buttonLabel = ctaText || (isFree ? `Claim ${getTrialDurationLabel(plan.duration_days)}` : getCtaText(plan, resolvedVariant));
   let buttonDisabled = false;
   let customBtnClass = btnClass;
   let subtitleText: React.ReactNode = null;
 
   if (isFree) {
-    buttonLabel = 'Claim 1-Month Free Trial';
-    subtitleText = 'Try it for 30 Days, 100% Free. No Credit Card Required.';
+    if (hasClaimedTrial) {
+      buttonLabel = 'Trial Already Claimed';
+      buttonDisabled = true;
+      customBtnClass = 'bg-[var(--color-surface-2)] text-[var(--color-ink-subtle)] border border-[var(--color-line)] opacity-60 cursor-not-allowed';
+      subtitleText = 'You have already activated your free trial. Please choose a paid plan to continue watching.';
+    } else {
+      buttonLabel = ctaText || `Claim ${getTrialDurationLabel(plan.duration_days)}`;
+      subtitleText = `Try it for ${plan.duration_days} Days, 100% Free. No Credit Card Required.`;
+    }
   } else if (isCurrentPlan) {
     buttonLabel = 'Already Subscribed';
     buttonDisabled = true;
@@ -276,7 +286,7 @@ export default function PlanCard({ plan, ctaText, variant, paymentMode = 'razorp
         <h3 className="text-lg font-bold text-[var(--color-ink)] mb-1">{plan.name}</h3>
         <p className="text-[var(--color-ink-muted)] text-sm mb-1">{planSubtitle(plan)}</p>
         <p className="text-[var(--color-ink-subtle)] text-xs mb-4">
-          {formatDuration(plan.duration_days)} &bull; {plan.max_devices} {plan.max_devices > 1 ? 'Devices' : 'Device'}
+          {isFree ? `${plan.duration_days} Days Access` : formatDuration(plan.duration_days)} &bull; {plan.max_devices} {plan.max_devices > 1 ? 'Devices' : 'Device'}
         </p>
 
         <div className="mb-1">

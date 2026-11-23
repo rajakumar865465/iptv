@@ -271,7 +271,7 @@ function SuccessContent() {
             </h1>
             <p className="text-[var(--color-ink-muted)]">
               {order.amount === 0
-                ? 'Your 1-Month Free Trial Pro license is now active! Copy your key and start watching.'
+                ? 'Your Free Trial Pro license is now active! Copy your key and start watching.'
                 : 'Your license key is ready. Copy it and activate your app.'}
             </p>
           </div>

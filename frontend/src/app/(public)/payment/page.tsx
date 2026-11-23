@@ -200,7 +200,7 @@ function PaymentForm() {
     if (!selectedPlanId) return setError('Please select a plan.');
 
     if (selectedPlan?.price === 0 && hasClaimedTrial) {
-      return setError('You have already claimed your 1-Month Free Trial. Please select a paid plan.');
+      return setError('You have already claimed your Free Trial. Please select a paid plan.');
     }
 
     setLoading(true);
@@ -473,7 +473,7 @@ function PaymentForm() {
                       const isTrial = p.price === 0;
                       return (
                         <option key={p.id} value={p.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                          {p.name} — {isTrial ? '₹0 (1-Month Free Trial)' : `₹${Math.round(p.price)}`} · {p.duration_days >= 365 ? `${Math.round(p.duration_days / 365)} Year` : `${p.duration_days} Days`} · {p.max_devices} Device{p.max_devices > 1 ? 's' : ''}
+                          {p.name} — {isTrial ? `₹0 (${p.duration_days >= 30 ? '1-Month' : `${p.duration_days}-Day`} Free Trial)` : `₹${Math.round(p.price)}`} · {p.duration_days >= 365 ? `${Math.round(p.duration_days / 365)} Year` : `${p.duration_days} Days`} · {p.max_devices} Device{p.max_devices > 1 ? 's' : ''}
                         </option>
                       );
                     })}
@@ -665,7 +665,7 @@ function PaymentForm() {
                     <span>
                       {selectedPlan
                         ? finalPrice === 0
-                          ? 'Activate 1-Month Free Trial Now'
+                          ? `Activate ${selectedPlan.duration_days >= 30 ? '1-Month' : `${selectedPlan.duration_days}-Day`} Free Trial Now`
                           : `Pay ₹${Math.round(finalPrice)} Securely`
                         : 'Proceed to Payment'}
                     </span>
@@ -681,7 +681,7 @@ function PaymentForm() {
                     <Check className="w-4 h-4 stroke-[3]" /> 100% Free Trial · No Credit Card Required · Instant Activation
                   </p>
                   <p className="text-[11px] text-slate-500 dark:text-[var(--color-ink-subtle)]">
-                    Your 30-day Pro license key will be generated and shown on the next screen immediately.
+                    Your {selectedPlan?.duration_days ?? 7}-day Pro license key will be generated and shown on the next screen immediately.
                   </p>
                 </div>
               ) : (

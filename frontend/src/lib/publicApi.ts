@@ -161,8 +161,8 @@ function normalizePlan(plan: any): Plan {
 export const getPublicPlans = (): Promise<Plan[]> =>
   publicAxios.get('/api/public/plans').then(res => {
     const data = res.data.data as any[];
-    // Filter out the 7-day plan (it's meant to be hidden for scratchcard only)
-    return data.map(normalizePlan).filter(p => p.duration_days !== 7);
+    // Only filter out hidden scratchcard offer plans (slug 'seven-days' or 'seven-days-offer')
+    return data.map(normalizePlan).filter(p => p.slug !== 'seven-days' && p.slug !== 'seven-days-offer');
   });
 
 function fixLogoUrl(url: string | null): string {

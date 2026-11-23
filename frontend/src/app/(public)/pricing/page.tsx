@@ -26,11 +26,11 @@ export const metadata: Metadata = {
 };
 
 const BILLING_FAQ = [
-  { q: 'Is there a free trial?', a: 'Yes! We offer a 1-Month (30 Days) free trial of our Pro plan so you can try the app and all Pro channels before committing to a paid plan. Zero payment required.' },
+  { q: 'Is there a free trial?', a: 'Yes! We offer a 100% free trial so you can test the app and explore live channels before committing to a paid plan. Zero payment or credit card required.' },
   { q: 'How is payment processed?', a: 'Payments are processed securely through Razorpay, India\'s most trusted payment gateway. We accept UPI, debit/credit cards, and netbanking.' },
   { q: 'Will my subscription auto-renew?', a: 'No. All plans are one-time purchases. You will need to manually renew when your plan expires.' },
   { q: 'What happens after my plan expires?', a: 'The app will stop streaming. You can purchase a new plan and a fresh license key to continue watching.' },
-  { q: 'Can I get a refund?', a: 'We want you to be 100% satisfied before you spend a single rupee. Please enjoy our fully-featured 1-Month free trial first! Due to the digital nature of the license keys, refunds are not available once purchased.' },
+  { q: 'Can I get a refund?', a: 'We want you to be 100% satisfied before you spend a single rupee. Please enjoy our free trial first! Due to the digital nature of the license keys, refunds are not available once purchased.' },
 ];
 
 const TRUST = [
@@ -296,7 +296,7 @@ export default async function PricingPage() {
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-[var(--color-ink)] mb-4">Simple, Honest Pricing</h1>
           <p className="text-[var(--color-ink-muted)] text-base sm:text-lg max-w-xl mx-auto mb-3">
-            Start with our 1-Month Free Trial, go monthly, or save big with a full year. No auto-renewal, no hidden charges.
+            Start with our 100% Free Trial, go monthly, or save big with a full year. No auto-renewal, no hidden charges.
           </p>
           <p className="text-[var(--color-ink-subtle)] text-sm">License activates immediately inside the app after payment.</p>
         </div>
