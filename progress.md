@@ -1,5 +1,18 @@
 # NivaTV - Recent Progress
 
+## Free Trial & Paid Pro Consolidation into 3 Clean Cards (November 2026)
+- **Consolidated Pricing Grid to Exactly 3 Symmetric Cards:**
+  - In `frontend/src/components/public/PricingGrid.tsx`, restored the 3-column layout (`grid-cols-1 md:grid-cols-3`):
+    - **Card 1: Starter** (₹49/month · 1 Device)
+    - **Card 2: Pro (Unified Card)** — consolidates **₹0 Free Trial** and **₹79/mo Paid Pro** into one card with an interactive toggle switch.
+    - **Card 3: Plus** (₹699/year · 4 Devices)
+  - In `frontend/src/components/public/UnifiedProCard.tsx`:
+    - Defaults to `mode = 'trial'` for all visitors so the **₹0 Free Trial** (glowing emerald card, 100% Free Trial badge, ₹0 price, and "Claim 7-Day Free Trial" button) is immediately visible on first view.
+    - Embedded an interactive top toggle pill (`[ 1 Device • ₹0 Free Trial ]` vs `[ 2 Devices • ₹79/mo ]`) that is always visible and enables 1-click switching between Free Trial and Paid Pro.
+    - Dynamic duration: Accurately pulls `duration_days` from the admin database (e.g. 7 days).
+  - Deployed cleanly to EC2 VPS via PEM key (`git pull`, `npm run build`, `pm2 restart iptv-frontend`).
+  - Verified live at `https://nivatv.luxomall.in/pricing` and `https://nivatv.luxomall.in/`.
+
 ## Free Trial Plan Visibility & Dynamic Duration Restoration (November 2026)
 - **Identified Root Causes for Missing Free Trial on Website:**
   - **Legacy Scratchcard Duration Filter in `publicApi.ts`:** In `frontend/src/lib/publicApi.ts`, `getPublicPlans` contained a legacy global filter `filter(p => p.duration_days !== 7)`. When the administrator configured the Free Trial plan ("Pro Free Trial") with `duration_days = 7` (as seen in admin panel), the frontend automatically stripped the plan from both SSR and client-side queries, leaving `plans` with only the paid tiers (Starter ₹49, Pro ₹79, Plus ₹699).
