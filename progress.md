@@ -1,5 +1,30 @@
 # NivaTV - Recent Progress
 
+## Server Resource Optimization & Cost Reduction (November 2026)
+- **Diagnosed Live AWS EC2 VPS Resource Usage (`44.206.18.189`, `t3.micro`):**
+  - CPU: 2 vCPUs (Intel Xeon @ 2.50GHz) running at < 1% idle.
+  - Initial RAM: 909 MiB total, ~512 MiB used, ~396 MiB available, 337 MiB swap used.
+  - Initial Disk: 29 GB EBS volume, 15 GB used (53%), 14 GB free.
+- **Executed Resource Optimization & System Cleanup via SSH (`F:\chrome\iptv.pem`):**
+  - **Disabled Unnecessary Daemons:** Stopped, disabled, and masked `multipathd.service` and `multipathd.socket` (non-essential SAN multipathing daemon on single-EBS cloud instances), freeing continuous resident RAM and CPU ticks.
+  - **Journal Vacuum & Disk Cleanup:**
+    - Capped systemd logs by setting `SystemMaxUse=50M` in `/etc/systemd/journald.conf` and executed `journalctl --vacuum-size=50M`, clearing obsolete journal archives.
+    - Executed `apt-get clean`, `npm cache clean --force`, and `apt-get autoremove -y`, freeing **~2.0 GB** of disk space (used storage dropped from 15 GB down to 13 GB / 46% disk usage).
+  - **Configured PM2 Auto-Recycle Memory Caps:**
+    - Configured `--max-memory-restart 200M` for `iptv-frontend` (Next.js) and `--max-memory-restart 120M` for `iptv-backend` (Express API) to prevent runaway memory leaks.
+    - Saved configuration persistently with `pm2 save`.
+  - **Flushed Stale Kernel Page Caches:**
+    - Ran `sudo sync && sudo sysctl -w vm.drop_caches=3`.
+- **Post-Optimization Results:**
+  - **Available RAM:** Increased from **396 MiB to 510 MiB** (> 56% of total system RAM is now completely free/available).
+  - **Used RAM:** Dropped from **512 MiB to 399 MiB**.
+  - **Swap Usage:** Dropped by over 65% from **337 MiB down to 118 MiB**.
+  - **Disk Free Space:** Increased from **14 GB to 16 GB** (disk usage dropped to 46%).
+  - **Service Health:** Verified `iptv-backend` and `iptv-frontend` online with 0% CPU; verified HTTP 200 on `https://nivatv.luxomall.in/pricing`, `https://nivatv.luxomall.in/api/public/plans`, and `https://nivatv.luxomall.in/api/app/config`.
+- **Cost Reduction Recommendation (AWS Reserved Instances / Savings Plans):**
+  - The server is already on `t3.micro` (~$7.50/mo or ~₹620/mo). Downsizing to `t3.nano` (512MB RAM) is not recommended because Next.js compilation spikes memory and requires at least 1GB + swap.
+  - Recommended action to reduce AWS billing by **35% - 40%**: In AWS Billing & Cost Management Console, purchase a **1-Year All-Upfront or No-Upfront EC2 Instance Savings Plan** for `t3.micro`, lowering the monthly instance price to **~$4.50/month (~₹370/mo)** with zero server risk.
+
 ## Free Trial & Paid Pro Consolidation into 3 Clean Cards (November 2026)
 - **Consolidated Pricing Grid to Exactly 3 Symmetric Cards:**
   - In `frontend/src/components/public/PricingGrid.tsx`, restored the 3-column layout (`grid-cols-1 md:grid-cols-3`):
